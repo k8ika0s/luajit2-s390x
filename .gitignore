@@ -13,3 +13,7 @@
 *~
 tags
 *.swo
+*.pyc
+artifacts/
+tools/s390x/__pycache__/
+tests/s390x/*/build/

@@ -32,6 +32,7 @@ ok
 
 
 === TEST 2: empty tables - JIT
+--- requires: trace
 --- lua
 jit.on()
 require "jit.opt".start("hotloop=3")

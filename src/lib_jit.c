@@ -326,7 +326,6 @@ LJLIB_CF(jit_util_funcuvname)
 /* -- Reflection API for traces ------------------------------------------- */
 
 #if LJ_HASJIT
-
 /* Check trace argument. Must not throw for non-existent trace numbers. */
 static GCtrace *jit_checktrace(lua_State *L)
 {
@@ -476,6 +475,24 @@ LJLIB_CF(jit_util_ircalladdr)
   }
   return 0;
 }
+
+#else
+
+/* Keep jit.util trace helpers callable on interpreter-only builds without
+** adding duplicate library definition markers that would confuse buildvm.
+*/
+#define JIT_UTIL_STUB(name) \
+  static int lj_cf_##name(lua_State *L) { UNUSED(L); return 0; }
+
+JIT_UTIL_STUB(jit_util_traceinfo)
+JIT_UTIL_STUB(jit_util_traceir)
+JIT_UTIL_STUB(jit_util_tracek)
+JIT_UTIL_STUB(jit_util_tracesnap)
+JIT_UTIL_STUB(jit_util_tracemc)
+JIT_UTIL_STUB(jit_util_traceexitstub)
+JIT_UTIL_STUB(jit_util_ircalladdr)
+
+#undef JIT_UTIL_STUB
 
 #endif
 
@@ -826,4 +843,3 @@ LUALIB_API int luaopen_jit(lua_State *L)
   L->top -= 2;
   return 1;
 }
-

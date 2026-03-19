@@ -10,6 +10,7 @@ run_tests();
 __DATA__
 
 === TEST 1: interpreted (sanity)
+--- requires: compiler
 --- lua
 jit.off()
 
@@ -38,6 +39,7 @@ bad argument #1 to 'prngstate' (PRNG state must be an array with up to 8 integer
 
 
 === TEST 2: JIT (set)
+--- requires: compiler trace
 --- lua
 jit.opt.start("minstitch=100000", "hotloop=2")
 
@@ -54,6 +56,7 @@ qr/trace too short at test.lua:4/
 
 
 === TEST 3: PRNG state can be an integer
+--- requires: compiler
 --- lua
 function print_array(a)
   local out = a[1]

@@ -1,7 +1,7 @@
 # vim: set ss=4 ft= sw=4 et sts=4 ts=4:
 
 use lib '.';
-use t::TestLJ;
+use t::TestLJ default_requires => [qw(trace)];
 
 plan tests => 3 * blocks();
 

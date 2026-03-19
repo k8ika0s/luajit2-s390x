@@ -1241,7 +1241,7 @@ static int ccall_set_args(lua_State *L, CTState *cts, CType *ct,
       *(void **)dp = rp;
       dp = rp;
     }
-#if LJ_TARGET_PPC && LJ_ARCH_BITS == 64 && LJ_BE
+#if (LJ_TARGET_PPC && LJ_ARCH_BITS == 64 && LJ_BE) || LJ_TARGET_S390X
     if (ctype_isstruct(d->info) && sz < CTSIZE_PTR) {
       dp = (char *)dp + (CTSIZE_PTR - sz);
     }

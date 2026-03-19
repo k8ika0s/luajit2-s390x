@@ -102,6 +102,12 @@ static MSize CALLBACK_OFS2SLOT(MSize ofs)
 
 #define CALLBACK_MCODE_HEAD		52
 
+#elif LJ_TARGET_S390X
+
+#define CALLBACK_SLOT2OFS(slot)		(8*(slot))
+#define CALLBACK_OFS2SLOT(ofs)		((ofs)/8)
+#define CALLBACK_MAX_SLOT		((CALLBACK_MCODE_SIZE - 64) / 8)
+
 #else
 
 /* Missing support for this architecture. */
@@ -252,7 +258,7 @@ static void *callback_mcode_init(global_State *g, uint32_t *page)
   MSize slot;
 #if LJ_ARCH_PPC_ELFV2
   // Needs to be in sync with lj_vm_ffi_callback.
-  lua_assert(CALLBACK_MCODE_SIZE == 4096);
+  lj_assertX(CALLBACK_MCODE_SIZE == 4096, "bad callback mcode size");
   for (slot = 0; slot < CALLBACK_MAX_SLOT; slot++) {
     *p = PPCI_B | (((page+CALLBACK_MAX_SLOT-p) & 0x00ffffffu) << 2);
     p++;
@@ -314,6 +320,98 @@ static void *callback_mcode_init(global_State *g, uint32_t *page)
     *p++ = MIPSI_LI | MIPSF_T(RID_R1) | slot;
   }
   return p;
+}
+#elif LJ_TARGET_S390X
+static void *callback_mcode_init(global_State *g, uint8_t *page)
+{
+  uint8_t *p = page;
+  uint8_t *common = page + CALLBACK_MAX_SLOT*8;
+  uintptr_t target = (uintptr_t)(void *)lj_vm_ffi_callback;
+  MSize slot;
+
+#define S390X_WRITE8(dst, x)	do { *(dst)++ = (uint8_t)(x); } while (0)
+#define S390X_WRITE16(dst, x)	do { \
+    uint16_t _x = (uint16_t)(x); \
+    S390X_WRITE8(dst, _x >> 8); \
+    S390X_WRITE8(dst, _x); \
+  } while (0)
+#define S390X_WRITE32(dst, x)	do { \
+    uint32_t _x = (uint32_t)(x); \
+    S390X_WRITE8(dst, _x >> 24); \
+    S390X_WRITE8(dst, _x >> 16); \
+    S390X_WRITE8(dst, _x >> 8); \
+    S390X_WRITE8(dst, _x); \
+  } while (0)
+#define S390X_WRITE64(dst, x)	do { \
+    uint64_t _x = (uint64_t)(x); \
+    S390X_WRITE8(dst, _x >> 56); \
+    S390X_WRITE8(dst, _x >> 48); \
+    S390X_WRITE8(dst, _x >> 40); \
+    S390X_WRITE8(dst, _x >> 32); \
+    S390X_WRITE8(dst, _x >> 24); \
+    S390X_WRITE8(dst, _x >> 16); \
+    S390X_WRITE8(dst, _x >> 8); \
+    S390X_WRITE8(dst, _x); \
+  } while (0)
+#define S390X_EMIT_BRAS(dst, reg, disp)	do { \
+    S390X_WRITE8(dst, 0xa7); \
+    S390X_WRITE8(dst, ((reg) << 4) | 0x05); \
+    S390X_WRITE16(dst, (disp)); \
+  } while (0)
+#define S390X_EMIT_LGHI(dst, reg, imm)	do { \
+    S390X_WRITE8(dst, 0xa7); \
+    S390X_WRITE8(dst, ((reg) << 4) | 0x09); \
+    S390X_WRITE16(dst, (imm)); \
+  } while (0)
+#define S390X_EMIT_LARL(dst, reg, disp)	do { \
+    S390X_WRITE8(dst, 0xc0); \
+    S390X_WRITE8(dst, (reg) << 4); \
+    S390X_WRITE32(dst, (disp)); \
+  } while (0)
+
+  lj_assertX(CALLBACK_MCODE_SIZE == 4096, "bad callback mcode size");
+  for (slot = 0; slot < CALLBACK_MAX_SLOT; slot++) {
+    intptr_t slotofs = CALLBACK_SLOT2OFS(slot);
+    intptr_t commonofs = (intptr_t)(common - page);
+    /* Encode the slot number directly and branch to the common handler. */
+    S390X_EMIT_LGHI(p, 1, (uint16_t)slot);
+    S390X_EMIT_BRAS(p, 0, (uint16_t)(((commonofs - slotofs) - 4) >> 1));
+  }
+
+  {
+    intptr_t commonofs = (intptr_t)(common - page);
+    intptr_t glitofs = commonofs + 32;
+    intptr_t targetlitofs = glitofs + 8;
+
+    /* Stash g in the reserved caller save area so vm_ffi_callback can pick
+    ** it up without clobbering any callee-saved GPR before saveregs.
+    */
+    S390X_EMIT_LARL(p, 12, (int32_t)((glitofs - commonofs) >> 1));
+    S390X_WRITE32(p, 0xe300c000u);  /* lg r0, 0(r12) */
+    S390X_WRITE16(p, 0x0004u);
+    S390X_WRITE32(p, 0xe300f008u);  /* stg r0, 8(r15) */
+    S390X_WRITE16(p, 0x0024u);
+
+    S390X_EMIT_LARL(p, 12, (int32_t)((targetlitofs - (commonofs + 18)) >> 1));
+    S390X_WRITE32(p, 0xe3c0c000u);  /* lg r12, 0(r12) */
+    S390X_WRITE16(p, 0x0004u);
+    S390X_WRITE16(p, 0x07fcu);  /* br r12 */
+
+    S390X_WRITE64(p, (uintptr_t)(void *)g);
+    S390X_WRITE64(p, target);
+  }
+
+  lj_assertX((size_t)(p - page) <= CALLBACK_MCODE_SIZE,
+	     "callback mcode overflow");
+  return p;
+
+#undef S390X_WRITE8
+#undef S390X_WRITE16
+#undef S390X_WRITE32
+#undef S390X_WRITE64
+#undef S390X_EMIT_BRAS
+#undef S390X_EMIT_LGHI
+#undef S390X_EMIT_LARL
 }
 #else
 /* Missing support for this architecture. */
@@ -777,6 +875,15 @@ static void callback_conv_result(CTState *cts, lua_State *L, TValue *o)
     if (ctr->size <= 4 &&
 	(LJ_ABI_SOFTFP || ctype_isinteger_or_bool(ctr->info)))
       *(int64_t *)dp = (int64_t)*(int32_t *)dp;
+#endif
+#if LJ_TARGET_S390X
+    if ((ctype_isinteger_or_bool(ctr->info) || ctype_isenum(ctr->info))
+	&& ctr->size <= 4) {
+      if (ctr->info & CTF_UNSIGNED)
+	*(uint64_t *)dp = (uint64_t)*(uint32_t *)dp;
+      else
+	*(int64_t *)dp = (int64_t)*(int32_t *)dp;
+    }
 #endif
 #if LJ_TARGET_X86
     if (ctype_isfp(ctr->info))
