@@ -17,3 +17,5 @@ tags
 artifacts/
 tools/s390x/__pycache__/
 tests/s390x/*/build/
+tests/s390x/callbacks/*.dylib
+tests/s390x/callbacks/*.dylib.dSYM/
