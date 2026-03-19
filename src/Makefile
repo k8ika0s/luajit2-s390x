@@ -289,6 +289,12 @@ endif
 TARGET_XCFLAGS+= $(CCOPT_$(TARGET_LJARCH))
 TARGET_ARCH+= $(patsubst %,-DLUAJIT_TARGET=LUAJIT_ARCH_%,$(TARGET_LJARCH))
 
+ifneq (,$(findstring clang,$(notdir $(firstword $(TARGET_CC)))))
+  ifeq (s390x,$(TARGET_LJARCH))
+    TARGET_ASFLAGS+= -fno-integrated-as
+  endif
+endif
+
 ifneq (,$(PREFIX))
 ifneq (/usr/local,$(PREFIX))
   TARGET_XCFLAGS+= -DLUA_ROOT=\"$(PREFIX)\"
@@ -752,6 +758,12 @@ $(HOST_O): %.o: %.c
 	$(Q)$(HOST_CC) $(HOST_ACFLAGS) -c -o $@ $<
 
 include Makefile.dep
+
+# A clean parallel build can otherwise race generated headers like luajit.h
+# against early object compilation on some hosts. Keep header generation as an
+# order-only prerequisite here and let Makefile.dep handle the real rebuild
+# triggers for files that actually include generated headers.
+$(LJVMCORE_O) $(LUAJIT_O): | $(ALL_HDRGEN)
 
 ##############################################################################
 # Target file rules.

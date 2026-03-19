@@ -227,6 +227,8 @@ static Reg rset_pickrandom(ASMState *as, RegSet rs)
 #include "lj_emit_arm.h"
 #elif LJ_TARGET_ARM64
 #include "lj_emit_arm64.h"
+#elif LJ_TARGET_S390X
+#include "lj_emit_s390x.h"
 #elif LJ_TARGET_PPC
 #include "lj_emit_ppc.h"
 #elif LJ_TARGET_MIPS

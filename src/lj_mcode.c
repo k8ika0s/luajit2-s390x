@@ -53,7 +53,7 @@ void lj_mcode_sync(void *start, void *end)
 #elif LJ_TARGET_PPC
   lj_vm_cachesync(start, end);
 #elif defined(__GNUC__) || defined(__clang__)
-  __clear_cache(start, end);
+  __builtin___clear_cache((char *)start, (char *)end);
 #else
 #error "Missing builtin to flush instruction cache"
 #endif
@@ -263,15 +263,16 @@ static void mcode_protect(jit_State *J, int prot)
 
 #ifdef LJ_TARGET_JUMPRANGE
 
-#define MCODE_RANGE64	((1u << LJ_TARGET_JUMPRANGE) - 0x10000u)
+#define MCODE_JUMPRANGE	(((uintptr_t)1) << LJ_TARGET_JUMPRANGE)
+#define MCODE_RANGE64	(MCODE_JUMPRANGE - (uintptr_t)0x10000u)
 
 /* Set a memory range for mcode allocation with addr in the middle. */
 static void mcode_setrange(jit_State *J, uintptr_t addr)
 {
 #if LJ_TARGET_MIPS
   /* Use the whole 256MB-aligned region. */
-  J->mcmin = addr & ~(uintptr_t)((1u << LJ_TARGET_JUMPRANGE) - 1);
-  J->mcmax = J->mcmin + (1u << LJ_TARGET_JUMPRANGE);
+  J->mcmin = addr & ~(MCODE_JUMPRANGE - 1);
+  J->mcmax = J->mcmin + MCODE_JUMPRANGE;
 #else
   /* Every address in the 64KB-aligned range should be able to reach
   ** any other, so MCODE_RANGE64 is only half the (signed) branch range.

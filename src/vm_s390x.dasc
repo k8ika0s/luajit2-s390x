@@ -265,16 +265,24 @@
 |.endmacro
 |
 |// Decrement hashed hotcount and trigger trace recorder if zero.
-|.macro hotloop, reg
+|.macro hotcheck, delta, target, reg
 |  lgr reg, PC   
 |  srlg reg, reg, 1
-|  nill reg, HOTCOUNT_PCMASK 
-|  afi reg, GG_DISP2HOT
-|  agr reg, DISPATCH
-|  lg TMPR1, (reg) 
-|  aghi TMPR1, -HOTCOUNT_LOOP 
-|  stg TMPR1, (reg) 
-|  jl ->vm_hotloop
+|  llill TMPR1, HOTCOUNT_PCMASK
+|  ngr reg, TMPR1
+|  lay reg, GG_DISP2HOT(reg, DISPATCH)
+|  lgh TMPR1, 0(reg)
+|  aghi TMPR1, -delta
+|  sth TMPR1, 0(reg)
+|  jl target
+|.endmacro
+|
+|.macro hotloop, reg
+|  hotcheck HOTCOUNT_LOOP, ->vm_hotloop, reg
+|.endmacro
+|
+|.macro hotcall, reg
+|  hotcheck HOTCOUNT_CALL, ->vm_hotcall, reg
 |.endmacro
 |
 |// Set current VM state.
@@ -407,14 +415,16 @@ static void build_subroutines(BuildCtx *ctx)
   |  j <3
   |
   |->vm_unwind_yield:
-  |  lghi CRET1, LUA_YIELD
+  |  lghi RD, LUA_YIELD
   |  j ->vm_unwind_c_eh
   |
   |->vm_unwind_c:			// Unwind C stack, return from vm_pcall.
   |  // (void *cframe, int errcode)
   |  lgr sp, CARG1
-  |  lgfr CARG2, CRET1			// Error return status for vm_pcall.
+  |  lgfr RD, CARG2			// Error return status for vm_pcall.
   |->vm_unwind_c_eh:			// Landing pad for external unwinder.
+  |  // GCC delivers EH return data in r6 on s390x. Return int status in r2.
+  |  lgr CRET1, RD
   |  lg L:RB, SAVE_L
   |  lg GL:RB, L:RB->glref
   |  lghi TMPR1, ~LJ_VMST_C
@@ -1998,8 +2008,20 @@ static void build_subroutines(BuildCtx *ctx)
   |//-----------------------------------------------------------------------
   |
   |->vm_record:				// Dispatch target for recording phase.
-  |  stg r0, 0
-  |  stg r0, 0
+  |.if JIT
+  |  llgc RD, (DISPATCH_GL(hookmask))(DISPATCH)
+  |  tmll RD, HOOK_VMEVENT		// No recording while in vmevent.
+  |  jne >5
+  |  // Decrement the hookcount for consistency, but always do the call.
+  |  tmll RD, HOOK_ACTIVE
+  |  jne >1
+  |  tmll RD, LUA_MASKLINE|LUA_MASKCOUNT
+  |  je >1
+  |  ly TMPR0, (DISPATCH_GL(hookcount))(DISPATCH)
+  |  ahi TMPR0, -1
+  |  sty TMPR0, (DISPATCH_GL(hookcount))(DISPATCH)
+  |  j >1
+  |.endif
   |
   |->vm_rethook:			// Dispatch target for return hooks.
   |  llgc RD, (DISPATCH_GL(hookmask))(DISPATCH)
@@ -2054,7 +2076,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  stg BASE, L:RB->base
   |  stg RD, L:RB->top 
   |  lgr CARG2, PC
-  |  la CARG1, GG_DISP2J(DISPATCH)
+  |  lay CARG1, GG_DISP2J(DISPATCH)
   |  stg L:RB, (DISPATCH_J(L))(DISPATCH)
   |  stg PC, SAVE_PC
   |  brasl r14, extern lj_trace_hot		// (jit_State *J, const BCIns *pc)
@@ -2194,22 +2216,57 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- FFI helper functions -----------------------------------------------
   |//-----------------------------------------------------------------------
   |
-  |// Handler for callback functions. Callback slot number in ah/al.
+  |// Handler for callback functions. Callback slot in r1.
+  |// The trampoline stashes g in the reserved caller save area at 8(sp).
   |->vm_ffi_callback:
   |.if FFI
   |.type CTSTATE, CTState, PC
   |  saveregs
+  |  lg RB, RESERVED
   |  la DISPATCH, GG_G2DISP(RB)
   |  lg CTSTATE, GL:RB->ctype_state
-  |  llgcr RC, RC
-  |  stg RC, CTSTATE->cb.slot
-  |  
-  |  la RC, CFRAME_SIZE(sp)
+  |  st TMPR1, CTSTATE->cb.slot
+  |  stg CARG1, CTSTATE->cb.gpr[0]
+  |  std FARG1, CTSTATE->cb.fpr[0]
+  |  stg CARG2, CTSTATE->cb.gpr[1]
+  |  std FARG2, CTSTATE->cb.fpr[1]
+  |  stg CARG3, CTSTATE->cb.gpr[2]
+  |  std FARG3, CTSTATE->cb.fpr[2]
+  |  stg CARG4, CTSTATE->cb.gpr[3]
+  |  std FARG4, CTSTATE->cb.fpr[3]
+  |  stg CARG5, CTSTATE->cb.gpr[4]
+  |  la TMPR0, (CFRAME_SIZE + CCALL_SPS_EXTRA*8)(sp)
+  |  stg TMPR0, CTSTATE->cb.stack
+  |  stg CTSTATE, SAVE_PC		// Any value outside of bytecode is ok.
+  |  lgr CARG1, CTSTATE
+  |  lgr CARG2, sp
+  |  brasl r14, extern lj_ccallback_enter	// (CTState *cts, void *cf)
+  |  stg CRET1, SAVE_L
+  |  lg BASE, L:CRET1->base
+  |  lg RD, L:CRET1->top
+  |  lg LFUNC:RB, -16(BASE)
+  |  cleartp LFUNC:RB
+  |  set_vmstate INTERP
+  |  sgr RD, BASE
+  |  srlg NARGS:RD, NARGS:RD, 3
+  |  aghi NARGS:RD, 1
+  |  ins_callt
   |.endif
   |
   |->cont_ffi_callback:			// Return from FFI callback.
-  |  stg r0, 0
-  |  stg r0, 0
+  |.if FFI
+  |  lg L:CARG3, SAVE_L
+  |  lg CTSTATE, DISPATCH_GL(ctype_state)(DISPATCH)
+  |  stg BASE, L:CARG3->base
+  |  stg RB, L:CARG3->top
+  |  stg L:CARG3, CTSTATE->L
+  |  lgr CARG1, CTSTATE
+  |  lgr CARG2, RC
+  |  brasl r14, extern lj_ccallback_leave	// (CTState *cts, TValue *o)
+  |  ld FARG1, CTSTATE->cb.fpr[0]
+  |  lg CRET1, CTSTATE->cb.gpr[0]
+  |  j ->vm_leave_unw
+  |.endif
   |
   |->vm_ffi_call:			// Call C function via FFI.
   |  // Caveat: needs special frame unwinding, see below.
@@ -3894,7 +3951,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
       |  srag ITYPE, ITYPE, 47
       |  cghi ITYPE, LJ_TISNUM; jne ->vmeta_for
     } else {
-      |  ar RB, ITYPE; jo <1
+      if (op == BC_IFORL) {
+        |  ar RB, ITYPE; jo <7
+      } else {
+        |  ar RB, ITYPE; jo <6
+      }
       |  setint RB
       |  stg RB, FOR_IDX
     }
@@ -4003,8 +4064,19 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     break;
 
   case BC_JLOOP:
-    |  stg r0, 0
-    |  stg r0, 0
+    |.if JIT
+    |  ins_AD	// RA = base (ignored), RD = traceno
+    |  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
+    |  sllg RD, RD, 3
+    |  lg TRACE:RD, 0(RD, TMPR1)
+    |  xgr TMPR1, TMPR1
+    |  stg BASE, DISPATCH_GL(jit_base)(DISPATCH)
+    |  lg L:RB, SAVE_L
+    |  stg L:RB, DISPATCH_GL(tmpbuf.L)(DISPATCH)
+    |  stg TMPR1, DISPATCH_GL(vmstate)(DISPATCH)
+    |  lg RA, TRACE:RD->mcode
+    |  br RA
+    |.endif
     break;
 
   case BC_JMP:
@@ -4024,7 +4096,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
 
   case BC_FUNCF:
     |.if JIT
-    |  stg r0, 0
+    |  hotcall RB
     |.endif
   case BC_FUNCV:  /* NYI: compiled vararg functions. */
     | // Fall through. Assumes BC_IFUNCF/BC_IFUNCV follow and ins_AD is a no-op.
@@ -4324,4 +4396,3 @@ static void emit_asm_debug(BuildCtx *ctx)
     break;
   }
 }
-

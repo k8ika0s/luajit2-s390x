@@ -32,6 +32,7 @@ print(nkeys({ dogs = nil, cats = 4 }))
 
 
 === TEST 2: hash table, JIT
+--- requires: trace
 --- lua
 jit.on()
 jit.opt.start("minstitch=100000", "hotloop=2")
@@ -91,6 +92,7 @@ print(nkeys({ "dogs", nil, "cats", 4 }))
 
 
 === TEST 4: pure array, JIT
+--- requires: trace
 --- lua
 jit.on()
 jit.opt.start("minstitch=100000", "hotloop=2")
@@ -146,6 +148,7 @@ print(nkeys({ nil, "foo", dogs = 3, cats = 4 }))
 
 
 === TEST 6: mixing array & hash, JIT
+--- requires: trace
 --- lua
 jit.on()
 jit.opt.start("minstitch=100000", "hotloop=2")

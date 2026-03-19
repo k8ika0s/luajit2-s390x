@@ -107,6 +107,7 @@ cdata<void *>: 0xefdeadbeed
 
 
 === TEST 4: JIT mode (reading)
+--- requires: trace
 --- lua
 jit.opt.start("minstitch=100000", "hotloop=2")
 local assert = assert
@@ -136,6 +137,7 @@ cdata<void *>: 0xefdeaddeadbeef
 
 
 === TEST 5: JIT mode (writing)
+--- requires: trace
 --- lua
 jit.opt.start("minstitch=100000", "hotloop=2")
 local assert = assert
@@ -188,6 +190,7 @@ print(nargs(exdata2()))
 
 
 === TEST 7: JIT mode  - check the number of arguments
+--- requires: trace
 --- lua
 jit.opt.start("minstitch=100000", "hotloop=2")
 local assert = assert
@@ -276,6 +279,7 @@ cdata<void *>: NULL
 
 
 === TEST 10: default value (JIT)
+--- requires: trace
 --- lua
 jit.opt.start("minstitch=100000", "hotloop=2")
 jit.on()

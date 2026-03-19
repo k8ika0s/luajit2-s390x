@@ -155,8 +155,7 @@ void dasm_setup(Dst_DECL, const void *actionlist)
 
 #ifdef DASM_CHECKS
 #define CK(x, st) \
-  do { if (!(x)) { \
-    D->status = DASM_S_##st|(p-D->actionlist-1); return; } } while (0)
+  do { if (!(x)) { D->status = DASM_S_##st|(p-D->actionlist-1); return; } } while (0)
 #define CKPL(kind, st) \
   do { if ((size_t)((char *)pl-(char *)D->kind##labels) >= D->kind##size) { \
     D->status = DASM_S_RANGE_##st|(p-D->actionlist-1); return; } } while (0)
@@ -224,8 +223,8 @@ void dasm_put(Dst_DECL, int start, ...)
       pl = D->lglabels + n;
       /* Bkwd rel or global. */
       if (n >= 0) {
-        CK(n >= 10 || *pl < 0, RANGE_LG);
         CKPL(lg, LG);
+        CK(n >= 10 || *pl < 0, RANGE_LG);
         goto putrel;
       }
       pl += 10;
@@ -237,6 +236,7 @@ void dasm_put(Dst_DECL, int start, ...)
       if (p[-2] >> 12 == 0xc) { /* RIL instruction needs 32-bit immediate. */
         ofs += 2;
       }
+      p++;                    /* Skip action argument placeholder. */
       pl = D->pclabels + n;
       CKPL(pc, PC);
     putrel:
@@ -539,4 +539,3 @@ int dasm_checkstep(Dst_DECL, int secmatch)
   return D->status;
 }
 #endif
-

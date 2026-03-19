@@ -1,7 +1,7 @@
 # vim:ft=
 
 use lib '.';
-use t::TestLJ;
+use t::TestLJ default_requires => [qw(trace)];
 
 plan tests => 3 * blocks();
 
