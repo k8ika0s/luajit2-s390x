@@ -47,6 +47,20 @@ JIT_T_FILES = {
     "jit_loops": ["iter.t"],
 }
 
+JIT_CORE_LUA_FILES = [
+    "tests/s390x/jit_core/isarray_root_loop.lua",
+    "tests/s390x/jit_core/bitops_trace.lua",
+    "tests/s390x/jit_core/ffi_cdata_trace.lua",
+    "tests/s390x/jit_core/mod_trace.lua",
+    "tests/s390x/jit_core/profile_loop.lua",
+    "tests/s390x/jit_core/trace_event_postloop.lua",
+]
+
+JIT_LOOPS_LUA_FILES = [
+    "tests/s390x/jit_loops/explicit_next.lua",
+    "tests/s390x/jit_loops/vararg_trace.lua",
+]
+
 SUITES = {
     "smoke": "Build and runtime smoke checks",
     "pure_lua": "Interpreter-focused Lua and non-JIT regression coverage",
@@ -200,15 +214,16 @@ class CommandLogger:
 class Context:
     def __init__(self, args: argparse.Namespace):
         self.args = args
-        self.run_id = args.run_id if args.run_id != "auto" else self._auto_run_id()
-        self.local_run_dir = ARTIFACTS_ROOT / self.run_id
+        self.run_id, self.local_run_dir = self._init_run_dir()
         self.local_remote_dir = self.local_run_dir / "remote"
         self.local_binaries_dir = self.local_run_dir / "binaries"
         self.local_metadata_dir = self.local_run_dir / "metadata"
-        self.local_run_dir.mkdir(parents=True, exist_ok=True)
-        self.local_remote_dir.mkdir(parents=True, exist_ok=True)
-        self.local_binaries_dir.mkdir(parents=True, exist_ok=True)
-        self.local_metadata_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_path = self.local_run_dir / ".lock"
+        self.lock_fd: Optional[int] = None
+        self._acquire_local_lock()
+        self.local_remote_dir.mkdir(parents=True, exist_ok=self.args.resume)
+        self.local_binaries_dir.mkdir(parents=True, exist_ok=self.args.resume)
+        self.local_metadata_dir.mkdir(parents=True, exist_ok=self.args.resume)
         self.logger = CommandLogger(self.local_run_dir / "commands.ndjson")
         self.host: Optional[str] = None
         self.primary_host: Optional[str] = None
@@ -239,7 +254,63 @@ class Context:
 
     @staticmethod
     def _auto_run_id() -> str:
-        return dt.datetime.now().strftime("%Y%m%dT%H%M%SZ")
+        now = dt.datetime.now(dt.timezone.utc)
+        return f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-p{os.getpid()}"
+
+    def _init_run_dir(self) -> tuple[str, pathlib.Path]:
+        ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
+        if self.args.run_id == "auto":
+            return self._create_unique_auto_run_dir()
+
+        run_dir = ARTIFACTS_ROOT / self.args.run_id
+        if self.args.resume:
+            if not run_dir.exists():
+                raise DriverError(f"cannot resume missing run directory: {run_dir}")
+            if not (run_dir / "manifest.json").exists():
+                raise DriverError(f"cannot resume without manifest: {run_dir / 'manifest.json'}")
+            return self.args.run_id, run_dir
+
+        try:
+            run_dir.mkdir(parents=True, exist_ok=False)
+        except FileExistsError as exc:
+            raise DriverError(
+                f"run-id already exists: {self.args.run_id}; use --resume to reuse an existing run"
+            ) from exc
+        return self.args.run_id, run_dir
+
+    def _create_unique_auto_run_dir(self) -> tuple[str, pathlib.Path]:
+        for _ in range(32):
+            run_id = self._auto_run_id()
+            run_dir = ARTIFACTS_ROOT / run_id
+            try:
+                run_dir.mkdir(parents=True, exist_ok=False)
+                return run_id, run_dir
+            except FileExistsError:
+                time.sleep(0.001)
+        raise DriverError("unable to allocate a unique auto run-id after repeated collisions")
+
+    def _acquire_local_lock(self) -> None:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        try:
+            self.lock_fd = os.open(self.lock_path, flags, 0o644)
+        except FileExistsError as exc:
+            raise DriverError(f"run directory is already locked: {self.local_run_dir}") from exc
+        lock_payload = {
+            "pid": os.getpid(),
+            "run_id": self.run_id,
+            "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "resume": self.args.resume,
+        }
+        os.write(self.lock_fd, (json.dumps(lock_payload, sort_keys=True) + "\n").encode("utf-8"))
+
+    def release_local_lock(self) -> None:
+        if self.lock_fd is not None:
+            os.close(self.lock_fd)
+            self.lock_fd = None
+        try:
+            self.lock_path.unlink()
+        except FileNotFoundError:
+            pass
 
     def save_manifest(self) -> None:
         self.manifest["host"] = self.host
@@ -599,10 +670,9 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
-            mkdir -p tests/s390x/ffi_abi/build
+            CC={variant.compiler} sh tests/s390x/build_oracles.sh
             printf "%s\\n" "tests/s390x/ffi_abi/run.lua" > "$S390X_STEP_DIR/current_test.txt"
-            {variant.compiler} -shared -fPIC -std=c11 -O0 -g -o tests/s390x/ffi_abi/build/liboracle.so tests/s390x/ffi_abi/oracle.c -lm
-            ./src/luajit tests/s390x/ffi_abi/run.lua tests/s390x/ffi_abi/build/liboracle.so
+            ./src/luajit tests/s390x/ffi_abi/run.lua
             """
         ).strip()
     if suite == "callbacks":
@@ -612,14 +682,20 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
-            mkdir -p tests/s390x/callbacks/build
+            CC={variant.compiler} sh tests/s390x/build_oracles.sh
             printf "%s\\n" "tests/s390x/callbacks/run.lua" > "$S390X_STEP_DIR/current_test.txt"
-            {variant.compiler} -shared -fPIC -std=c11 -O0 -g -o tests/s390x/callbacks/build/libcallback_oracle.so tests/s390x/callbacks/callback_oracle.c -lm
-            ./src/luajit tests/s390x/callbacks/run.lua tests/s390x/callbacks/build/libcallback_oracle.so
+            ./src/luajit tests/s390x/callbacks/run.lua
             """
         ).strip()
     if suite == "jit_core":
         caps = testlj_caps(stage, variant)
+        lua_steps = "\n".join(
+            [
+                f'printf "%s\\n" {shlex.quote(test)} > "$S390X_STEP_DIR/current_test.txt"\n'
+                f'./src/luajit {shlex.quote(test)}'
+                for test in JIT_CORE_LUA_FILES
+            ]
+        )
         perl_steps = "\n".join(
             [
                 f'printf "%s\\n" {shlex.quote(f"t/{test}")} > "$S390X_STEP_DIR/current_test.txt"\n'
@@ -631,8 +707,12 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
+            {lua_steps}
             for test in tests/s390x/jit_core/*.lua; do
               [ -e "$test" ] || continue
+              if [ "$test" = "tests/s390x/jit_core/isarray_root_loop.lua" ]; then
+                continue
+              fi
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
               ./src/luajit "$test"
             done
@@ -641,6 +721,13 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
         ).strip()
     if suite == "jit_loops":
         caps = testlj_caps(stage, variant)
+        lua_steps = "\n".join(
+            [
+                f'printf "%s\\n" {shlex.quote(test)} > "$S390X_STEP_DIR/current_test.txt"\n'
+                f'./src/luajit {shlex.quote(test)}'
+                for test in JIT_LOOPS_LUA_FILES
+            ]
+        )
         perl_steps = "\n".join(
             [
                 f'printf "%s\\n" {shlex.quote(f"t/{test}")} > "$S390X_STEP_DIR/current_test.txt"\n'
@@ -652,8 +739,12 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
+            {lua_steps}
             for test in tests/s390x/jit_loops/*.lua; do
               [ -e "$test" ] || continue
+              if [ "$test" = "tests/s390x/jit_loops/explicit_next.lua" ]; then
+                continue
+              fi
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
               ./src/luajit "$test"
             done
@@ -852,9 +943,16 @@ def write_summary(ctx: Context) -> None:
 
 
 def update_latest_symlink(run_dir: pathlib.Path) -> None:
-    if LATEST_LINK.exists() or LATEST_LINK.is_symlink():
-        LATEST_LINK.unlink()
-    LATEST_LINK.symlink_to(run_dir.name)
+    ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
+    temp_link = ARTIFACTS_ROOT / f".latest.tmp.{os.getpid()}"
+    try:
+        if temp_link.exists() or temp_link.is_symlink():
+            temp_link.unlink()
+        temp_link.symlink_to(run_dir.name)
+        os.replace(temp_link, LATEST_LINK)
+    finally:
+        if temp_link.exists() or temp_link.is_symlink():
+            temp_link.unlink()
 
 
 def record_exception(ctx: Context, failure_type: str, exc: BaseException) -> None:
@@ -934,6 +1032,7 @@ def main() -> int:
         collect_remote_artifacts(ctx, ctx.host) if ctx.host else None
         maybe_cleanup_remote(ctx)
         ctx.logger.close()
+        ctx.release_local_lock()
 
 
 if __name__ == "__main__":

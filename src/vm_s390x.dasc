@@ -196,6 +196,12 @@
 #define DISPATCH_J(field)	(GG_DISP2J + (int)offsetof(jit_State, field))
 |
 #define PC2PROTO(field)  ((int)offsetof(GCproto, field)-(int)sizeof(GCproto))
+#define EXITSTATE_FPR_BASE	0
+#define EXITSTATE_GPR_BASE	(16 * 8)
+#define EXITSTATE_SPILL_BASE	(EXITSTATE_GPR_BASE + 16 * 8)
+#define EXITSTATE_SIZE		(EXITSTATE_SPILL_BASE + 256 * 4)
+#define EXITSTATE_FPR_OFS(n)	(EXITSTATE_FPR_BASE + (n) * 8)
+#define EXITSTATE_GPR_OFS(n)	(EXITSTATE_GPR_BASE + (n) * 8)
 |
 |//-----------------------------------------------------------------------
 |
@@ -288,7 +294,7 @@
 |// Set current VM state.
 |.macro set_vmstate, st
 |  lghi TMPR1, ~LJ_VMST_..st
-|  stg TMPR1, DISPATCH_GL(vmstate)(DISPATCH)
+|  sty TMPR1, DISPATCH_GL(vmstate)(DISPATCH)
 |.endmacro
 |
 |// Synthesize binary floating-point constants.
@@ -428,7 +434,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  lg L:RB, SAVE_L
   |  lg GL:RB, L:RB->glref
   |  lghi TMPR1, ~LJ_VMST_C
-  |  stg TMPR1, GL:RB->vmstate
+  |  sty TMPR1, GL:RB->vmstate
   |  j ->vm_leave_unw
   |
   |->vm_unwind_ff:			// Unwind C stack, return from ff pcall.
@@ -1930,7 +1936,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  lghi NARGS:RD, 1+1			// Other args are ignored, anyway.
   |->fff_fallback:			// Call fast function fallback handler.
   |  // BASE = new base, RD = nargs+1
-  |  lg L:RB, SAVE_L
+  |  lg L:RB, DISPATCH_GL(cur_L)(DISPATCH)
   |  lg PC, -8(BASE)			// Fallback may overwrite PC.
   |  stg PC, SAVE_PC			// Redundant (but a defined value).
   |  stg BASE, L:RB->base
@@ -1947,18 +1953,20 @@ static void build_subroutines(BuildCtx *ctx)
   |  basr r14, TMPR1			// (lua_State *L)
   |  lg BASE, L:RB->base
   |  // Either throws an error, or recovers and returns -1, 0 or nresults+1.
-  |  lgr RD, CRET1
+  |  lgfr RD, CRET1
   |  cghi RD, 0; jh ->fff_res	// Returned nresults+1?
   |1:
   |  lg RA, L:RB->top
   |  sgr RA, BASE
   |  srlg RA, RA, 3
-  |  cghi RD, 0
-  |    la NARGS:RD, 1(RA)
-  |    lg LFUNC:RB, -16(BASE)
-  |  jne ->vm_call_tail			// Returned -1?
-  |  cleartp LFUNC:RB
-  |  ins_callt				// Returned 0: retry fast path.
+|  cghi RD, 0
+|    la NARGS:RD, 1(RA)
+|    lg LFUNC:RB, -16(BASE)
+|  jne ->vm_call_tail			// Returned -1?
+|  cleartp LFUNC:RB
+|  lg PC, SAVE_PC
+|  stg PC, -8(BASE)			// Keep retry PC authoritative for re-fallback.
+|  ins_callt				// Returned 0: retry fast path.
   |
   |// Reconstruct previous base for vmeta_call during tailcall.
   |->vm_call_tail:
@@ -1976,13 +1984,15 @@ static void build_subroutines(BuildCtx *ctx)
   |  sgr BASE, RB
   |  j ->vm_call_dispatch		// Resolve again for tailcall.
   |
-  |5:  // Grow stack for fallback handler.
-  |  lghi CARG2, LUA_MINSTACK
-  |  lgr CARG1, L:RB
-  |  brasl r14, extern lj_state_growstack	// (lua_State *L, int n)
-  |  lg BASE, L:RB->base
-  |  lghi RD, 0				// Simulate a return 0.
-  |  j <1				// Dumb retry (goes through ff first).
+|5:  // Grow stack for fallback handler.
+|  lg L:RB, DISPATCH_GL(cur_L)(DISPATCH)
+|  lghi CARG2, LUA_MINSTACK
+|  lgr CARG1, L:RB
+|  brasl r14, extern lj_state_growstack	// (lua_State *L, int n)
+|  lg L:RB, DISPATCH_GL(cur_L)(DISPATCH)
+|  lg BASE, L:RB->base
+|  lghi RD, 0				// Simulate a return 0.
+|  j <1				// Dumb retry (goes through ff first).
   |
   |->fff_gcstep:			// Call GC step function.
   |  // BASE = new base, RD = nargs+1
@@ -2042,11 +2052,11 @@ static void build_subroutines(BuildCtx *ctx)
   |  je >1
   |  tmll RD, LUA_MASKLINE
   |  je >5
-  |1:
-  |  lg L:RB, SAVE_L
-  |  stg BASE, L:RB->base
-  |  lgr CARG2, PC
-  |  lgr CARG1, L:RB
+|1:
+|  lg L:RB, DISPATCH_GL(cur_L)(DISPATCH)
+|  stg BASE, L:RB->base
+|  lgr CARG2, PC
+|  lgr CARG1, L:RB
   |  // SAVE_PC must hold the _previous_ PC. The callee updates it with PC.
   |  brasl r14, extern lj_dispatch_ins	// (lua_State *L, const BCIns *pc)
   |3:
@@ -2061,8 +2071,10 @@ static void build_subroutines(BuildCtx *ctx)
   |  br TMPR1
   |
   |->cont_hook:				// Continue from hook yield.
-  |  stg r0, 0
-  |  stg r0, 0
+  |  la PC, 4(PC)
+  |  lg RA, -40(RB)
+  |  st RA, SAVE_MULTRES		// Restore MULTRES for *M ins.
+  |  j <4
   |
   |->vm_hotloop:			// Hot loop counter underflow.
   |.if JIT
@@ -2120,25 +2132,200 @@ static void build_subroutines(BuildCtx *ctx)
   |  br RB
   |
   |->cont_stitch:			// Trace stitching.
-  |  stg r0, 0
-  |  stg r0, 0
+  |.if JIT
+  |  // BASE = base, RC = result, RB = meta base.
+  |  lg TRACE:ITYPE, -40(RB)		// Save previous trace.
+  |  cleartp TRACE:ITYPE
+  |  llgf RD, SAVE_MULTRES
+  |  llgc RA, PC_RA
+  |  sllg RA, RA, 3
+  |  la RA, 0(RA, BASE)			// Call base.
+  |  aghi RD, -1
+  |  je >2
+  |1:  // Move results down.
+  |  lg TMPR1, 0(RC)
+  |  stg TMPR1, 0(RA)
+  |  la RC, 8(RC)
+  |  la RA, 8(RA)
+  |  aghi RD, -1
+  |  jne <1
+  |2:
+  |  llgc RC, PC_RA
+  |  llgc RD, PC_RB
+  |  agr RC, RD
+  |  sllg RC, RC, 3
+  |  lay RC, -8(RC, BASE)
+  |3:
+  |  clgr RC, RA
+  |  jh >9				// More results wanted?
+  |
+  |  ltgr ITYPE, ITYPE
+  |  je ->cont_nop
+  |  llgh TMPR0, TRACE:ITYPE->traceno
+  |  llgh RD, TRACE:ITYPE->link
+  |  cgr RD, TMPR0
+  |  je ->cont_nop			// Blacklisted.
+  |  ltgr RD, RD
+  |  je >4
+  |  // Jump to stitched trace.
+  |  j =>BC_JLOOP
+  |
+  |  // Stitch a new trace to the previous trace.
+|4:
+|  sty TMPR0, DISPATCH_J(exitno)(DISPATCH)
+|  lg L:RB, DISPATCH_J(L)(DISPATCH)
+|  stg BASE, L:RB->base
+|  stg L:RB, DISPATCH_J(L)(DISPATCH)
+|  lay CARG1, GG_DISP2J(DISPATCH)
+|  lgr CARG2, PC
+  |  brasl r14, extern lj_dispatch_stitch	// (jit_State *J, const BCIns *pc)
+  |  lg BASE, L:RB->base
+  |  j ->cont_nop
+  |
+  |9:  // Fill up results with nil.
+  |  lghi TMPR1, LJ_TNIL
+  |  stg TMPR1, 0(RA)
+  |  la RA, 8(RA)
+  |  j <3
+  |.endif
   |
   |->vm_profhook:			// Dispatch target for profiler hook.
-  |  stg r0, 0
-  |  stg r0, 0
+#if LJ_HASPROFILE
+  |  lg L:RB, DISPATCH_GL(cur_L)(DISPATCH)
+  |  stg BASE, L:RB->base
+  |  lgr CARG2, PC
+  |  lgr CARG1, L:RB
+  |  brasl r14, extern lj_dispatch_profile	// (lua_State *L, const BCIns *pc)
+  |  lg BASE, L:RB->base
+  |  aghi PC, -4				// Re-dispatch to dynamic instruction.
+  |  j ->cont_nop
+#endif
   |
   |//-----------------------------------------------------------------------
   |//-- Trace exit handler -------------------------------------------------
   |//-----------------------------------------------------------------------
   |
-  |// Called from an exit stub with the exit number on the stack.
-  |// The 16 bit exit number is stored with two (sign-extended) push imm8.
-  |->vm_exit_handler:
-  |  stg r0, 0
-  |  stg r0, 0
-  |->vm_exit_interp:
-  |  stg r0, 0
-  |  stg r0, 0
+  |// Called from a per-exit stub with exitno in RESERVED(orig_sp) and
+  |// traceno in r0. The exit state is saved to an ExitState on the stack.
+|->vm_exit_handler:
+|.if JIT
+|  lay sp, -EXITSTATE_SPILL_BASE(sp)
+  |  std f0,  EXITSTATE_FPR_OFS(0)(sp)
+  |  std f1,  EXITSTATE_FPR_OFS(1)(sp)
+  |  std f2,  EXITSTATE_FPR_OFS(2)(sp)
+  |  std f3,  EXITSTATE_FPR_OFS(3)(sp)
+  |  std f4,  EXITSTATE_FPR_OFS(4)(sp)
+  |  std f5,  EXITSTATE_FPR_OFS(5)(sp)
+  |  std f6,  EXITSTATE_FPR_OFS(6)(sp)
+  |  std f7,  EXITSTATE_FPR_OFS(7)(sp)
+  |  std f8,  EXITSTATE_FPR_OFS(8)(sp)
+  |  std f9,  EXITSTATE_FPR_OFS(9)(sp)
+  |  std f10, EXITSTATE_FPR_OFS(10)(sp)
+  |  std f11, EXITSTATE_FPR_OFS(11)(sp)
+  |  std f12, EXITSTATE_FPR_OFS(12)(sp)
+  |  std f13, EXITSTATE_FPR_OFS(13)(sp)
+  |  std f14, EXITSTATE_FPR_OFS(14)(sp)
+  |  std f15, EXITSTATE_FPR_OFS(15)(sp)
+  |  stg TMPR0, EXITSTATE_GPR_OFS(0)(sp)
+  |  stg TMPR1, EXITSTATE_GPR_OFS(1)(sp)
+  |  stmg r2, r13, EXITSTATE_GPR_OFS(2)(sp)
+  |  stg r14, EXITSTATE_GPR_OFS(14)(sp)
+  |  lay CARG2, EXITSTATE_SPILL_BASE(sp)
+  |  stg CARG2, EXITSTATE_GPR_OFS(15)(sp)
+  |  lgr CARG3, TMPR0
+  |  lg RB, DISPATCH_GL(cur_L)(DISPATCH)
+  |  xgr CARG5, CARG5
+  |  lg CARG4, 248(CARG2)
+  |  set_vmstate EXIT
+  |  sty CARG4, DISPATCH_J(exitno)(DISPATCH)
+  |  sty CARG3, DISPATCH_J(parent)(DISPATCH)
+  |  stg RB, DISPATCH_J(L)(DISPATCH)
+  |  lg BASE, DISPATCH_GL(jit_base)(DISPATCH)
+  |  stg BASE, L:RB->base
+  |  stg CARG5, DISPATCH_GL(jit_base)(DISPATCH)
+  |  lay CARG1, GG_DISP2J(DISPATCH)
+  |  lgr CARG2, sp
+  |  brasl r14, extern lj_trace_exit		// (jit_State *J, ExitState *ex)
+  |  lg TMPR1, L:RB->cframe
+  |  nill TMPR1, CFRAME_RAWMASK
+  |  lgr sp, TMPR1
+  |  stg RB, SAVE_L
+  |  lg BASE, L:RB->base
+  |  lg PC, SAVE_PC
+  |  j ->vm_exit_interp
+  |.endif
+|->vm_exit_interp:
+|.if JIT
+|  lg L:RB, DISPATCH_J(L)(DISPATCH)
+|  lg TMPR1, L:RB->cframe
+|  nill TMPR1, CFRAME_RAWMASK
+|  lgr sp, TMPR1
+|  lgfr RD, CRET1			// RD = MULTRES or negated error code.
+|  stg BASE, L:RB->base
+ |  xgr TMPR1, TMPR1
+|  stg TMPR1, DISPATCH_GL(jit_base)(DISPATCH)
+  |  set_vmstate INTERP
+  |  cghi RD, 0
+  |  jnl >1
+  |  cghi RD, -LUA_ERRERR
+  |  jnl >9				// Check for error from exit.
+  |1:
+  |  st RD, SAVE_MULTRES
+  |  lgr RC, RD
+  |  lg LFUNC:KBASE, -16(BASE)
+  |  cleartp LFUNC:KBASE
+  |  lg KBASE, LFUNC:KBASE->pc
+  |  lg KBASE, (PC2PROTO(k))(KBASE)
+  |  llgc OP, 3(PC)
+  |  llgh RD, 0(PC)
+  |  llgc RA, 2(PC)
+  |  lay PC, 4(PC)
+  |  aghi RC, 17				// Static dispatch?
+  |  je >5
+  |  cghi OP, BC_FUNCF
+  |  jl >3
+  |  cghi OP, BC_FUNCC+2		// Fast function?
+  |  jl >2
+  |  lg TMPR1, -8(BASE)			// Check frame below fast function.
+  |  tmll TMPR1, FRAME_TYPE
+  |  jne >2				// Trace stitching continuation?
+  |  llgc RC, -2(TMPR1)
+  |  lcgr RC, RC
+  |  sllg RC, RC, 3
+  |  lg LFUNC:KBASE, -32(RC, BASE)
+  |  cleartp LFUNC:KBASE
+  |  lg KBASE, LFUNC:KBASE->pc
+  |  lg KBASE, (PC2PROTO(k))(KBASE)
+  |2:
+  |  llgf RD, SAVE_MULTRES		// RD holds nres+1 for function headers.
+  |3:
+  |  sllg TMPR1, OP, 3
+  |  lg TMPR1, 0(TMPR1, DISPATCH)
+  |  br TMPR1
+  |
+|5:  // Dispatch to static entry of original ins replaced by BC_JLOOP.
+|  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
+|  sllg RD, RD, 3
+  |  lg TRACE:RD, 0(RD, TMPR1)
+  |  llgf TMPR1, TRACE:RD->startins
+  |  lgr OP, TMPR1
+  |  sllg OP, OP, 56
+  |  srlg OP, OP, 56
+  |  lgr RA, TMPR1
+  |  sllg RA, RA, 48
+  |  srlg RA, RA, 56
+  |  llgfr RD, TMPR1
+  |  srl RD, 16
+  |  sllg TMPR1, OP, 3
+  |  lg TMPR1, GG_DISP2STATIC(TMPR1, DISPATCH)
+  |  br TMPR1
+  |
+  |9:  // Rethrow error from the right C frame.
+  |  lgr CARG1, L:RB
+  |  lgr CARG2, RD
+  |  lcgr CARG2, CARG2
+  |  brasl r14, extern lj_err_trace	// (lua_State *L, int errcode)
+  |.endif
   |
   |//-----------------------------------------------------------------------
   |//-- Math helper functions ----------------------------------------------
@@ -2200,17 +2387,75 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- Assertions ---------------------------------------------------------
   |//-----------------------------------------------------------------------
   |
-  |->assert_bad_for_arg_type:
-  |  stg r0, 0
-  |  stg r0, 0
+|->assert_bad_for_arg_type:
+|  stg r0, 0
+|  stg r0, 0
 #ifdef LUA_USE_ASSERT
 #endif
-  |
-  |->vm_next:
-  |.if JIT
-  |  stg r0, 0 // NYI On big-endian.
-  |  stg r0, 0
-  |.endif
+|
+|.define NEXT_TAB,		TAB:CARG1
+|.define NEXT_IDX,		CARG2
+|.define NEXT_ASIZE,		CARG4
+|.define NEXT_NODE,		CARG3
+|.define NEXT_ARR,		CARG5
+|.define NEXT_VAL,		TMPR1
+|.define NEXT_KEY,		TMPR0
+|
+|// TValue *lj_vm_next(GCtab *t, uint32_t idx)
+|// Next idx returned in CRET1/r2, result pointer in CRET2/r3.
+|->vm_next:
+|.if JIT
+|  llgfr NEXT_IDX, NEXT_IDX
+|  llgf NEXT_ASIZE, NEXT_TAB->asize
+|  lg NEXT_ARR, NEXT_TAB->array
+|1:  // Traverse array part.
+|  clgr NEXT_IDX, NEXT_ASIZE
+|  jhe >5				// Index points after array part?
+|  sllg NEXT_KEY, NEXT_IDX, 3
+|  lg NEXT_VAL, 0(NEXT_KEY, NEXT_ARR)
+|  cghi NEXT_VAL, LJ_TNIL
+|  je >4
+|  stg NEXT_VAL, DISPATCH_GL(tmptv)(DISPATCH)
+|  setint NEXT_KEY, NEXT_IDX
+|  stg NEXT_KEY, DISPATCH_GL(tmptv2)(DISPATCH)
+|  aghi NEXT_IDX, 1
+|  lgr CARG1, NEXT_IDX
+|  lay CARG2, DISPATCH_GL(tmptv)(DISPATCH)
+|  br r14
+|
+|4:  // Skip holes in array part.
+|  aghi NEXT_IDX, 1
+|  j <1
+|
+|5:  // Traverse hash part.
+|  sgr NEXT_IDX, NEXT_ASIZE
+|6:
+|  cl NEXT_IDX, NEXT_TAB->hmask
+|  jh >9				// End of iteration?
+|  llgfr NEXT_NODE, NEXT_IDX
+|  mghi NEXT_NODE, #NODE
+|  ag NEXT_NODE, NEXT_TAB->node
+|  lg NEXT_VAL, NODE:NEXT_NODE->val
+|  cghi NEXT_VAL, LJ_TNIL
+|  je >7
+|  llgfr CARG1, NEXT_IDX
+|  agr CARG1, NEXT_ASIZE
+|  aghi CARG1, 1
+|  lgr CARG2, NEXT_NODE
+|  br r14
+|
+|7:  // Skip holes in hash part.
+|  aghi NEXT_IDX, 1
+|  j <6
+|
+|9:  // End of iteration. Set key to nil (not the value).
+|  lghi NEXT_KEY, LJ_TNIL
+|  stg NEXT_KEY, DISPATCH_GL(tmptv2)(DISPATCH)
+|  llgfr CARG1, NEXT_IDX
+|  agr CARG1, NEXT_ASIZE
+|  lay CARG2, DISPATCH_GL(tmptv)(DISPATCH)
+|  br r14
+|.endif
   |
   |//-----------------------------------------------------------------------
   |//-- FFI helper functions -----------------------------------------------
@@ -2709,7 +2954,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |->BC_LEN_Z:
     |  brasl r14, extern lj_tab_len	// (GCtab *t)
     |  // Length of table returned in r2 (CRET1).
-    |  lgr RD, CRET1
+    |  lgfr RD, CRET1
     |  llgc RA, PC_RA
     |  j <1
 #if LJ_52
@@ -3634,7 +3879,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
 
   case BC_ITERN:
     |.if JIT
-    |  hotloop RB // NYI: add hotloop, record BC_ITERN.
+    |  hotloop RB
     |.endif
     |->vm_IITERN:
     |  ins_A	// RA = base, (RB = nresults+1, RC = nargs+1 (2+1))
@@ -4066,6 +4311,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_JLOOP:
     |.if JIT
     |  ins_AD	// RA = base (ignored), RD = traceno
+    |  stg PC, SAVE_PC
     |  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
     |  sllg RD, RD, 3
     |  lg TRACE:RD, 0(RD, TMPR1)
@@ -4073,7 +4319,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  stg BASE, DISPATCH_GL(jit_base)(DISPATCH)
     |  lg L:RB, SAVE_L
     |  stg L:RB, DISPATCH_GL(tmpbuf.L)(DISPATCH)
-    |  stg TMPR1, DISPATCH_GL(vmstate)(DISPATCH)
+    |  sty TMPR1, DISPATCH_GL(vmstate)(DISPATCH)
     |  lg RA, TRACE:RD->mcode
     |  br RA
     |.endif

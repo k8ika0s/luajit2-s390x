@@ -7,6 +7,8 @@
 #define LUA_CORE
 
 #include "lj_obj.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 #if LJ_HASJIT
 
@@ -43,6 +45,46 @@
 
 /* Emit raw IR without passing through optimizations. */
 #define emitir_raw(ot, a, b)	(lj_ir_set(J, (ot), (a), (b)), lj_ir_emit(J))
+
+static int s390x_recidx_log_enabled(void)
+{
+  static int state = -1;
+  if (state == -1) {
+    const char *flag = getenv("LUAJIT_S390X_RECIDX_LOG");
+    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
+  }
+  return state;
+}
+
+static void s390x_recidx_log_key(FILE *out, cTValue *tv)
+{
+  if (tvisstr(tv)) {
+    GCstr *str = strV(tv);
+    fprintf(out, "%.*s", (int)str->len, strdata(str));
+  } else {
+    fputs("<non-str>", out);
+  }
+}
+
+static void s390x_recidx_log(jit_State *J, RecordIndex *ix, const char *phase,
+			     IROp xrefop, cTValue *oldv)
+{
+  FILE *out;
+  if (!s390x_recidx_log_enabled() || !ix->val || !tvisstr(&ix->keyv))
+    return;
+  out = stderr;
+  fprintf(out,
+	  "S390X_RECIDX phase=%s parent=%u exit=%u startpc=%p pc=%p xrefop=%d oldv_nil=%d oldv_ptr=%p key=",
+	  phase, (unsigned int)J->parent, (unsigned int)J->exitno,
+	  (void *)J->startpc, (void *)J->pc, (int)xrefop,
+	  oldv == niltvg(J2G(J)), (void *)oldv);
+  s390x_recidx_log_key(out, &ix->keyv);
+  fprintf(out, " tab=%p hmask=%u asize=%u\n",
+	  (void *)tabV(&ix->tabv),
+	  (unsigned int)tabV(&ix->tabv)->hmask,
+	  (unsigned int)tabV(&ix->tabv)->asize);
+  fflush(out);
+}
 
 /* -- Sanity checks ------------------------------------------------------- */
 
@@ -674,14 +716,6 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
 /* Record ITERN. */
 static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 {
-#if LJ_BE
-  /* YAGNI: Disabled on big-endian due to issues with lj_vm_next,
-  ** IR_HIOP, RID_RETLO/RID_RETHI and ra_destpair.
-  */
-  UNUSED(ra); UNUSED(rb);
-  setintV(&J->errinfo, (int32_t)BC_ITERN);
-  lj_trace_err_info(J, LJ_TRERR_NYIBC);
-#else
   RecordIndex ix;
   /* Since ITERN is recorded at the start, we need our own loop detection. */
   if (J->pc == J->startpc &&
@@ -720,7 +754,6 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     J->pc += 2;
     return LOOPEV_LEAVE;
   }
-#endif
 }
 
 /* Record ISNEXT. */
@@ -1593,6 +1626,7 @@ TRef lj_record_idx(jit_State *J, RecordIndex *ix)
   loadop = xrefop == IR_AREF ? IR_ALOAD : IR_HLOAD;
   /* The lj_meta_tset() inconsistency is gone, but better play safe. */
   oldv = xrefop == IR_KKPTR ? (cTValue *)ir_kptr(IR(tref_ref(xref))) : ix->oldv;
+  s390x_recidx_log(J, ix, "lookup", xrefop, oldv);
 
   if (ix->val == 0) {  /* Indexed load */
     IRType t = itype2irt(oldv);
@@ -1619,6 +1653,7 @@ TRef lj_record_idx(jit_State *J, RecordIndex *ix)
       J->guardemit = rbguard;
     }
     if (tvisnil(oldv)) {  /* Previous value was nil? */
+      s390x_recidx_log(J, ix, "store-miss", xrefop, oldv);
       /* Need to duplicate the hasmm check for the early guards. */
       int hasmm = 0;
       if (ix->idxchain && mt) {
@@ -1655,6 +1690,7 @@ TRef lj_record_idx(jit_State *J, RecordIndex *ix)
 #endif
       }
     } else if (!lj_opt_fwd_wasnonnil(J, loadop, tref_ref(xref))) {
+      s390x_recidx_log(J, ix, "store-hit-guard", xrefop, oldv);
       /* Cannot derive that the previous value was non-nil, must do checks. */
       if (xrefop == IR_HREF)  /* Guard against store to niltv. */
 	emitir(IRTG(IR_NE, IRT_PGC), xref, lj_ir_kkptr(J, niltvg(J2G(J))));
@@ -1669,6 +1705,7 @@ TRef lj_record_idx(jit_State *J, RecordIndex *ix)
 	}
       }
     } else {
+      s390x_recidx_log(J, ix, "store-hit-fwd", xrefop, oldv);
       keybarrier = 0;  /* Previous non-nil value kept the key alive. */
     }
     /* Convert int to number before storing. */

@@ -40,6 +40,16 @@ This is the official OpenResty branch of LuaJIT. It is not to be considered a
 fork, since we still regularly synchronize changes from the upstream LuaJIT
 project (https://github.com/LuaJIT/LuaJIT).
 
+## s390x Bring-Up Status
+
+This branch also carries an in-progress native s390x enablement effort.
+Current branch-local status, findings, and the native validation workflow are
+tracked in:
+
+- [docs/s390x/README.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/README.md)
+- [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
+- [docs/s390x/runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
+
 # OpenResty extensions
 
 Additionally to synchronizing upstream changes, we introduce our own changes

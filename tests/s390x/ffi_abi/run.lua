@@ -1,7 +1,7 @@
 local ffi = require("ffi")
 local t = require("tests.s390x.helpers.testlib")
 
-local libpath = assert(arg[1], "missing oracle library path")
+local libpath = arg[1] or "tests/s390x/ffi_abi/build/liboracle.so"
 local function u64(value)
   return ffi.new("uint64_t", value)
 end
@@ -28,6 +28,8 @@ uint64_t echo_u64(uint64_t value);
 
 float add_float(float a, float b);
 double add_double(double a, double b);
+complex double add_complex(complex double a, complex double b);
+complex double mul_complex(complex double a, complex double b);
 
 small_u8 echo_small_u8(small_u8 value);
 small_u16 echo_small_u16(small_u16 value);
@@ -52,6 +54,14 @@ t.eq(tonumber(lib.echo_u64(u64(9000000000000))), 9000000000000, "echo_u64")
 
 t.approx(lib.add_float(1.5, 2.25), 3.75, 1e-6, "add_float")
 t.approx(lib.add_double(1.5, 2.25), 3.75, 1e-12, "add_double")
+local z1 = ffi.new("complex double", { 1.5, -2.25 })
+local z2 = ffi.new("complex double", { -0.5, 0.75 })
+local zsum = lib.add_complex(z1, z2)
+t.approx(zsum.re, 1.0, 1e-12, "add_complex.re")
+t.approx(zsum.im, -1.5, 1e-12, "add_complex.im")
+local zmul = lib.mul_complex(z1, z2)
+t.approx(zmul.re, 0.9375, 1e-12, "mul_complex.re")
+t.approx(zmul.im, 2.25, 1e-12, "mul_complex.im")
 
 local s8 = ffi.new("small_u8", { a = 17 })
 t.eq(lib.echo_small_u8(s8).a, 17, "small_u8")

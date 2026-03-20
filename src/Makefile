@@ -563,9 +563,11 @@ LIB_VMDEFP= $(LIB_VMDEF)
 LUAJIT_O= luajit.o
 LUAJIT_A= libluajit.a
 LUAJIT_SO= libluajit.so
+LUAJIT_SO_TARGET= $(LUAJIT_SO)
+LUAJIT_SO_EXTRA=
 LUAJIT_T= luajit
 
-ALL_T= $(LUAJIT_T) $(LUAJIT_A) $(LUAJIT_SO) $(HOST_T)
+ALL_T= $(LUAJIT_T) $(LUAJIT_A) $(LUAJIT_SO) $(LUAJIT_SO_EXTRA) $(HOST_T)
 ALL_HDRGEN= lj_bcdef.h lj_ffdef.h lj_libdef.h lj_recdef.h lj_folddef.h \
 	    host/buildvm_arch.h luajit.h
 ALL_GEN= $(LJVM_S) $(ALL_HDRGEN) luajit_relver.txt $(LIB_VMDEFP)
@@ -597,6 +599,16 @@ ifeq (Windows,$(TARGET_SYS))
     BUILDMODE= dynamic
     TARGET_XCFLAGS+= -DLUA_BUILD_AS_DLL
   endif
+endif
+ifneq (Windows,$(TARGET_SYS))
+ifeq (Darwin,$(TARGET_SYS))
+else
+ifeq (iOS,$(TARGET_SYS))
+else
+  LUAJIT_SO_TARGET= $(TARGET_SONAME)
+  LUAJIT_SO_EXTRA= $(TARGET_SONAME)
+endif
+endif
 endif
 ifeq (Darwin,$(TARGET_SYS))
   LJVM_MODE= machasm
@@ -739,14 +751,20 @@ lj_folddef.h: $(BUILDVM_T) lj_opt_fold.c
 # Object file rules.
 ##############################################################################
 
+%_dyn.o: %.c
+	$(E) "CC        $@"
+	$(Q)$(TARGET_DYNCC) $(TARGET_ACFLAGS) $(F_CFLAGS) -c -o $@ $<
+
+%_dyn.o: %.S
+	$(E) "ASM       $@"
+	$(Q)$(TARGET_DYNCC) $(TARGET_ASFLAGS) -c -o $@ $<
+
 %.o: %.c
 	$(E) "CC        $@"
-	$(Q)$(TARGET_DYNCC) $(TARGET_ACFLAGS) $(F_CFLAGS) -c -o $(@:.o=_dyn.o) $<
 	$(Q)$(TARGET_CC) $(TARGET_ACFLAGS) $(F_CFLAGS) -c -o $@ $<
 
 %.o: %.S
 	$(E) "ASM       $@"
-	$(Q)$(TARGET_DYNCC) $(TARGET_ASFLAGS) -c -o $(@:.o=_dyn.o) $<
 	$(Q)$(TARGET_CC) $(TARGET_ASFLAGS) -c -o $@ $<
 
 $(LUAJIT_O):
@@ -761,9 +779,10 @@ include Makefile.dep
 
 # A clean parallel build can otherwise race generated headers like luajit.h
 # against early object compilation on some hosts. Keep header generation as an
-# order-only prerequisite here and let Makefile.dep handle the real rebuild
-# triggers for files that actually include generated headers.
-$(LJVMCORE_O) $(LUAJIT_O): | $(ALL_HDRGEN)
+# order-only prerequisite for both static and dynamic objects, and let
+# Makefile.dep handle the real rebuild triggers for files that actually include
+# generated headers.
+$(LJVMCORE_O) $(LJVMCORE_DYNO) $(LUAJIT_O): | $(ALL_HDRGEN)
 
 ##############################################################################
 # Target file rules.
@@ -773,11 +792,16 @@ $(LUAJIT_A): $(LJVMCORE_O)
 	$(E) "AR        $@"
 	$(Q)$(TARGET_AR) $@ $(LJVMCORE_O)
 
-# The dependency on _O, but linking with _DYNO is intentional.
-$(LUAJIT_SO): $(LJVMCORE_O)
+# Shared-library links need the actual object list they consume. Depending
+# only on the static .o list lets clean parallel builds race past the
+# generated _dyn.o objects on some hosts.
+$(LUAJIT_SO): $(LJVMCORE_DYNO)
 	$(E) "DYNLINK   $@"
-	$(Q)$(TARGET_LD) $(TARGET_ASHLDFLAGS) -o $@ $(LJVMCORE_DYNO) $(TARGET_ALIBS)
-	$(Q)$(TARGET_STRIP) $@
+	$(Q)$(TARGET_LD) $(TARGET_ASHLDFLAGS) -o $(LUAJIT_SO_TARGET) $(LJVMCORE_DYNO) $(TARGET_ALIBS)
+	$(Q)$(TARGET_STRIP) $(LUAJIT_SO_TARGET)
+ifneq ($(LUAJIT_SO_TARGET),$(LUAJIT_SO))
+	$(Q)ln -sf $(LUAJIT_SO_TARGET) $(LUAJIT_SO)
+endif
 
 $(LUAJIT_T): $(TARGET_O) $(LUAJIT_O) $(TARGET_DEP)
 	$(E) "LINK      $@"
