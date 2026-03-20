@@ -129,9 +129,16 @@ ready for upstreaming.
   - s390x now lowers `NEG` and `UREFO`/`UREFC`
   - stripped native bitops loops on `kdz` now record and reach `TRACE ... stop`
   - the remaining failure is no longer a generic bitops NYI
-  - the current front-most bug is a wrong-result issue in the raw-return
-    `bitops_trace.lua` shape, where the first native mismatch appears in the
-    early `bit.band` / `bit.lshift` / `bit.bxor` chain for `i = 6`
+  - the current front-most bug is a traced-callee wrong-result issue in the
+    raw-return `bitops_trace.lua` shape
+  - the latest native split on `kdz` is:
+    - `jit.off(f, true)`: correct
+    - `jit.on(f, true)`: wrong
+  - the first minimal mismatch is still in the early
+    `bit.band` / `bit.lshift` / `bit.bxor` chain for `i = 6`
+  - implementing `asm_retf` and then spilling the adjusted `REF_BASE` in
+    `asm_retf` fixed the larger caller-frame corruption (`393222`) and moved
+    the remaining failure back to the simpler wrong return value (`6`)
 - The detailed findings log below is the authoritative status record for the
   current native bring-up work.
 

@@ -1812,3 +1812,47 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 - Next step for this slice:
   - validate the same profiler path on `zkd0`
   - then fold the updated profiler probe back into the staged native loop
+
+## 2026-03-20 Bitops JIT Follow-Up
+
+- Native `kdz` status before the latest return-path work:
+  - stripped bitops loops now record and reach `TRACE ... stop`
+  - the remaining wrong-result reproducer is the raw-return closure shape:
+    - `local x = bit.band(i, 0xff)`
+    - `x = bit.bxor(x, bit.lshift(i, 3))`
+    - `return x`
+  - first confirmed native mismatch:
+    - `i = 6`
+    - expected: `54`
+    - got: `6`
+
+- Differential narrowing:
+  - `jit.off()` on the focused closure is correct.
+  - If the callee is forced interpreted with `jit.off(f, true)`, the outer
+    hot loop stays correct on native `kdz`.
+  - If the callee is allowed to trace with `jit.on(f, true)`, the result is
+    wrong on native `kdz`.
+  - Practical implication:
+    - the front-most bug is now inside the traced callee path or its return
+      contract, not in the outer caller loop alone.
+
+- `asm_retf` remediation:
+  - s390x no longer leaves `asm_retf` as a stub.
+  - The first implementation removed the large caller-frame corruption and
+    changed the wrong-result shape from `393222` to a smaller wrong return.
+  - Adding the `REF_BASE` spill update in `asm_retf` fixed the larger caller
+    frame poisoning. After that change:
+    - `jit.off(f, true)` stays correct
+    - `jit.on(f, true)` is still wrong, but now returns `6` instead of
+      `393222`
+  - Practical implication:
+    - traced lower-frame return on s390x is materially closer to correct
+    - the remaining bug is back in the traced callee-local path, which is a
+      better next frontier than the earlier caller-frame corruption
+
+- Next step:
+  - stay on the minimal traced-callee closure
+  - inspect the generated callee trace body and its return-value placement
+    after the repaired `asm_retf`
+  - keep the next cut limited to the `band` / `lshift` / `bxor` path until the
+    `i = 6` reproducer is clean

@@ -828,6 +828,24 @@ static void asm_comp(ASMState *as, IRIns *ir)
     asm_intcomp(as, ir);
 }
 
+static void asm_retf(ASMState *as, IRIns *ir)
+{
+  Reg base = ra_alloc1(as, REF_BASE, RSET_GPR_NOB);
+  Reg tmp = ra_scratch(as, rset_exclude(RSET_GPR_NOB, base));
+  void *pc = ir_kptr(IR(ir->op2));
+  int32_t delta = 1+LJ_FR2+bc_a(*((const BCIns *)pc - 1));
+  as->topslot -= (BCReg)delta;
+  if ((int32_t)as->topslot < 0) as->topslot = 0;
+  irt_setmark(IR(REF_BASE)->t);  /* Children must not coalesce with BASE reg. */
+  emit_store64ofs(as, base, RID_SP, ra_spill(as, IR(REF_BASE)));
+  emit_setgl(as, base, jit_base);
+  emit_addptr(as, base, -8*delta);
+  asm_guardcc(as, CC_NE);
+  emit_u32(as, S390X_INS_RXE(S390XI_CGR, base, tmp));
+  emit_loadu64(as, tmp, (uintptr_t)pc);
+  emit_load64ofs(as, base, base, -8);
+}
+
 static void asm_equal(ASMState *as, IRIns *ir)
 {
   Reg left, right;
@@ -844,7 +862,6 @@ static void asm_equal(ASMState *as, IRIns *ir)
   asm_guardcc(as, ir->o == IR_EQ ? CC_NE : CC_EQ);
   emit_u32(as, S390X_INS_RXE(S390XI_CGR, left, right));
 }
-ASM_S390X_STUB_IR(asm_retf)
 static void asm_bnorm32(ASMState *as, IRIns *ir, Reg dest)
 {
   if (irt_isu32(ir->t))
