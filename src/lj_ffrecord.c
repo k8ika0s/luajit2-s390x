@@ -537,12 +537,6 @@ static void LJ_FASTCALL recff_getfenv(jit_State *J, RecordFFData *rd)
 
 static void LJ_FASTCALL recff_next(jit_State *J, RecordFFData *rd)
 {
-#if LJ_BE
-  /* YAGNI: Disabled on big-endian due to issues with lj_vm_next,
-  ** IR_HIOP, RID_RETLO/RID_RETHI and ra_destpair.
-  */
-  recff_nyi(J, rd);
-#else
   TRef tab = J->base[0];
   if (tref_istab(tab)) {
     RecordIndex ix;
@@ -566,7 +560,6 @@ static void LJ_FASTCALL recff_next(jit_State *J, RecordFFData *rd)
     J->base[0] = ix.key;
     J->base[1] = ix.val;
   }  /* else: Interpreter will throw. */
-#endif
 }
 
 /* -- Math library fast functions ----------------------------------------- */

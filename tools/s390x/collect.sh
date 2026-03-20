@@ -55,9 +55,28 @@ if [ -n "$BINARY" ] && [ -x "$BINARY" ] && [ -f "$STEP_DIR/diagnostics/failing-i
           -ex "set pagination off" \
           -ex run \
           -ex "thread apply all bt full" \
+          -ex "info registers" \
+          -ex "x/32i \$pc-32" \
           --args "$BINARY" "$failing_input" \
           >"$STEP_DIR/diagnostics/replay.gdb.txt" 2>&1 || true
         ;;
     esac
+  fi
+fi
+
+if [ -n "$BINARY" ] && [ -x "$BINARY" ] && [ -f "$STEP_DIR/stderr.log" ]; then
+  trace_addr="$(sed -n 's/.*TRACEADDR[^[:space:]]*.* addr=\(0x[0-9a-fA-F][0-9a-fA-F]*\).*/\1/p' "$STEP_DIR/stderr.log" | head -n1)"
+  if [ -n "$trace_addr" ] && [ -f "$STEP_DIR/diagnostics/failing-input.txt" ]; then
+    failing_input="$(cat "$STEP_DIR/diagnostics/failing-input.txt")"
+    if [ -f "$failing_input" ] && [ "$(basename "$failing_input")" = "isarray_root_loop.lua" ]; then
+      gdb -batch \
+        -ex "set pagination off" \
+        -ex run \
+        -ex "thread apply all bt full" \
+        -ex "info registers" \
+        -ex "x/120i $trace_addr" \
+        --args "$BINARY" "$failing_input" \
+        >"$STEP_DIR/diagnostics/replay-trace.gdb.txt" 2>&1 || true
+    fi
   fi
 fi

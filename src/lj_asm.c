@@ -30,10 +30,8 @@
 #include "lj_vm.h"
 #include "lj_target.h"
 #include "lj_prng.h"
-
-#ifdef LUA_USE_ASSERT
 #include <stdio.h>
-#endif
+#include <stdlib.h>
 
 /* -- Assembler state and common macros ----------------------------------- */
 
@@ -94,7 +92,7 @@ typedef struct ASMState {
   MCode *flagmcp;	/* Pending opportunity to merge flag setting ins. */
   MCode *realign;	/* Realign loop if not NULL. */
   MCode *mctail;	/* Tail of trace before stack adjust + jmp. */
-#if LJ_TARGET_PPC || LJ_TARGET_ARM64
+#if LJ_TARGET_PPC || LJ_TARGET_ARM64 || LJ_TARGET_S390X
   MCode *mcexit;	/* Pointer to exit stubs. */
 #endif
 
@@ -110,6 +108,31 @@ typedef struct ASMState {
   IRRef1 phireg[RID_MAX];  /* PHI register references. */
   uint16_t parentmap[LJ_MAX_JSLOTS];  /* Parent instruction to RegSP map. */
 } ASMState;
+
+static int lj_asm_s390x_guard_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_GUARD_LOG") != NULL);
+  return enabled;
+}
+
+static void lj_asm_s390x_guard_log(ASMState *as, int cc, const void *target,
+				   const void *patchpoint, int loopinv)
+{
+  if (!lj_asm_s390x_guard_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_GUARD curins=%d snap=%u loopsnap=%u cc=%d loopinv=%d p=%p target=%p invmcp=%p\n",
+	  (int)(as->curins - REF_BIAS),
+	  (unsigned int)as->snapno,
+	  (unsigned int)as->loopsnapno,
+	  cc,
+	  loopinv,
+	  patchpoint,
+	  target,
+	  (const void *)as->invmcp);
+}
 
 #ifdef LUA_USE_ASSERT
 #define lj_assertA(c, ...)	lj_assertG_(J2G(as->J), (c), __VA_ARGS__)
@@ -395,6 +418,12 @@ static Reg ra_rematk(ASMState *as, IRRef ref)
   ra_free(as, r);
   ra_modified(as, r);
   ir->r = RID_INIT;  /* Do not keep any hint. */
+  if (LJ_UNLIKELY(r >= RID_MIN_FPR &&
+		  getenv("LUAJIT_S390X_RA_LOG") != NULL)) {
+    fprintf(stderr, "S390X_REMAT curins=%d ref=%d op=%d r=%d i=%d t=%d\n",
+	    (int)(as->curins - REF_BIAS), (int)(ref - REF_BIAS), (int)ir->o,
+	    (int)r, (int)ir->i, (int)irt_type(ir->t));
+  }
   RA_DBGX((as, "remat     $i $r", ir, r));
 #if !LJ_SOFTFP32
   if (ir->o == IR_KNUM) {
@@ -525,6 +554,13 @@ static Reg ra_evict(ASMState *as, RegSet allow)
 /* Pick any register (marked as free). Evict on-demand. */
 static Reg ra_pick(ASMState *as, RegSet allow)
 {
+#if LJ_TARGET_S390X
+  if (allow != RID2RSET(RID_BASE)) {
+    RegSet nobase = rset_exclude(allow, RID_BASE);
+    if (nobase != RSET_EMPTY)
+      allow = nobase;
+  }
+#endif
   RegSet pick = as->freeset & allow;
   if (!pick)
     return ra_evict(as, allow);
@@ -597,8 +633,16 @@ static void ra_evictk(ASMState *as)
 static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow)
 {
   /* First try to find a register which already holds the same constant. */
-  RegSet pick, work = ~as->freeset & RSET_GPR;
+  RegSet pick, work;
   Reg r;
+#if LJ_TARGET_S390X
+  if (allow != RID2RSET(RID_BASE)) {
+    RegSet nobase = rset_exclude(allow, RID_BASE);
+    if (nobase != RSET_EMPTY)
+      allow = nobase;
+  }
+#endif
+  work = ~as->freeset & RSET_GPR & allow;
   while (work) {
     IRRef ref;
     r = rset_pickbot(work);
@@ -644,6 +688,12 @@ static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow)
     r = ra_evict(as, allow);
   }
   RA_DBGX((as, "allock    $x $r", k, r));
+  if (LJ_UNLIKELY(r >= RID_MIN_FPR &&
+		  getenv("LUAJIT_S390X_RA_LOG") != NULL)) {
+    fprintf(stderr, "S390X_ALLOCK curins=%d k=%lld r=%d allow=0x%llx\n",
+	    (int)(as->curins - REF_BIAS), (long long)k, (int)r,
+	    (unsigned long long)allow);
+  }
   ra_setkref(as, r, k);
   rset_clear(as->freeset, r);
   ra_noweak(as, r);
@@ -676,6 +726,19 @@ static Reg ra_allocref(ASMState *as, IRRef ref, RegSet allow)
   Reg r;
   lj_assertA(ra_noreg(ir->r),
 	     "IR %04d already has reg %d", ref - REF_BIAS, ir->r);
+#if LJ_TARGET_S390X
+  /* Reserve RID_BASE for explicit REF_BASE materialization. Any generic
+  ** allocator path that accidentally sees r13 in a broad allow set should
+  ** prefer another GPR first.
+  */
+  if (ref != REF_BASE) {
+    if ((allow & ~RID2RSET(RID_BASE)) != RSET_EMPTY)
+      allow = rset_exclude(allow, RID_BASE);
+    pick = as->freeset & allow;
+    if (ra_hashint(ir->r) && ra_gethint(ir->r) == RID_BASE)
+      ir->r = RID_INIT;
+  }
+#endif
   if (pick) {
     /* First check register hint from propagation or PHI. */
     if (ra_hashint(ir->r)) {
@@ -768,6 +831,11 @@ static void ra_rename(ASMState *as, Reg down, Reg up)
 static Reg ra_dest(ASMState *as, IRIns *ir, RegSet allow)
 {
   Reg dest = ir->r;
+#if LJ_TARGET_S390X
+  if (ra_hashint(dest) && ra_gethint(dest) == RID_BASE &&
+      (allow & ~RID2RSET(RID_BASE)) != RSET_EMPTY)
+    dest = RID_INIT;
+#endif
   if (ra_hasreg(dest)) {
     ra_free(as, dest);
     ra_modified(as, dest);
@@ -1769,6 +1837,16 @@ static void asm_mod(ASMState *as, IRIns *ir)
 static void asm_fuseequal(ASMState *as, IRIns *ir)
 {
   /* Fuse HREF + EQ/NE. */
+#if LJ_TARGET_S390X
+  /* The current s390x HREF lowering still uses a helper-call path.
+  ** Keep the compare separate so the guard follows the generic snapshot
+  ** numbering instead of being attached to the helper merge path.
+  */
+  if ((ir-1)->o == IR_HREF && ir->op1 == as->curins-1) {
+    asm_equal(as, ir);
+    return;
+  }
+#endif
   if ((ir-1)->o == IR_HREF && ir->op1 == as->curins-1) {
     as->curins--;
     asm_href(as, ir-1, (IROp)ir->o);

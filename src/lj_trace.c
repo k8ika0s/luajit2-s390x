@@ -31,6 +31,8 @@
 #include "lj_vmevent.h"
 #include "lj_target.h"
 #include "lj_prng.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 /* -- Error handling ------------------------------------------------------ */
 
@@ -50,6 +52,124 @@ void lj_trace_err_info(jit_State *J, TraceError e)
 }
 
 /* -- Trace management ---------------------------------------------------- */
+
+static int lj_trace_s390x_exit_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_EXIT_LOG") != NULL);
+  return enabled;
+}
+
+static uintptr_t lj_trace_s390x_exit_lr(const ExitState *ex)
+{
+#if LJ_TARGET_S390X
+  return ex ? (uintptr_t)ex->gpr[RID_R14] : 0;
+#else
+  UNUSED(ex);
+  return 0;
+#endif
+}
+
+#if LJ_TARGET_S390X
+static int lj_trace_s390x_exit_stub_info(const GCtrace *T, const ExitState *ex,
+					 uint32_t *slotp, int32_t *fromp,
+					 uintptr_t *basep)
+{
+  uintptr_t lr, base, limit, span, delta, retadj;
+  uint32_t maxexit;
+
+  if (!T || !T->mcode || !ex)
+    return 0;
+
+  lr = (uintptr_t)ex->gpr[RID_R14];
+  maxexit = T->root ? T->nsnap + 1 : T->nsnap;
+  base = (uintptr_t)exitstub_trace_addr(T, 0);
+  limit = (uintptr_t)exitstub_trace_addr(T, maxexit);
+  span = (uintptr_t)(EXITSTUB_SPACING * sizeof(MCode));
+  retadj = 2;  /* s390x BRASL returns after the 6-byte branch, before the pad. */
+
+  if (lr < base || lr > limit || span == 0)
+    return 0;
+
+  delta = lr - base;
+  if (delta + retadj < span || ((delta + retadj) % span) != 0)
+    return 0;
+
+  *slotp = (uint32_t)((delta + retadj) / span);
+  *fromp = (int32_t)*slotp - 1;
+  *basep = base;
+  return 1;
+}
+#endif
+
+static void lj_trace_s390x_exit_log(const char *phase, jit_State *J,
+				    const BCIns *pc, SnapNo snapcount,
+				    const ExitState *ex)
+{
+  if (!lj_trace_s390x_exit_log_enabled())
+    return;
+  {
+    GCtrace *T = (J->parent > 0 && J->parent < J->sizetrace) ?
+		 traceref(J, J->parent) : NULL;
+    SnapNo exitno = (SnapNo)J->exitno;
+    uint32_t snapref = 0;
+    uint8_t snapnent = 0;
+    if (T && exitno < T->nsnap) {
+      snapref = T->snap[exitno].ref;
+      snapnent = T->snap[exitno].nent;
+    }
+    if (ex) {
+#if LJ_TARGET_S390X
+      uint32_t stubslot = 0;
+      int32_t stubexit = -1;
+      uintptr_t stubbase = 0;
+      if (lj_trace_s390x_exit_stub_info(T, ex, &stubslot, &stubexit, &stubbase)) {
+	fprintf(stderr,
+		"S390X_EXIT phase=%s parent=%u exit=%u pc=%p op=%u snapcount=%u snapref=%u snapnent=%u state=%u lr=%p stubbase=%p stubslot=%u stubexit=%d\n",
+		phase,
+		(unsigned int)J->parent,
+		(unsigned int)J->exitno,
+		(const void *)pc,
+		(unsigned int)(pc ? bc_op(*pc) : 0),
+		(unsigned int)snapcount,
+		(unsigned int)snapref,
+		(unsigned int)snapnent,
+		(unsigned int)J->state,
+		(const void *)lj_trace_s390x_exit_lr(ex),
+		(const void *)stubbase,
+		(unsigned int)stubslot,
+		(int)stubexit);
+	return;
+      }
+#endif
+      fprintf(stderr,
+	      "S390X_EXIT phase=%s parent=%u exit=%u pc=%p op=%u snapcount=%u snapref=%u snapnent=%u state=%u lr=%p\n",
+	      phase,
+	      (unsigned int)J->parent,
+	      (unsigned int)J->exitno,
+	      (const void *)pc,
+	      (unsigned int)(pc ? bc_op(*pc) : 0),
+	      (unsigned int)snapcount,
+	      (unsigned int)snapref,
+	      (unsigned int)snapnent,
+	      (unsigned int)J->state,
+	      (const void *)lj_trace_s390x_exit_lr(ex));
+    } else {
+      fprintf(stderr,
+	      "S390X_EXIT phase=%s parent=%u exit=%u pc=%p op=%u snapcount=%u snapref=%u snapnent=%u state=%u\n",
+	      phase,
+	      (unsigned int)J->parent,
+	      (unsigned int)J->exitno,
+	      (const void *)pc,
+	      (unsigned int)(pc ? bc_op(*pc) : 0),
+	      (unsigned int)snapcount,
+	      (unsigned int)snapref,
+	      (unsigned int)snapnent,
+	      (unsigned int)J->state);
+    }
+  }
+}
 
 /* The current trace is first assembled in J->cur. The variable length
 ** arrays point to shared, growable buffers (J->irbuf etc.). When trace
@@ -807,6 +927,7 @@ void LJ_FASTCALL lj_trace_hot(jit_State *J, const BCIns *pc)
 static void trace_hotside(jit_State *J, const BCIns *pc)
 {
   SnapShot *snap = &traceref(J, J->parent)->snap[J->exitno];
+  lj_trace_s390x_exit_log("hotside", J, pc, snap->count, NULL);
   if (!(J2G(J)->hookmask & (HOOK_GC|HOOK_VMEVENT)) &&
       isluafunc(curr_func(J->L)) &&
       snap->count != SNAPCOUNT_DONE &&
@@ -941,6 +1062,8 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
     );
 
   pc = exd.pc;
+  lj_trace_s390x_exit_log("exit", J, pc,
+			  traceref(J, J->parent)->snap[J->exitno].count, ex);
   cf = cframe_raw(L->cframe);
   setcframe_pc(cf, pc);
   if (exitcode) {

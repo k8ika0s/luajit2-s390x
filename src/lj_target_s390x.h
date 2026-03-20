@@ -54,9 +54,20 @@ enum {
 
 /* -- Register sets ------------------------------------------------------- */
 
-/* Reserve r0 as a temp, r7 for global_State, r14 as link and r15 as SP. */
+/* Reserve non-allocatable VM registers from the allocator.
+**
+** BASE follows the usual LuaJIT backend contract and remains allocatable.
+** Side-trace linking needs to be able to materialize REF_BASE into RID_BASE.
+*/
 #define RSET_FIXED \
-  (RID2RSET(RID_TMP)|RID2RSET(RID_GL)|RID2RSET(RID_R14)|RID2RSET(RID_SP))
+  (RID2RSET(RID_TMP)|RID2RSET(RID_GL)|RID2RSET(RID_LREG)|\
+   RID2RSET(RID_LPC)|RID2RSET(RID_DISPATCH)|\
+   RID2RSET(RID_R14)|RID2RSET(RID_SP))
+#define RSET_GPR_SAVED \
+  (RID2RSET(RID_R6)|RID2RSET(RID_R7)|RID2RSET(RID_R8)|RID2RSET(RID_R9)|\
+   RID2RSET(RID_R10)|RID2RSET(RID_R11)|RID2RSET(RID_R12)|RID2RSET(RID_R13))
+#define RSET_GPR_BASE \
+  (RID2RSET(RID_R11)|RID2RSET(RID_R12)|RID2RSET(RID_BASE))
 #define RSET_GPR	(RSET_RANGE(RID_MIN_GPR, RID_MAX_GPR) - RSET_FIXED)
 #define RSET_FPR	RSET_RANGE(RID_MIN_FPR, RID_MAX_FPR)
 #define RSET_ALL	(RSET_GPR|RSET_FPR)
@@ -103,8 +114,11 @@ typedef struct {
 } ExitState;
 
 #define EXITSTATE_CHECKEXIT	1
-#define EXITSTUB_SPACING        4
-#define EXITSTUBS_PER_GROUP     32
+#define EXITSTUB_SPACING	6
+/* Avoid dependence on lj_jit.h if only including lj_target.h. */
+#define exitstub_trace_addr(T, exitno) \
+  ((MCode *)((char *)(T)->mcode + (T)->szmcode) + \
+   EXITSTUB_SPACING * (exitno))
 
 /* -- Instructions -------------------------------------------------------- */
 

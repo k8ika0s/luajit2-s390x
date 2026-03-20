@@ -35,7 +35,7 @@ snapshot_host() {
 
 log "ensuring baseline system packages"
 : >"$BOOTSTRAP_DIR/dnf-install.log"
-for pkg in gcc clang make git rsync python3 perl curl gdb perf binutils elfutils elfutils-libelf-devel libunwind-devel ccache diffutils which; do
+for pkg in gcc clang make git rsync python3 perl perl-Test-Harness curl gdb perf binutils elfutils elfutils-libelf-devel libunwind-devel ccache diffutils which; do
   dnf install -y "$pkg" >>"$BOOTSTRAP_DIR/dnf-install.log" 2>&1 || {
     printf 'warning: package unavailable: %s\n' "$pkg" >>"$BOOTSTRAP_DIR/dnf-install.log"
   }

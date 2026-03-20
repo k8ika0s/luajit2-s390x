@@ -1,5 +1,33 @@
 local M = {}
 
+function M.trace_capture()
+  local jit = require("jit")
+  local events = {}
+  local function handler(...)
+    local event = { n = select("#", ...) }
+    for i = 1, event.n do
+      event[i] = select(i, ...)
+    end
+    events[#events + 1] = event
+  end
+  jit.attach(handler, "trace")
+  return {
+    events = events,
+    stop = function()
+      jit.attach(handler)
+    end,
+  }
+end
+
+function M.find_trace_event(events, kind)
+  for i = 1, #events do
+    if events[i][1] == kind then
+      return events[i]
+    end
+  end
+  return nil
+end
+
 function M.eq(actual, expected, label)
   if actual ~= expected then
     error(string.format("%s: expected %s, got %s", label or "eq", tostring(expected), tostring(actual)), 2)

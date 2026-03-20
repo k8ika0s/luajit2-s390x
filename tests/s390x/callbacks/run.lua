@@ -1,7 +1,7 @@
 local ffi = require("ffi")
 local t = require("tests.s390x.helpers.testlib")
 
-local libpath = assert(arg[1], "missing callback oracle library path")
+local libpath = arg[1] or "tests/s390x/callbacks/build/libcallback_oracle.so"
 
 ffi.cdef([[
 typedef int (*int_cb_t)(int);

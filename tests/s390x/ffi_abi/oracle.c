@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdarg.h>
+#include <complex.h>
 
 struct small_u8 {
   uint8_t a;
@@ -35,6 +36,8 @@ uint64_t echo_u64(uint64_t value) { return value; }
 
 float add_float(float a, float b) { return a + b; }
 double add_double(double a, double b) { return a + b; }
+double complex add_complex(double complex a, double complex b) { return a + b; }
+double complex mul_complex(double complex a, double complex b) { return a * b; }
 
 struct small_u8 echo_small_u8(struct small_u8 value) { return value; }
 struct small_u16 echo_small_u16(struct small_u16 value) { return value; }

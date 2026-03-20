@@ -15,8 +15,68 @@
 #include "lj_tab.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /* -- Object hashing ------------------------------------------------------ */
+
+static int s390x_tabget_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *flag = getenv("LUAJIT_S390X_TABGET_LOG");
+    enabled = (flag && flag[0] != '\0' && flag[0] != '0') ? 1 : 0;
+  }
+  return enabled;
+}
+
+static int s390x_tabset_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *flag = getenv("LUAJIT_S390X_TABSET_LOG");
+    enabled = (flag && flag[0] != '\0' && flag[0] != '0') ? 1 : 0;
+  }
+  return enabled;
+}
+
+static void s390x_tabget_log_key(FILE *out, cTValue *key)
+{
+  if (tvisstr(key))
+    fprintf(out, "%s", strdata(strV(key)));
+  else if (tvisint(key))
+    fprintf(out, "%d", intV(key));
+  else if (tvisnum(key))
+    fprintf(out, "%.17g", numV(key));
+  else if (tvisnil(key))
+    fputs("nil", out);
+  else
+    fprintf(out, "itype=%d", (int)itype(key));
+}
+
+static void s390x_tabget_log(lua_State *L, GCtab *t, cTValue *key, cTValue *tv,
+			     const char *phase)
+{
+  if (!s390x_tabget_log_enabled())
+    return;
+  fprintf(stderr, "S390X_TABGET phase=%s L=%p tab=%p key=", phase, (void *)L,
+	  (void *)t);
+  s390x_tabget_log_key(stderr, key);
+  fprintf(stderr, " ret=%p niltv=%p hmask=%u asize=%u\n", (void *)tv,
+	  (void *)niltv(L), (unsigned)t->hmask, (unsigned)t->asize);
+}
+
+static void s390x_tabset_log(lua_State *L, GCtab *t, cTValue *key, TValue *tv,
+			     const char *phase)
+{
+  if (!s390x_tabset_log_enabled())
+    return;
+  fprintf(stderr, "S390X_TABSET phase=%s L=%p tab=%p key=", phase, (void *)L,
+	  (void *)t);
+  s390x_tabget_log_key(stderr, key);
+  fprintf(stderr, " ret=%p niltv=%p hmask=%u asize=%u\n", (void *)tv,
+	  (void *)niltv(L), (unsigned)t->hmask, (unsigned)t->asize);
+}
 
 /* Hash an arbitrary key and return its anchor position in the hash table. */
 static Node *hashkey(const GCtab *t, cTValue *key)
@@ -409,19 +469,25 @@ cTValue *lj_tab_get(lua_State *L, GCtab *t, cTValue *key)
 {
   if (tvisstr(key)) {
     cTValue *tv = lj_tab_getstr(t, strV(key));
-    if (tv)
+    if (tv) {
+      s390x_tabget_log(L, t, key, tv, "str-hit");
       return tv;
+    }
   } else if (tvisint(key)) {
     cTValue *tv = lj_tab_getint(t, intV(key));
-    if (tv)
+    if (tv) {
+      s390x_tabget_log(L, t, key, tv, "int-hit");
       return tv;
+    }
   } else if (tvisnum(key)) {
     int64_t i64;
     int32_t k;
     if (lj_num2int_check(numV(key), i64, k)) {
       cTValue *tv = lj_tab_getint(t, k);
-      if (tv)
+      if (tv) {
+	s390x_tabget_log(L, t, key, tv, "num-int-hit");
 	return tv;
+      }
     } else {
       goto genlookup;  /* Else use the generic lookup. */
     }
@@ -434,6 +500,7 @@ cTValue *lj_tab_get(lua_State *L, GCtab *t, cTValue *key)
 	return &n->val;
     } while ((n = nextnode(n)));
   }
+  s390x_tabget_log(L, t, key, niltv(L), "miss");
   return niltv(L);
 }
 
@@ -442,6 +509,7 @@ cTValue *lj_tab_get(lua_State *L, GCtab *t, cTValue *key)
 /* Insert new key. Use Brent's variation to optimize the chain length. */
 TValue *lj_tab_newkey(lua_State *L, GCtab *t, cTValue *key)
 {
+  s390x_tabset_log(L, t, key, NULL, "newkey-enter");
   Node *n = hashkey(t, key);
   if (!tvisnil(&n->val) || t->hmask == 0) {
     Node *nodebase = noderef(t->node);
@@ -451,7 +519,11 @@ TValue *lj_tab_newkey(lua_State *L, GCtab *t, cTValue *key)
     do {
       if (freenode == nodebase) {  /* No free node found? */
 	rehashtab(L, t, key);  /* Rehash table. */
-	return lj_tab_set(L, t, key);  /* Retry key insertion. */
+	{
+	  TValue *tv = lj_tab_set(L, t, key);  /* Retry key insertion. */
+	  s390x_tabset_log(L, t, key, tv, "newkey-rehash-retry");
+	  return tv;
+	}
       }
     } while (!tvisnil(&(--freenode)->key));
     setfreetop(t, nodebase, freenode);
@@ -512,6 +584,7 @@ TValue *lj_tab_newkey(lua_State *L, GCtab *t, cTValue *key)
     n->key.u64 = 0;
   lj_gc_anybarriert(L, t);
   lj_assertL(tvisnil(&n->val), "new hash slot is not empty");
+  s390x_tabset_log(L, t, key, &n->val, "newkey-return");
   return &n->val;
 }
 
