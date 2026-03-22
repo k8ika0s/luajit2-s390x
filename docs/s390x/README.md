@@ -120,3 +120,20 @@ sync loop.
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 - Bring-up workflow and artifact guide:
   [docs/s390x/runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
+- Performance validation plan:
+  [docs/s390x/perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md)
+
+## Performance Status
+
+- The perf stage is now implemented in the harness and emits structured native
+  benchmark artifacts under `artifacts/s390x/<run-id>/perf/`.
+- The first stamped native release baseline is the `dispatch_trace` family on
+  `kdz`.
+- Current measured result:
+  - the harness is working
+  - z13 tuning already improves the side-exit-heavy dispatch shape
+  - the dispatch/side-exit family is the first proven performance hotspot,
+    because current s390x `jit=on` is slower than `jit=off` on that workload
+- The broader perf catalog remains in-tree, but only the release-stable subset
+  should gate the current perf stage until the remaining families are
+  correctness-stable under native release measurement.
