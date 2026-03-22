@@ -166,7 +166,7 @@ static void lj_trace_s390x_dump_stride_bias(FILE *out, const char *label,
 #endif
 }
 
-int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
+LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
 {
 #if LJ_TARGET_S390X
   static int dump_count = 0;
@@ -395,7 +395,7 @@ static void lj_trace_s390x_slot_log(lua_State *L, const BCIns *pc)
   }
 }
 
-void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot)
+LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot)
 {
   int i;
   if (!lj_trace_s390x_iter_log_enabled() || !base || !iterslot)
@@ -1409,5 +1409,20 @@ uintptr_t LJ_FASTCALL lj_trace_unwind(jit_State *J, uintptr_t addr, ExitNo *ep)
   return 0;
 }
 #endif
+
+#else
+
+LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
+{
+  UNUSED(effp);
+  UNUSED(ignored);
+  return 0;
+}
+
+LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot)
+{
+  UNUSED(base);
+  UNUSED(iterslot);
+}
 
 #endif

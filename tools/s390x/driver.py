@@ -89,6 +89,8 @@ PRE_JIT_STAGES = {"contract", "interp", "ffi-call", "callback-unwind"}
 RSYNC_EXCLUDES = [
     ".git",
     ".DS_Store",
+    ".AppleDouble",
+    "._*",
     "__pycache__",
     "artifacts/s390x",
     "*.pyc",
@@ -380,6 +382,40 @@ def run_local(
     return proc
 
 
+def run_local_shell(
+    ctx: Context,
+    command: str,
+    *,
+    cwd: Optional[pathlib.Path] = None,
+    check: bool = False,
+    artifacts: Optional[Dict[str, str]] = None,
+) -> subprocess.CompletedProcess:
+    argv = ["/bin/bash", "-lc", command]
+    start = time.time()
+    proc = subprocess.run(
+        argv,
+        cwd=str(cwd or ROOT),
+        text=True,
+        capture_output=True,
+    )
+    duration = time.time() - start
+    ctx.logger.write(
+        host="local",
+        cwd=str(cwd or ROOT),
+        argv=argv,
+        exit_code=proc.returncode,
+        duration_sec=duration,
+        artifacts=artifacts,
+    )
+    if proc.stdout:
+        sys.stdout.write(proc.stdout)
+    if proc.stderr:
+        sys.stderr.write(proc.stderr)
+    if check and proc.returncode != 0:
+        raise DriverError(f"local shell command failed: {command}")
+    return proc
+
+
 def run_ssh(
     ctx: Context,
     host: str,
@@ -448,18 +484,27 @@ def ensure_remote_dirs(ctx: Context, host: str) -> None:
 
 
 def sync_repo(ctx: Context, host: str) -> None:
-    argv = ["rsync", "-a", "--delete"]
+    remote_prep = (
+        f"rm -rf {shlex.quote(ctx.remote_repo_root)}/* "
+        f"{shlex.quote(ctx.remote_repo_root)}/.[!.]* "
+        f"{shlex.quote(ctx.remote_repo_root)}/..?* 2>/dev/null || true"
+    )
+    run_ssh(ctx, host, remote_prep, check=True)
+    tar_parts = ["tar", "-C", str(ROOT)]
     for pattern in RSYNC_EXCLUDES:
-        argv.extend(["--exclude", pattern])
-    argv.extend([f"{ROOT}/", f"{host}:{ctx.remote_repo_root}/"])
-    proc = run_local(
+        tar_parts.extend(["--exclude", pattern])
+    tar_parts.extend(["-cf", "-", "."])
+    remote_cmd = f"tar -xf - -C {shlex.quote(ctx.remote_repo_root)}"
+    ssh_cmd = f"ssh -o BatchMode=yes {shlex.quote(host)} {shlex.quote(f'bash -lc {shlex.quote(remote_cmd)}')}"
+    pipeline = f"COPYFILE_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"
+    proc = run_local_shell(
         ctx,
-        argv,
+        pipeline,
         check=True,
-        artifacts={"remote_repo_root": ctx.remote_repo_root},
+        artifacts={"remote_repo_root": ctx.remote_repo_root, "transfer": "tar-ssh"},
     )
     if proc.returncode != 0:
-        raise DriverError("rsync failed")
+        raise DriverError("tar-over-ssh repo sync failed")
 
 
 def collect_remote_artifacts(
@@ -468,15 +513,17 @@ def collect_remote_artifacts(
     *,
     required: bool = False,
     failure_type: str = "artifact-collection",
-) -> bool:
+    ) -> bool:
     ctx.local_remote_dir.mkdir(parents=True, exist_ok=True)
-    argv = [
-        "rsync",
-        "-a",
-        f"{host}:{ctx.remote_artifacts_root}/",
-        f"{ctx.local_remote_dir}/",
-    ]
-    proc = run_local(ctx, argv, check=False, artifacts={"remote_artifacts_root": ctx.remote_artifacts_root})
+    remote_cmd = f"tar -C {shlex.quote(ctx.remote_artifacts_root)} -cf - ."
+    ssh_cmd = f"ssh -o BatchMode=yes {shlex.quote(host)} {shlex.quote(f'bash -lc {shlex.quote(remote_cmd)}')}"
+    pipeline = f"{ssh_cmd} | tar -xf - -C {shlex.quote(str(ctx.local_remote_dir))}"
+    proc = run_local_shell(
+        ctx,
+        pipeline,
+        check=False,
+        artifacts={"remote_artifacts_root": ctx.remote_artifacts_root, "transfer": "tar-ssh"},
+    )
     if proc.returncode != 0:
         ctx.failures.append(
             {
@@ -504,8 +551,19 @@ def collect_remote_binaries(ctx: Context, host: str, variant: Variant) -> None:
         "src/luajit.h",
     ]
     for rel_path in includes:
-        argv = ["rsync", "-a", f"{host}:{ctx.remote_repo_root}/{rel_path}", f"{variant_dir}/"]
-        run_local(ctx, argv, check=False, artifacts={"binary": rel_path, "variant": variant.key()})
+        remote_path = f"{ctx.remote_repo_root}/{rel_path}"
+        remote_cmd = f"test -r {shlex.quote(remote_path)} && cat {shlex.quote(remote_path)}"
+        local_path = variant_dir / pathlib.Path(rel_path).name
+        ssh_cmd = f"ssh -o BatchMode=yes {shlex.quote(host)} {shlex.quote(f'bash -lc {shlex.quote(remote_cmd)}')}"
+        pipeline = f"{ssh_cmd} > {shlex.quote(str(local_path))}"
+        proc = run_local_shell(
+            ctx,
+            pipeline,
+            check=False,
+            artifacts={"binary": rel_path, "variant": variant.key(), "transfer": "ssh-cat"},
+        )
+        if proc.returncode != 0 and local_path.exists():
+            local_path.unlink()
 
 
 def record_local_git_state(ctx: Context) -> None:

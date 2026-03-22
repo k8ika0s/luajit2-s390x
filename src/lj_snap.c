@@ -469,22 +469,29 @@ static int snap_s390x_restore_pref_reg_enabled(void)
   return enabled;
 }
 
-static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRRef ref,
-				   RegSP rs, TValue *o)
+static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRIns *ir,
+				   IRRef ref, RegSP orig_rs, RegSP renamed_rs,
+				   RegSP used_rs, int pref_applied, TValue *o)
 {
 #if LJ_TARGET_S390X
   if (!snap_s390x_restore_log_enabled())
     return;
-  if (J->parent != 1 || (J->exitno != 4 && J->exitno != 2 && J->exitno != 0))
+  if (J->parent != 1 ||
+      (J->exitno != 5 && J->exitno != 4 && J->exitno != 3 &&
+       J->exitno != 2 && J->exitno != 0))
     return;
   fprintf(stderr,
-	  "S390X_RESTORE trace=%u exit=%u snap=%u ref=%u rs=%u reg=%d spill=%d itype=%d u64=0x%016llx n=%g\n",
+	  "S390X_RESTORE trace=%u exit=%u snap=%u ref=%u op=%u type=%d pref=%d orig_rs=%u renamed_rs=%u used_rs=%u reg=%d spill=%d itype=%d u64=0x%016llx n=%g\n",
 	  (unsigned int)J->parent, (unsigned int)J->exitno, (unsigned int)snapno,
-	  (unsigned int)(ref - REF_BIAS), (unsigned int)rs,
-	  (int)regsp_reg(rs), (int)regsp_spill(rs), (int)itype(o),
+	  (unsigned int)(ref - REF_BIAS), (unsigned int)ir->o,
+	  (int)irt_type(ir->t), pref_applied, (unsigned int)orig_rs,
+	  (unsigned int)renamed_rs, (unsigned int)used_rs,
+	  (int)regsp_reg(used_rs), (int)regsp_spill(used_rs), (int)itype(o),
 	  (unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
 #else
-  UNUSED(J); UNUSED(snapno); UNUSED(ref); UNUSED(rs); UNUSED(o);
+  UNUSED(J); UNUSED(snapno); UNUSED(ir); UNUSED(ref);
+  UNUSED(orig_rs); UNUSED(renamed_rs); UNUSED(used_rs);
+  UNUSED(pref_applied); UNUSED(o);
 #endif
 }
 
@@ -812,6 +819,8 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
   IRIns *ir = &T->ir[ref];
   IRType1 t = ir->t;
   RegSP rs = ir->prev;
+  RegSP orig_rs = rs, renamed_rs = rs;
+  int pref_applied = 0;
   if (irref_isk(ref)) {  /* Restore constant slot. */
     if (ir->o == IR_KPTR) {
       o->u64 = (uint64_t)(uintptr_t)ir_kptr(ir);
@@ -824,11 +833,12 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
     return;
   }
   if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
-    rs = snap_renameref(T, snapno, ref, rs);
+    rs = renamed_rs = snap_renameref(T, snapno, ref, rs);
 #if LJ_TARGET_S390X
   if (irt_isinteger(t) && ra_hasspill(regsp_spill(rs)) &&
       !ra_noreg(regsp_reg(rs)) && snap_s390x_restore_pref_reg_enabled()) {
     rs = REGSP(regsp_reg(rs), SPS_NONE);
+    pref_applied = 1;
   }
 #endif
   if (ra_hasspill(regsp_spill(rs))) {  /* Restore from spill slot. */
@@ -876,7 +886,8 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
       setgcV(J->L, o, (GCobj *)ex->gpr[r-RID_MIN_GPR], irt_toitype(t));
     }
   }
-  snap_s390x_restore_log(J, snapno, ref, rs, o);
+  snap_s390x_restore_log(J, snapno, ir, ref, orig_rs, renamed_rs, rs,
+			 pref_applied, o);
 }
 
 #if LJ_HASFFI
