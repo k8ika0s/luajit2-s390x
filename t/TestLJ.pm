@@ -15,7 +15,7 @@ our @EXPORT = qw(blocks plan run_tests);
 
 my $cwd = cwd;
 my $lua_cpath = join ';', "$cwd/src/?.so", "$cwd/?.so", ';;';
-my $lua_path = join ';', "$cwd/src/?.lua", ';;';
+my $lua_path = join ';', "$cwd/src/?.lua", "$cwd/src/?/?.lua", "$cwd/?/?.lua", ';;';
 my $lua_bin = $ENV{TEST_LJ_BIN};
 if (!defined $lua_bin || $lua_bin eq '') {
     my $candidate = "$cwd/src/luajit";

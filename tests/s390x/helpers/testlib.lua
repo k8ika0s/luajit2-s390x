@@ -47,6 +47,10 @@ function M.truthy(value, label)
   end
 end
 
+function M.assert(value, label)
+  return M.truthy(value, label or "assert")
+end
+
 function M.same_array(actual, expected, label)
   M.eq(#actual, #expected, (label or "same_array") .. " length")
   for i = 1, #expected do

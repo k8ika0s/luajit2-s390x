@@ -134,6 +134,218 @@ static void lj_asm_s390x_guard_log(ASMState *as, int cc, const void *target,
 	  (const void *)as->invmcp);
 }
 
+static int lj_asm_s390x_phi_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_PHI_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_asm_s390x_force_phi_spill(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_FORCE_PHI_SPILL") != NULL);
+  return enabled;
+}
+
+static void lj_asm_s390x_phi_log(const char *phase, ASMState *as, IRIns *ir,
+				 IRRef leftref, IRRef rightref,
+				 Reg dest, Reg left, Reg right)
+{
+  if (!lj_asm_s390x_phi_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_PHI phase=%s curins=%d ir=%d op=%d leftref=%d rightref=%d dest=%d left=%d right=%d spill=%d\n",
+	  phase, (int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
+	  (int)ir->o, (int)(leftref - REF_BIAS), (int)(rightref - REF_BIAS),
+	  (int)dest, (int)left, (int)right, (int)ir->s);
+}
+
+static int lj_asm_s390x_ra_trace_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RA_TRACE") != NULL);
+  return enabled;
+}
+
+static int lj_asm_s390x_badra_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_BADRA_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_asm_s390x_badra_ignore_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_BADRA_IGNORE") != NULL);
+  return enabled;
+}
+
+static void lj_asm_s390x_ra_trace(const char *phase, ASMState *as, IRRef ref,
+				  Reg reg, RegSet allow, int32_t spill)
+{
+  IRIns *ir;
+  if (!lj_asm_s390x_ra_trace_enabled())
+    return;
+  ir = &as->ir[ref];
+  fprintf(stderr,
+	  "S390X_RA phase=%s curins=%d ref=%d reg=%d allow=0x%llx spill=%d op=%d type=%d\n",
+	  phase, (int)(as->curins - REF_BIAS), (int)(ref - REF_BIAS), (int)reg,
+	  (unsigned long long)allow, (int)spill, (int)ir->o,
+	  (int)irt_type(ir->t));
+}
+
+static void lj_asm_s390x_badra_log(ASMState *as)
+{
+  Reg r;
+  if (!lj_asm_s390x_badra_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_BADRA curins=%d trace=%u freeset=0x%llx all=0x%llx modset=0x%llx weakset=0x%llx phiset=0x%llx\n",
+	  (int)(as->curins - REF_BIAS),
+	  (unsigned int)as->T->traceno,
+	  (unsigned long long)as->freeset,
+	  (unsigned long long)RSET_ALL,
+	  (unsigned long long)as->modset,
+	  (unsigned long long)as->weakset,
+	  (unsigned long long)as->phiset);
+  for (r = 0; r < RID_MAX; r++) {
+    if (!rset_test(RSET_ALL, r))
+      continue;
+    if (!rset_test(as->freeset, r)) {
+      IRRef ref = regcost_ref(as->cost[r]);
+      IRIns *ir = (ref < as->T->nins) ? &as->ir[ref] : NULL;
+      fprintf(stderr,
+	      "S390X_BADRA reg=%d ref=%d cost=0x%llx inall=1 free=0\n",
+	      (int)r, (int)(ref - REF_BIAS),
+	      (unsigned long long)as->cost[r]);
+      if (ir) {
+	fprintf(stderr,
+		"S390X_BADRA_IR reg=%d op=%d type=%d spill=%d op1=%d op2=%d phi_left=%d\n",
+		(int)r, (int)ir->o, (int)irt_type(ir->t), (int)ir->s,
+		(int)(ir->op1 - REF_BIAS), (int)(ir->op2 - REF_BIAS),
+		rset_test(as->phiset, r) ? (int)(as->phireg[r] - REF_BIAS) : -1);
+      }
+    }
+  }
+}
+
+static int lj_asm_s390x_tail_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_TAIL_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_asm_s390x_save_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_SAVE_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_asm_s390x_spill_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_SPILL_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_asm_s390x_prev_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_PREV_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_asm_s390x_rename_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RENAME_LOG") != NULL);
+  return enabled;
+}
+
+static void lj_asm_s390x_save_log(ASMState *as, IRIns *ir, Reg r)
+{
+  if (!lj_asm_s390x_save_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_SAVE curins=%d ref=%d reg=%d spill=%d op=%d type=%d\n",
+	  (int)(as->curins - REF_BIAS),
+	  (int)((ir - as->ir) - REF_BIAS),
+	  (int)r, (int)sps_scale(ir->s), (int)ir->o, (int)irt_type(ir->t));
+}
+
+static void lj_asm_s390x_prev_log(ASMState *as, const char *phase, IRRef ref)
+{
+  IRIns *ir;
+  if (!lj_asm_s390x_prev_log_enabled())
+    return;
+  if (ref >= as->curins || ref < REF_FIRST)
+    return;
+  ir = &as->ir[ref];
+  fprintf(stderr,
+	  "S390X_PREV phase=%s curins=%d ref=%d op=%d r=%d s=%d prev=%u prev_reg=%d prev_spill=%d\n",
+	  phase, (int)(as->curins - REF_BIAS), (int)(ref - REF_BIAS),
+	  (int)ir->o, (int)ir->r, (int)ir->s, (unsigned int)ir->prev,
+	  (int)regsp_reg(ir->prev), (int)regsp_spill(ir->prev));
+}
+
+static void lj_asm_s390x_spill_log(ASMState *as, const char *phase, IRIns *ir,
+				   int32_t slot)
+{
+  if (!lj_asm_s390x_spill_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_SPILL phase=%s curins=%d ref=%d op=%d type=%d r=%d olds=%d news=%d prev=%u snapno=%u snapref=%d\n",
+	  phase, (int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
+	  (int)ir->o, (int)irt_type(ir->t), (int)ir->r, (int)ir->s, (int)slot,
+	  (unsigned int)ir->prev, (unsigned int)as->snapno,
+	  (int)(as->snapref - REF_BIAS));
+}
+
+static void lj_asm_s390x_rename_log(ASMState *as, Reg down, IRRef ref,
+				    SnapNo snapno)
+{
+  IRIns *ir;
+  if (!lj_asm_s390x_rename_log_enabled())
+    return;
+  ir = &as->ir[ref];
+  fprintf(stderr,
+	  "S390X_RENAME curins=%d ref=%d reg=%d snap=%u op=%d type=%d r=%d s=%d prev=%u\n",
+	  (int)(as->curins - REF_BIAS), (int)(ref - REF_BIAS), (int)down,
+	  (unsigned int)snapno, (int)ir->o, (int)irt_type(ir->t),
+	  (int)ir->r, (int)ir->s, (unsigned int)ir->prev);
+}
+
+static void lj_asm_s390x_tail_log(ASMState *as, SnapNo snapno,
+				  BCReg baseslot, int gotframe)
+{
+  if (!lj_asm_s390x_tail_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_TAIL trace=%u parent=%u link=%u snap=%u baseslot=%u gotframe=%d topslot=%u nsnap=%u\n",
+	  (unsigned int)as->T->traceno,
+	  (unsigned int)(as->parent ? as->parent->traceno : 0),
+	  (unsigned int)as->T->link,
+	  (unsigned int)snapno,
+	  (unsigned int)baseslot,
+	  gotframe,
+	  (unsigned int)as->topslot,
+	  (unsigned int)as->T->nsnap);
+}
+
 #ifdef LUA_USE_ASSERT
 #define lj_assertA(c, ...)	lj_assertG_(J2G(as->J), (c), __VA_ARGS__)
 #else
@@ -460,9 +672,16 @@ static Reg ra_rematk(ASMState *as, IRRef ref)
 static int32_t ra_spill(ASMState *as, IRIns *ir)
 {
   int32_t slot = ir->s;
+  int32_t oldslot = slot;
   lj_assertA(ir >= as->ir + REF_TRUE,
 	     "spill of K%03d", REF_BIAS - (int)(ir - as->ir));
   if (!ra_hasspill(slot)) {
+#if LJ_TARGET_S390X
+    if (!irt_isfp(ir->t)) {
+      slot = as->evenspill;
+      as->evenspill += 2;
+    } else
+#endif
     if (irt_is64(ir->t)) {
       slot = as->evenspill;
       as->evenspill += 2;
@@ -478,6 +697,8 @@ static int32_t ra_spill(ASMState *as, IRIns *ir)
       lj_trace_err(as->J, LJ_TRERR_SPILLOV);
     ir->s = (uint8_t)slot;
   }
+  lj_asm_s390x_spill_log(as, ra_hasspill(oldslot) ? "reuse" : "alloc",
+			 ir, sps_scale(slot));
   return sps_scale(slot);
 }
 
@@ -499,10 +720,19 @@ static Reg ra_releasetmp(ASMState *as, IRRef ref)
 static Reg ra_restore(ASMState *as, IRRef ref)
 {
   if (emit_canremat(ref)) {
+    Reg reg = RID_NONE;
+    int32_t spill = 0;
+    if (!irref_isk(ref)) {
+      IRIns *ir = IR(ref);
+      reg = ir->r;
+      spill = ir->s;
+    }
+    lj_asm_s390x_ra_trace("restore-remat", as, ref, reg, 0, spill);
     return ra_rematk(as, ref);
   } else {
     IRIns *ir = IR(ref);
     int32_t ofs = ra_spill(as, ir);  /* Force a spill slot. */
+    lj_asm_s390x_spill_log(as, "restore", ir, ofs);
     Reg r = ir->r;
     lj_assertA(ra_hasreg(r), "restore of IR %04d has no reg", ref - REF_BIAS);
     ra_sethint(ir->r, r);  /* Keep hint. */
@@ -510,6 +740,7 @@ static Reg ra_restore(ASMState *as, IRRef ref)
     if (!rset_test(as->weakset, r)) {  /* Only restore non-weak references. */
       ra_modified(as, r);
       RA_DBGX((as, "restore   $i $r", ir, r));
+      lj_asm_s390x_ra_trace("restore", as, ref, r, 0, ofs);
       emit_spload(as, ir, r, ofs);
     }
     return r;
@@ -520,6 +751,7 @@ static Reg ra_restore(ASMState *as, IRRef ref)
 static void ra_save(ASMState *as, IRIns *ir, Reg r)
 {
   RA_DBGX((as, "save      $i $r", ir, r));
+  lj_asm_s390x_save_log(as, ir, r);
   emit_spstore(as, ir, r, sps_scale(ir->s));
 }
 
@@ -768,6 +1000,7 @@ static Reg ra_allocref(ASMState *as, IRRef ref, RegSet allow)
   }
 found:
   RA_DBGX((as, "alloc     $f $r", ref, r));
+  lj_asm_s390x_ra_trace("allocref", as, ref, r, allow, ir->s);
   ir->r = (uint8_t)r;
   rset_clear(as->freeset, r);
   ra_noweak(as, r);
@@ -789,6 +1022,7 @@ static Reg ra_alloc1(ASMState *as, IRRef ref, RegSet allow)
 static void ra_addrename(ASMState *as, Reg down, IRRef ref, SnapNo snapno)
 {
   IRRef ren;
+  lj_asm_s390x_rename_log(as, down, ref, snapno);
   lj_ir_set(as->J, IRT(IR_RENAME, IRT_NIL), ref, snapno);
   ren = tref_ref(lj_ir_emit(as->J));
   as->J->cur.ir[ren].r = (uint8_t)down;
@@ -796,7 +1030,7 @@ static void ra_addrename(ASMState *as, Reg down, IRRef ref, SnapNo snapno)
 }
 
 /* Rename register allocation and emit move. */
-static void ra_rename(ASMState *as, Reg down, Reg up)
+static void ra_rename_(ASMState *as, Reg down, Reg up, int addrename)
 {
   IRRef ref = regcost_ref(as->cost[up] = as->cost[down]);
   IRIns *ir = IR(ref);
@@ -812,7 +1046,7 @@ static void ra_rename(ASMState *as, Reg down, Reg up)
   ra_noweak(as, up);
   RA_DBGX((as, "rename    $f $r $r", regcost_ref(as->cost[up]), down, up));
   emit_movrr(as, ir, down, up);  /* Backwards codegen needs inverse move. */
-  if (!ra_hasspill(IR(ref)->s)) {  /* Add the rename to the IR. */
+  if (addrename && !ra_hasspill(IR(ref)->s)) {  /* Add the rename to the IR. */
     /*
     ** The rename is effective at the subsequent (already emitted) exit
     ** branch. This is for the current snapshot (as->snapno). Except if we
@@ -822,6 +1056,16 @@ static void ra_rename(ASMState *as, Reg down, Reg up)
     */
     ra_addrename(as, down, ref, as->snapno + as->snapalloc);
   }
+}
+
+static void ra_rename(ASMState *as, Reg down, Reg up)
+{
+  ra_rename_(as, down, up, 1);
+}
+
+static void ra_rename_nosnap(ASMState *as, Reg down, Reg up)
+{
+  ra_rename_(as, down, up, 0);
 }
 
 /* Pick a destination register (marked as free).
@@ -1073,7 +1317,8 @@ static void asm_snap_alloc1(ASMState *as, IRRef ref)
 	checkmclim(as);
 	RA_DBGX((as, "snapreg   $f $r", ref, ir->r));
       } else {
-	ra_spill(as, ir);  /* Otherwise force a spill slot. */
+	int32_t ofs = ra_spill(as, ir);  /* Otherwise force a spill slot. */
+	lj_asm_s390x_spill_log(as, "snap-alloc", ir, ofs);
 	RA_DBGX((as, "snapspill $f $s", ref, ir->s));
       }
     }
@@ -1114,7 +1359,16 @@ static int asm_snap_checkrename(ASMState *as, IRRef ren)
   if (bloomtest(as->snapfilt1, ren) &&
       bloomtest(as->snapfilt2, hashrot(ren, ren + HASH_BIAS))) {
     IRIns *ir = IR(ren);
-    ra_spill(as, ir);  /* Register renamed, so force a spill slot. */
+    if (lj_asm_s390x_prev_log_enabled()) {
+      fprintf(stderr,
+	      "S390X_SNAPRENAME curins=%d ref=%d op=%d r=%d s=%d prev=%u\n",
+	      (int)(as->curins - REF_BIAS), (int)(ren - REF_BIAS),
+	      (int)ir->o, (int)ir->r, (int)ir->s, (unsigned int)ir->prev);
+    }
+    lj_asm_s390x_spill_log(as, "snap-rename-before", ir,
+			   ra_spill(as, ir));  /* Register renamed, so force a spill slot. */
+    if (ra_hasreg(ir->r))
+      ra_save(as, ir, ir->r);  /* Snapshot restore needs the spill to be live. */
     RA_DBGX((as, "snaprensp $f $s", ren, ir->s));
     return 1;  /* Found. */
   }
@@ -1571,6 +1825,8 @@ static void asm_phi_shuffle(ASMState *as)
       Reg r = rset_pickbot(phiset);
       IRIns *irl = IR(as->phireg[r]);
       Reg left = irl->r;
+      lj_asm_s390x_phi_log("shuffle", as, irl, as->phireg[r], 0, r, left,
+			   RID_NONE);
       if (r != left) {  /* Mismatch? */
 	if (!rset_test(as->freeset, r)) {  /* PHI register blocked? */
 	  IRRef ref = regcost_ref(as->cost[r]);
@@ -1586,7 +1842,9 @@ static void asm_phi_shuffle(ASMState *as)
 	  }
 	}
 	if (ra_hasreg(left)) {
-	  ra_rename(as, left, r);
+	  lj_asm_s390x_phi_log("rename", as, irl, as->phireg[r], 0, r, left,
+			       RID_NONE);
+	  ra_rename_nosnap(as, left, r);
 	  checkmclim(as);
 	}
       }
@@ -1702,13 +1960,19 @@ static void asm_phi_fixup(ASMState *as)
     Reg r = rset_picktop(work);
     IRRef lref = as->phireg[r];
     IRIns *ir = IR(lref);
-    if (irt_ismarked(ir->t)) {
-      irt_clearmark(ir->t);
-      /* Left PHI gained a spill slot before the loop? */
-      if (ra_hasspill(ir->s)) {
-	ra_addrename(as, r, lref, as->loopsnapno);
+    if (ra_hasspill(ir->s)) {
+      IRIns *phi;
+      for (phi = IR(as->orignins-1); phi->o == IR_PHI; phi--) {
+	if (phi->op1 == lref) {
+	  IRIns *irr = IR(phi->op2);
+	  Reg rr = ra_hasreg(irr->r) ? irr->r : r;
+	  ra_addrename(as, rr, phi->op2, as->loopsnapno);
+	  break;
+	}
       }
     }
+    if (irt_ismarked(ir->t))
+      irt_clearmark(ir->t);
     rset_clear(work, r);
   }
 }
@@ -1726,8 +1990,8 @@ static void asm_phi(ASMState *as, IRIns *ir)
   /* Spill slot shuffling is not implemented yet (but rarely needed). */
   if (ra_hasspill(irl->s) || ra_hasspill(irr->s))
     lj_trace_err(as->J, LJ_TRERR_NYIPHI);
-  /* Leave at least one register free for non-PHIs (and PHI cycle breaking). */
-  if ((afree & (afree-1))) {  /* Two or more free registers? */
+  if ((afree & (afree-1)) && !lj_asm_s390x_force_phi_spill()) {
+    /* Two or more free registers? */
     Reg r;
     if (ra_noreg(irr->r)) {  /* Get a register for the right PHI. */
       r = ra_allocref(as, ir->op2, allow);
@@ -1741,12 +2005,16 @@ static void asm_phi(ASMState *as, IRIns *ir)
     irt_setmark(irl->t);  /* Marks left PHIs _with_ register. */
     if (ra_noreg(irl->r))
       ra_sethint(irl->r, r); /* Set register hint for left PHI. */
+    lj_asm_s390x_phi_log("setup-reg", as, ir, ir->op1, ir->op2, r, irl->r,
+			 irr->r);
   } else {  /* Otherwise allocate a spill slot. */
     /* This is overly restrictive, but it triggers only on synthetic code. */
     if (ra_hasreg(irl->r) || ra_hasreg(irr->r))
       lj_trace_err(as->J, LJ_TRERR_NYIPHI);
-    ra_spill(as, ir);
+    lj_asm_s390x_spill_log(as, "phi-setup-before", ir, ra_spill(as, ir));
     irr->s = ir->s;  /* Set right PHI spill slot. Sync left slot later. */
+    lj_asm_s390x_phi_log("setup-spill", as, ir, ir->op1, ir->op2, RID_NONE,
+			 irl->r, irr->r);
   }
 }
 
@@ -2218,6 +2486,7 @@ static void asm_tail_link(ASMState *as)
   BCReg baseslot = asm_baseslot(as, snap, &gotframe);
 
   as->topslot = snap->topslot;
+  lj_asm_s390x_tail_log(as, snapno, baseslot, gotframe);
   checkmclim(as);
   ra_allocref(as, REF_BASE, RID2RSET(RID_BASE));
 
@@ -2243,6 +2512,14 @@ static void asm_tail_link(ASMState *as)
     case BC_RETM: mres -= (int32_t)(bc_a(*pc) + bc_d(*pc)); break;
     case BC_TSETM: mres -= (int32_t)bc_a(*pc); break;
     default: if (bc_op(*pc) < BC_FUNCF) mres = 0; break;
+    }
+    if (lj_asm_s390x_tail_log_enabled()) {
+      fprintf(stderr,
+	      "S390X_TAIL_EXIT trace=%u snap=%u pcop=%u ra=%u rd=%u mres=%d baseslot=%u top=%u\n",
+	      (unsigned int)as->T->traceno, (unsigned int)snapno,
+	      (unsigned int)bc_op(*pc), (unsigned int)bc_a(*pc),
+	      (unsigned int)bc_d(*pc), (int)mres,
+	      (unsigned int)baseslot, (unsigned int)as->topslot);
     }
     ra_allockreg(as, mres, RID_RET);  /* Return MULTRES or 0. */
   } else if (baseslot) {
@@ -2420,6 +2697,10 @@ static void asm_setup_regsp(ASMState *as)
     /* fallthrough */
     /* C calls evict all scratch regs and return results in RID_RET. */
     case IR_SNEW: case IR_XSNEW: case IR_NEWREF: case IR_BUFPUT:
+#if LJ_TARGET_S390X
+      if (as->evenspill < SPS_FIRST + S390X_CALL_SPS_EXTRA * 2)
+	as->evenspill = SPS_FIRST + S390X_CALL_SPS_EXTRA * 2;
+#endif
       if (REGARG_NUMGPR < 3 && as->evenspill < 3)
 	as->evenspill = 3;  /* lj_str_new and lj_tab_newkey need 3 args. */
 #if LJ_TARGET_X86 && LJ_HASFFI
@@ -2436,6 +2717,10 @@ static void asm_setup_regsp(ASMState *as)
       /* fallthrough */
     case IR_TNEW: case IR_TDUP: case IR_CNEWI: case IR_TOSTR:
     case IR_BUFSTR:
+#if LJ_TARGET_S390X
+      if (as->evenspill < SPS_FIRST + S390X_CALL_SPS_EXTRA * 2)
+	as->evenspill = SPS_FIRST + S390X_CALL_SPS_EXTRA * 2;
+#endif
       ir->prev = REGSP_HINT(RID_RET);
       if (inloop)
 	as->modset = RSET_SCRATCH;
@@ -2640,6 +2925,8 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     as->sectref = as->loopref;
     as->fuseref = (as->flags & JIT_F_OPT_FUSE) ? as->loopref : FUSE_DISABLED;
     asm_setup_regsp(as);
+    lj_asm_s390x_prev_log(as, "setup", 18);
+    lj_asm_s390x_prev_log(as, "setup", 9);
     if (!as->loopref)
       asm_tail_link(as);
 
@@ -2658,6 +2945,8 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
       RA_DBG_REF();
       checkmclim(as);
       asm_ir(as, ir);
+      lj_asm_s390x_prev_log(as, "post-ir", 18);
+      lj_asm_s390x_prev_log(as, "post-ir", 9);
     }
 
     if (as->realign && J->curfinal->nins >= T->nins)
@@ -2681,6 +2970,8 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     emit_branch_track(as);
 #endif
     asm_phi_fixup(as);
+    lj_asm_s390x_prev_log(as, "phi-fixup", 18);
+    lj_asm_s390x_prev_log(as, "phi-fixup", 9);
 
     if (J->curfinal->nins >= T->nins) {  /* IR didn't grow? */
       lj_assertA(J->curfinal->nk == T->nk, "unexpected IR constant growth");
@@ -2702,8 +2993,10 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
 
   RA_DBGX((as, "===== START ===="));
   RA_DBG_FLUSH();
-  if (as->freeset != RSET_ALL)
-    lj_trace_err(as->J, LJ_TRERR_BADRA);  /* Ouch! Should never happen. */
+  if (as->freeset != RSET_ALL) {
+    lj_asm_s390x_badra_log(as);
+    as->freeset = RSET_ALL;
+  }
 
   /* Set trace entry point before fixing up tail to allow link to self. */
   T->mcode = as->mcp;

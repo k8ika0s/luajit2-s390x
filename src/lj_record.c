@@ -86,6 +86,43 @@ static void s390x_recidx_log(jit_State *J, RecordIndex *ix, const char *phase,
   fflush(out);
 }
 
+static int s390x_recret_log_enabled(void)
+{
+  static int state = -1;
+  if (state == -1) {
+    const char *flag = getenv("LUAJIT_S390X_RECRET_LOG");
+    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
+  }
+  return state;
+}
+
+static void s390x_recret_log(jit_State *J, const char *phase, TValue *frame,
+			     BCReg rbase, ptrdiff_t gotresults, BCReg baseadj)
+{
+  FILE *out;
+  if (!s390x_recret_log_enabled())
+    return;
+  out = stderr;
+  fprintf(out,
+	  "S390X_RECRET phase=%s parent=%u exit=%u startpc=%p pc=%p frame=%p ftsz=0x%llx type=%d typep=%d framedepth=%d baseslot=%u maxslot=%u rbase=%u gotresults=%d baseadj=%u islua=%d iscont=%d isvarg=%d",
+	  phase, (unsigned int)J->parent, (unsigned int)J->exitno,
+	  (void *)J->startpc, (void *)J->pc, (void *)frame,
+	  (unsigned long long)(uint64_t)frame_ftsz(frame),
+	  (int)frame_type(frame), (int)frame_typep(frame), (int)J->framedepth,
+	  (unsigned int)J->baseslot, (unsigned int)J->maxslot,
+	  (unsigned int)rbase, (int)gotresults, (unsigned int)baseadj,
+	  frame_islua(frame), frame_iscont(frame), frame_isvarg(frame));
+  if (frame_islua(frame) || frame_iscont(frame))
+    fprintf(out, " frame_pc=%p", (void *)frame_pc(frame));
+  if (frame_iscont(frame))
+    fprintf(out, " cont=%p delta=%u", (void *)frame_contf(frame),
+	    (unsigned int)frame_delta(frame));
+  if (frame_isvarg(frame))
+    fprintf(out, " delta=%u", (unsigned int)frame_delta(frame));
+  fputc('\n', out);
+  fflush(out);
+}
+
 /* -- Sanity checks ------------------------------------------------------- */
 
 #ifdef LUA_USE_ASSERT
@@ -996,7 +1033,9 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
     J->base -= cbase;
     frame = frame_prevd(frame);
   }
+  s390x_recret_log(J, "target", frame, rbase, gotresults, baseadj);
   if (frame_islua(frame)) {  /* Return to Lua frame. */
+    s390x_recret_log(J, "lua", frame, rbase, gotresults, baseadj);
     BCIns callins = *(frame_pc(frame)-1);
     ptrdiff_t nresults = bc_b(callins) ? (ptrdiff_t)bc_b(callins)-1 :gotresults;
     BCReg cbase = bc_a(callins);
@@ -1042,6 +1081,7 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
       memset(J->base-1-LJ_FR2, 0, sizeof(TRef)*(cbase+1+LJ_FR2));
     }
   } else if (frame_iscont(frame)) {  /* Return to continuation frame. */
+    s390x_recret_log(J, "cont", frame, rbase, gotresults, baseadj);
     ASMFunction cont = frame_contf(frame);
     BCReg cbase = (BCReg)frame_delta(frame);
     if ((J->framedepth -= 2) < 0)

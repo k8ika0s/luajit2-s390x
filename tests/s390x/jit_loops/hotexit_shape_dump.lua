@@ -1,6 +1,8 @@
 local jit = require("jit")
 local util = require("jit.util")
 
+local IRM_REF = 0
+
 local function dump_snap(tr, sn)
   local snap = util.tracesnap(tr, sn)
   if not snap then
@@ -14,6 +16,26 @@ local function dump_snap(tr, sn)
   io.write(table.concat(parts, ","))
   io.write("\n")
   return true
+end
+
+local function collect_krefs(tr, info)
+  local seen = {}
+  local refs = {}
+  for ins = 0, info.nins - 1 do
+    local mode, _, op1, op2 = util.traceir(tr, ins)
+    local m1 = mode % 4
+    local m2 = math.floor(mode / 4) % 4
+    if m1 == IRM_REF and op1 < 0 and not seen[op1] then
+      seen[op1] = true
+      refs[#refs + 1] = op1
+    end
+    if m2 == IRM_REF and op2 < 0 and not seen[op2] then
+      seen[op2] = true
+      refs[#refs + 1] = op2
+    end
+  end
+  table.sort(refs)
+  return refs
 end
 
 local function dump_trace(tr)
@@ -30,7 +52,7 @@ local function dump_trace(tr)
     tostring(info.nk),
     tostring(info.nexit)
   ))
-  for kref = -1, -info.nk, -1 do
+  for _, kref in ipairs(collect_krefs(tr, info)) do
     local k, kt, slot = util.tracek(tr, kref)
     print(string.format(
       "KREF tr=%d ref=%d type=%s slot=%s value=%s",

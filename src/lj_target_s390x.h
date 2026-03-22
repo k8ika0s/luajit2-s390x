@@ -69,12 +69,15 @@ enum {
 #define RSET_GPR_BASE \
   (RID2RSET(RID_R11)|RID2RSET(RID_R12)|RID2RSET(RID_BASE))
 #define RSET_GPR	(RSET_RANGE(RID_MIN_GPR, RID_MAX_GPR) - RSET_FIXED)
-#define RSET_FPR	RSET_RANGE(RID_MIN_FPR, RID_MAX_FPR)
+#define RSET_FPR \
+  (RID2RSET(RID_F0)|RID2RSET(RID_F2)|RID2RSET(RID_F4)|RID2RSET(RID_F6)|\
+   RID2RSET(RID_F8)|RID2RSET(RID_F10)|RID2RSET(RID_F12)|RID2RSET(RID_F14))
 #define RSET_ALL	(RSET_GPR|RSET_FPR)
 #define RSET_INIT	RSET_ALL
 
 #define RSET_SCRATCH_GPR	RSET_RANGE(RID_R1, RID_R6+1)
-#define RSET_SCRATCH_FPR	RSET_RANGE(RID_F0, RID_F7+1)
+#define RSET_SCRATCH_FPR \
+  (RID2RSET(RID_F0)|RID2RSET(RID_F2)|RID2RSET(RID_F4)|RID2RSET(RID_F6))
 #define RSET_SCRATCH		(RSET_SCRATCH_GPR|RSET_SCRATCH_FPR)
 #define REGARG_FIRSTGPR		RID_R2
 #define REGARG_LASTGPR		RID_R6
@@ -86,6 +89,7 @@ enum {
 #define REGARG_FIRSTFPR		RID_F0
 #define REGARG_LASTFPR		RID_F6
 #define REGARG_NUMFPR		4
+#define S390X_CALL_SPS_EXTRA	20
 
 /* -- Spill slots --------------------------------------------------------- */
 
@@ -114,7 +118,7 @@ typedef struct {
 } ExitState;
 
 #define EXITSTATE_CHECKEXIT	1
-#define EXITSTUB_SPACING	6
+#define EXITSTUB_SPACING	4
 /* Avoid dependence on lj_jit.h if only including lj_target.h. */
 #define exitstub_trace_addr(T, exitno) \
   ((MCode *)((char *)(T)->mcode + (T)->szmcode) + \

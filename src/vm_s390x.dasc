@@ -199,6 +199,8 @@
 #define EXITSTATE_FPR_BASE	0
 #define EXITSTATE_GPR_BASE	(16 * 8)
 #define EXITSTATE_SPILL_BASE	(EXITSTATE_GPR_BASE + 16 * 8)
+#define EXITSTATE_CALL_BASE	(CCALL_SPS_EXTRA * 8)
+#define EXITSTATE_FRAME_BASE	(EXITSTATE_CALL_BASE + EXITSTATE_SPILL_BASE)
 #define EXITSTATE_SIZE		(EXITSTATE_SPILL_BASE + 256 * 4)
 #define EXITSTATE_FPR_OFS(n)	(EXITSTATE_FPR_BASE + (n) * 8)
 #define EXITSTATE_GPR_OFS(n)	(EXITSTATE_GPR_BASE + (n) * 8)
@@ -1587,6 +1589,17 @@ static void build_subroutines(BuildCtx *ctx)
   |  j <5
   |
   |7:  // Non-standard return case.
+  |  lay TMPR1, -FRAME_VARG(PC)
+  |  tmll TMPR1, FRAME_TYPEP
+  |  jne >8
+  |  // Return from a fast function inside a vararg Lua frame.
+  |  lghi RA, -16
+  |  sgr BASE, TMPR1
+  |  agr RA, TMPR1
+  |  lg PC, -8(BASE)
+  |  j <5
+  |
+  |8:
   |  lghi RA, -16			// Results start at BASE+RA = BASE-16.
   |  j ->vm_return
   |
@@ -2205,37 +2218,42 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- Trace exit handler -------------------------------------------------
   |//-----------------------------------------------------------------------
   |
-  |// Called from a per-exit stub with exitno in RESERVED(orig_sp) and
-  |// traceno in r0. The exit state is saved to an ExitState on the stack.
+  |// Called from a per-exit stub with exitno in r1 and traceno in r0.
+  |// The exit state is saved to an ExitState on the current C stack.
 |->vm_exit_handler:
 |.if JIT
-|  lay sp, -EXITSTATE_SPILL_BASE(sp)
-  |  std f0,  EXITSTATE_FPR_OFS(0)(sp)
-  |  std f1,  EXITSTATE_FPR_OFS(1)(sp)
-  |  std f2,  EXITSTATE_FPR_OFS(2)(sp)
-  |  std f3,  EXITSTATE_FPR_OFS(3)(sp)
-  |  std f4,  EXITSTATE_FPR_OFS(4)(sp)
-  |  std f5,  EXITSTATE_FPR_OFS(5)(sp)
-  |  std f6,  EXITSTATE_FPR_OFS(6)(sp)
-  |  std f7,  EXITSTATE_FPR_OFS(7)(sp)
-  |  std f8,  EXITSTATE_FPR_OFS(8)(sp)
-  |  std f9,  EXITSTATE_FPR_OFS(9)(sp)
-  |  std f10, EXITSTATE_FPR_OFS(10)(sp)
-  |  std f11, EXITSTATE_FPR_OFS(11)(sp)
-  |  std f12, EXITSTATE_FPR_OFS(12)(sp)
-  |  std f13, EXITSTATE_FPR_OFS(13)(sp)
-  |  std f14, EXITSTATE_FPR_OFS(14)(sp)
-  |  std f15, EXITSTATE_FPR_OFS(15)(sp)
-  |  stg TMPR0, EXITSTATE_GPR_OFS(0)(sp)
-  |  stg TMPR1, EXITSTATE_GPR_OFS(1)(sp)
-  |  stmg r2, r13, EXITSTATE_GPR_OFS(2)(sp)
-  |  stg r14, EXITSTATE_GPR_OFS(14)(sp)
-  |  lay CARG2, EXITSTATE_SPILL_BASE(sp)
-  |  stg CARG2, EXITSTATE_GPR_OFS(15)(sp)
+  |  lg r14, DISPATCH_GL(cur_L)(DISPATCH)
+  |  lg sp, L:r14->cframe
+  |  nill sp, CFRAME_RAWMASK
+|  lay sp, -EXITSTATE_FRAME_BASE(sp)
+  |  nill sp, -8
+  |  lay CARG2, EXITSTATE_CALL_BASE(sp)
+  |  std f0,  EXITSTATE_FPR_OFS(0)(CARG2)
+  |  std f1,  EXITSTATE_FPR_OFS(1)(CARG2)
+  |  std f2,  EXITSTATE_FPR_OFS(2)(CARG2)
+  |  std f3,  EXITSTATE_FPR_OFS(3)(CARG2)
+  |  std f4,  EXITSTATE_FPR_OFS(4)(CARG2)
+  |  std f5,  EXITSTATE_FPR_OFS(5)(CARG2)
+  |  std f6,  EXITSTATE_FPR_OFS(6)(CARG2)
+  |  std f7,  EXITSTATE_FPR_OFS(7)(CARG2)
+  |  std f8,  EXITSTATE_FPR_OFS(8)(CARG2)
+  |  std f9,  EXITSTATE_FPR_OFS(9)(CARG2)
+  |  std f10, EXITSTATE_FPR_OFS(10)(CARG2)
+  |  std f11, EXITSTATE_FPR_OFS(11)(CARG2)
+  |  std f12, EXITSTATE_FPR_OFS(12)(CARG2)
+  |  std f13, EXITSTATE_FPR_OFS(13)(CARG2)
+  |  std f14, EXITSTATE_FPR_OFS(14)(CARG2)
+  |  std f15, EXITSTATE_FPR_OFS(15)(CARG2)
+  |  stg TMPR0, EXITSTATE_GPR_OFS(0)(CARG2)
+  |  stg TMPR1, EXITSTATE_GPR_OFS(1)(CARG2)
+  |  stmg r2, r13, EXITSTATE_GPR_OFS(2)(CARG2)
+  |  stg r14, EXITSTATE_GPR_OFS(14)(CARG2)
+  |  lay CARG3, EXITSTATE_SPILL_BASE(CARG2)
+  |  stg CARG3, EXITSTATE_GPR_OFS(15)(CARG2)
   |  lgr CARG3, TMPR0
-  |  lg RB, DISPATCH_GL(cur_L)(DISPATCH)
+  |  lgr RB, r14
   |  xgr CARG5, CARG5
-  |  lg CARG4, 248(CARG2)
+  |  lgr CARG4, TMPR1
   |  set_vmstate EXIT
   |  sty CARG4, DISPATCH_J(exitno)(DISPATCH)
   |  sty CARG3, DISPATCH_J(parent)(DISPATCH)
@@ -2244,22 +2262,20 @@ static void build_subroutines(BuildCtx *ctx)
   |  stg BASE, L:RB->base
   |  stg CARG5, DISPATCH_GL(jit_base)(DISPATCH)
   |  lay CARG1, GG_DISP2J(DISPATCH)
-  |  lgr CARG2, sp
-  |  brasl r14, extern lj_trace_exit		// (jit_State *J, ExitState *ex)
-  |  lg TMPR1, L:RB->cframe
-  |  nill TMPR1, CFRAME_RAWMASK
-  |  lgr sp, TMPR1
-  |  stg RB, SAVE_L
-  |  lg BASE, L:RB->base
-  |  lg PC, SAVE_PC
-  |  j ->vm_exit_interp
-  |.endif
-|->vm_exit_interp:
-|.if JIT
-|  lg L:RB, DISPATCH_J(L)(DISPATCH)
+|  brasl r14, extern lj_trace_exit		// (jit_State *J, ExitState *ex)
 |  lg TMPR1, L:RB->cframe
 |  nill TMPR1, CFRAME_RAWMASK
 |  lgr sp, TMPR1
+|  stg RB, SAVE_L
+|  lg BASE, L:RB->base
+|  lg PC, SAVE_PC
+|  j >1
+|.endif
+|->vm_exit_interp:
+|.if JIT
+|  // CRET1 = MULTRES or negated error code, BASE, PC and DISPATCH set.
+|  lg L:RB, SAVE_L
+|1:
 |  lgfr RD, CRET1			// RD = MULTRES or negated error code.
 |  stg BASE, L:RB->base
  |  xgr TMPR1, TMPR1
@@ -4280,6 +4296,11 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_AJ	// RA = base, RD = target
     |  sllg RA, RA, 3
     |  la RA, 0(RA, BASE)
+    |  stg RA, SAVE_TMP
+    |  lgr CARG1, BASE
+    |  lgr CARG2, RA
+    |  brasl r14, extern lj_trace_s390x_iter_log
+    |  lg RA, SAVE_TMP
     |  lg RB, 0(RA)
     |  cghi RB, LJ_TNIL; je >1		// Stop if iterator returned nil.
     if (op == BC_JITERL) {
@@ -4311,7 +4332,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_JLOOP:
     |.if JIT
     |  ins_AD	// RA = base (ignored), RD = traceno
-    |  stg PC, SAVE_PC
     |  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
     |  sllg RD, RD, 3
     |  lg TRACE:RD, 0(RD, TMPR1)
@@ -4471,6 +4491,14 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lcgr RA, RA
     |  ag RA, L:RB->top			// RA = (L->top-(L->base+nresults))*8
     |  lg PC, -8(BASE)			// Fetch PC of caller.
+    |  lay TMPR0, -FRAME_VARG(PC)
+    |  tmll TMPR0, FRAME_TYPEP
+    |  jne >1
+    |  // Returning from a wrapped C fast function inside a vararg Lua frame.
+    |  sgr BASE, TMPR0
+    |  agr RA, TMPR0
+    |  lg PC, -8(BASE)
+    |1:
     |  j ->vm_returnc
     break;
 
