@@ -2831,3 +2831,66 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - the next useful work is to widen matrix coverage only where it exercises a
     meaningfully different surface, then continue with the remaining iterator
     and hot-exit quality work from that revalidated baseline
+
+## 2026-03-22 Matrix restamp and harness transport hardening
+
+- Clean native full repo-local Perl sweeps are now green on both active hosts:
+  - `kdz:/root/luajit2-s390x/clean-loop-20260321`
+  - `zkd0:/root/luajit2-s390x/spotcheck-20260321`
+  - command:
+    - `prove -v t/*.t`
+  - result:
+    - `Files=10, Tests=165`
+    - `Result: PASS`
+
+- Focused clang spot-checks are also green on both hosts:
+  - `prove -v t/exdata.t t/iter.t t/isarr-jit.t`
+  - `tests/s390x/jit_core/side_exit.lua`
+  - result:
+    - PASS on `kdz`
+    - PASS on `zkd0`
+
+- The `-DLUAJIT_DISABLE_FFI` matrix corner is green on native `kdz`:
+  - build:
+    - `XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT -DLUA_USE_ASSERT -DLUAJIT_DISABLE_FFI'`
+  - focused repo coverage:
+    - `prove -v t/isarr-jit.t t/iter.t`
+  - result:
+    - PASS
+
+- `thread.exdata()` and the reduced side-exit/nloop hot-side regressions remain
+  fixed on the clean native loop:
+  - `prove -v t/exdata.t`
+  - `/tmp/nloop.lua 7`
+  - `tests/s390x/jit_core/side_exit.lua`
+  - result:
+    - green on `kdz`
+    - current spot-checks green on `zkd0`
+
+- New process-level finding from the structured runner:
+  - the manual native matrix is ahead of the harness again, but for a process
+    reason rather than a new backend bug
+  - the local driver’s `rsync`-based remote sync path hangs or degrades on the
+    IBM Z hosts because the remote login banners interfere with that transport
+  - the first authoritative harness failure from this phase,
+    `20260322T025707.788600Z-p87271`, also exposed a real hardening gap:
+    `vm_s390x.dasc` now calls `lj_trace_s390x_iter_log`, but that helper had
+    been added as a plain C symbol rather than a normal exported trace helper
+  - local remediation now in progress:
+    - `src/lj_trace.h`
+      - added declarations for:
+        - `lj_trace_s390x_varg_probe`
+        - `lj_trace_s390x_iter_log`
+    - `src/lj_trace.c`
+      - both helpers now use `LJ_FUNC`
+    - `tools/s390x/driver.py`
+      - transport is being converted away from raw `rsync` to banner-tolerant
+        tar-over-ssh / ssh-cat paths
+
+- Current interpretation:
+  - the active correctness surface for the tested repo-local and focused JIT
+    coverage is green on both native hosts
+  - the immediate next work is harness hardening, not another backend rescue
+  - once the driver transport and symbol-export issue are restamped under the
+    structured runner, the next meaningful frontier returns to remaining
+    iterator / hot-exit convergence quality work and the broader matrix

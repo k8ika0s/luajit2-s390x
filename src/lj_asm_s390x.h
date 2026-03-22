@@ -411,9 +411,9 @@ static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
   as->mcp = mxp;
   for (i = nexits; i > 0; i--) {
     ExitNo exitno = i - 1;
+    emit_u32(as, (uint32_t)as->T->traceno);
+    emit_u32(as, (uint32_t)exitno);
     emit_call(as, RID_R14, target);
-    emit_loadi(as, RID_TMP, (int32_t)as->T->traceno);
-    emit_loadi(as, RID_R1, (int32_t)exitno);
   }
   as->mcexit = as->mcp;
   as->mctop = as->mcp;
@@ -2064,7 +2064,54 @@ static void asm_tointg(ASMState *as, IRIns *ir, Reg left)
   emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
   emit_u32(as, S390X_INS_RRF_M(S390XI_CFDBR, dest, 5, left));
 }
-ASM_S390X_STUB_IR(asm_cnew)
+#if LJ_HASFFI
+static void asm_cnew(ASMState *as, IRIns *ir)
+{
+  CTState *cts = ctype_ctsG(J2G(as->J));
+  CTypeID id = (CTypeID)IR(ir->op1)->i;
+  CTSize sz;
+  CTInfo info = lj_ctype_info(cts, id, &sz);
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_mem_newgco];
+  IRRef args[4];
+
+  lj_assertA(sz != CTSIZE_INVALID || (ir->o == IR_CNEW && ir->op2 != REF_NIL),
+	     "bad CNEW/CNEWI operands");
+
+  as->gcsteps++;
+  asm_setupresult(as, ir, ci);  /* GCcdata * */
+
+  if (ir->o == IR_CNEWI) {
+    RegSet allow = rset_exclude(
+	rset_exclude(rset_exclude(RSET_GPR, RID_RET), RID_TMP), RID_R1);
+    Reg src = irref_isk(ir->op2) ? ra_allock(as, ir->op2, allow) :
+				   ra_alloc1(as, ir->op2, allow);
+    lj_assertA(sz == 4 || sz == 8, "bad CNEWI size %d", sz);
+    if (sz == 8)
+      emit_store64ofs(as, src, RID_RET, sizeof(GCcdata));
+    else
+      emit_store32ofs(as, src, RID_RET, sizeof(GCcdata));
+  } else if (ir->op2 != REF_NIL) {  /* Create VLA/VLS/aligned cdata. */
+    ci = &lj_ir_callinfo[IRCALL_lj_cdata_newv];
+    args[0] = ASMREF_L;     /* lua_State *L */
+    args[1] = ir->op1;      /* CTypeID id   */
+    args[2] = ir->op2;      /* CTSize sz    */
+    args[3] = ASMREF_TMP1;  /* CTSize align */
+    asm_gencall(as, ci, args);
+    emit_loadi(as, ra_releasetmp(as, ASMREF_TMP1), (int32_t)ctype_align(info));
+    return;
+  }
+
+  emit_store8ofs(as, RID_TMP, RID_RET, offsetof(GCcdata, gct));
+  emit_loadi(as, RID_TMP, (int32_t)~LJ_TCDATA);
+  emit_store16ofs(as, RID_R1, RID_RET, offsetof(GCcdata, ctypeid));
+  emit_loadi(as, RID_R1, (int32_t)id);
+
+  args[0] = ASMREF_L;     /* lua_State *L */
+  args[1] = ASMREF_TMP1;  /* MSize size   */
+  asm_gencall(as, ci, args);
+  emit_loadi(as, ra_releasetmp(as, ASMREF_TMP1), (int32_t)(sz+sizeof(GCcdata)));
+}
+#endif
 ASM_S390X_STUB_IR(asm_obar)
 
 static void asm_conv(ASMState *as, IRIns *ir)

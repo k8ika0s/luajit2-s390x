@@ -2925,8 +2925,8 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     as->sectref = as->loopref;
     as->fuseref = (as->flags & JIT_F_OPT_FUSE) ? as->loopref : FUSE_DISABLED;
     asm_setup_regsp(as);
-    lj_asm_s390x_prev_log(as, "setup", 18);
-    lj_asm_s390x_prev_log(as, "setup", 9);
+    lj_asm_s390x_prev_log(as, "setup", 7);
+    lj_asm_s390x_prev_log(as, "setup", 8);
     if (!as->loopref)
       asm_tail_link(as);
 
@@ -2945,8 +2945,8 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
       RA_DBG_REF();
       checkmclim(as);
       asm_ir(as, ir);
-      lj_asm_s390x_prev_log(as, "post-ir", 18);
-      lj_asm_s390x_prev_log(as, "post-ir", 9);
+      lj_asm_s390x_prev_log(as, "post-ir", 7);
+      lj_asm_s390x_prev_log(as, "post-ir", 8);
     }
 
     if (as->realign && J->curfinal->nins >= T->nins)
@@ -2970,8 +2970,8 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     emit_branch_track(as);
 #endif
     asm_phi_fixup(as);
-    lj_asm_s390x_prev_log(as, "phi-fixup", 18);
-    lj_asm_s390x_prev_log(as, "phi-fixup", 9);
+    lj_asm_s390x_prev_log(as, "phi-fixup", 7);
+    lj_asm_s390x_prev_log(as, "phi-fixup", 8);
 
     if (J->curfinal->nins >= T->nins) {  /* IR didn't grow? */
       lj_assertA(J->curfinal->nk == T->nk, "unexpected IR constant growth");

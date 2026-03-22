@@ -32,6 +32,9 @@ sync loop.
 ## Current Working Position
 
 - The branch is back on a trustworthy remediation loop.
+- The clean native gcc `prove -v t/*.t` sweep is now green on both:
+  - `kdz:/root/luajit2-s390x/clean-loop-20260321`
+  - `zkd0:/root/luajit2-s390x/spotcheck-20260321`
 - The latest verified vararg fix is in the direct-exit tail path:
   - `SAVE_L` is now rematerialized from `DISPATCH` for no-link exits
   - `tests/s390x/jit_loops/vararg_trace.lua` is green on native `kdz`
@@ -59,15 +62,26 @@ sync loop.
   - `zkd0` passes the current hot regression set for `side_exit`, vararg,
     BE helpers, soak, `t/iter.t`, and `t/isarr-jit.t`
   - `kdz` passes a focused clang JIT build plus the same hot regression set
+  - `zkd0` also passes the same focused clang JIT spot-check set
+  - `kdz` passes the current `-DLUAJIT_DISABLE_FFI` corner for:
+    - `t/isarr-jit.t`
+    - `t/iter.t`
+- The current harness hardening work is no longer about JIT correctness on the
+  tested surface. It is about making the driver’s remote sync/collection path
+  robust on banner-printing hosts so the structured artifacts match the now
+  green manual native matrix.
 
 ## Current Next Actions
 
-1. Keep `vararg_trace`, the direct-exit `SAVE_L` path, and `side_exit.lua`
-   in the focused regression set so these fixes do not silently regress.
-2. Widen from the current green `jit-correctness` state into the next matrix
-   corners only where they exercise a meaningfully different surface.
-3. Return to the remaining iterator and hot-exit convergence work from that
-   revalidated matrix baseline instead of reopening the earlier resolved
+1. Keep `vararg_trace`, the direct-exit `SAVE_L` path, `side_exit.lua`, and
+   `thread.exdata()` in the focused regression set so these fixes do not
+   silently regress.
+2. Finish hardening the driver transport so repo sync and artifact collection
+   work reliably on `kdz`/`zkd0` even with login banners.
+3. Once the harness transport is re-stamped, widen matrix coverage only where
+   it exercises a meaningfully different surface.
+4. Return to the remaining iterator and hot-exit convergence quality work from
+   that revalidated matrix baseline instead of reopening the earlier resolved
    blockers.
 
 ## Detail Links

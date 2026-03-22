@@ -196,6 +196,9 @@
 #define DISPATCH_J(field)	(GG_DISP2J + (int)offsetof(jit_State, field))
 |
 #define PC2PROTO(field)  ((int)offsetof(GCproto, field)-(int)sizeof(GCproto))
+#ifndef CCALL_SPS_EXTRA
+#define CCALL_SPS_EXTRA 0
+#endif
 #define EXITSTATE_FPR_BASE	0
 #define EXITSTATE_GPR_BASE	(16 * 8)
 #define EXITSTATE_SPILL_BASE	(EXITSTATE_GPR_BASE + 16 * 8)
@@ -2218,12 +2221,13 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- Trace exit handler -------------------------------------------------
   |//-----------------------------------------------------------------------
   |
-  |// Called from a per-exit stub with exitno in r1 and traceno in r0.
-  |// The exit state is saved to an ExitState on the current C stack.
+  |// Called from a per-exit stub with exitno/traceno inline after the call.
+  |// r14 points at the inline data on entry. The exit state is saved to an
+  |// ExitState on the current C stack before clobbering allocatable regs.
 |->vm_exit_handler:
 |.if JIT
-  |  lg r14, DISPATCH_GL(cur_L)(DISPATCH)
-  |  lg sp, L:r14->cframe
+  |  lg sp, DISPATCH_GL(cur_L)(DISPATCH)
+  |  lg sp, L:sp->cframe
   |  nill sp, CFRAME_RAWMASK
 |  lay sp, -EXITSTATE_FRAME_BASE(sp)
   |  nill sp, -8
@@ -2250,10 +2254,10 @@ static void build_subroutines(BuildCtx *ctx)
   |  stg r14, EXITSTATE_GPR_OFS(14)(CARG2)
   |  lay CARG3, EXITSTATE_SPILL_BASE(CARG2)
   |  stg CARG3, EXITSTATE_GPR_OFS(15)(CARG2)
-  |  lgr CARG3, TMPR0
-  |  lgr RB, r14
+  |  llgf CARG4, 2(r14)
+  |  llgf CARG3, 6(r14)
+  |  lg RB, DISPATCH_GL(cur_L)(DISPATCH)
   |  xgr CARG5, CARG5
-  |  lgr CARG4, TMPR1
   |  set_vmstate EXIT
   |  sty CARG4, DISPATCH_J(exitno)(DISPATCH)
   |  sty CARG3, DISPATCH_J(parent)(DISPATCH)
@@ -4296,11 +4300,13 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_AJ	// RA = base, RD = target
     |  sllg RA, RA, 3
     |  la RA, 0(RA, BASE)
+    |.if JIT
     |  stg RA, SAVE_TMP
     |  lgr CARG1, BASE
     |  lgr CARG2, RA
     |  brasl r14, extern lj_trace_s390x_iter_log
     |  lg RA, SAVE_TMP
+    |.endif
     |  lg RB, 0(RA)
     |  cghi RB, LJ_TNIL; je >1		// Stop if iterator returned nil.
     if (op == BC_JITERL) {

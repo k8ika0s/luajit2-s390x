@@ -52,25 +52,23 @@ tracked in:
 
 Current trustworthy checkpoint:
 
-- the current native validation loop is running through `kdz` with local edits
-  synced into `/root/luajit2-s390x/rsync-loop-20260321`
-- the older polluted remote trees are not authoritative anymore
-- the direct-exit `SAVE_L` corruption on the hot vararg loop is fixed on native
-  `kdz`
-- `/tmp/vararg_result.lua`,
-  `tests/s390x/jit_loops/vararg_trace.lua`,
-  `tests/s390x/jit_loops/vararg_seq.lua`, and
-  `tests/s390x/jit_loops/vararg_return_split.lua` are green again on native
-  `kdz`
-- the staged harness has re-stamped `jit_loops` green on `kdz`
-- the next native wrong-result frontier, `tests/s390x/jit_core/side_exit.lua`,
-  was fixed by correcting integer snapshot restore preference in
-  `src/lj_snap.c`
-- a direct native `kdz` sweep of `tests/s390x/jit_core/*.lua` is now green
-- the staged harness has now also stamped `jit_core` and `jit-correctness`
-  green on `kdz`
-- a focused second-host spot-check on `zkd0` and a focused clang JIT cut on
-  `kdz` are both green on the current hot regression set
+- the current authoritative native worktrees are:
+  - `kdz:/root/luajit2-s390x/clean-loop-20260321`
+  - `zkd0:/root/luajit2-s390x/spotcheck-20260321`
+- the older polluted remote trees are no longer treated as authoritative
+- the direct-exit `SAVE_L` corruption on the hot vararg loop is fixed
+- the `side_exit` wrong-result bug is fixed by the s390x restore-prefer-live-reg
+  path in `src/lj_snap.c`
+- the clean native gcc `prove -v t/*.t` sweep is green on both `kdz` and `zkd0`
+- focused clang JIT spot-checks are green on both `kdz` and `zkd0`
+- the native `-DLUAJIT_DISABLE_FFI` build corner is green on `kdz` for the
+  current iterator and `isarray` JIT coverage
+- `tests/s390x/jit_core`, `tests/s390x/jit_loops`, `tests/s390x/jit_be`, and
+  `tests/s390x/soak` remain green on the current native loop
+- the structured harness has already stamped `jit_loops`, `jit_core`, and
+  `jit-correctness` green on `kdz`, and the current work is hardening the
+  matrix/harness transport path so those broader native results are captured
+  automatically too
 - the detailed narrowing trail and current procedure are recorded in
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 
