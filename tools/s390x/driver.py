@@ -490,13 +490,26 @@ def sync_repo(ctx: Context, host: str) -> None:
         f"{shlex.quote(ctx.remote_repo_root)}/..?* 2>/dev/null || true"
     )
     run_ssh(ctx, host, remote_prep, check=True)
-    file_list = run_local(
-        ctx,
+    start = time.time()
+    file_list = subprocess.run(
         ["git", "ls-files", "-z"],
-        cwd=ROOT,
-        check=True,
+        cwd=str(ROOT),
+        text=False,
+        capture_output=True,
+    )
+    duration = time.time() - start
+    ctx.logger.write(
+        host="local",
+        cwd=str(ROOT),
+        argv=["git", "ls-files", "-z"],
+        exit_code=file_list.returncode,
+        duration_sec=duration,
         artifacts={"sync_mode": "git-ls-files"},
     )
+    if file_list.stderr:
+        sys.stderr.write(file_list.stderr.decode("utf-8", errors="replace"))
+    if file_list.returncode != 0:
+        raise DriverError("failed to enumerate tracked files for repo sync")
     tar_parts = [
         "tar",
         "--disable-copyfile",
@@ -515,7 +528,7 @@ def sync_repo(ctx: Context, host: str) -> None:
     proc = subprocess.run(
         ["/bin/bash", "-lc", f"COPYFILE_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"],
         cwd=str(ROOT),
-        input=file_list.stdout.encode("utf-8", errors="surrogateescape"),
+        input=file_list.stdout,
         text=False,
         capture_output=True,
     )
