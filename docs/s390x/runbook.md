@@ -107,6 +107,23 @@ how to read the resulting artifacts.
 - `matrix`: run the wider compiler and build-style matrix.
 - `perf`: treat tuning as performance-only, never as correctness.
 
+## Performance Stage
+
+- The `perf` stage now includes:
+  - `smoke`
+  - `soak`
+  - `perf_bench`
+- `perf_bench` emits structured benchmark JSON plus per-benchmark raw logs.
+- The primary perf artifacts are:
+  - `perf/benchmarks.json`
+  - `perf/comparisons.json`
+  - `perf/perf-summary.md`
+- Structured perf runs use the same native remote build/test flow as the
+  correctness stages.
+- Use the `perf` stage only after the matching matrix slice is already green.
+- Cross-arch control builds are local and informative only. They are not
+  treated as correctness gates.
+
 ## Notes
 
 - The harness never edits the remote tree by hand. It always syncs from the

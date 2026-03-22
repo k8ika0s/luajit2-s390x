@@ -3035,3 +3035,40 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - once one clean `matrix/smoke` run completes from the `e1d2f1ac` baseline,
     the next useful work is to widen structured matrix coverage instead of
     reopening any of the resolved JIT bugs
+# 2026-03-22 Perf Baseline
+
+- The first native performance stage is now real and artifact-producing via
+  [tools/s390x/driver.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/driver.py).
+- The current release-stable benchmark subset is intentionally narrow:
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Authoritative native runs:
+  - JIT on baseline and z13:
+    [artifacts/s390x/20260322T145212.814679Z-p29811](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811)
+  - JIT off baseline and z13:
+    [artifacts/s390x/20260322T145555.369124Z-p31961](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961)
+- Representative hot-scale medians on `kdz`, `gcc release`:
+  - JIT on baseline:
+    - `numeric_loop`: `0.044697s`
+    - `side_exit_loop`: `0.032459s`
+    - `hotexit_loop`: `0.011691s`
+  - JIT on z13:
+    - `numeric_loop`: `0.043573s`
+    - `side_exit_loop`: `0.027554s`
+    - `hotexit_loop`: `0.011168s`
+  - JIT off baseline:
+    - `numeric_loop`: `0.002061s`
+    - `side_exit_loop`: `0.003735s`
+    - `hotexit_loop`: `0.005610s`
+- Current interpretation:
+  - the perf harness is working
+  - z13 tuning gives an immediate measured gain on the side-exit-heavy shape
+  - dispatch and side-exit overhead are now proven optimization hotspots for
+    the s390x JIT path
+- Follow-up validation:
+  - the perf helper was corrected to use moderate JIT thresholds
+    (`hotloop=10`, `hotexit=10`) instead of the old bring-up stress settings
+  - a direct native rerun on `kdz` matched the dispatch medians within normal
+    noise, so the hotspot conclusion still stands
+- The next optimization loop should stay on that hotspot before widening the
+  default perf gate to the unstable `bitops`, `vararg`, iterator-table update,
+  or traced FFI perf families.

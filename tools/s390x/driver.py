@@ -14,8 +14,10 @@ import json
 import os
 import pathlib
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import traceback
@@ -76,6 +78,22 @@ SOAK_FFI_LUA_FILES = {
     "tests/s390x/soak/mixed_stress.lua",
 }
 
+PERF_BENCH_LUA_FILES = [
+    "tests/s390x/perf/dispatch_trace.lua",
+]
+
+PERF_FFI_LUA_FILES = {
+    "tests/s390x/perf/ffi_calls.lua",
+    "tests/s390x/perf/ffi_cdata.lua",
+    "tests/s390x/perf/mixed_ffi.lua",
+}
+
+PERF_STAT_BENCH_LUA_FILES = [
+    "tests/s390x/perf/dispatch_trace.lua",
+]
+
+PERF_TOP_CROSS_ARCH_COUNT = 5
+
 SUITES = {
     "smoke": "Build and runtime smoke checks",
     "pure_lua": "Interpreter-focused Lua and non-JIT regression coverage",
@@ -85,6 +103,7 @@ SUITES = {
     "jit_be": "Big-endian JIT-sensitive regression coverage",
     "jit_loops": "Loop tracing, iterator, and vararg JIT coverage",
     "soak": "Long-running mixed stress coverage",
+    "perf_bench": "Structured performance benchmarks with JSON metrics",
 }
 
 STAGE_DEFAULT_SUITES = {
@@ -95,7 +114,7 @@ STAGE_DEFAULT_SUITES = {
     "jit-bringup": ["smoke", "jit_core", "jit_loops"],
     "jit-correctness": ["smoke", "jit_core", "jit_loops", "jit_be", "soak"],
     "matrix": ["smoke", "pure_lua", "ffi_abi", "callbacks", "jit_core", "jit_loops", "jit_be"],
-    "perf": ["smoke", "soak"],
+    "perf": ["smoke", "soak", "perf_bench"],
 }
 
 STAGE_ORDER = list(STAGE_DEFAULT_SUITES)
@@ -235,12 +254,14 @@ class Context:
         self.local_remote_dir = self.local_run_dir / "remote"
         self.local_binaries_dir = self.local_run_dir / "binaries"
         self.local_metadata_dir = self.local_run_dir / "metadata"
+        self.local_perf_dir = self.local_run_dir / "perf"
         self.lock_path = self.local_run_dir / ".lock"
         self.lock_fd: Optional[int] = None
         self._acquire_local_lock()
         self.local_remote_dir.mkdir(parents=True, exist_ok=self.args.resume)
         self.local_binaries_dir.mkdir(parents=True, exist_ok=self.args.resume)
         self.local_metadata_dir.mkdir(parents=True, exist_ok=self.args.resume)
+        self.local_perf_dir.mkdir(parents=True, exist_ok=self.args.resume)
         self.logger = CommandLogger(self.local_run_dir / "commands.ndjson")
         self.host: Optional[str] = None
         self.primary_host: Optional[str] = None
@@ -250,6 +271,9 @@ class Context:
         self.remote_artifacts_root = f"{self.remote_run_root}/{REMOTE_ARTIFACTS_NAME}"
         self.results: List[StepResult] = []
         self.failures: List[dict] = []
+        self.perf_records: List[dict] = []
+        self.perf_comparisons: List[dict] = []
+        self.perf_notes: List[str] = []
         self.manifest_path = self.local_run_dir / "manifest.json"
         self.manifest = {
             "run_id": self.run_id,
@@ -267,6 +291,9 @@ class Context:
             "failover_from": None,
             "results": [],
             "failures": [],
+            "perf_records": [],
+            "perf_comparisons": [],
+            "perf_notes": [],
         }
 
     @staticmethod
@@ -335,6 +362,9 @@ class Context:
         self.manifest["failover_from"] = self.failover_from
         self.manifest["results"] = [asdict(result) for result in self.results]
         self.manifest["failures"] = self.failures
+        self.manifest["perf_records"] = self.perf_records
+        self.manifest["perf_comparisons"] = self.perf_comparisons
+        self.manifest["perf_notes"] = self.perf_notes
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -368,6 +398,7 @@ def run_local(
     cwd: Optional[pathlib.Path] = None,
     env: Optional[Dict[str, str]] = None,
     check: bool = False,
+    echo_output: bool = True,
     artifacts: Optional[Dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     start = time.time()
@@ -388,9 +419,9 @@ def run_local(
         env_diff=env,
         artifacts=artifacts,
     )
-    if proc.stdout:
+    if echo_output and proc.stdout:
         sys.stdout.write(proc.stdout)
-    if proc.stderr:
+    if echo_output and proc.stderr:
         sys.stderr.write(proc.stderr)
     if check and proc.returncode != 0:
         raise DriverError(f"local command failed: {' '.join(argv)}")
@@ -403,6 +434,7 @@ def run_local_shell(
     *,
     cwd: Optional[pathlib.Path] = None,
     check: bool = False,
+    echo_output: bool = True,
     artifacts: Optional[Dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     argv = ["/bin/bash", "-lc", command]
@@ -422,9 +454,9 @@ def run_local_shell(
         duration_sec=duration,
         artifacts=artifacts,
     )
-    if proc.stdout:
+    if echo_output and proc.stdout:
         sys.stdout.write(proc.stdout)
-    if proc.stderr:
+    if echo_output and proc.stderr:
         sys.stderr.write(proc.stderr)
     if check and proc.returncode != 0:
         raise DriverError(f"local shell command failed: {command}")
@@ -529,6 +561,9 @@ def sync_repo(ctx: Context, host: str) -> None:
         "tar",
         "--disable-copyfile",
         "--no-mac-metadata",
+        "--no-xattrs",
+        "--no-acls",
+        "--no-fflags",
         "-C",
         str(ROOT),
         "--null",
@@ -541,7 +576,7 @@ def sync_repo(ctx: Context, host: str) -> None:
     ssh_cmd = f"ssh -o BatchMode=yes {shlex.quote(host)} {shlex.quote(f'bash -lc {shlex.quote(remote_cmd)}')}"
     start = time.time()
     proc = subprocess.run(
-        ["/bin/bash", "-lc", f"COPYFILE_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"],
+        ["/bin/bash", "-lc", f"COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"],
         cwd=str(ROOT),
         input=file_list.stdout,
         text=False,
@@ -551,7 +586,7 @@ def sync_repo(ctx: Context, host: str) -> None:
     ctx.logger.write(
         host="local",
         cwd=str(ROOT),
-        argv=["/bin/bash", "-lc", f"COPYFILE_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"],
+        argv=["/bin/bash", "-lc", f"COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"],
         exit_code=proc.returncode,
         duration_sec=duration,
         artifacts={
@@ -628,9 +663,9 @@ def collect_remote_binaries(ctx: Context, host: str, variant: Variant) -> None:
 
 
 def record_local_git_state(ctx: Context) -> None:
-    sha = run_local(ctx, ["git", "rev-parse", "HEAD"], check=True)
-    status = run_local(ctx, ["git", "status", "--short", "--branch"], check=True)
-    diff = run_local(ctx, ["git", "diff", "--binary", "HEAD"], check=True)
+    sha = run_local(ctx, ["git", "rev-parse", "HEAD"], check=True, echo_output=False)
+    status = run_local(ctx, ["git", "status", "--short", "--branch"], check=True, echo_output=False)
+    diff = run_local(ctx, ["git", "diff", "--binary", "HEAD"], check=True, echo_output=False)
     write_text(ctx.local_metadata_dir / "git-sha.txt", sha.stdout)
     write_text(ctx.local_metadata_dir / "git-status.txt", status.stdout)
     write_text(ctx.local_metadata_dir / "dirty.patch", diff.stdout)
@@ -912,7 +947,539 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             done
             """
         ).strip()
+    if suite == "perf_bench":
+        bench_files = [
+            test for test in PERF_BENCH_LUA_FILES
+            if variant.ffi == "on" or test not in PERF_FFI_LUA_FILES
+        ]
+        bench_steps: List[str] = [
+            'mkdir -p "$S390X_STEP_DIR/bench-logs" "$S390X_STEP_DIR/perf-stat"',
+            'bench_json="$S390X_STEP_DIR/benchmarks.jsonl"',
+            'rm -f "$bench_json"',
+        ]
+        for test in bench_files:
+            stem = pathlib.Path(test).stem
+            stdout_path = f'$S390X_STEP_DIR/bench-logs/{stem}.stdout.log'
+            stderr_path = f'$S390X_STEP_DIR/bench-logs/{stem}.stderr.log'
+            perf_stat_csv = f'$S390X_STEP_DIR/perf-stat/{stem}.csv'
+            perf_stat_stdout = f'$S390X_STEP_DIR/perf-stat/{stem}.stdout.log'
+            perf_stat_stderr = f'$S390X_STEP_DIR/perf-stat/{stem}.stderr.log'
+            bench_steps.extend(
+                [
+                    'before_count=$(test -f "$bench_json" && wc -l < "$bench_json" || echo 0)',
+                    f'printf "%s\\n" {shlex.quote(test)} > "$S390X_STEP_DIR/current_test.txt"',
+                    (
+                        f'S390X_PERF_OUTPUT_JSONL="$bench_json" '
+                        f'S390X_PERF_WARMUP=1 '
+                        f'S390X_PERF_SAMPLES=5 '
+                        f'S390X_PERF_BENCH_FILE={shlex.quote(test)} '
+                        f'./src/luajit {shlex.quote(test)} > {stdout_path} 2> {stderr_path}'
+                    ),
+                    'after_count=$(test -f "$bench_json" && wc -l < "$bench_json" || echo 0)',
+                    'if [ "$after_count" -le "$before_count" ]; then',
+                    f'  echo "benchmark emitted no metrics: {test}" >&2',
+                    '  exit 1',
+                    'fi',
+                ]
+            )
+            if (
+                variant.mode == "release"
+                and variant.jit == "on"
+                and variant.ffi == "on"
+                and variant.tuning == "baseline"
+                and test in PERF_STAT_BENCH_LUA_FILES
+            ):
+                bench_steps.extend(
+                    [
+                        'if ! command -v perf >/dev/null 2>&1; then',
+                        '  echo "perf is required for release perf benchmarks" >&2',
+                        '  exit 1',
+                        'fi',
+                        (
+                            "S390X_PERF_OUTPUT_JSONL= "
+                            "S390X_PERF_WARMUP=1 "
+                            "S390X_PERF_SAMPLES=1 "
+                            f"S390X_PERF_BENCH_FILE={shlex.quote(test)} "
+                            "perf stat -x, "
+                            "-o "
+                            f"{perf_stat_csv} "
+                            "-e cycles,instructions,branches,branch-misses,cache-references,cache-misses "
+                            f"./src/luajit {shlex.quote(test)} > {perf_stat_stdout} 2> {perf_stat_stderr}"
+                        ),
+                    ]
+                )
+        return textwrap.dedent(
+            f"""
+            set -euo pipefail
+            export PATH="$PWD/src:$PATH"
+            {'\n'.join(bench_steps)}
+            """
+        ).strip()
     raise DriverError(f"unknown suite: {suite}")
+
+
+def perf_record_identity(record: dict) -> tuple[str, str, str]:
+    return (
+        str(record.get("family", "")),
+        str(record.get("workload", "")),
+        str(record.get("scale", "")),
+    )
+
+
+def load_json_file(path: pathlib.Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def parse_perf_stat_csv(path: pathlib.Path) -> Dict[str, float]:
+    metrics: Dict[str, float] = {}
+    if not path.exists():
+        return metrics
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 3:
+            continue
+        value, _, event = parts[:3]
+        if value in ("<not counted>", "<not supported>"):
+            continue
+        try:
+            metrics[event] = float(value)
+        except ValueError:
+            continue
+    return metrics
+
+
+def enrich_perf_record(
+    ctx: Context,
+    *,
+    host: str,
+    variant: Variant,
+    bench_file: str,
+    record: dict,
+    commit: str,
+    control_arch: Optional[str] = None,
+) -> dict:
+    enriched = dict(record)
+    enriched["commit"] = commit
+    enriched["host"] = host
+    enriched["compiler"] = variant.compiler
+    enriched["mode"] = variant.mode
+    enriched["jit"] = variant.jit
+    enriched["ffi"] = variant.ffi
+    enriched["build_style"] = variant.build_style
+    enriched["tuning"] = variant.tuning
+    enriched["bench_file"] = bench_file
+    if control_arch:
+        enriched["control_arch"] = control_arch
+    return enriched
+
+
+def parse_perf_records_for_step(ctx: Context, result: StepResult) -> None:
+    if result.suite != "perf_bench" or result.exit_code != 0:
+        return
+    local_step = pathlib.Path(result.local_step_dir)
+    jsonl_path = local_step / "benchmarks.jsonl"
+    if not jsonl_path.exists():
+        ctx.failures.append(
+            {
+                "type": "perf-parse",
+                "step": result.step,
+                "message": f"missing benchmark metrics file: {jsonl_path}",
+            }
+        )
+        ctx.save_manifest()
+        return
+    commit = (ctx.local_metadata_dir / "git-sha.txt").read_text(encoding="utf-8").strip()
+    variant = Variant(**result.variant)
+    stat_dir = local_step / "perf-stat"
+    records_before = len(ctx.perf_records)
+    malformed = []
+    for line_no, raw_line in enumerate(jsonl_path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            malformed.append({"line": line_no, "message": str(exc), "text": line})
+            continue
+        bench_file = str(record.get("bench_file") or record.get("source_file") or "")
+        if not bench_file:
+            malformed.append({"line": line_no, "message": "missing bench_file", "text": line})
+            continue
+        stem = pathlib.Path(bench_file).stem
+        record["perf_stat"] = parse_perf_stat_csv(stat_dir / f"{stem}.csv")
+        ctx.perf_records.append(
+            enrich_perf_record(
+                ctx,
+                host=result.host,
+                variant=variant,
+                bench_file=bench_file,
+                record=record,
+                commit=commit,
+            )
+        )
+    if malformed:
+        ctx.failures.append(
+            {
+                "type": "perf-parse",
+                "step": result.step,
+                "message": "malformed benchmark metrics",
+                "entries": malformed,
+            }
+        )
+    if len(ctx.perf_records) == records_before:
+        ctx.failures.append(
+            {
+                "type": "perf-parse",
+                "step": result.step,
+                "message": "no benchmark records parsed from perf bench step",
+            }
+        )
+    ctx.save_manifest()
+
+
+def median(values: List[float]) -> float:
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[mid]
+    return (ordered[mid - 1] + ordered[mid]) / 2.0
+
+
+def percentile(values: List[float], pct: float) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    index = max(0, min(len(ordered) - 1, int((len(ordered) - 1) * pct + 0.999999)))
+    return ordered[index]
+
+
+def perf_baseline_selector(record: dict) -> bool:
+    return (
+        record.get("host") == "kdz"
+        and record.get("compiler") == "gcc"
+        and record.get("mode") == "release"
+        and record.get("jit") == "on"
+        and record.get("ffi") == "on"
+        and record.get("tuning") == "baseline"
+    )
+
+
+def perf_suite_key(record: dict) -> tuple[str, str, str]:
+    return (
+        str(record.get("family", "")),
+        str(record.get("workload", "")),
+        str(record.get("scale", "")),
+    )
+
+
+def build_perf_baseline_index(records: List[dict], selector) -> Dict[tuple[str, str, str], dict]:
+    index: Dict[tuple[str, str, str], dict] = {}
+    for record in records:
+        if selector(record):
+            index[perf_suite_key(record)] = record
+    return index
+
+
+def maybe_add_comparison(ctx: Context, comparison_type: str, left: dict, right: dict, left_label: str, right_label: str) -> None:
+    left_runtime = float(left.get("median_runtime_sec", 0.0))
+    right_runtime = float(right.get("median_runtime_sec", 0.0))
+    if left_runtime <= 0 or right_runtime <= 0:
+        return
+    ctx.perf_comparisons.append(
+        {
+            "type": comparison_type,
+            "family": left.get("family"),
+            "workload": left.get("workload"),
+            "scale": left.get("scale"),
+            "left_label": left_label,
+            "right_label": right_label,
+            "left_runtime_sec": left_runtime,
+            "right_runtime_sec": right_runtime,
+            "speedup_ratio": right_runtime / left_runtime,
+        }
+    )
+
+
+def generate_perf_comparisons(ctx: Context) -> None:
+    baseline_index = build_perf_baseline_index(ctx.perf_records, perf_baseline_selector)
+    for record in ctx.perf_records:
+        baseline = baseline_index.get(perf_suite_key(record))
+        if not baseline:
+            continue
+        baseline_runtime = float(baseline.get("median_runtime_sec", 0.0))
+        record_runtime = float(record.get("median_runtime_sec", 0.0))
+        if baseline_runtime > 0 and record_runtime > 0:
+            record["relative_speedup_vs_baseline"] = baseline_runtime / record_runtime
+
+    def record_index(selector) -> Dict[tuple[str, str, str], dict]:
+        return build_perf_baseline_index(ctx.perf_records, selector)
+
+    on_index = record_index(lambda r: r.get("jit") == "on")
+    off_index = record_index(lambda r: r.get("jit") == "off")
+    for key, on_record in on_index.items():
+        off_record = off_index.get(key)
+        if off_record:
+            maybe_add_comparison(ctx, "jit_on_vs_off", on_record, off_record, "jit=on", "jit=off")
+
+    z13_index = record_index(lambda r: r.get("host") == "kdz" and r.get("tuning") == "z13")
+    base_index = record_index(lambda r: r.get("host") == "kdz" and r.get("tuning") == "baseline")
+    for key, tuned_record in z13_index.items():
+        base_record = base_index.get(key)
+        if base_record:
+            maybe_add_comparison(ctx, "z13_vs_baseline", tuned_record, base_record, "z13", "baseline")
+
+    clang_index = record_index(lambda r: r.get("host") == "kdz" and r.get("compiler") == "clang")
+    gcc_index = record_index(lambda r: r.get("host") == "kdz" and r.get("compiler") == "gcc")
+    for key, clang_record in clang_index.items():
+        gcc_record = gcc_index.get(key)
+        if gcc_record:
+            maybe_add_comparison(ctx, "clang_vs_gcc", clang_record, gcc_record, "clang", "gcc")
+
+    control_index = record_index(lambda r: r.get("host") == "local-control")
+    for key, control_record in control_index.items():
+        baseline = baseline_index.get(key)
+        if baseline:
+            maybe_add_comparison(ctx, "cross_arch_vs_kdz", control_record, baseline, "local-control", "kdz")
+
+
+def write_perf_artifacts(ctx: Context) -> None:
+    ctx.local_perf_dir.mkdir(parents=True, exist_ok=True)
+    write_text(ctx.local_perf_dir / "benchmarks.json", json.dumps(ctx.perf_records, indent=2, sort_keys=True) + "\n")
+    write_text(ctx.local_perf_dir / "comparisons.json", json.dumps(ctx.perf_comparisons, indent=2, sort_keys=True) + "\n")
+
+    baseline_records = [record for record in ctx.perf_records if perf_baseline_selector(record)]
+    baseline_sorted = sorted(baseline_records, key=lambda record: float(record.get("median_runtime_sec", 0.0)), reverse=True)
+    slowest = baseline_sorted[:5]
+    jit_wins = sorted(
+        [entry for entry in ctx.perf_comparisons if entry.get("type") == "jit_on_vs_off"],
+        key=lambda entry: float(entry.get("speedup_ratio", 0.0)),
+        reverse=True,
+    )[:5]
+    z13_wins = sorted(
+        [entry for entry in ctx.perf_comparisons if entry.get("type") == "z13_vs_baseline"],
+        key=lambda entry: float(entry.get("speedup_ratio", 0.0)),
+        reverse=True,
+    )[:5]
+    clang_deltas = sorted(
+        [entry for entry in ctx.perf_comparisons if entry.get("type") == "clang_vs_gcc"],
+        key=lambda entry: abs(float(entry.get("speedup_ratio", 1.0)) - 1.0),
+        reverse=True,
+    )[:5]
+    cross_arch = sorted(
+        [entry for entry in ctx.perf_comparisons if entry.get("type") == "cross_arch_vs_kdz"],
+        key=lambda entry: float(entry.get("right_runtime_sec", 0.0)),
+        reverse=True,
+    )[:5]
+
+    lines = [
+        "# s390x Performance Summary",
+        "",
+        f"- Run ID: `{ctx.run_id}`",
+        f"- Total benchmark records: `{len(ctx.perf_records)}`",
+        f"- Total comparisons: `{len(ctx.perf_comparisons)}`",
+        "",
+        "## Slowest Baseline Workloads",
+        "",
+    ]
+    if slowest:
+        for record in slowest:
+            lines.append(
+                f"- `{record['family']}/{record['workload']}/{record['scale']}` "
+                f"median `{record['median_runtime_sec']:.6f}s`, p95 `{record['p95_runtime_sec']:.6f}s`"
+            )
+    else:
+        lines.append("- No primary baseline records captured.")
+
+    lines.extend(["", "## JIT On vs Off", ""])
+    if jit_wins:
+        for entry in jit_wins:
+            lines.append(
+                f"- `{entry['family']}/{entry['workload']}/{entry['scale']}` "
+                f"speedup `{entry['speedup_ratio']:.3f}x`"
+            )
+    else:
+        lines.append("- No jit on/off comparisons available.")
+
+    lines.extend(["", "## z13 vs Baseline", ""])
+    if z13_wins:
+        for entry in z13_wins:
+            lines.append(
+                f"- `{entry['family']}/{entry['workload']}/{entry['scale']}` "
+                f"speedup `{entry['speedup_ratio']:.3f}x`"
+            )
+    else:
+        lines.append("- No z13 comparisons available.")
+
+    lines.extend(["", "## Clang vs GCC", ""])
+    if clang_deltas:
+        for entry in clang_deltas:
+            lines.append(
+                f"- `{entry['family']}/{entry['workload']}/{entry['scale']}` "
+                f"ratio `{entry['speedup_ratio']:.3f}x`"
+            )
+    else:
+        lines.append("- No clang vs gcc comparisons available.")
+
+    lines.extend(["", "## Cross-Arch Control", ""])
+    if cross_arch:
+        for entry in cross_arch:
+            lines.append(
+                f"- `{entry['family']}/{entry['workload']}/{entry['scale']}` "
+                f"ratio `{entry['speedup_ratio']:.3f}x`"
+            )
+    else:
+        lines.append("- No cross-arch control comparisons available.")
+
+    if ctx.perf_notes:
+        lines.extend(["", "## Perf Notes", ""])
+        for note in ctx.perf_notes:
+            lines.append(f"- {note}")
+
+    write_text(ctx.local_perf_dir / "perf-summary.md", "\n".join(lines) + "\n")
+
+
+def local_control_variant() -> Variant:
+    compiler = os.environ.get("CC") or ("clang" if shutil.which("clang") else "cc")
+    return Variant(compiler=compiler, mode="release", jit="on", ffi="on", build_style="static", tuning="local-control")
+
+
+def run_local_control_perf(ctx: Context) -> None:
+    baseline_records = [record for record in ctx.perf_records if perf_baseline_selector(record)]
+    if not baseline_records:
+        return
+    family_order = []
+    seen = set()
+    for record in sorted(baseline_records, key=lambda item: float(item.get("median_runtime_sec", 0.0)), reverse=True):
+        family = str(record.get("family"))
+        if family and family not in seen:
+            seen.add(family)
+            family_order.append(family)
+        if len(family_order) >= PERF_TOP_CROSS_ARCH_COUNT:
+            break
+    bench_map = {pathlib.Path(path).stem: path for path in PERF_BENCH_LUA_FILES}
+    selected_files = [bench_map[family] for family in family_order if family in bench_map]
+    if not selected_files:
+        return
+
+    control_root = pathlib.Path(tempfile.mkdtemp(prefix="local-control-", dir=str(ctx.local_perf_dir)))
+    source_root = control_root / "src-tree"
+    source_root.mkdir(parents=True, exist_ok=True)
+    tracked_files = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=False,
+        check=False,
+    )
+    if tracked_files.returncode != 0:
+        ctx.perf_notes.append("Local cross-arch control skipped: failed to enumerate tracked files.")
+        ctx.save_manifest()
+        return
+    for rel in tracked_files.stdout.decode("utf-8", errors="replace").split("\0"):
+        if not rel:
+            continue
+        src = ROOT / rel
+        dst = source_root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+    control_variant = local_control_variant()
+    build_cmd = (
+        f"make -C src clean BUILDMODE=static CC={shlex.quote(control_variant.compiler)} "
+        f"HOST_CC={shlex.quote(control_variant.compiler)} && "
+        f"make -C src BUILDMODE=static CC={shlex.quote(control_variant.compiler)} "
+        f"HOST_CC={shlex.quote(control_variant.compiler)}"
+    )
+    build_proc = run_local_shell(
+        ctx,
+        build_cmd,
+        cwd=source_root,
+        check=False,
+        artifacts={"perf_control_build": str(source_root)},
+    )
+    if build_proc.returncode != 0:
+        ctx.perf_notes.append(
+            "Local cross-arch control skipped: local workstation build failed; native s390x results remain authoritative."
+        )
+        ctx.save_manifest()
+        return
+
+    control_jsonl = control_root / "benchmarks.jsonl"
+    control_logs = control_root / "logs"
+    control_logs.mkdir(parents=True, exist_ok=True)
+    commit = (ctx.local_metadata_dir / "git-sha.txt").read_text(encoding="utf-8").strip()
+    arch = os.uname().machine
+    for bench_file in selected_files:
+        stem = pathlib.Path(bench_file).stem
+        env = {
+            "S390X_PERF_OUTPUT_JSONL": str(control_jsonl),
+            "S390X_PERF_WARMUP": "1",
+            "S390X_PERF_SAMPLES": "5",
+            "S390X_PERF_BENCH_FILE": bench_file,
+        }
+        proc = subprocess.run(
+            ["./src/luajit", bench_file],
+            cwd=str(source_root),
+            env={**os.environ, **env},
+            text=True,
+            capture_output=True,
+        )
+        write_text(control_logs / f"{stem}.stdout.log", proc.stdout)
+        write_text(control_logs / f"{stem}.stderr.log", proc.stderr)
+        if proc.returncode != 0:
+            ctx.perf_notes.append(
+                f"Local cross-arch control skipped: benchmark {bench_file} exited {proc.returncode}."
+            )
+            ctx.save_manifest()
+            return
+    if not control_jsonl.exists():
+        ctx.perf_notes.append("Local cross-arch control skipped: no benchmark metrics were emitted.")
+        ctx.save_manifest()
+        return
+    for line_no, raw_line in enumerate(control_jsonl.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            ctx.perf_notes.append(
+                f"Local cross-arch control skipped: malformed metric at line {line_no} ({exc})."
+            )
+            ctx.save_manifest()
+            return
+        bench_file = str(record.get("bench_file") or record.get("source_file") or "")
+        ctx.perf_records.append(
+            enrich_perf_record(
+                ctx,
+                host="local-control",
+                variant=control_variant,
+                bench_file=bench_file,
+                record=record,
+                commit=commit,
+                control_arch=arch,
+            )
+        )
+    ctx.save_manifest()
+
+
+def finalize_perf_stage(ctx: Context) -> None:
+    if not any(result.suite == "perf_bench" for result in ctx.results):
+        return
+    if not ctx.perf_records:
+        ctx.failures.append({"type": "perf", "message": "no perf benchmark records collected"})
+        ctx.save_manifest()
+        return
+    generate_perf_comparisons(ctx)
+    write_perf_artifacts(ctx)
+    if not ctx.failures:
+        run_local_control_perf(ctx)
+        generate_perf_comparisons(ctx)
+        write_perf_artifacts(ctx)
+    ctx.save_manifest()
 
 
 def remote_step_dir(suite: str, variant: Variant) -> str:
@@ -1074,6 +1641,17 @@ def write_summary(ctx: Context) -> None:
             report_lines.append(f"- `{failure.get('step', failure.get('type', 'unknown'))}`")
     else:
         report_lines.append("- No recorded failures.")
+    if ctx.perf_records:
+        report_lines.extend(
+            [
+                "",
+                "## Performance Artifacts",
+                "",
+                f"- Benchmark records: `{len(ctx.perf_records)}`",
+                f"- Comparisons: `{len(ctx.perf_comparisons)}`",
+                f"- Perf summary: `{ctx.local_perf_dir / 'perf-summary.md'}`",
+            ]
+        )
     report_lines.extend(["", "## Next Gate", "", f"- `{next_stage or 'none'}`"])
     write_text(ctx.local_run_dir / "stage-report.md", "\n".join(report_lines) + "\n")
     write_text(ctx.local_run_dir / "failures.json", json.dumps(ctx.failures, indent=2, sort_keys=True) + "\n")
@@ -1141,7 +1719,11 @@ def run_stage(ctx: Context) -> None:
             command = suite_command(ctx.args.stage, suite, variant)
             if command is None:
                 continue
-            run_remote_step(ctx, variant, suite, command)
+            result = run_remote_step(ctx, variant, suite, command)
+            if suite == "perf_bench":
+                parse_perf_records_for_step(ctx, result)
+    if ctx.args.stage == "perf":
+        finalize_perf_stage(ctx)
 
 
 def main() -> int:
