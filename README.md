@@ -69,6 +69,11 @@ Current trustworthy checkpoint:
   `jit-correctness` green on `kdz`, and the current work is hardening the
   matrix/harness transport path so those broader native results are captured
   automatically too
+- the harness transport now uses a tracked-files-only tar-over-ssh sync path,
+  strips macOS metadata from the archive stream, and avoids syncing untracked
+  local junk into remote validation trees
+- the current structured restamp work is focused on `matrix/smoke` from that
+  hardened transport baseline before widening again
 - the detailed narrowing trail and current procedure are recorded in
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 

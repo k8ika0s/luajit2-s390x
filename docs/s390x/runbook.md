@@ -15,6 +15,9 @@ how to read the resulting artifacts.
 4. If the stage gate passes, rerun the stage in release mode:
    - `python3 tools/s390x/driver.py --stage <stage> --suite all --compiler gcc --mode release --host auto`
 5. For matrix or performance work, use the later stages directly.
+6. Keep the current remote worktree disposable. If the tree is contaminated or
+   manually edited, throw it away and restamp from a fresh run-id instead of
+   repairing it in place.
 
 ## Host Selection
 
@@ -38,6 +41,16 @@ how to read the resulting artifacts.
   - `remote/bootstrap/*`
   - `remote/steps/<suite>/<variant>/*`
   - `binaries/<variant>/`
+
+## Current Transport Rules
+
+- The driver no longer relies on raw `rsync` for normal structured runs.
+- Repo sync now uses a tracked-files-only tar stream over SSH.
+- The tar stream strips macOS metadata and does not include untracked local
+  scratch files.
+- Artifact collection still uses tar-over-ssh.
+- Optional binary collection is best-effort. Missing optional outputs should
+  not be treated as the front-most failure if the step itself passed.
 
 ## Failure Triage
 
@@ -63,25 +76,24 @@ how to read the resulting artifacts.
 
 - If the remote validation tree has been touched manually, stop using it as an
   authority immediately.
-- Recreate a fresh remote worktree from a known committed remote source, then
-  replay the local diff into that new tree in one shot.
+- Recreate a fresh remote worktree from the local source of truth using a new
+  driver run-id whenever possible.
 - Do not patch remote source files interactively inside tmux for substantive
-  edits. Use a single generated patch instead.
+  edits unless the normal SSH transport is unavailable.
 - The helper
   [tools/s390x/tmux_patch_sync.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/tmux_patch_sync.py)
   emits tmux-safe chunked `printf` commands for environments where direct local
-  `ssh` or `rsync` is unavailable.
+  SSH transport is unavailable.
 - Preferred reset sequence:
-  1. Identify a clean committed remote source tree.
-  2. Clone or copy it to a fresh disposable workdir.
-  3. Generate a local patch with `git diff --binary`.
-  4. Use `tmux_patch_sync.py` to replay that patch into the fresh workdir.
-  5. Rebuild and rerun the smallest focused native reproducer first.
-  6. Only after that passes, widen back to the staged harness gate.
+  1. Start a fresh run with a new run-id, or create a fresh disposable remote
+     workdir if you are doing a manual verification pass.
+  2. Sync from the local repo source of truth.
+  3. Rebuild and rerun the smallest focused native reproducer first.
+  4. Only after that passes, widen back to the staged harness gate.
 - Current known-good example:
   - host: `kdz`
   - worktree: `/root/luajit2-s390x/clean-loop-20260321`
-  - tmux pane: `%111`
+  - second host spot-check tree: `/root/luajit2-s390x/spotcheck-20260321`
 
 ## Stage Rules
 
@@ -99,6 +111,9 @@ how to read the resulting artifacts.
 
 - The harness never edits the remote tree by hand. It always syncs from the
   local repo and collects artifacts back.
+- The local worktree may contain untracked scratch files from earlier analysis.
+  The current tracked-files-only sync path intentionally excludes them from
+  structured remote runs.
 - The repo Perl tests now use the local [t/TestLJ.pm](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/t/TestLJ.pm)
   harness and core Perl modules only. Remote bootstrap no longer depends on
   CPAN packages for the existing `t/*.t` coverage.
