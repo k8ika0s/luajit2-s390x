@@ -60,6 +60,24 @@ sync loop.
   - run `20260322T013015.882691Z-p35735`
   - stage `jit-correctness`
   - suites `smoke`, `jit_core`, `jit_loops`, `jit_be`, and `soak`
+- The hardened structured matrix is now green on `kdz` for:
+  - `matrix/smoke`
+    - run `20260322T034609.025414Z-p15495`
+  - `matrix/jit_core` gcc debug
+    - run `20260322T050327.377254Z-p44209`
+  - `matrix/jit_loops` gcc debug
+    - run `20260322T051500.668189Z-p50274`
+  - `matrix/jit_be` gcc debug
+    - run `20260322T051917.451476Z-p52584`
+  - `matrix/soak` gcc debug
+    - run `20260322T053325.470734Z-p59387`
+  - `matrix/jit_core` clang debug
+    - run `20260322T055509.960285Z-p68367`
+  - `matrix/jit_core` gcc release
+    - run `20260322T055912.538970Z-p70902`
+- The structured second-host restamp is also green on `zkd0` for:
+  - `matrix/jit_core` gcc debug
+    - run `20260322T055509.960285Z-p68366`
 - Focused matrix spot-checks are also green on the current tree:
   - `zkd0` passes the current hot regression set for `side_exit`, vararg,
     BE helpers, soak, `t/iter.t`, and `t/isarr-jit.t`
@@ -68,30 +86,31 @@ sync loop.
   - `kdz` passes the current `-DLUAJIT_DISABLE_FFI` corner for:
     - `t/isarr-jit.t`
     - `t/iter.t`
-- The current harness hardening work is no longer about JIT correctness on the
-  tested surface. It is about making the driver’s remote sync/collection path
-  robust on banner-printing hosts so the structured artifacts match the now
-  green manual native matrix.
+- The current harness hardening work is no longer about first-line JIT
+  correctness on the tested surface. It is about making the driver’s remote
+  sync/collection path robust on banner-printing hosts so the structured
+  artifacts keep pace with the green manual native matrix.
 - The current harness transport state:
   - repo sync is now tracked-files-only tar-over-ssh
   - macOS metadata is stripped from the tar stream
   - optional binary collection is best-effort and no longer treated as a hard
     failure when a variant does not produce every output
-  - the active structured reruns are restamping `matrix/smoke` from that
-    hardened baseline before widening further
+  - the active structured reruns are widening from that hardened baseline
+    across compiler, mode, and host axes
 
 ## Current Next Actions
 
 1. Keep `vararg_trace`, the direct-exit `SAVE_L` path, `side_exit.lua`, and
    `thread.exdata()` in the focused regression set so these fixes do not
    silently regress.
-2. Finish restamping `matrix/smoke` under the new tracked-file tar-over-ssh
-   transport on `kdz`.
-3. Once that smoke slice is clean, widen structured matrix coverage only where
-   it exercises a meaningfully different surface.
-4. Return to the remaining iterator and hot-exit convergence quality work from
-   that revalidated matrix baseline instead of reopening the earlier resolved
-   blockers.
+2. Finish the current widened `jit_loops` proof wave:
+   - `kdz` clang debug
+   - `zkd0` gcc debug
+3. Carry the same proof pattern into:
+   - `jit_loops` gcc release on `kdz`
+   - then `jit_be` and `soak` across clang, release, and second-host lanes
+4. Once those matrix cuts are stamped, restate the branch as a validated
+   matrix/hardening branch rather than an active backend rescue branch.
 
 ## Detail Links
 
