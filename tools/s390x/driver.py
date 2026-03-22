@@ -490,19 +490,41 @@ def sync_repo(ctx: Context, host: str) -> None:
         f"{shlex.quote(ctx.remote_repo_root)}/..?* 2>/dev/null || true"
     )
     run_ssh(ctx, host, remote_prep, check=True)
-    tar_parts = ["tar", "-C", str(ROOT)]
-    for pattern in RSYNC_EXCLUDES:
-        tar_parts.extend(["--exclude", pattern])
-    tar_parts.extend(["-cf", "-", "."])
+    file_list = run_local(
+        ctx,
+        ["git", "ls-files", "-z"],
+        cwd=ROOT,
+        check=True,
+        artifacts={"sync_mode": "git-ls-files"},
+    )
+    tar_parts = ["tar", "-C", str(ROOT), "--null", "-T", "-", "-cf", "-"]
     remote_cmd = f"tar -xf - -C {shlex.quote(ctx.remote_repo_root)}"
     ssh_cmd = f"ssh -o BatchMode=yes {shlex.quote(host)} {shlex.quote(f'bash -lc {shlex.quote(remote_cmd)}')}"
-    pipeline = f"COPYFILE_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"
-    proc = run_local_shell(
-        ctx,
-        pipeline,
-        check=True,
-        artifacts={"remote_repo_root": ctx.remote_repo_root, "transfer": "tar-ssh"},
+    start = time.time()
+    proc = subprocess.run(
+        ["/bin/bash", "-lc", f"COPYFILE_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"],
+        cwd=str(ROOT),
+        input=file_list.stdout.encode("utf-8", errors="surrogateescape"),
+        text=False,
+        capture_output=True,
     )
+    duration = time.time() - start
+    ctx.logger.write(
+        host="local",
+        cwd=str(ROOT),
+        argv=["/bin/bash", "-lc", f"COPYFILE_DISABLE=1 {shell_join(tar_parts)} | {ssh_cmd}"],
+        exit_code=proc.returncode,
+        duration_sec=duration,
+        artifacts={
+            "remote_repo_root": ctx.remote_repo_root,
+            "transfer": "tar-ssh",
+            "sync_mode": "git-ls-files",
+        },
+    )
+    if proc.stdout:
+        sys.stdout.write(proc.stdout.decode("utf-8", errors="replace"))
+    if proc.stderr:
+        sys.stderr.write(proc.stderr.decode("utf-8", errors="replace"))
     if proc.returncode != 0:
         raise DriverError("tar-over-ssh repo sync failed")
 
