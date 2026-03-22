@@ -56,10 +56,25 @@ JIT_CORE_LUA_FILES = [
     "tests/s390x/jit_core/trace_event_postloop.lua",
 ]
 
+JIT_CORE_FFI_LUA_FILES = {
+    "tests/s390x/jit_core/ffi_call_trace.lua",
+    "tests/s390x/jit_core/ffi_cdata_trace.lua",
+    "tests/s390x/jit_core/ffi_ptr_call_trace.lua",
+    "tests/s390x/jit_core/trace_event_postloop.lua",
+}
+
 JIT_LOOPS_LUA_FILES = [
     "tests/s390x/jit_loops/explicit_next.lua",
     "tests/s390x/jit_loops/vararg_trace.lua",
 ]
+
+JIT_BE_FFI_LUA_FILES = {
+    "tests/s390x/jit_be/mixed_width_ffi.lua",
+}
+
+SOAK_FFI_LUA_FILES = {
+    "tests/s390x/soak/mixed_stress.lua",
+}
 
 SUITES = {
     "smoke": "Build and runtime smoke checks",
@@ -731,6 +746,14 @@ def testlj_caps(stage: str, variant: Variant) -> str:
     return ",".join(caps)
 
 
+def shell_skip_condition(paths: Iterable[str]) -> str:
+    items = list(paths)
+    if not items:
+        return ""
+    joined = " || ".join(f'[ "$test" = {shlex.quote(path)} ]' for path in items)
+    return f"if {joined}; then\n    continue\n  fi"
+
+
 def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
     expect_ffi = "1" if variant.ffi == "on" else "0"
     expect_jit = "1" if variant.jit == "on" else "0"
@@ -793,13 +816,18 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
         ).strip()
     if suite == "jit_core":
         caps = testlj_caps(stage, variant)
+        core_tests = [
+            test for test in JIT_CORE_LUA_FILES
+            if variant.ffi == "on" or test not in JIT_CORE_FFI_LUA_FILES
+        ]
         lua_steps = "\n".join(
             [
                 f'printf "%s\\n" {shlex.quote(test)} > "$S390X_STEP_DIR/current_test.txt"\n'
                 f'./src/luajit {shlex.quote(test)}'
-                for test in JIT_CORE_LUA_FILES
+                for test in core_tests
             ]
         )
+        skip_core = shell_skip_condition(JIT_CORE_FFI_LUA_FILES if variant.ffi == "off" else [])
         perl_steps = "\n".join(
             [
                 f'printf "%s\\n" {shlex.quote(f"t/{test}")} > "$S390X_STEP_DIR/current_test.txt"\n'
@@ -817,6 +845,7 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
               if [ "$test" = "tests/s390x/jit_core/isarray_root_loop.lua" ]; then
                 continue
               fi
+              {skip_core}
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
               ./src/luajit "$test"
             done
@@ -856,24 +885,28 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             """
         ).strip()
     if suite == "jit_be":
+        skip_be = shell_skip_condition(JIT_BE_FFI_LUA_FILES if variant.ffi == "off" else [])
         return textwrap.dedent(
-            """
+            f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
             for test in tests/s390x/jit_be/*.lua; do
               [ -e "$test" ] || continue
+              {skip_be}
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
               ./src/luajit "$test"
             done
             """
         ).strip()
     if suite == "soak":
+        skip_soak = shell_skip_condition(SOAK_FFI_LUA_FILES if variant.ffi == "off" else [])
         return textwrap.dedent(
-            """
+            f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
             for test in tests/s390x/soak/*.lua; do
               [ -e "$test" ] || continue
+              {skip_soak}
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
               ./src/luajit "$test"
             done
