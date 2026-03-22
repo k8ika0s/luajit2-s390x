@@ -59,6 +59,30 @@ how to read the resulting artifacts.
 - If a step timed out, inspect `metadata.json` first. The harness uses a default
   remote timeout of 1800 seconds unless `S390X_TIMEOUT_SEC` is overridden.
 
+## Remote Trust Reset
+
+- If the remote validation tree has been touched manually, stop using it as an
+  authority immediately.
+- Recreate a fresh remote worktree from a known committed remote source, then
+  replay the local diff into that new tree in one shot.
+- Do not patch remote source files interactively inside tmux for substantive
+  edits. Use a single generated patch instead.
+- The helper
+  [tools/s390x/tmux_patch_sync.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/tmux_patch_sync.py)
+  emits tmux-safe chunked `printf` commands for environments where direct local
+  `ssh` or `rsync` is unavailable.
+- Preferred reset sequence:
+  1. Identify a clean committed remote source tree.
+  2. Clone or copy it to a fresh disposable workdir.
+  3. Generate a local patch with `git diff --binary`.
+  4. Use `tmux_patch_sync.py` to replay that patch into the fresh workdir.
+  5. Rebuild and rerun the smallest focused native reproducer first.
+  6. Only after that passes, widen back to the staged harness gate.
+- Current known-good example:
+  - host: `kdz`
+  - worktree: `/root/luajit2-s390x/clean-loop-20260321`
+  - tmux pane: `%111`
+
 ## Stage Rules
 
 - `contract`: the driver checks `docs/s390x/contract.md` before allowing later

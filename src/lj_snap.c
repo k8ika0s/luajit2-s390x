@@ -21,6 +21,8 @@
 #include "lj_trace.h"
 #include "lj_snap.h"
 #include "lj_target.h"
+#include <stdio.h>
+#include <stdlib.h>
 #if LJ_HASFFI
 #include "lj_ctype.h"
 #include "lj_cdata.h"
@@ -31,6 +33,42 @@
 
 /* Emit raw IR without passing through optimizations. */
 #define emitir_raw(ot, a, b)	(lj_ir_set(J, (ot), (a), (b)), lj_ir_emit(J))
+
+static int lj_snap_s390x_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_SNAP_LOG") != NULL);
+  return enabled;
+}
+
+static void lj_snap_s390x_log_bad_parent(jit_State *J, GCtrace *T,
+					 const SnapShot *snap,
+					 const SnapEntry *snmap,
+					 SnapEntry sn, IRRef refp,
+					 IRIns *ir, const char *phase)
+{
+  if (!lj_snap_s390x_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_SNAP phase=%s trace=%u snap_ref=%u mapofs=%u slot=%u ref=%u op=%u r=%u s=%u prev=%u snap=%#x nent=%u\n",
+	  phase,
+	  (unsigned int)T->traceno,
+	  (unsigned int)(snap->ref - REF_BIAS),
+	  (unsigned int)snap->mapofs,
+	  (unsigned int)snap_slot(sn),
+	  (unsigned int)(refp - REF_BIAS),
+	  (unsigned int)ir->o,
+	  (unsigned int)ir->r,
+	  (unsigned int)ir->s,
+	  (unsigned int)ir->prev,
+	  (unsigned int)sn,
+	  (unsigned int)snap->nent);
+  if (snmap)
+    fprintf(stderr, "S390X_SNAP_MAP slot0=%#x slot1=%#x\n",
+	    (unsigned int)snmap[0],
+	    (unsigned int)(snap->nent > 1 ? snmap[1] : 0));
+}
 
 /* -- Snapshot buffer allocation ------------------------------------------ */
 
@@ -404,6 +442,52 @@ static RegSP snap_renameref(GCtrace *T, SnapNo lim, IRRef ref, RegSP rs)
   return rs;
 }
 
+static LJ_AINLINE RegSP snap_ref_regsp(GCtrace *T, SnapNo lim,
+				       BloomFilter rfilt, IRRef ref)
+{
+  RegSP rs = T->ir[ref].prev;
+  if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
+    rs = snap_renameref(T, lim, ref, rs);
+  return rs;
+}
+
+static int snap_s390x_restore_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RESTORE_LOG") != NULL);
+  return enabled;
+}
+
+static int snap_s390x_restore_pref_reg_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *s = getenv("LUAJIT_S390X_RESTORE_PREF_REG");
+    enabled = s ? (atoi(s) != 0) : 1;
+  }
+  return enabled;
+}
+
+static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRRef ref,
+				   RegSP rs, TValue *o)
+{
+#if LJ_TARGET_S390X
+  if (!snap_s390x_restore_log_enabled())
+    return;
+  if (J->parent != 1 || (J->exitno != 4 && J->exitno != 2 && J->exitno != 0))
+    return;
+  fprintf(stderr,
+	  "S390X_RESTORE trace=%u exit=%u snap=%u ref=%u rs=%u reg=%d spill=%d itype=%d u64=0x%016llx n=%g\n",
+	  (unsigned int)J->parent, (unsigned int)J->exitno, (unsigned int)snapno,
+	  (unsigned int)(ref - REF_BIAS), (unsigned int)rs,
+	  (int)regsp_reg(rs), (int)regsp_spill(rs), (int)itype(o),
+	  (unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
+#else
+  UNUSED(J); UNUSED(snapno); UNUSED(ref); UNUSED(rs); UNUSED(o);
+#endif
+}
+
 /* Copy RegSP from parent snapshot to the parent links of the IR. */
 IRIns *lj_snap_regspmap(jit_State *J, GCtrace *T, SnapNo snapno, IRIns *ir)
 {
@@ -470,16 +554,22 @@ static TRef snap_dedup(jit_State *J, SnapEntry *map, MSize nmax, IRRef ref)
 
 /* Emit parent reference with de-duplication. */
 static TRef snap_pref(jit_State *J, GCtrace *T, SnapEntry *map, MSize nmax,
-		      BloomFilter seen, IRRef ref)
+		      BloomFilter seen, BloomFilter rfilt, SnapNo snapno,
+		      IRRef ref)
 {
   IRIns *ir = &T->ir[ref];
+  RegSP rs = ir->prev;
   TRef tr;
   if (irref_isk(ref))
     tr = snap_replay_const(J, ir);
-  else if (!regsp_used(ir->prev))
-    tr = 0;
-  else if (!bloomtest(seen, ref) || (tr = snap_dedup(J, map, nmax, ref)) == 0)
-    tr = emitir(IRT(IR_PVAL, irt_type(ir->t)), ref - REF_BIAS, 0);
+  else {
+    rs = snap_ref_regsp(T, snapno, rfilt, ref);
+    if (!regsp_used(rs))
+      tr = 0;
+    else if (!bloomtest(seen, ref) ||
+	     (tr = snap_dedup(J, map, nmax, ref)) == 0)
+      tr = emitir(IRT(IR_PVAL, irt_type(ir->t)), ref - REF_BIAS, 0);
+  }
   return tr;
 }
 
@@ -509,6 +599,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 {
   SnapShot *snap = &T->snap[J->exitno];
   SnapEntry *map = &T->snapmap[snap->mapofs];
+  BloomFilter rfilt = snap_renamefilter(T, J->exitno);
   MSize n, nent = snap->nent;
   BloomFilter seen = 0;
   int pass23 = 0;
@@ -530,7 +621,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	tr = 0;
       else
 	tr = snap_replay_const(J, ir);
-    } else if (!regsp_used(ir->prev)) {
+    } else if (!regsp_used(snap_ref_regsp(T, J->exitno, rfilt, ref))) {
       pass23 = 1;
       lj_assertJ(s != 0, "unused slot 0 in snapshot");
       tr = s;
@@ -561,30 +652,43 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	uint8_t m;
 	if (J->slot[snap_slot(sn)] != snap_slot(sn)) continue;
 	pass23 = 1;
+	if (!(ir->o == IR_TNEW || ir->o == IR_TDUP ||
+	      ir->o == IR_CNEW || ir->o == IR_CNEWI))
+	  lj_snap_s390x_log_bad_parent(J, T, snap, map, sn, refp, ir, "pref");
 	lj_assertJ(ir->o == IR_TNEW || ir->o == IR_TDUP ||
 		   ir->o == IR_CNEW || ir->o == IR_CNEWI,
 		   "sunk parent IR %04d has bad op %d", refp - REF_BIAS, ir->o);
 	m = lj_ir_mode[ir->o];
-	if (irm_op1(m) == IRMref) snap_pref(J, T, map, nent, seen, ir->op1);
-	if (irm_op2(m) == IRMref) snap_pref(J, T, map, nent, seen, ir->op2);
+	if (irm_op1(m) == IRMref)
+	  snap_pref(J, T, map, nent, seen, rfilt, J->exitno, ir->op1);
+	if (irm_op2(m) == IRMref)
+	  snap_pref(J, T, map, nent, seen, rfilt, J->exitno, ir->op2);
 	if (LJ_HASFFI && ir->o == IR_CNEWI) {
 	  if (LJ_32 && refp+1 < T->nins && (ir+1)->o == IR_HIOP)
-	    snap_pref(J, T, map, nent, seen, (ir+1)->op2);
+	    snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
+		      (ir+1)->op2);
 	} else {
 	  IRIns *irs;
 	  for (irs = ir+1; irs < irlast; irs++)
 	    if (irs->r == RID_SINK && snap_sunk_store(T, ir, irs)) {
-	      if (snap_pref(J, T, map, nent, seen, irs->op2) == 0)
-		snap_pref(J, T, map, nent, seen, T->ir[irs->op2].op1);
+	      if (snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
+			    irs->op2) == 0)
+		snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
+			  T->ir[irs->op2].op1);
 	      else if ((LJ_SOFTFP32 || (LJ_32 && LJ_HASFFI)) &&
 		       irs+1 < irlast && (irs+1)->o == IR_HIOP)
-		snap_pref(J, T, map, nent, seen, (irs+1)->op2);
+		snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
+			  (irs+1)->op2);
 	    }
 	}
-      } else if (!irref_isk(refp) && !regsp_used(ir->prev)) {
+      } else if (!irref_isk(refp) &&
+		 !regsp_used(snap_ref_regsp(T, J->exitno, rfilt, refp))) {
+	if (!(ir->o == IR_CONV && ir->op2 == IRCONV_NUM_INT))
+	  lj_snap_s390x_log_bad_parent(J, T, snap, map, sn, refp, ir, "conv");
 	lj_assertJ(ir->o == IR_CONV && ir->op2 == IRCONV_NUM_INT,
 		   "sunk parent IR %04d has bad op %d", refp - REF_BIAS, ir->o);
-	J->slot[snap_slot(sn)] = snap_pref(J, T, map, nent, seen, ir->op1);
+	J->slot[snap_slot(sn)] = snap_pref(J, T, map, nent, seen, rfilt,
+					   J->exitno, ir->op1);
       }
     }
     /* Replay sunk instructions. */
@@ -601,14 +705,17 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	}
 	op1 = ir->op1;
 	m = lj_ir_mode[ir->o];
-	if (irm_op1(m) == IRMref) op1 = snap_pref(J, T, map, nent, seen, op1);
+	if (irm_op1(m) == IRMref)
+	  op1 = snap_pref(J, T, map, nent, seen, rfilt, J->exitno, op1);
 	op2 = ir->op2;
-	if (irm_op2(m) == IRMref) op2 = snap_pref(J, T, map, nent, seen, op2);
+	if (irm_op2(m) == IRMref)
+	  op2 = snap_pref(J, T, map, nent, seen, rfilt, J->exitno, op2);
 	if (LJ_HASFFI && ir->o == IR_CNEWI) {
 	  if (LJ_32 && refp+1 < T->nins && (ir+1)->o == IR_HIOP) {
 	    lj_needsplit(J);  /* Emit joining HIOP. */
 	    op2 = emitir_raw(IRT(IR_HIOP, IRT_I64), op2,
-			     snap_pref(J, T, map, nent, seen, (ir+1)->op2));
+			     snap_pref(J, T, map, nent, seen, rfilt,
+				       J->exitno, (ir+1)->op2));
 	  }
 	  J->slot[snap_slot(sn)] = emitir(ir->ot & ~(IRT_MARK|IRT_ISPHI), op1, op2);
 	} else {
@@ -648,13 +755,15 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	      }
 	      tmp = emitir(irr->ot, tmp, key);
 	    skip_newref:
-	      val = snap_pref(J, T, map, nent, seen, irs->op2);
+	      val = snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
+			      irs->op2);
 	      if (val == 0) {
 		IRIns *irc = &T->ir[irs->op2];
 		lj_assertJ(irc->o == IR_CONV && irc->op2 == IRCONV_NUM_INT,
 			   "sunk store for parent IR %04d with bad op %d",
 			   refp - REF_BIAS, irc->o);
-		val = snap_pref(J, T, map, nent, seen, irc->op1);
+		val = snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
+				irc->op1);
 		val = emitir(IRTN(IR_CONV), val, IRCONV_NUM_INT);
 	      } else if ((LJ_SOFTFP32 || (LJ_32 && LJ_HASFFI)) &&
 			 irs+1 < irlast && (irs+1)->o == IR_HIOP) {
@@ -668,7 +777,8 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 		  val = lj_ir_k64(J, t == IRT_I64 ? IR_KINT64 : IR_KNUM, k);
 		} else {
 		  val = emitir_raw(IRT(IR_HIOP, t), val,
-			  snap_pref(J, T, map, nent, seen, (irs+1)->op2));
+			  snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
+				    (irs+1)->op2));
 		}
 		tmp = emitir(IRT(irs->o, t), tmp, val);
 		continue;
@@ -715,6 +825,12 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
   }
   if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
     rs = snap_renameref(T, snapno, ref, rs);
+#if LJ_TARGET_S390X
+  if (irt_isinteger(t) && ra_hasspill(regsp_spill(rs)) &&
+      !ra_noreg(regsp_reg(rs)) && snap_s390x_restore_pref_reg_enabled()) {
+    rs = REGSP(regsp_reg(rs), SPS_NONE);
+  }
+#endif
   if (ra_hasspill(regsp_spill(rs))) {  /* Restore from spill slot. */
     int32_t *sps = &ex->spill[regsp_spill(rs)];
     if (irt_isinteger(t)) {
@@ -760,6 +876,7 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
       setgcV(J->L, o, (GCobj *)ex->gpr[r-RID_MIN_GPR], irt_toitype(t));
     }
   }
+  snap_s390x_restore_log(J, snapno, ref, rs, o);
 }
 
 #if LJ_HASFFI
@@ -991,6 +1108,20 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	continue;
       }
       snap_restoreval(J, T, ex, snapno, rfilt, ref, o);
+#if LJ_TARGET_S390X
+      if (snap_s390x_restore_log_enabled()) {
+	RegSP rs = ir->prev;
+	if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
+	  rs = snap_renameref(T, snapno, ref, rs);
+	fprintf(stderr,
+		"S390X_RESTORE trace=%u exit=%u slot=%u ref=%u ir_r=%d ir_prev=%u final_rs=%u final_reg=%d final_spill=%d itype=%d u64=0x%016llx n=%g\n",
+		(unsigned int)J->parent, (unsigned int)J->exitno,
+		(unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
+		(int)ir->r, (unsigned int)ir->prev, (unsigned int)rs,
+		(int)regsp_reg(rs), (int)regsp_spill(rs), (int)itype(o),
+		(unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
+      }
+#endif
       if (LJ_SOFTFP32 && (sn & SNAP_SOFTFPNUM) && tvisint(o)) {
 	TValue tmp;
 	snap_restoreval(J, T, ex, snapno, rfilt, ref+1, &tmp);

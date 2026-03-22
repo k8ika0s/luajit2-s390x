@@ -1856,3 +1856,978 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
     after the repaired `asm_retf`
   - keep the next cut limited to the `band` / `lshift` / `bxor` path until the
     `i = 6` reproducer is clean
+
+## 2026-03-20 Bitops Rotate Slice And Current `BNOT` Frontier
+
+- Native `kdz` tracing of the focused callee-only bitops repro showed the
+  next concrete backend bug was the constant rotate path, not the earlier
+  `BXOR` or return scaffold:
+  - `bit.band`
+  - `bit.lshift`
+  - `bit.bxor`
+  - `bit.bor`
+  - `bit.bsar`
+  - `bit.brol`
+  were enough to reproduce the wrong traced result before the last `BNOT`
+  stage was even added.
+
+- Root cause for the rotate slice:
+  - the s390x constant `BROL` / `BROR` lowering was still materializing the
+    rotate count in a temp register
+  - on native `kdz` that temp-based path produced the first traced mismatch in
+    the prefix probe even though the non-rotate prefix stayed correct
+
+- Local remediation:
+  - `src/lj_asm_s390x.h`
+    - constant `asm_brot()` now lowers through the immediate `RLL` form
+      directly
+    - the failed `ra_left_nobase` experiment was dropped instead of being
+      carried forward
+
+- Native `kdz` outcome after the rotate fix:
+  - the focused prefix probe is now green through op7
+  - the first remaining mismatch is op8, which adds `bit.bnot(i)`
+  - repo-local `tests/s390x/jit_core/bitops_trace.lua` still fails only
+    because of that final step
+
+- Current working hypothesis for `BNOT`:
+  - `asm_bnot()` was still grabbing a fixed temp for the all-ones mask without
+    excluding the already-allocated source register first
+  - that can alias and clobber the traced input before the XOR
+
+- Current next step:
+  - keep the now-good immediate rotate lowering intact
+  - validate the narrowed `asm_bnot()` allocator fix on native `kdz`
+  - if the prefix probe turns fully green, re-run
+    `tests/s390x/jit_core/bitops_trace.lua` and then re-baseline the broader
+    `jit_core` bitops coverage
+
+## 2026-03-20 Bitops File-Entry Rebaseline
+
+- The first narrowed `asm_bnot()` allocator hardening did not change the
+  native prefix result by itself:
+  - traced `bit.bnot(i)` was already correct
+  - traced `bit.bxor(x, bit.bnot(i))` was also already correct
+
+- Native `kdz` narrowing after that point showed the real split was structural,
+  not a raw `BNOT` arithmetic failure:
+  - the full op8 prefix chain was green in focused one-liners
+  - the exact helper/capture/mix logic was green in `-e` and `dofile(...)`
+    forms
+  - the only bad shape left was the direct file-entry path of
+    `tests/s390x/jit_core/bitops_trace.lua`
+
+- Further focused native probes pinned the remaining bad combination to:
+  - direct file entry
+  - active `jit.attach(..., "trace")`
+  - traced `mix()` as a callee
+  - Removing any one of those factors made the focused repro green.
+
+- Final native rebaseline for this slice:
+  - after rerunning the repo-local file repro on the current build,
+    `tests/s390x/jit_core/bitops_trace.lua` is green again on `kdz`
+  - the current local `asm_bnot()` allocator hardening is kept because it is
+    the correct register-allocation contract for that path even though it was
+    not the only factor in the earlier mismatch trail
+
+- Current next step:
+  - re-baseline the broader `tests/s390x/jit_core/*.lua` sweep on native s390x
+  - take the next front-most failure from that wider sweep instead of staying
+    on the bitops branch after the repo-local repro has gone green
+
+## 2026-03-20 FFI Cdata Trace After `IR_XSTORE`
+
+- Added the first direct-address s390x `asm_xload()` / `asm_xstore()` slice in
+  `src/lj_asm_s390x.h` for the currently exercised integer and pointer widths.
+  This clears the front-most `IR_XSTORE` NYI on the `pair_t[1]` cdata field
+  loop.
+
+- Native `kdz` behavior is now different in an important way:
+  - the focused `ffi_cdata` event dump reaches a real `start` / `stop`
+  - the old repeated `abort ... NYIIR 78` is gone
+
+- That change does **not** make the cdata loop correct yet.
+
+- Bare traced cdata loop on native `kdz`:
+  - script shape:
+    - `box[0].x = i`
+    - `box[0].y = box[0].y + box[0].x`
+  - observed result:
+    - `x = 3`
+    - `y = 6`
+  - expected after 200 iterations:
+    - `x = 200`
+    - `y = 20100`
+  - a plain `collectgarbage("collect")` after the loop then segfaults
+
+- Additional narrowing from focused native probes:
+  - store-only repro:
+    - `for i=1,200 do box[0].x = i end`
+    - observed: `x = 3`
+  - practical implication:
+    - this is not just the `y = y + x` arithmetic path
+    - a traced cdata field store by itself is not being committed correctly on
+      native s390x once the loop goes hot
+
+- Important differential narrowing:
+  - an empty `jit.attach(..., "trace")` handler does **not** change the bad
+    `x = 3`, `y = 6` result
+  - the generic post-trace event walk is still good:
+    - `tests/s390x/jit_core/trace_event_postloop.lua` is green on the same build
+  - practical implication:
+    - this is not the generic trace-event postloop bug again
+    - it is still a cdata-trace execution or resume problem
+
+- `gdb` on native `kdz` for `tests/s390x/jit_core/ffi_cdata_trace.lua`:
+  - the process later faults in `gc_sweep()` during `lua_gc(LUA_GCCOLLECT)`
+  - this is consistent with heap corruption after the bad traced cdata loop
+
+- Recorder-shape review in `src/lj_crecord.c`:
+  - for struct field access, the recorder folds `sizeof(GCcdata) + field_ofs`
+    into the pointer before emitting `IR_XLOAD` / `IR_XSTORE`
+  - practical implication:
+    - the current `ofs = 0` lowering in the new s390x `asm_xload()` /
+      `asm_xstore()` is structurally consistent with the recorder contract
+    - the remaining bug is not simply “forgot the `GCcdata` header offset”
+
+- Current interpretation:
+  - `IR_XSTORE` is no longer the front-most blocker
+  - the next real bug is a bad first compiled execution of the cdata loop or
+    the immediate resume path after it
+  - the `x = 3`, `y = 6` result strongly suggests the compiled cdata loop is
+    not running through the full iteration space correctly on native s390x
+
+- Next step:
+  - keep the current `asm_xload()` / `asm_xstore()` slice in place
+  - compare this bad cdata loop execution path against a known-good traced loop
+  - focus the next remediation on compiled loop execution or exit/resume state
+    for the cdata trace rather than broadening more FFI field lowering
+
+## 2026-03-20 FFI Cdata Root-Compare Narrowing
+
+- Local x86_64 control for the minimal store-only loop shows the expected IR
+  shape:
+  - root path:
+    - `XSTORE box.x = i`
+    - `ADD i + 1`
+    - `LE ... +4`
+  - loop path:
+    - `XSTORE box.x = i`
+    - `ADD i + 1`
+    - `LE ... +4`
+    - `PHI`
+
+- Native `kdz` `jit.dump` mcode for the same 4-iteration repro confirms:
+  - the loop backedge is patched to the loop-body label, not one instruction
+    late
+  - the compiled loop body does contain the expected first instruction store
+  - practical implication:
+    - the old “backedge skips the loop-body `XSTORE`” theory is not supported
+      by the native mcode dump
+
+- The same native run still exits as:
+  - `parent=1 exit=1`
+  - observed result after the trace:
+    - `x4 = 3`
+  - practical implication:
+    - the bad result is more likely coming from the root compare / carried
+      integer value path before the loop-body store is reached on that final
+      transition
+
+- Strong current hypothesis:
+  - the s390x backend is still not normalizing some integer-width values after
+    traced `ADD`/`SUB`
+  - this would allow the low 32 bits to look correct for `XSTORE`, while the
+    full 64-bit register value remains wrong for the subsequent compare/guard
+
+- A local remediation candidate is in progress:
+  - normalize `IRT_INT` / `IRT_U32` results in `asm_add()` and `asm_sub()`
+    using the same `asm_bnorm32()` contract already used in the newer `mul` and
+    `neg` lowering
+  - local syntax checks are green
+
+- Validation status for that candidate:
+  - the native remote confirmation has not completed yet
+  - the current `kdz` disposable worktree was polluted by repeated ad hoc tmux
+    patch attempts, so the next native rerun needs a clean file sync before the
+    result is trustworthy
+
+## 2026-03-21 Remote Trust Reset
+
+- The local repo remains the authoritative source of truth for the active
+  cdata-loop narrowing slice.
+- The old ad hoc `kdz` worktree is no longer a trustworthy validation surface:
+  - repeated tmux-side edits polluted `src/lj_asm_s390x.h`
+  - remote compile failures there are now transport noise, not signal
+- A clean committed remote source tree is available on `kdz` at:
+  - `/root/luajit2-s390x/fresh-20260319-explicit-next`
+- That remote tree is on an older commit than the current local branch, so the
+  correct workflow is now:
+  - fresh remote clone from that committed source
+  - replay the exact local patch in one shot
+  - rebuild
+  - rerun the smallest focused cdata repro before widening back out
+- Added a local helper for this transport path:
+  - `tools/s390x/tmux_patch_sync.py`
+  - purpose: emit chunked tmux-safe `printf` commands that reconstruct and
+    optionally `git apply` a local patch on the remote host
+- Next trust-restoring action:
+  - use the clean remote source plus the generated patch replay
+  - confirm the local `asm_add()` / `asm_sub()` normalization candidate against
+    the 4-iteration `ffi_cdata_small_trace.lua` repro
+
+## 2026-03-21 Clean Native Baseline Re-established
+
+- A fresh native validation tree was created on `kdz` at:
+  - `/root/luajit2-s390x/clean-loop-20260321`
+- That tree was reset from the published fork branch and then patched with the
+  current local-only code delta instead of continuing to mutate the polluted
+  ad hoc worktree.
+- The preferred tmux replay pane for this clean loop is:
+  - session `luajit2s390x`
+  - pane `%111`
+
+- Clean native rebuild result:
+  - `make -j4 XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT'`
+  - result: green on `kdz`
+
+- Two focused native repros were rerun immediately on the clean build:
+  - `/tmp/ffi_cdata_small_trace.lua`
+    - observed:
+      - `x4 = 4`
+      - `gc-ok`
+  - `/tmp/ffi_cdata_trace_small.lua`
+    - observed:
+      - `xy = 200 201`
+      - `gc-ok`
+
+- Practical implication:
+  - the earlier “traced `ffi` cdata store corruption” report from the polluted
+    remote tree is not trustworthy
+  - the clean native rebuild does **not** reproduce that corruption
+  - the remediation loop is back on a stable footing
+
+- Updated working rule:
+  - treat the clean remote tree plus one-shot local patch replay as the only
+    authoritative native surface for current work
+  - do not carry forward blocker claims that have not been reproduced on that
+    clean surface
+
+- Next step:
+  - rebaseline the next JIT-facing probe from the clean remote tree
+  - take the next blocker only from clean native evidence
+
+## 2026-03-21 First Trustworthy Rebaseline Result
+
+- After the clean-tree trust reset, a focused native `jit_core` sweep was run
+  directly from:
+  - `/root/luajit2-s390x/clean-loop-20260321`
+- Result:
+  - the first trustworthy failing path is now
+    `tests/s390x/jit_core/bitops_trace.lua`
+
+- Native `kdz` failure:
+  - observed:
+    - `expected 873075307, got -1951285677`
+  - the failure is accompanied by repeated native exit-0/hotside logging on
+    the same hot path
+
+- Practical implication:
+  - the earlier `ffi` cdata corruption report from the polluted worktree should
+    not drive the current priority order anymore
+  - the clean native loop has restored a concrete and trustworthy next blocker
+  - the immediate next validation target is the local bitops-related backend
+    delta in `src/lj_asm_s390x.h`
+
+- Current next step:
+  - replay the current local code delta into the clean remote tree
+  - rebuild
+  - rerun `tests/s390x/jit_core/bitops_trace.lua` before widening back out
+
+## 2026-03-21 Vararg Trace Narrowing
+
+- The stable native baseline on `kdz` is preserved:
+  - `tests/s390x/jit_loops/vararg_trace.lua` still fails as:
+    - expected `5650`
+    - got `601`
+  - no new broad regression was accepted into the tree
+
+- The vararg loop has now been split into cleaner native probes:
+  - `vararg_count.lua`
+    - result: correct
+    - observed:
+      - `CNT 1 4`
+      - `CNT 2 4`
+  - practical implication:
+    - `select("#", ...)`
+    - loop index progression
+    - and the traced loop bound / compare path
+    are all behaving correctly on the current native build
+
+- The remaining bug is in the traced value-fetch path for `select(i, ...)`,
+  not in the traced count path.
+
+- Native value probes:
+  - `vararg_return_split.lua`
+    - `retconst(...)` returns `42` correctly on both calls
+    - `retlast(...)` returns:
+      - `LAST 1 1`
+      - `LAST 2 1`
+  - practical implication:
+    - traced return itself is not the front-most bug
+    - the fetched vararg value is already wrong before return
+
+- Native sequence probe:
+  - `vararg_seq.lua`
+  - observed:
+    - `SEQ 1 1241`
+    - `SEQ 2 141`
+  - expected:
+    - `SEQ 1 1231`
+    - `SEQ 2 1232`
+  - practical implication:
+    - the value-fetch path is drifting into the wrong stack/control slots while
+      the loop count stays correct
+
+- Diagnostic code slices tried in this loop:
+  - extra PHI / RA / slot / IR logging
+  - a conservative non-aliased `AREF` destination
+  - saved-register preference for pointer-like `ADD` / `SUB` results
+  - a first ad hoc fused `VLOAD(AREF(...))` path
+
+- Result of those attempts:
+  - the non-aliased `AREF` change did not move the native result
+  - the saved-register preference for pointer-like results did not move the
+    native result
+  - the first ad hoc fused `VLOAD(AREF(...))` path was directionally relevant
+    but unsafe:
+    - it changed the failure mode from wrong result to native trace-code
+      segfault
+    - that experiment was backed out to restore the stable wrong-result
+      baseline
+
+- Current best interpretation:
+  - the next real fix should be a proper s390x port of the mature
+    `asm_fuseahuref()` / fused `VLOAD(AREF(...))` path used by established
+    backends, not another local one-off fusion attempt
+  - the active frontier is now tightly scoped to traced vararg value address
+    formation and use
+
+## 2026-03-21 Vararg Runtime Layout And Exit Probe
+
+- The current clean native focus moved from generic vararg value fetch to a
+  smaller repro:
+  - `/tmp/vararg_looplast.lua`
+  - loop body:
+    - `for i = 1, select("#", ...) do`
+    - `v = select(i, ...)`
+  - native result:
+    - `LAST 1 1`
+    - `LAST 2 1`
+    - then `select()` eventually errors on the hot path with
+      `bad argument #1 to 'select' (index out of range)`
+
+- This repro is better than the original sum loop because it removes the outer
+  accumulation noise while preserving the same traced `select(i, ...)` shape.
+
+- Native IR / snapshot evidence for `looplast`:
+  - root trace 1 records:
+    - `0018 i64 SUB 0000 0011`
+    - `0019 p64 ADD 0018 +3`
+    - `0020 p64 AREF 0019 0015`
+    - `0021 int VLOAD 0020 #0`
+  - loop snapshot is:
+    - `SNAP #3 [ ---- ---- 0027 ]`
+  - hot exits come through:
+    - `parent=1 exit=3`
+  - practical implication:
+    - the front-most failure is not a wrong exit number
+    - the loop result register is already wrong at the point of exit
+
+- Native s390x exit-state dump:
+  - exit 3 repeatedly shows:
+    - `r11=0x5`
+    - `r5=0x3`
+    - `r12=0x1`
+  - practical implication:
+    - loop-carried control state is plausible
+    - the loaded value register is the bad state
+    - this is upstream of generic snapshot-number decode
+
+- Native traced-address dump:
+  - the computed traced AREF register is stable:
+    - `r4 = r2 + r5*8`
+  - but the live bytes at the traced AREF window are not the expected vararg
+    sequence for the current call
+  - observed on exit 3:
+    - `arefbias +1 = 1`
+    - neighboring slot-biased values:
+      - `-24:1`
+      - `-16:3`
+      - `-8:4`
+      - `0:1`
+      - `8:3`
+      - `16:2`
+      - `24:3`
+  - practical implication:
+    - the current `+1` big-endian lane read is reading a real integer lane
+    - but it is reading from the wrong slot window
+    - this points back to traced vararg pseudo-base mapping, not to the final
+      integer lane bias itself
+
+- Interpreter-side runtime ground truth was captured by logging
+  `LJLIB_CF(select)` under `LUAJIT_S390X_SELECT_LOG=1`.
+  For the non-JIT `looplast(1, 2, 3, 2)` call:
+  - `select("#", ...)` sees:
+    - `base[0] = "#"`
+    - `base[1] = 1`
+    - `base[2] = 2`
+    - `base[3] = 3`
+    - `base[4] = 2`
+  - `select(i, ...)` sees the dynamic call shape:
+    - `base[0] = i`
+    - `base[1] = 1`
+    - `base[2] = 2`
+    - `base[3] = 3`
+    - `base[4] = 2`
+  - practical implication:
+    - the interpreter-side `select` argument vector is clean and contiguous
+    - the traced AREF window captured on exit does not line up with that real
+      runtime argument layout
+
+- Current best interpretation:
+  - the current s390x traced dynamic-vararg pseudo-base points into the wrong
+    stack-slot window for the looped `select(i, ...)` path
+  - this is narrower than the earlier generic `VLOAD` / lane-bias theory
+  - the next correct remediation target is the s390x mapping of:
+    - `REF_BASE - fr`
+    - plus the `kintpgc(frofs - (8<<LJ_FR2))` adjustment
+    in the dynamic `select(i, ...)` recorder/lowering contract
+
+- Follow-up offset probes:
+  - a temporary env-gated byte override was added for traced vararg `VLOAD`
+    offsets
+  - global slot-bias sweep for `/tmp/vararg_looplast.lua`:
+    - `0`   -> `LAST 1 1`, `LAST 2 1`
+    - `8`   -> `LAST 1 3`, `LAST 2 1`
+    - `16`  -> `LAST 1 2`, `LAST 2 1`
+    - `24`  -> `LAST 1 3`, `LAST 2 2`
+    - `32`  -> `LAST 1 1`, `LAST 2 3`
+  - practical implication:
+    - the failure is offset-sensitive
+    - but no single static slot shift fixes both hot executions
+
+- Root-vs-loop split probe:
+  - with:
+    - `LUAJIT_S390X_VARG_SLOT_BIAS_ROOT=16`
+    - `LUAJIT_S390X_VARG_SLOT_BIAS_LOOP=24`
+  - native result:
+    - `LAST 1 2`
+    - `LAST 2 1`
+    - `vararg_trace.lua` improves from `601` to `702`, but is still wrong
+  - loop-bias sweep with root fixed at `16`:
+    - changing loop bias between `0`, `8`, `16`, `24`, and `32`
+      did not move `LAST 2`
+  - practical implication:
+    - the first hot execution is controlled by the root dynamic-vararg fetch
+      mapping
+    - the later hot-loop failure is not controlled by the same simple loop-side
+      `VLOAD` offset knob
+    - the next frontier is now split:
+      - root traced dynamic-select pseudo-base mapping
+      - then later hot-loop side-exit / re-entry behavior on the same path
+
+## 2026-03-21 Clean Two-Host Rebaseline
+
+- The branch has been revalidated on two separate native s390x hosts:
+  - `kdz`
+  - `zkd0`
+- The `zkd0` spot-check run now matches the clean `kdz` baseline.
+- Native build on `zkd0` completed successfully with:
+  - `XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT'`
+- Green native spot-check set on `zkd0`:
+  - `prove -v t/isarr-jit.t`
+  - `prove -v t/iter.t`
+  - `prove -v t/exdata.t`
+  - `tests/s390x/ffi_abi/run.lua`
+  - `tests/s390x/callbacks/run.lua`
+  - all current `tests/s390x/jit_core/*.lua`
+  - all current `tests/s390x/jit_loops/*.lua`
+  - all current `tests/s390x/jit_be/*.lua`
+  - `tests/s390x/soak/mixed_stress.lua`
+- Important behavioral confirmation from the `zkd0` run:
+  - the earlier bitops, traced-FFI, iterator, and vararg blockers in this
+    branch cycle are all green on the current source state
+  - repo-local vararg probes now print the expected values:
+    - `vararg_return_split.lua`: `LAST 1 1`, `LAST 2 2`
+    - `vararg_seq.lua`: `SEQ 1 1231`, `SEQ 2 1232`
+  - `pairs_loop.lua` is semantically correct and prints:
+    - `pairs total 5050`
+- Current frontier after the clean two-host rebaseline:
+  - correctness is green on the current staged spot-check set
+  - the next remaining gap is trace-shape quality, especially longer-than-
+    expected side-trace chains on iterator / hot-exit paths
+  - this is now a convergence-quality investigation, not the front-most crash
+    or wrong-result blocker
+
+## 2026-03-21 Iterator / Hot-Exit Quality Focus
+
+- Native `zkd0` still shows a longer side-trace chain than ideal in the
+  iterator / hot-exit diagnostics:
+  - `hotexit_shape_dump.lua`
+  - `hotexit_update_trace.lua`
+  - `hotexit_update_preinterned.lua`
+- Those runs are nevertheless semantically correct and converge to a valid end
+  state:
+  - `done 81 100`
+  - or the expected final accumulator for the reduced probe
+- Current interpretation:
+  - the exit transport and stack re-anchoring bugs are no longer the
+    front-most issue
+  - the remaining work in this area is about loop-link convergence and trace
+    shape on s390x, not basic correctness
+- Next action:
+  - keep the current two-host green baseline fixed
+  - probe the remaining `pairs()` / iterator side-trace chain against mature
+    64-bit backend behavior
+  - cut only the smallest backend change that shortens or eliminates the extra
+    s390x trace chain without regressing the green baseline
+
+## 2026-03-21 Dynamic HREF Probe
+
+- The exact `t/iter.t` `pairs()` body still shows the longer side-trace ladder
+  on the clean native surface when run directly with `-jv`:
+  - `TRACE 1` table-build loop
+  - `TRACE 2` iterator loop
+  - repeated `(n/1) iter_test1.lua:8 -> 2` side traces after that
+- A focused IR dump confirms the repeated side traces sit on:
+  - `CALLL lj_vm_next`
+  - `VLOAD`
+  - dynamic `HREF`
+  - `HLOAD`
+- A first local attempt to inline the dynamic string-key `HREF` path in
+  `src/lj_asm_s390x.h` did hit the right JIT surface, but it did not shorten
+  the side-trace ladder and it regressed dynamic string lookup correctness.
+- That experiment was reverted locally and on the clean native tree after
+  revalidation:
+  - direct dynamic string lookup loop returned to `total 5050`
+  - `prove -v t/iter.t` returned to green
+- Current interpretation:
+  - the remaining iterator quality issue is real
+  - but the first dynamic-string `HREF` inline port was not yet a valid fix
+  - keep the branch on the restored green baseline and continue narrowing from
+    there
+
+## 2026-03-21 Broad Native Matrix Rebaseline
+
+- The restored green baseline has now been widened beyond the targeted s390x
+  suites.
+- Native `prove -v t/*.t` is green for the current branch on:
+  - `kdz` with gcc
+  - `kdz` with clang
+  - `zkd0` with gcc
+  - `zkd0` with clang
+- That broad repo-local TAP sweep covers:
+  - `Files=10`
+  - `Tests=165`
+- Combined with the existing s390x-focused suites, the current branch state is
+  now revalidated across:
+  - two native s390x hosts
+  - both gcc and clang
+  - repo-local Perl/TAP coverage
+  - the repo-local `tests/s390x` JIT, FFI, callback, BE, and soak suites
+- Current frontier after the widened matrix:
+  - no new correctness blocker was exposed by the broader native matrix
+  - the remaining known issue is still the iterator / hot-exit convergence
+    shape visible in direct `-jv` stress repros
+
+## 2026-03-21 Exact Update-Ref Iterator Restore Fix
+
+- The remaining wrong-result failure on the clean native `kdz` loop was reduced
+  to the custom iterator repro in `/tmp/iter_custom_trace2only.lua`:
+  - expected: `total = 5050`
+  - stable bad baseline: `total = 682`
+  - intermediate mixed-rename state: `total = 4950`
+
+- The decisive runtime evidence came from exact-ref restore logging:
+  - failing exit: `trace=1 exit=4`
+  - live exit registers already held the correct carried sum:
+    - `r4 = 0x13ba`
+    - `r12 = 0x13ba`
+  - stale restore-visible state still existed for exact refs:
+    - `ref18`
+    - `ref9`
+
+- The post-flush custom iterator trace IR showed the carried loop state that
+  matters here:
+  - `0018 >+ int ADDOV 0016 0003`
+  - `0028    int PHI    0003 0018`
+  - `0029    int PHI    0016 0027`
+  - `0030    int PHI    0009 0020`
+  - snapshot `#4` restores `0018` and `0009`
+
+- Root cause:
+  - two rename mechanisms were interacting badly on s390x:
+    1. explicit carried update-ref canonicalization in `asm_phi_fixup()`
+    2. stale left-PHI renames emitted implicitly by `ra_rename()` from
+       `asm_phi_shuffle()`
+  - that mixed state let the carried update ref move in the right direction
+    while an old left-PHI shuffle rename still polluted snapshot restore
+
+- Local remediation in `src/lj_asm.c`:
+  - keep explicit loop-snapshot renames only for carried update refs in
+    `asm_phi_fixup()`
+  - target those renames at the update ref's own final allocated register
+    (`IR(phi->op2)->r`) instead of the left-PHI destination register
+  - split `ra_rename()` into:
+    - normal rename with snapshot-visible `IR_RENAME`
+    - `ra_rename_nosnap()` for pure PHI-shuffle register moves
+  - switch `asm_phi_shuffle()` to `ra_rename_nosnap()` so left-PHI shuffles no
+    longer create stale restore-visible renames
+
+- Native `kdz` result after the fix:
+  - reduced repro:
+    - `total = 5050`
+  - exact restore log:
+    - `ref18` now restores from live `reg12` with `0x13ba`
+    - stale left-PHI rename entries for `ref9` / `ref3` are gone
+  - full repo iterator test:
+    - `prove -v t/iter.t`
+    - result: PASS (`1..9`, all green)
+
+- Current interpretation:
+  - this was not a generic iterator semantics problem
+  - it was an exact update-ref canonicalization bug in loop-snapshot restore,
+    exposed most clearly by the custom iterator hot-exit path on s390x
+  - the branch is back on a quality/convergence frontier, not a current
+    iterator wrong-result frontier
+
+## 2026-03-21 Direct Return SAVE_L Fix
+
+- After the exact update-ref iterator fix, the next clean native `kdz`
+  `jit_loops` blocker was:
+  - `tests/s390x/jit_loops/vararg_trace.lua`
+  - crash site:
+    - `lj_vm_exit_interp+10`
+    - `stg %r13,32(%r7)`
+  - fault cause:
+    - `SAVE_L` loaded from `256(sp)` was `0x0f`
+    - the live on-trace `lua_State *` in `r8` was still valid
+
+- The minimal trace shape for the failure was:
+  - `TRACE 1`: vararg loop
+  - `TRACE 2`: caller side trace back to `TRACE 1`
+  - `TRACE 3`: `(1/3) ... stop -> return`
+  - the crash happened immediately after the return trace committed
+
+- Key narrowing results:
+  - removing the extra `SPS_FIXED` term from the s390x `link=0` tail did not
+    change the fault signature
+  - the decisive runtime proof was that the direct return path was reaching
+    `vm_exit_interp` without seeding `SAVE_L`
+  - the problem was therefore not generic vararg fetch anymore, and not the
+    older exit-number / snapshot mismatch theory
+
+- Local remediation in `src/lj_asm_s390x.h`:
+  - widen non-loop `lnk==0` tail reservation so the direct return tail has
+    room for an extra in-place store
+  - on the s390x direct `link=0` tail, store the live `RID_LREG` value into
+    `SAVE_L` before branching to `lj_vm_exit_interp`
+  - keep the rest of the return-path contract unchanged
+
+- Native `kdz` result after the fix:
+  - `./src/luajit tests/s390x/jit_loops/vararg_trace.lua`
+    - `RC=0`
+  - `./src/luajit -jv tests/s390x/jit_loops/vararg_trace.lua`
+    - `TRACE 1`
+    - `TRACE 2`
+    - `TRACE 3 (1/3) ... stop -> return`
+    - `RC=0`
+  - clean focused `jit_loops` sweep on `/root/luajit2-s390x/clean-loop-20260321`
+    is now fully green:
+    - `tests/s390x/jit_loops/*.lua`
+
+- Current next step:
+  - widen into the next native build-mode slice for `jit_loops`
+  - keep the remaining focus on iterator / hot-exit convergence quality, not
+    a current loop correctness crash
+
+## 2026-03-21 Debug `vararg_trace` return handoff
+
+- The wider assert-enabled `jit_loops` sweep on clean native `kdz` no longer
+  stops in snapshot replay. The next blocker is:
+  - `tests/s390x/jit_loops/vararg_trace.lua`
+  - reduced native repro:
+    - `/tmp/vararg_noprint.lua` with `n=12`
+
+- New native narrowing:
+  - `n=11` is green
+  - `n=12` segfaults
+  - trace sequence on the assert build:
+    - `TRACE 1`: loop
+    - `TRACE 2`: root
+    - `TRACE 3`: `link=0 type=return`
+
+- Important compile/runtime facts:
+  - `TRACE 3` exits to interpreter as `pcop=RET1`, `baseslot=0`,
+    `gotframe=0`, `mres=0`
+  - `TRACE 3` does **not** call `asm_retf()`
+  - an old s390x-specific `asm_retf()` bug was still found and fixed locally:
+    the compare path loaded `base[-8]` back into the base register and then
+    reused that clobbered base for later updates
+  - that bug was real, but it is not the front-most cause of this crash,
+    because `TRACE 3` never reaches `asm_retf()`
+
+- `gdb` state at `lj_vm_exit_interp` entry for the failing `TRACE 3` is sane:
+  - `BASE = 0x...ce20`
+  - `-16(BASE)` still holds the callee function object
+  - `0(BASE)` holds the return value `18`
+
+- The later `gdb` crash in `lj_cont_dispatch` shows corrupted resumed state:
+  - `BASE = 0x...cdf0`
+  - `-16(BASE) = 18`
+  - the surrounding stack window shows this base is no longer a valid frame
+    base for continuation dispatch
+
+- Current interpretation:
+  - the failing frontier is now the no-link return-to-interpreter handoff
+  - corruption is introduced after entering `vm_exit_interp`, in the
+    interpreter-side `RET1` / continuation resume path
+  - this is no longer a snapshot replay problem and no longer a direct
+    `asm_retf()` problem
+
+- Current next step:
+  - instrument or narrow the `vm_exit_interp` `RET1` resume path for this
+  return trace shape
+  - determine whether the return trace is resuming the wrong PC/base contract
+    for `RET1`, or whether later continuation resume is consuming the correct
+    state incorrectly
+
+## 2026-03-21 Fresh rsync-loop assert rebaseline for `vararg_trace`
+
+- The remediation loop is trustworthy again from a direct local `rsync` into:
+  - `kdz:/root/luajit2-s390x/rsync-loop-20260321`
+- Fresh native assert rebuild:
+  - `make -j4 XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT -DLUA_USE_ASSERT'`
+
+- Fresh native result on the reduced repro:
+  - `/tmp/vararg_noprint.lua`
+  - `n=11` and `n=12` both segfault on this current local tree
+  - trace sequence with `jit.v` is still:
+    - `TRACE 1`: loop
+    - `TRACE 2`: `-> 1`
+    - `TRACE 3`: `(1/3) ... stop -> return`
+
+- The restore-boundary logs remain stable:
+  - repeated `trace=1 exit=3`
+  - only `slot=2 ref=30` is snapshot-restored on that loop exit
+  - the changing restored value still tracks the loop total, so this is no
+    longer pointing at a generic bad multi-slot replay
+
+- New hard `gdb` proof for the post-exit path:
+  - after the second `lj_vm_exit_interp` hit, the interpreter executes
+    `lj_BC_RET1`
+  - on that path, `RET1` first takes the expected vararg relocation branch:
+    - raw return marker: `PC = 0x33`
+    - relocated base: `BASE = ...cd60`
+    - reloaded caller PC pointer from `-8(BASE)`:
+      - `0x...3570`
+  - the raw caller instruction bytes at that reloaded PC are:
+    - `01 05 07 42`
+    - opcode `0x42`, which decodes to `BC_CALL`
+  - the later crash is in:
+    - `lj_vm_returnp`
+    - `lj_cont_dispatch`
+  - at the crashing `lj_vm_returnp` entry:
+    - `PC = 0x32`
+    - `BASE = ...cd90`
+  - at the crashing `lj_cont_dispatch` entry:
+    - `BASE` still names the active Lua frame
+    - `-32(meta_base)` / `-24(meta_base)` contain ordinary frame data, not a
+      valid continuation function and continuation PC
+
+- Strong current interpretation:
+  - this is now a no-link return-to-interpreter handoff bug on a vararg return
+    path
+  - the current failure is after the trace exit and after the first vararg
+    relocation step
+  - the active frontier is no longer snapshot replay, no longer the older
+    `SAVE_L` issue, and no longer a generic exit-number problem
+  - the next likely fix surface is the s390x `vm_exit_interp` / `BC_RET1` /
+    `vm_returnp` contract for this return-trace shape
+
+- Important recorder-side clue:
+  - the `TRACE 3` dump still contains no visible `IR_RETF`
+  - a temporary env-gated recorder log (`LUAJIT_S390X_RECRET_LOG`) is now in
+    the local tree to help distinguish normal lower-Lua-frame returns from
+    continuation-style returns during the next pass
+
+- Current next step:
+  - compare the s390x no-link vararg return handoff against the mature x64
+    path
+  - keep the focus on the post-exit `RET1` / `vm_returnp` sequence, not on the
+    already-cleared trace-1 replay side
+
+## 2026-03-21 Vararg return handoff moved forward, next crash is caller-state after return
+
+- A focused s390x fix landed in [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc) for wrapped C fast-function returns that see a live `FRAME_VARG` marker.
+- Native `kdz` results after that patch:
+  - `/tmp/vararg_noprint.lua 12` now exits `0`
+  - [tests/s390x/jit_loops/vararg_seq.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/vararg_seq.lua) is green again
+  - [tests/s390x/jit_loops/vararg_return_split.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/vararg_return_split.lua) now prints the correct `LAST 1 1` / `LAST 2 2`
+- The full [tests/s390x/jit_loops/vararg_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/vararg_trace.lua) still segfaults, but the failure frontier changed:
+  - a file-shaped reproducer with the same hot vararg loop plus a final `print(result)` also segfaults
+  - the no-print file repro stays green
+  - `jit.v` still shows the expected trace sequence:
+    - `TRACE 1`: loop
+    - `TRACE 2`: `-> 1`
+    - `TRACE 3`: `(1/3) ... return`
+- New hard `gdb` proof on `kdz`:
+  - the new crash is in `lj_cf_print()`
+  - `lj_cf_print()` receives a bad `lua_State *`
+  - the first bad user-visible operation after the repaired vararg return is the next ordinary C fast-function call from the caller chunk
+- Current interpretation:
+  - the traced vararg return itself is now correct enough to finish the loop
+  - the next caller-side C call still sees corrupted interpreter state
+  - the next remediation target is post-return caller-state restoration, most likely `SAVE_L` / `cur_L` or closely related caller-frame state after the traced vararg return
+
+## 2026-03-21 Direct-exit `SAVE_L` corruption fixed on the vararg loop
+
+- The next focused native `kdz` pass proved the remaining `print(result)` crash
+  was not in the VM slow path anymore.
+  - a hardware watchpoint on the active interpreter-frame `SAVE_L` slot showed
+    the bad overwrite came from JIT mcode, not from `vm_exit_handler`
+  - the exact corrupting instruction sequence was:
+    - `aghi %r15,8`
+    - `stg %r8,256(%r15)`
+    - direct branch to `lj_vm_exit_interp`
+  - that store came from the s390x tail fixup path in
+    [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+
+- Root cause:
+  - the s390x backend was emitting direct trace exits that stored `RID_LREG`
+    (`r8`) into `SAVE_L`
+  - `BC_JLOOP` does not actually seed `RID_LREG` for this path
+  - on the hot vararg loop, `r8` held a stack-adjacent stale pointer instead of
+    the authoritative `lua_State *`
+
+- Local remediation:
+  - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - `asm_tail_fixup()` no longer stores `RID_LREG` into `SAVE_L` for direct
+      exits
+    - it now rematerializes `cur_L` from `DISPATCH` and stores that value into
+      the interpreter-frame `SAVE_L` slot
+    - tail reservation for the no-link exit path was widened to cover the extra
+      load/store pair
+
+- Native `kdz` results after the fix:
+  - `/tmp/vararg_result.lua`:
+    - prints `5650`
+    - exits `0`
+  - [tests/s390x/jit_loops/vararg_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/vararg_trace.lua):
+    - exits `0`
+  - [tests/s390x/jit_loops/vararg_seq.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/vararg_seq.lua):
+    - still green
+  - [tests/s390x/jit_loops/vararg_return_split.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/vararg_return_split.lua):
+    - still green
+  - `prove -v t/iter.t`:
+    - green again on the same clean native loop
+  - direct sweep of `tests/s390x/jit_loops/*.lua`:
+    - green on native `kdz`
+
+- Current interpretation:
+  - the old vararg caller-state crash is no longer the front-most blocker
+  - the direct-exit tail path now matches the real runtime contract for `L`
+  - the next step is to re-stamp the now-green `jit_loops` surface under the
+    staged harness and then widen back out to the next JIT gate
+
+## 2026-03-22 `side_exit` wrong-result fixed by restore preference
+
+- After the direct-exit vararg fix, the next front-most `kdz` regression was
+  [tests/s390x/jit_core/side_exit.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_core/side_exit.lua):
+  - expected `25784`
+  - got `26786`
+- The smallest native repro was `/tmp/side_exit_n4.lua`:
+  - before the fix it printed `0`
+  - `jit.v` showed one root loop and a side exit
+  - restore logging showed the loop-carried accumulator ref had both a live
+    register and a spill, but the restore path used the stale spill slot
+- Root cause:
+  - on s390x, integer restore for this exit shape preferred the spill identity
+    even when the authoritative value was still live in a register
+  - the bad restore state propagated back into interpreter execution and
+    produced the wrong total
+- Local remediation:
+  - [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c)
+    - fixed the s390x restore-prefer-register override so it emits a real
+      register-backed `RegSP`, not a broken hint-only encoding
+    - made that s390x integer restore preference default-on unless explicitly
+      disabled by `LUAJIT_S390X_RESTORE_PREF_REG=0`
+- Native `kdz` results after rebuild:
+  - `/tmp/side_exit_n4.lua`:
+    - prints `10`
+  - [tests/s390x/jit_core/side_exit.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_core/side_exit.lua):
+    - green
+  - direct native sweep of `tests/s390x/jit_core/*.lua`:
+    - green on `kdz`
+- Structured runner state:
+  - `jit_loops` is already stamped green by run
+    `20260322T011616.680245Z-p25132`
+  - the first attempted `jit_core` harness rerun,
+    `20260322T012310.485271Z-p31132`, never progressed past bootstrap and is
+    not authoritative
+- Current next step:
+  - rerun `jit_core` cleanly under the harness
+  - then widen into `jit-correctness` from the structured loop
+
+## 2026-03-22 Structured `jit_core` and `jit-correctness` restamped green
+
+- The clean rerun of the staged `jit_core` gate on `kdz` is now authoritative:
+  - run `20260322T012714.417104Z-p33648`
+  - stage `jit-bringup`
+  - suites executed:
+    - `build`
+    - `jit_core`
+  - result:
+    - success
+    - no recorded failures
+- The earlier `jit_core` attempt `20260322T012310.485271Z-p31132` remains
+  non-authoritative because it never progressed beyond bootstrap.
+
+- The next structured widening step is also now green on `kdz`:
+  - run `20260322T013015.882691Z-p35735`
+  - stage `jit-correctness`
+  - suites executed:
+    - `build`
+    - `smoke`
+    - `jit_core`
+    - `jit_loops`
+    - `jit_be`
+    - `soak`
+  - result:
+    - success
+    - no recorded failures
+
+- Manual and spot-check widening from the same branch state also succeeded:
+  - native `kdz` manual checks:
+    - `tests/s390x/jit_be/*.lua`
+    - `tests/s390x/soak/*.lua`
+  - native `zkd0` spot-check set:
+    - `tests/s390x/jit_core/side_exit.lua`
+    - `tests/s390x/jit_core/bitops_trace.lua`
+    - `tests/s390x/jit_core/ffi_cdata_trace.lua`
+    - `tests/s390x/jit_loops/vararg_trace.lua`
+    - `tests/s390x/jit_be/number_helpers.lua`
+    - `tests/s390x/soak/mixed_stress.lua`
+    - `prove -v t/iter.t`
+    - `prove -v t/isarr-jit.t`
+  - focused `kdz` clang JIT cut:
+    - assert build succeeds
+    - the current hot regression set is green after the clang build
+
+- Current interpretation:
+  - the branch is no longer blocked at the `jit-bringup` or
+    `jit-correctness` stage gates for the current focused surface
+  - the next useful work is to widen matrix coverage only where it exercises a
+    meaningfully different surface, then continue with the remaining iterator
+    and hot-exit quality work from that revalidated baseline

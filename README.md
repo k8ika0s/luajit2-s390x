@@ -50,6 +50,30 @@ tracked in:
 - [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 - [docs/s390x/runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
 
+Current trustworthy checkpoint:
+
+- the current native validation loop is running through `kdz` with local edits
+  synced into `/root/luajit2-s390x/rsync-loop-20260321`
+- the older polluted remote trees are not authoritative anymore
+- the direct-exit `SAVE_L` corruption on the hot vararg loop is fixed on native
+  `kdz`
+- `/tmp/vararg_result.lua`,
+  `tests/s390x/jit_loops/vararg_trace.lua`,
+  `tests/s390x/jit_loops/vararg_seq.lua`, and
+  `tests/s390x/jit_loops/vararg_return_split.lua` are green again on native
+  `kdz`
+- the staged harness has re-stamped `jit_loops` green on `kdz`
+- the next native wrong-result frontier, `tests/s390x/jit_core/side_exit.lua`,
+  was fixed by correcting integer snapshot restore preference in
+  `src/lj_snap.c`
+- a direct native `kdz` sweep of `tests/s390x/jit_core/*.lua` is now green
+- the staged harness has now also stamped `jit_core` and `jit-correctness`
+  green on `kdz`
+- a focused second-host spot-check on `zkd0` and a focused clang JIT cut on
+  `kdz` are both green on the current hot regression set
+- the detailed narrowing trail and current procedure are recorded in
+  [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
+
 # OpenResty extensions
 
 Additionally to synchronizing upstream changes, we introduce our own changes
