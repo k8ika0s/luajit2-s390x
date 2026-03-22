@@ -7,9 +7,11 @@ sync loop.
 
 ## Trustworthy Baseline
 
-- The current authoritative native worktree is on `kdz`:
-  - `/root/luajit2-s390x/rsync-loop-20260321`
-- Local edits are synced there with selective `rsync`.
+- The current authoritative native worktrees are:
+  - `kdz:/root/luajit2-s390x/clean-loop-20260321`
+  - `zkd0:/root/luajit2-s390x/spotcheck-20260321`
+- Local code changes are still made here first.
+- Structured remote validation now syncs only git-tracked files over tar+ssh.
 - Older ad hoc or polluted remote trees are not authoritative.
 
 ## Revalidated On The Current Native Loop
@@ -70,15 +72,22 @@ sync loop.
   tested surface. It is about making the driver’s remote sync/collection path
   robust on banner-printing hosts so the structured artifacts match the now
   green manual native matrix.
+- The current harness transport state:
+  - repo sync is now tracked-files-only tar-over-ssh
+  - macOS metadata is stripped from the tar stream
+  - optional binary collection is best-effort and no longer treated as a hard
+    failure when a variant does not produce every output
+  - the active structured reruns are restamping `matrix/smoke` from that
+    hardened baseline before widening further
 
 ## Current Next Actions
 
 1. Keep `vararg_trace`, the direct-exit `SAVE_L` path, `side_exit.lua`, and
    `thread.exdata()` in the focused regression set so these fixes do not
    silently regress.
-2. Finish hardening the driver transport so repo sync and artifact collection
-   work reliably on `kdz`/`zkd0` even with login banners.
-3. Once the harness transport is re-stamped, widen matrix coverage only where
+2. Finish restamping `matrix/smoke` under the new tracked-file tar-over-ssh
+   transport on `kdz`.
+3. Once that smoke slice is clean, widen structured matrix coverage only where
    it exercises a meaningfully different surface.
 4. Return to the remaining iterator and hot-exit convergence quality work from
    that revalidated matrix baseline instead of reopening the earlier resolved

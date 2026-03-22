@@ -2894,3 +2894,61 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - once the driver transport and symbol-export issue are restamped under the
     structured runner, the next meaningful frontier returns to remaining
     iterator / hot-exit convergence quality work and the broader matrix
+
+## 2026-03-22 Transport cleanup follow-up
+
+- The harness transport hardening moved from “works, but noisy” to
+  “structurally correct and branch-worthy”.
+
+- Branch commits pushed during this pass:
+  - `14b0150e`
+    - `Harden s390x matrix transport and restamp native state`
+  - `352e29eb`
+    - `Sync only tracked files for s390x remote runs`
+  - `e1d2f1ac`
+    - `Quiet tracked-file s390x repo sync`
+
+- New driver behavior in `tools/s390x/driver.py`:
+  - repo sync no longer streams the whole working tree
+  - sync now uses `git ls-files -z` as the authoritative file list
+  - the tar command now disables copyfile/macOS metadata emission
+  - untracked local scratch files are no longer copied into remote runs
+  - the raw `git ls-files -z` payload is no longer printed to the console
+  - optional binary collection remains best-effort
+
+- Evidence from the transport restamp:
+  - older run `20260322T033608.425913Z-p8440`
+    - proved that the old `jit=off` link failure is gone
+    - `gcc debug jit=off ffi=on static`
+      - build: PASS
+      - smoke: PASS
+    - `gcc debug jit=off ffi=on dynamic`
+      - build: PASS
+      - smoke: PASS
+    - `gcc debug jit=off ffi=off static`
+      - build: PASS
+      - smoke: PASS
+    - this run still carried pre-hardening transport noise and remote junk-file
+      contamination, so it is informative but not the final structured
+      baseline for the new transport path
+  - fresh reruns:
+    - `20260322T034317.579291Z-p13051`
+    - `20260322T034609.025414Z-p15495`
+    - both are transport restamp runs from the pushed tracked-file sync path
+    - these are not yet authoritative stage stamps until they complete and
+      write final `summary.md` / `stage-report.md`
+
+- Hard result from the tracked-file sync check:
+  - remote staging under
+    `kdz:/root/luajit2-s390x/20260322T034317.579291Z-p13051/repo`
+    no longer contains the accidental untracked junk files that polluted the
+    previous tar-over-ssh runs
+  - that confirms the current transport direction is correct
+
+- Current interpretation:
+  - correctness is still ahead of the harness, not behind it
+  - the structured runner is now being restamped from the same clean
+    assumptions as the manual native loop
+  - once one clean `matrix/smoke` run completes from the `e1d2f1ac` baseline,
+    the next useful work is to widen structured matrix coverage instead of
+    reopening any of the resolved JIT bugs
