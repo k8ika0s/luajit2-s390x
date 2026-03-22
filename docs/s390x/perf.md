@@ -103,8 +103,12 @@ Authoritative structured runs:
 
 - JIT-on baseline and z13:
   [artifacts/s390x/20260322T145212.814679Z-p29811](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811)
+  - summary:
+    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811/summary.md)
 - JIT-off baseline and z13:
   [artifacts/s390x/20260322T145555.369124Z-p31961](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961)
+  - summary:
+    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961/summary.md)
 
 Representative median runtimes on `kdz`, `gcc release`, `ffi=on`, `mixed`:
 
@@ -120,6 +124,13 @@ Representative median runtimes on `kdz`, `gcc release`, `ffi=on`, `mixed`:
   - `numeric_loop/hot`: `0.002061s`
   - `side_exit_loop/hot`: `0.003735s`
   - `hotexit_loop/hot`: `0.005610s`
+
+Headline ratios from those runs:
+
+- `z13` vs baseline, `jit=on`, `side_exit_loop/hot`: about `1.18x` faster
+- `z13` vs baseline, `jit=on`, `numeric_loop/hot`: about `1.03x` faster
+- `jit=on` vs `jit=off`, baseline, `side_exit_loop/hot`: about `8.69x` slower
+- `jit=on` vs `jit=off`, baseline, `numeric_loop/hot`: about `21.69x` slower
 
 Current conclusion:
 

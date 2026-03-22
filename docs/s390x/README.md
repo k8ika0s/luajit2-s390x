@@ -129,11 +129,20 @@ sync loop.
   benchmark artifacts under `artifacts/s390x/<run-id>/perf/`.
 - The first stamped native release baseline is the `dispatch_trace` family on
   `kdz`.
+- Authoritative perf run artifacts:
+  - JIT on:
+    [20260322T145212.814679Z-p29811 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811/summary.md)
+  - JIT off:
+    [20260322T145555.369124Z-p31961 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961/summary.md)
 - Current measured result:
   - the harness is working
   - z13 tuning already improves the side-exit-heavy dispatch shape
   - the dispatch/side-exit family is the first proven performance hotspot,
     because current s390x `jit=on` is slower than `jit=off` on that workload
+  - first headline ratios:
+    - `side_exit_loop/hot`: `z13` is about `1.18x` faster than baseline
+    - `numeric_loop/hot`: baseline `jit=on` is about `21.69x` slower than
+      `jit=off`
 - The broader perf catalog remains in-tree, but only the release-stable subset
   should gate the current perf stage until the remaining families are
   correctness-stable under native release measurement.

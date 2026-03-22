@@ -3059,6 +3059,12 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
     - `numeric_loop`: `0.002061s`
     - `side_exit_loop`: `0.003735s`
     - `hotexit_loop`: `0.005610s`
+- The first headline performance ratios from those runs are:
+  - `side_exit_loop/hot`: `z13` is about `1.18x` faster than baseline
+  - `numeric_loop/hot`: `z13` is about `1.03x` faster than baseline
+  - baseline `jit=on` vs `jit=off`:
+    - `numeric_loop/hot`: about `21.69x` slower
+    - `side_exit_loop/hot`: about `8.69x` slower
 - Current interpretation:
   - the perf harness is working
   - z13 tuning gives an immediate measured gain on the side-exit-heavy shape
