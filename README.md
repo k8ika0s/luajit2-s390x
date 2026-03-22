@@ -65,15 +65,24 @@ Current trustworthy checkpoint:
   current iterator and `isarray` JIT coverage
 - `tests/s390x/jit_core`, `tests/s390x/jit_loops`, `tests/s390x/jit_be`, and
   `tests/s390x/soak` remain green on the current native loop
-- the structured harness has already stamped `jit_loops`, `jit_core`, and
-  `jit-correctness` green on `kdz`, and the current work is hardening the
-  matrix/harness transport path so those broader native results are captured
-  automatically too
+- the structured matrix is now stamped green on `kdz` for:
+  - `smoke`
+  - `jit_core` gcc debug
+  - `jit_loops` gcc debug
+  - `jit_be` gcc debug
+  - `soak` gcc debug
+  - `jit_core` clang debug
+  - `jit_core` gcc release
+- the structured second-host restamp is also green on `zkd0` for:
+  - `jit_core` gcc debug
+- the next structured proof wave is already in flight for `jit_loops` on:
+  - `kdz` clang debug
+  - `zkd0` gcc debug
 - the harness transport now uses a tracked-files-only tar-over-ssh sync path,
   strips macOS metadata from the archive stream, and avoids syncing untracked
   local junk into remote validation trees
-- the current structured restamp work is focused on `matrix/smoke` from that
-  hardened transport baseline before widening again
+- the current structured restamp work is no longer smoke recovery; it is
+  widening the validated matrix across compiler, mode, and host axes
 - the detailed narrowing trail and current procedure are recorded in
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 

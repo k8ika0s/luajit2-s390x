@@ -15,6 +15,8 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - filters blocks via explicit `--- requires:` capability markers.
 - The driver now records unexpected local Python exceptions and interrupts into
   run artifacts instead of failing without a traceback trail.
+- The hardened tracked-files-only tar-over-ssh transport is now the
+  authoritative structured sync path for native remote runs.
 
 ## Native Runs
 
@@ -57,6 +59,87 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - Result: pass
   - Notes: outgoing FFI call coverage is green on native s390x for gcc and
     clang in both debug and release builds.
+
+- `20260322T034609.025414Z-p15495`
+  - Stage: `matrix`
+  - Suite: `smoke`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: hardened tracked-file tar-over-ssh transport restamp; all 8 gcc
+    debug smoke variants pass across `jit on/off`, `ffi on/off`, and
+    `static/dynamic`.
+
+- `20260322T050327.377254Z-p44209`
+  - Stage: `matrix`
+  - Suite: `jit_core`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: first widened structured matrix slice is green on gcc debug with
+    all 4 `jit on`, `ffi on/off`, `static/dynamic` lanes.
+
+- `20260322T051500.668189Z-p50274`
+  - Stage: `matrix`
+  - Suite: `jit_loops`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: full gcc debug structured `jit_loops` matrix is green across
+    `ffi on/off` and `static/dynamic`.
+
+- `20260322T051917.451476Z-p52584`
+  - Stage: `matrix`
+  - Suite: `jit_be`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: full gcc debug structured `jit_be` matrix is green across
+    `ffi on/off` and `static/dynamic`.
+
+- `20260322T053325.470734Z-p59387`
+  - Stage: `matrix`
+  - Suite: `soak`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: full gcc debug structured `soak` matrix is green across
+    `ffi on/off` and `static/dynamic`.
+
+- `20260322T055509.960285Z-p68367`
+  - Stage: `matrix`
+  - Suite: `jit_core`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: full clang debug structured `jit_core` matrix is green across
+    `ffi on/off` and `static/dynamic`.
+
+- `20260322T055509.960285Z-p68366`
+  - Stage: `matrix`
+  - Suite: `jit_core`
+  - Host: `zkd0`
+  - Result: pass
+  - Notes: second-host gcc debug structured `jit_core` restamp is green
+    across `ffi on/off` and `static/dynamic`.
+
+- `20260322T055912.538970Z-p70902`
+  - Stage: `matrix`
+  - Suite: `jit_core`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: full gcc release structured `jit_core` matrix is green across
+    `ffi on/off` and `static/dynamic`.
+
+- `20260322T060703.342079Z-p75778`
+  - Stage: `matrix`
+  - Suite: `jit_loops`
+  - Host: `zkd0`
+  - Result: in progress
+  - Notes: second-host gcc debug structured `jit_loops` restamp is the
+    current next proof lane.
+
+- `20260322T060703.342267Z-p75779`
+  - Stage: `matrix`
+  - Suite: `jit_loops`
+  - Host: `kdz`
+  - Result: in progress
+  - Notes: clang debug structured `jit_loops` restamp is running in parallel
+    with the second-host lane.
 
 ## 2026-03-20 Traced FFI Call Frontier
 
