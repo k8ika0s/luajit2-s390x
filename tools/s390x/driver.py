@@ -497,7 +497,18 @@ def sync_repo(ctx: Context, host: str) -> None:
         check=True,
         artifacts={"sync_mode": "git-ls-files"},
     )
-    tar_parts = ["tar", "-C", str(ROOT), "--null", "-T", "-", "-cf", "-"]
+    tar_parts = [
+        "tar",
+        "--disable-copyfile",
+        "--no-mac-metadata",
+        "-C",
+        str(ROOT),
+        "--null",
+        "-T",
+        "-",
+        "-cf",
+        "-",
+    ]
     remote_cmd = f"tar -xf - -C {shlex.quote(ctx.remote_repo_root)}"
     ssh_cmd = f"ssh -o BatchMode=yes {shlex.quote(host)} {shlex.quote(f'bash -lc {shlex.quote(remote_cmd)}')}"
     start = time.time()
