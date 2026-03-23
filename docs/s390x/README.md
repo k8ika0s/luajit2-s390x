@@ -81,6 +81,8 @@ sync loop.
     - run `20260322T050327.377254Z-p44209`
   - `matrix/jit_loops` gcc debug
     - run `20260322T051500.668189Z-p50274`
+  - `matrix/trace_tools` gcc release
+    - run `trace-tools-kdz-20260323a`
   - `matrix/jit_be` gcc debug
     - run `20260322T051917.451476Z-p52584`
   - `matrix/soak` gcc debug
@@ -144,6 +146,21 @@ sync loop.
   full green `closure` stage on `kdz`, plus second-host closure spot checks on
   `zkd0`, with the coverage report showing no exercised backend/runtime stub
   left unimplemented.
+- The trace-tooling observer lane is now a real staged suite instead of ad hoc
+  manual probes:
+  - suite: `trace_tools`
+  - first native `kdz` restamp:
+    - `trace-tools-kdz-20260323a`
+  - covered surfaces:
+    - `jit.attach("trace")`
+    - `jit.attach("texit")`
+    - `jit.util.traceinfo()` before and after flush
+    - repo-root `require("jit.v")`
+    - repo-root `require("jit.dump")`
+  - the suite now runs as part of:
+    - `jit-correctness`
+    - `matrix`
+    - `closure`
 - The last `kdz` closure blocker was the downstream Kong lane:
   - `closure-kdz-20260323c` was green everywhere except `downstream`
   - `closure-downstream-kdz-20260323d` now restamps that lane green with the
@@ -170,16 +187,17 @@ sync loop.
    - correctness suites are already green in `closure-zkd0-20260323a`
    - downstream lane is green in `closure-downstream-zkd0-20260323b`
 2. Commit and push the downstream hardening plus documentation restamp.
-   - `jit_loops`
-   - `jit_be`
+   - `trace_tools`
    - `downstream`
 3. Keep the reduced soak regressions in the hot native set:
    - `/tmp/s390x_keep_worker.lua`
    - `/tmp/s390x_mode0_only.lua`
    - `tests/s390x/soak/trace_gc_churn.lua`
-4. Close or explicitly rule out every exercised item still listed in the
+4. Restamp the required second-host `trace_tools` and closure spot checks on
+   `zkd0`.
+5. Close or explicitly rule out every exercised item still listed in the
    latest closure coverage report.
-5. Only after those gates are green should the branch documentation claim
+6. Only after those gates are green should the branch documentation claim
    branch-level native `s390x` support with JIT as a closure-stamped result.
 
 ## Closure Suite Order
@@ -192,6 +210,7 @@ The current full closure restamp on `kdz` is driving this order:
 - `callbacks`
 - `jit_core`
 - `jit_loops`
+- `trace_tools`
 - `jit_be`
 - `soak`
 - `coverage_audit`

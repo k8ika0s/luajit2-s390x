@@ -27,6 +27,27 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `trace-tools-kdz-20260323a`
+  - Stage: `closure`
+  - Suite: `trace_tools`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: first native staged observer/tooling restamp is green in release
+    mode. The lane now validates:
+    - `jit.attach("trace")` root-loop stop events
+    - `jit.attach("texit")` hot-exit observation
+    - `jit.util.traceinfo()` visibility before full flush and disappearance
+      after `jit.flush()`
+    - repo-root `require("jit.v")`
+    - repo-root `require("jit.dump")`
+    The local helper layer in `tests/s390x/helpers/testlib.lua` now provides:
+    - safe attach/detach wrappers
+    - `traceinfo_snapshot()`
+    - `assert_trace_stop()`
+    - repo-root JIT module path enablement
+    This suite is now wired into the driver stage defaults for
+    `jit-correctness`, `matrix`, and `closure`.
+
 - `20260323-direct-soak-restamp`
   - Stage: `closure-remediation`
   - Suite: reduced native repros plus `trace_gc_churn`

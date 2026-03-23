@@ -65,10 +65,20 @@ Current trustworthy checkpoint:
   current iterator and `isarray` JIT coverage
 - `tests/s390x/jit_core`, `tests/s390x/jit_loops`, `tests/s390x/jit_be`, and
   `tests/s390x/soak` remain green on the current native loop
+- the new `tests/s390x/trace_tools` observer/tooling suite is green on native
+  `kdz` in release mode:
+  - `trace-tools-kdz-20260323a`
+  - coverage includes:
+    - `jit.attach("trace")`
+    - `jit.attach("texit")`
+    - `jit.util.traceinfo()`
+    - repo-root `jit.v`
+    - repo-root `jit.dump`
 - the structured matrix is now stamped green on `kdz` for:
   - `smoke`
   - `jit_core` gcc debug
   - `jit_loops` gcc debug
+  - `trace_tools` gcc release
   - `jit_be` gcc debug
   - `soak` gcc debug
   - `jit_core` clang debug
@@ -79,6 +89,7 @@ Current trustworthy checkpoint:
   - source-derived `coverage_audit`
   - downstream OpenResty and Kong gates
   - a bounded `dispatch_trace` perf regression check
+  - a dedicated `trace_tools` observer/tooling lane inside the staged suites
 - first closure audit restamp:
   - `closure-audit-local-20260323T005100Z`
   - emits:

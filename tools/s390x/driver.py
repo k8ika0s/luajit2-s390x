@@ -73,6 +73,13 @@ JIT_LOOPS_LUA_FILES = [
     "tests/s390x/jit_loops/vararg_trace.lua",
 ]
 
+TRACE_TOOLS_LUA_FILES = [
+    "tests/s390x/trace_tools/trace_attach_root.lua",
+    "tests/s390x/trace_tools/texit_observer.lua",
+    "tests/s390x/trace_tools/traceinfo_lifecycle.lua",
+    "tests/s390x/trace_tools/jit_module_loading.lua",
+]
+
 CALLBACK_FFI_LUA_FILES = {
     "tests/s390x/callbacks/run.lua",
     "tests/s390x/callbacks/stress.lua",
@@ -110,6 +117,7 @@ SUITES = {
     "jit_core": "Trace creation, exits, and basic JIT behavior",
     "jit_be": "Big-endian JIT-sensitive regression coverage",
     "jit_loops": "Loop tracing, iterator, and vararg JIT coverage",
+    "trace_tools": "Trace observer, traceinfo, and jit.v/jit.dump tooling coverage",
     "soak": "Long-running mixed stress coverage",
     "coverage_audit": "Static inventory of s390x opcode, IR, VM, and helper coverage",
     "downstream": "Native OpenResty and Kong downstream runtime gates",
@@ -122,8 +130,8 @@ STAGE_DEFAULT_SUITES = {
     "ffi-call": ["smoke", "pure_lua", "ffi_abi"],
     "callback-unwind": ["smoke", "pure_lua", "ffi_abi", "callbacks"],
     "jit-bringup": ["smoke", "jit_core", "jit_loops"],
-    "jit-correctness": ["smoke", "jit_core", "jit_loops", "jit_be", "soak"],
-    "matrix": ["smoke", "pure_lua", "ffi_abi", "callbacks", "jit_core", "jit_loops", "jit_be"],
+    "jit-correctness": ["smoke", "jit_core", "jit_loops", "trace_tools", "jit_be", "soak"],
+    "matrix": ["smoke", "pure_lua", "ffi_abi", "callbacks", "jit_core", "jit_loops", "trace_tools", "jit_be"],
     "perf": ["smoke", "soak", "perf_bench"],
     "closure": [
         "smoke",
@@ -132,6 +140,7 @@ STAGE_DEFAULT_SUITES = {
         "callbacks",
         "jit_core",
         "jit_loops",
+        "trace_tools",
         "jit_be",
         "soak",
         "coverage_audit",
@@ -972,6 +981,22 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             for test in tests/s390x/jit_be/*.lua; do
               [ -e "$test" ] || continue
               {skip_be}
+              printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
+              ./src/luajit "$test"
+            done
+            """
+        ).strip()
+    if suite == "trace_tools":
+        include_condition = " || ".join([f'[ \"$test\" = {shlex.quote(test)} ]' for test in TRACE_TOOLS_LUA_FILES])
+        return textwrap.dedent(
+            f"""
+            set -euo pipefail
+            export PATH="$PWD/src:$PATH"
+            for test in tests/s390x/trace_tools/*.lua; do
+              [ -e "$test" ] || continue
+              if ! ({include_condition}); then
+                continue
+              fi
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
               ./src/luajit "$test"
             done
