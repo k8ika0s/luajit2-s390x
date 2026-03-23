@@ -85,6 +85,14 @@ static int lj_trace_s390x_varg_dump_enabled(void)
   return enabled;
 }
 
+static int lj_trace_s390x_traceconsts_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_TRACECONSTS_LOG") != NULL);
+  return enabled;
+}
+
 #if LJ_TARGET_S390X && LJ_GC64
 static int lj_trace_s390x_gcobj_valid(GCobj *o, int want_trace)
 {
@@ -109,16 +117,45 @@ static int lj_trace_s390x_gcobj_valid(GCobj *o, int want_trace)
 static int lj_trace_s390x_traceconsts_valid(jit_State *J, GCtrace *T)
 {
   IRRef ref;
-  if (!lj_trace_s390x_gcobj_valid(obj2gco(T), 1) || T->traceno != J->cur.traceno)
+  GCobj *startpt;
+  if (!lj_trace_s390x_gcobj_valid(obj2gco(T), 1)) {
+    if (lj_trace_s390x_traceconsts_log_enabled()) {
+      fprintf(stderr,
+              "[s390x] traceconsts reject: invalid trace object T=%p cur=%u\n",
+              (void *)T, (unsigned int)J->cur.traceno);
+    }
     return 0;
-  if (!lj_trace_s390x_gcobj_valid(gcref(T->startpt), 0))
+  }
+  if (T->traceno != 0 && T->traceno != J->cur.traceno) {
+    if (lj_trace_s390x_traceconsts_log_enabled()) {
+      fprintf(stderr,
+              "[s390x] traceconsts reject: traceno mismatch T=%u cur=%u\n",
+              (unsigned int)T->traceno, (unsigned int)J->cur.traceno);
+    }
     return 0;
+  }
+  /* J->curfinal only has compacted IR at trace_stop(); metadata is copied
+  ** into it later by trace_save(), so validate the live current trace fields.
+  */
+  startpt = gcref(J->cur.startpt);
+  if (!lj_trace_s390x_gcobj_valid(startpt, 0)) {
+    if (lj_trace_s390x_traceconsts_log_enabled()) {
+      fprintf(stderr,
+              "[s390x] traceconsts reject: invalid startpt=%p cur=%u\n",
+              (void *)startpt, (unsigned int)J->cur.traceno);
+    }
+    return 0;
+  }
   for (ref = T->nk; ref < REF_TRUE; ref++) {
     IRIns *ir = &T->ir[ref];
     if (ir->o == IR_KGC && !lj_trace_s390x_gcobj_valid(ir_kgc(ir), 0)) {
-      fprintf(stderr,
-	      "[s390x] rejecting trace %u due to invalid IR_KGC at ref %u\n",
-	      (unsigned int)T->traceno, (unsigned int)ref);
+      if (lj_trace_s390x_traceconsts_log_enabled()) {
+        GCobj *o = ir_kgc(ir);
+        fprintf(stderr,
+                "[s390x] traceconsts reject: invalid IR_KGC trace=%u ref=%u obj=%p gct=%d\n",
+                (unsigned int)T->traceno, (unsigned int)ref, (void *)o,
+                o ? (int)o->gch.gct : -1);
+      }
       return 0;
     }
     if (irt_is64(ir->t) && ir->o != IR_KNULL)

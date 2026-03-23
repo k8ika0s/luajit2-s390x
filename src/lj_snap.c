@@ -469,6 +469,14 @@ static int snap_s390x_restore_pref_reg_enabled(void)
   return enabled;
 }
 
+static int snap_s390x_unsink_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_UNSINK_LOG") != NULL);
+  return enabled;
+}
+
 static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRIns *ir,
 				   IRRef ref, RegSP orig_rs, RegSP renamed_rs,
 				   RegSP used_rs, int pref_applied, TValue *o)
@@ -492,6 +500,22 @@ static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRIns *ir,
   UNUSED(J); UNUSED(snapno); UNUSED(ir); UNUSED(ref);
   UNUSED(orig_rs); UNUSED(renamed_rs); UNUSED(used_rs);
   UNUSED(pref_applied); UNUSED(o);
+#endif
+}
+
+static void snap_s390x_unsink_log(jit_State *J, SnapNo snapno, IRIns *ir,
+				  IRRef ref, const char *phase, TValue *o)
+{
+#if LJ_TARGET_S390X
+  if (!snap_s390x_unsink_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_UNSINK trace=%u exit=%u snap=%u ref=%u op=%u phase=%s itype=%d u64=0x%016llx n=%g\n",
+	  (unsigned int)J->parent, (unsigned int)J->exitno, (unsigned int)snapno,
+	  (unsigned int)(ref - REF_BIAS), (unsigned int)ir->o, phase,
+	  (int)itype(o), (unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
+#else
+  UNUSED(J); UNUSED(snapno); UNUSED(ir); UNUSED(ref); UNUSED(phase); UNUSED(o);
 #endif
 }
 
@@ -601,6 +625,31 @@ static LJ_AINLINE int snap_sunk_store(GCtrace *T, IRIns *ira, IRIns *irs)
   return snap_sunk_store2(T, ira, irs);
 }
 
+static int snap_store_for_alloc(GCtrace *T, IRIns *ira, IRIns *irs)
+{
+  if (irs->o == IR_ASTORE || irs->o == IR_HSTORE ||
+      irs->o == IR_FSTORE || irs->o == IR_XSTORE)
+    return snap_sunk_store2(T, ira, irs);
+  return 0;
+}
+
+static int snap_restore_sunkalloc(GCtrace *T, SnapNo snapno, IRIns *ir)
+{
+  if (ir->o == IR_TNEW || ir->o == IR_TDUP
+#if LJ_HASFFI
+      || ir->o == IR_CNEW || ir->o == IR_CNEWI
+#endif
+      ) {
+    IRIns *irs, *irlast = &T->ir[T->snap[snapno].ref];
+    if (ir->r == RID_SUNK)
+      return 1;
+    for (irs = ir+1; irs < irlast; irs++)
+      if (snap_store_for_alloc(T, ir, irs))
+	return 1;
+  }
+  return 0;
+}
+
 /* Replay snapshot state to setup side trace. */
 void lj_snap_replay(jit_State *J, GCtrace *T)
 {
@@ -655,7 +704,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
       SnapEntry sn = map[n];
       IRRef refp = snap_ref(sn);
       IRIns *ir = &T->ir[refp];
-      if (regsp_reg(ir->r) == RID_SUNK) {
+      if (snap_restore_sunkalloc(T, J->exitno, ir)) {
 	uint8_t m;
 	if (J->slot[snap_slot(sn)] != snap_slot(sn)) continue;
 	pass23 = 1;
@@ -677,7 +726,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	} else {
 	  IRIns *irs;
 	  for (irs = ir+1; irs < irlast; irs++)
-	    if (irs->r == RID_SINK && snap_sunk_store(T, ir, irs)) {
+	    if (snap_store_for_alloc(T, ir, irs)) {
 	      if (snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
 			    irs->op2) == 0)
 		snap_pref(J, T, map, nent, seen, rfilt, J->exitno,
@@ -703,7 +752,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
       SnapEntry sn = map[n];
       IRRef refp = snap_ref(sn);
       IRIns *ir = &T->ir[refp];
-      if (regsp_reg(ir->r) == RID_SUNK) {
+      if (snap_restore_sunkalloc(T, J->exitno, ir)) {
 	TRef op1, op2;
 	uint8_t m;
 	if (J->slot[snap_slot(sn)] != snap_slot(sn)) {  /* De-dup allocs. */
@@ -730,7 +779,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	  TRef tr = emitir(ir->ot, op1, op2);
 	  J->slot[snap_slot(sn)] = tr;
 	  for (irs = ir+1; irs < irlast; irs++)
-	    if (irs->r == RID_SINK && snap_sunk_store(T, ir, irs)) {
+	    if (snap_store_for_alloc(T, ir, irs)) {
 	      IRIns *irr = &T->ir[irs->op1];
 	      TRef val, key = irr->op2, tmp = tr;
 	      if (irr->o != IR_FREF) {
@@ -995,7 +1044,7 @@ static void snap_unsink(jit_State *J, GCtrace *T, ExitState *ex,
     } else {
       IRIns *irs, *irlast = &T->ir[T->snap[snapno].ref];
       for (irs = ir+1; irs < irlast; irs++)
-	if (irs->r == RID_SINK && snap_sunk_store(T, ir, irs)) {
+	if (snap_store_for_alloc(T, ir, irs)) {
 	  IRIns *iro = &T->ir[T->ir[irs->op1].op2];
 	  uint8_t *p = (uint8_t *)cd;
 	  CTSize szs;
@@ -1031,9 +1080,10 @@ static void snap_unsink(jit_State *J, GCtrace *T, ExitState *ex,
     GCtab *t = ir->o == IR_TNEW ? lj_tab_new(J->L, ir->op1, ir->op2) :
 				  lj_tab_dup(J->L, ir_ktab(&T->ir[ir->op1]));
     settabV(J->L, o, t);
+    snap_s390x_unsink_log(J, snapno, ir, (IRRef)(ir - T->ir), "alloc", o);
     irlast = &T->ir[T->snap[snapno].ref];
     for (irs = ir+1; irs < irlast; irs++)
-      if (irs->r == RID_SINK && snap_sunk_store(T, ir, irs)) {
+      if (snap_store_for_alloc(T, ir, irs)) {
 	IRIns *irk = &T->ir[irs->op1];
 	TValue tmp, *val;
 	lj_assertJ(irs->o == IR_ASTORE || irs->o == IR_HSTORE ||
@@ -1064,6 +1114,7 @@ static void snap_unsink(jit_State *J, GCtrace *T, ExitState *ex,
 	  val = lj_tab_set(J->L, t, &tmp);
 	  /* NOBARRIER: The table is new (marked white). */
 	  snap_restoreval(J, T, ex, snapno, rfilt, irs->op2, val);
+	  snap_s390x_unsink_log(J, snapno, irs, (IRRef)(irs - T->ir), "store", val);
 	  if (LJ_SOFTFP32 && irs+1 < T->ir + T->nins && (irs+1)->o == IR_HIOP) {
 	    snap_restoreval(J, T, ex, snapno, rfilt, (irs+1)->op2, &tmp);
 	    val->u32.hi = tmp.u32.lo;
@@ -1116,7 +1167,17 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
       TValue *o = &frame[snap_slot(sn)];
       IRRef ref = snap_ref(sn);
       IRIns *ir = &T->ir[ref];
-      if (ir->r == RID_SUNK) {
+#if LJ_TARGET_S390X
+      if (snap_s390x_unsink_log_enabled()) {
+	fprintf(stderr,
+		"S390X_UNSINK_SCAN trace=%u exit=%u slot=%u ref=%u ir_r=%u ir_prev=%u norestore=%u\n",
+		(unsigned int)J->parent, (unsigned int)J->exitno,
+		(unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
+		(unsigned int)ir->r, (unsigned int)ir->prev,
+		(unsigned int)((sn & SNAP_NORESTORE) != 0));
+      }
+#endif
+      if (snap_restore_sunkalloc(T, snapno, ir)) {
 	MSize j;
 	for (j = 0; j < n; j++)
 	  if (snap_ref(map[j]) == ref) {  /* De-duplicate sunk allocations. */
@@ -1124,6 +1185,14 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	    goto dupslot;
 	  }
 	snap_unsink(J, T, ex, snapno, rfilt, ir, o);
+	if (snap_s390x_unsink_log_enabled()) {
+	  fprintf(stderr,
+		  "S390X_UNSINK trace=%u exit=%u slot=%u ref=%u final_itype=%d u64=0x%016llx n=%g\n",
+		  (unsigned int)J->parent, (unsigned int)J->exitno,
+		  (unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
+		  (int)itype(o), (unsigned long long)o->u64,
+		  tvisnum(o) ? numV(o) : 0.0);
+	}
       dupslot:
 	continue;
       }

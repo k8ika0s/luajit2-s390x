@@ -248,9 +248,18 @@ static void asm_s390x_ir_log_addk(ASMState *as, IRIns *ir, IRRef lref,
 	  (int)dest, (int)left, (int)k, (int)irt_type(ir->t));
 }
 
+/* Fuse the array base of colocated arrays and vararg pseudo-bases. */
+static int32_t asm_fuseabase(ASMState *as, IRRef ref)
+{
+  IRIns *ir = IR(ref);
+  if (ir->o == IR_TNEW && ir->op1 <= LJ_MAX_COLOSIZE && !neverfuse(as))
+    return (int32_t)sizeof(GCtab);
+  return 0;
+}
+
 static RegSet asm_s390x_dest_gprset(IRType1 t)
 {
-  if (irt_isp32(t) || irt_type(t) == IRT_P64) {
+  if (irt_isp32(t) || irt_isaddr(t) || irt_isgcv(t)) {
     RegSet saved = RSET_GPR_SAVED & (RSET_GPR & ~RID2RSET(RID_BASE));
     if (saved != RSET_EMPTY)
       return saved;
@@ -336,6 +345,8 @@ static RegSet asm_gencall_nonarg_gpr(Reg gpr)
 
 static void asm_guardcc(ASMState *as, int cc);
 static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref);
+static void asm_tvstore64x(ASMState *as, Reg base, int32_t ofs, IRRef ref,
+			   RegSet forbid);
 
 static int asm_gencall_sload(ASMState *as, Reg gpr, IRRef ref)
 {
@@ -789,9 +800,10 @@ static void asm_gc_check(ASMState *as)
   checkmclim(as);
 }
 
-static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref)
+static void asm_tvstore64x(ASMState *as, Reg base, int32_t ofs, IRRef ref,
+			   RegSet forbid)
 {
-  RegSet allow = rset_exclude(RSET_GPR, base);
+  RegSet allow = rset_exclude(RSET_GPR, base) & ~forbid;
   IRIns *ir = IR(ref);
   lj_assertA(irt_ispri(ir->t) || irt_isaddr(ir->t) || irt_isinteger(ir->t),
 	     "store of IR type %d", irt_type(ir->t));
@@ -814,14 +826,32 @@ static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref)
     type = ra_scratch(as, allow);
     emit_store64ofs(as, tmp, base, ofs);
     emit_u32(as, S390X_INS_RXE(S390XI_AGR, tmp, type));
-    emit_loadu64(as, type, irt_isinteger(ir->t) ?
-      ((uint64_t)(uint32_t)LJ_TISNUM << 47) :
-      ((uint64_t)irt_toitype(ir->t) << 47));
-    if (irt_isinteger(ir->t))
+    if (irt_isinteger(ir->t)) {
+      emit_loadu64(as, type, (uint64_t)(uint32_t)LJ_TISNUM << 47);
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, tmp, src));
-    else if (tmp != src)
+    } else {
+      Reg mask = RID_NONE;
+      if (irt_isgcv(ir->t)) {
+        allow = rset_exclude(allow, type);
+        mask = ra_scratch(as, allow);
+        emit_u32(as, S390X_INS_RXE(S390XI_NGR, tmp, mask));
+        emit_loadu64(as, mask, LJ_GCVMASK);
+      }
+      if (irt_isgcv(ir->t)) {
+        allow = rset_exclude(allow, mask);
+      }
+      emit_loadu64(as, type, (uint64_t)irt_toitype(ir->t) << 47);
+      if (tmp != src)
+        emit_movrr(as, ir, tmp, src);
+    }
+    if (!irt_isinteger(ir->t) && !irt_isgcv(ir->t) && tmp != src)
       emit_movrr(as, ir, tmp, src);
   }
+}
+
+static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref)
+{
+  asm_tvstore64x(as, base, ofs, ref, RSET_EMPTY);
 }
 
 static void asm_tvptr(ASMState *as, Reg dest, IRRef ref, MSize mode)
@@ -1453,7 +1483,22 @@ static void asm_neg(ASMState *as, IRIns *ir)
 ASM_S390X_STUB_IR(asm_abs)
 ASM_S390X_STUB_IR(asm_fpdiv)
 ASM_S390X_STUB_IR(asm_fpmath)
-ASM_S390X_STUB_IR(asm_tobit)
+static void asm_tobit(ASMState *as, IRIns *ir)
+{
+  RegSet allow = RSET_FPR;
+  Reg left = ra_alloc1(as, ir->op1, allow);
+  Reg right = ra_alloc1(as, ir->op2, rset_clear(allow, left));
+  RegSet scratch = rset_clear(allow, left);
+  scratch &= ~RID2RSET(right);
+  Reg tmp = ra_scratch(as, scratch);
+  Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -245);
+
+  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+  emit_u32(as, S390X_INS_RRF_M(S390XI_CFDBR, dest, 5, tmp));
+  emit_u32(as, S390X_INS_RXE(S390XI_ADBR, tmp, left));
+  if (tmp != right)
+    emit_movrr(as, ir, tmp, right);
+}
 ASM_S390X_STUB_IR(asm_min)
 ASM_S390X_STUB_IR(asm_max)
 #define asm_addov(as, ir)	asm_add(as, ir)
@@ -1511,14 +1556,20 @@ static S390XFusedRef asm_fuseahuref(ASMState *as, IRRef ref, RegSet allow)
     if (ir->o == IR_AREF) {
       if (mayfuse(as, ref)) {
 	if (irref_isk(ir->op2)) {
-	  int32_t ofs = 8 * IR(ir->op2)->i;
+	  IRRef tab = IR(ir->op1)->op1;
+	  int32_t ofs = asm_fuseabase(as, tab);
+	  IRRef refa = ofs ? tab : ir->op1;
+	  ofs += 8 * IR(ir->op2)->i;
 	  if (checki20(ofs)) {
-	    fr.reg = ra_alloc1_nobase(as, ir->op1, allow, -251);
+	    fr.reg = ra_alloc1_nobase(as, refa, allow, -251);
 	    fr.ofs = ofs;
 	    return fr;
 	  }
 	} else {
-	  fr.base = ra_alloc1_nobase(as, ir->op1, allow, -252);
+	  RegSet baseallow = asm_s390x_dest_gprset(IR(ir->op1)->t) & allow;
+	  if (baseallow == RSET_EMPTY)
+	    baseallow = allow;
+	  fr.base = ra_alloc1_nobase(as, ir->op1, baseallow, -252);
 	  allow = rset_exclude(allow, fr.base);
 	  fr.idx = ra_alloc1_nobase(as, ir->op2, allow, -253);
 	  fr.reg = ra_scratch(as, rset_exclude(allow, fr.idx));
@@ -1764,26 +1815,43 @@ static void asm_uref(ASMState *as, IRIns *ir)
     return;
   }
 
-  if (ir->o == IR_UREFC) {
-    emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, (int32_t)offsetof(GCupval, tv)));
+  if (guarded || ir->o == IR_UREFC) {
+    RegSet allow = rset_exclude(RSET_GPR_NOB, dest);
+    Reg uv = ra_scratch(as, allow);
+
+    if (ir->o == IR_UREFC) {
+      emit_addptr(as, dest, (int32_t)offsetof(GCupval, tv));
+      if (dest != uv)
+	emit_movrr(as, ir, dest, uv);
+    } else {
+      emit_load64ofs(as, dest, uv, (int32_t)offsetof(GCupval, v));
+    }
+
+    if (guarded) {
+      RegSet tmpallow = rset_exclude(allow, uv);
+      Reg tmp = ra_scratch(as, tmpallow);
+      asm_guardcc(as, ir->o == IR_UREFC ? CC_EQ : CC_NE);
+      emit_u32(as, S390X_INS_RI(S390XI_CGHI, tmp, 0));
+      emit_u48_pad8(as, S390X_INS_RXY(S390XI_LLGC, tmp, 0, uv,
+				      (int32_t)offsetof(GCupval, closed)));
+    }
+
+    if (irref_isk(ir->op1)) {
+      GCfunc *fn = ir_kfunc(IR(ir->op1));
+      emit_loadu64(as, uv, gcrefu(fn->l.uvptr[(ir->op2 >> 8)]));
+    } else {
+      Reg fn = ra_alloc1_nobase(as, ir->op1, rset_exclude(RSET_GPR_NOB, uv), -246);
+      emit_load64ofs(as, uv, fn, uvofs);
+    }
   } else {
     emit_load64ofs(as, dest, dest, (int32_t)offsetof(GCupval, v));
-  }
-
-  if (guarded) {
-    Reg tmp = ra_releasetmp(as, ASMREF_TMP1);
-    asm_guardcc(as, ir->o == IR_UREFC ? CC_EQ : CC_NE);
-    emit_u32(as, S390X_INS_RI(S390XI_CGHI, tmp, 0));
-    emit_u48_pad8(as, S390X_INS_RXY(S390XI_LLGC, tmp, 0, dest,
-				    (int32_t)offsetof(GCupval, closed)));
-  }
-
-  if (irref_isk(ir->op1)) {
-    GCfunc *fn = ir_kfunc(IR(ir->op1));
-    emit_loadu64(as, dest, gcrefu(fn->l.uvptr[(ir->op2 >> 8)]));
-  } else {
-    Reg fn = ra_alloc1_nobase(as, ir->op1, rset_exclude(RSET_GPR_NOB, dest), -246);
-    emit_load64ofs(as, dest, fn, uvofs);
+    if (irref_isk(ir->op1)) {
+      GCfunc *fn = ir_kfunc(IR(ir->op1));
+      emit_loadu64(as, dest, gcrefu(fn->l.uvptr[(ir->op2 >> 8)]));
+    } else {
+      Reg fn = ra_alloc1_nobase(as, ir->op1, rset_exclude(RSET_GPR_NOB, dest), -246);
+      emit_load64ofs(as, dest, fn, uvofs);
+    }
   }
 }
 ASM_S390X_STUB_IR(asm_fref)
@@ -1872,9 +1940,33 @@ static void asm_fload(ASMState *as, IRIns *ir)
     return;
   }
 
-  dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -220);
+  {
+    RegSet dallow = RSET_GPR_SAVED & RSET_GPR_NOB;
+    if (dallow == RSET_EMPTY)
+      dallow = RSET_GPR_NOB;
+    dest = ra_dest_nobase(as, ir, dallow, -220);
+  }
   base = ra_alloc1_nobase(as, ir->op1, rset_exclude(RSET_GPR_NOB, dest), -221);
   ofs = field_ofs[ir->op2];
+
+  if (asm_s390x_ir_log_enabled() &&
+      (ir->op2 == IRFL_TAB_ARRAY || ir->op2 == IRFL_TAB_ASIZE)) {
+    fprintf(stderr,
+	    "S390X_IR kind=fload curins=%d ir=%d field=%d base_ref=%d dest=%d base=%d ofs=%d type=%d\n",
+	    (int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
+	    (int)ir->op2, (int)(ir->op1 - REF_BIAS), (int)dest, (int)base,
+	    (int)ofs, (int)irt_type(t));
+  }
+
+  if (ir->op2 == IRFL_TAB_ARRAY) {
+    int32_t abase = asm_fuseabase(as, ir->op1);
+    if (abase) {
+      emit_addptr(as, dest, abase);
+      if (dest != base)
+	emit_movrr(as, ir, dest, base);
+      return;
+    }
+  }
 
   if (irt_isaddr(t) || irt_isgcv(t)) {
     emit_load64ofs(as, dest, base, ofs);
@@ -1972,6 +2064,7 @@ dotypecheck:
 static void asm_ahustore(ASMState *as, IRIns *ir)
 {
   S390XFusedRef fr;
+  RegSet forbid = RSET_EMPTY;
 
   if (ir->r == RID_SINK)
     return;
@@ -1980,7 +2073,18 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
     return;
   }
   fr = asm_fuseahuref(as, ir->op1, RSET_GPR_NOB);
-  asm_tvstore64(as, fr.reg, fr.ofs, ir->op2);
+  if (asm_s390x_ir_log_enabled()) {
+    fprintf(stderr,
+	    "S390X_IR kind=ahustore curins=%d ir=%d xref=%d fused=%d fbase=%d fidx=%d ofs=%d vref=%d type=%d\n",
+	    (int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
+	    (int)(ir->op1 - REF_BIAS), (int)fr.reg, (int)fr.base, (int)fr.idx,
+	    (int)fr.ofs, (int)(ir->op2 - REF_BIAS), (int)irt_type(ir->t));
+  }
+  if (fr.base != RID_NONE)
+    forbid |= RID2RSET(fr.base);
+  if (fr.idx != RID_NONE)
+    forbid |= RID2RSET(fr.idx);
+  asm_tvstore64x(as, fr.reg, fr.ofs, ir->op2, forbid);
   asm_emitfuseahuref(as, ir, &fr);
 }
 
