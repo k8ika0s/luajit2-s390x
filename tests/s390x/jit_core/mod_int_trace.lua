@@ -37,9 +37,11 @@ local function hotexit_loop(n)
 end
 
 local function expect(fn, n)
+  jit.off(fn, true)
+  local expected = fn(n)
+  jit.on(fn, true)
   jit.flush()
   jit.opt.start("hotloop=2", "hotexit=2")
-  local expected = fn(n)
   local actual = fn(n)
   t.eq(actual, expected, "integer modulo trace result")
   t.truthy(jutil.traceinfo(1) ~= nil, "integer modulo trace exists")

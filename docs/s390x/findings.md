@@ -3346,15 +3346,18 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
     - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
     - fresh native `kdz` proof still fails under the aggressive
       `hotloop=2`, `hotexit=2` hotexit/stitch workload with:
-      - expected `6778`, got `0`
+      - expected `6490`, got `7024` in the direct staged repro
       - `-jv -jdump=im` shows a root trace followed by a side-trace explosion
-        up to `TRACE 104`, then interpreter return with the wrong final total
+        up to `TRACE 104`
     - targeted threshold sweep on `kdz` shows this is specifically the
       low-threshold hotexit/stitch regime:
-      - `hotloop=2`, `hotexit=2`: wrong
-      - `hotloop=2`, `hotexit=2`, `minstitch=1`: still wrong
-      - `hotloop=2`, `hotexit=5`: still wrong
+      - `hotloop=2`, `hotexit=2`: `6490 -> 6928`
+      - `hotloop=2`, `hotexit=2`, `minstitch=1`: still `6490 -> 6928`
+      - `hotloop=2`, `hotexit=5`: still wrong as `6490 -> 7501`
       - `hotloop=10`, `hotexit=10`: correct
+    - the baseline is now computed explicitly with `jit.off(hotexit_loop, true)`
+      before reenabling JIT for the traced run, so the remaining mismatch is a
+      real traced-execution bug, not an expected-value contamination artifact
 - `mod_int_trace.lua` stays intentionally out of the default `jit_core` lane
   until the modulo work is ready for promotion, but it is now the tracked
   Stream B entry point rather than a blended Stream A/B repro.
