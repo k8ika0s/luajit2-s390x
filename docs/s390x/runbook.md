@@ -19,6 +19,54 @@ how to read the resulting artifacts.
    manually edited, throw it away and restamp from a fresh run-id instead of
    repairing it in place.
 
+## Closure Workflow
+
+Use the `closure` stage when the goal is a branch-level native `s390x`
+support claim rather than a narrower matrix slice.
+
+Recommended order:
+
+1. Local coverage audit only:
+   - `python3 tools/s390x/driver.py --stage closure --suite coverage_audit --compiler gcc --mode debug --jit on`
+2. Full closure gate on `kdz`:
+   - `python3 tools/s390x/driver.py --stage closure --suite all --compiler gcc --mode release --jit on --host kdz`
+3. Second-host closure spot check on `zkd0`:
+   - `python3 tools/s390x/driver.py --stage closure --suite all --compiler gcc --mode debug --jit on --host zkd0`
+
+Keep these direct native reduced probes available while closure is being
+restamped, since they catch the last soak/runtime regressions much faster than
+the full stage:
+
+- `/tmp/s390x_keep_worker.lua`
+- `/tmp/s390x_mode0_only.lua`
+- `tests/s390x/soak/trace_gc_churn.lua`
+
+The closure stage now includes:
+
+- `smoke`
+- `pure_lua`
+- `ffi_abi`
+- `callbacks`
+- `jit_core`
+- `jit_loops`
+- `jit_be`
+- `soak`
+- `coverage_audit`
+- `downstream`
+- `perf_bench`
+
+The `pure_lua` suite in closure mode widens to a full native `prove -v t/*.t`
+lane. `coverage_audit` and `downstream` run locally through the driver, while
+the existing correctness suites still use native remote execution.
+
+If you need interactive `-jv` or `-jdump` runs from the repo root, remember to
+add `src/jit/*.lua` to `LUA_PATH`, for example:
+
+- `LUA_PATH="./src/?.lua;./src/?/init.lua;;" ./src/luajit -jv <script.lua>`
+
+Without that, repo-root `-jv` or `-jdump` probes can look like “no JIT output”
+even on a correctly JIT-enabled s390x build.
+
 ## Gateway And Kong Demo Workflow
 
 Use these when the goal is product-shaped proof instead of harness matrix work.
@@ -59,6 +107,8 @@ Important current defaults:
   - `failures.json`
   - `metadata/git-sha.txt`
   - `metadata/dirty.patch`
+  - `coverage/*`
+  - `downstream/*`
   - `remote/bootstrap/*`
   - `remote/steps/<suite>/<variant>/*`
   - `binaries/<variant>/`
@@ -135,6 +185,9 @@ Important current defaults:
 - `jit-correctness`: expand coverage to the full exercised BE and JIT surface.
 - `matrix`: run the wider compiler and build-style matrix.
 - `perf`: treat tuning as performance-only, never as correctness.
+- `closure`: run the final support-claim gate, including source audit,
+  downstream product demos, and the bounded `dispatch_trace` perf regression
+  check.
 
 ## Performance Stage
 

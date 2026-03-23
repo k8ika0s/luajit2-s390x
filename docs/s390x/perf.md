@@ -94,6 +94,24 @@ The primary local artifacts are:
 Raw per-benchmark stdout, stderr, and optional `perf stat` outputs stay under
 the normal step artifact tree in `remote/steps/perf_bench/...`.
 
+## Closure Gate Rule
+
+Performance is still non-blocking for the branch-level `s390x` support claim,
+except where a perf benchmark exposes a correctness problem.
+
+Current closure-stage rule:
+
+- required perf regression check:
+  - `dispatch_trace.lua`
+  - host `kdz`
+  - compiler `gcc`
+  - mode `release`
+  - `jit=on`
+  - tuning `baseline`
+
+The rest of the perf catalog stays in-tree as follow-up probes until each file
+is release-stable on native `s390x`.
+
 ## Current Stamped Baseline
 
 The first native performance baseline is now stamped for the release-stable
@@ -135,6 +153,9 @@ Headline ratios from those runs:
 Current conclusion:
 
 - the perf harness and native artifact model are working end to end
+- the latest closure soak/runtime remediation is correctness-only and keeps the
+  branch on track for performance work; it does not change the first measured
+  optimization priority
 - z13 tuning already helps the side-exit-heavy dispatch shape materially
 - the dispatch and side-exit family is currently a real optimization hotspot,
   because the present s390x JIT-on path is slower than JIT-off on this family

@@ -17,8 +17,54 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   run artifacts instead of failing without a traceback trail.
 - The hardened tracked-files-only tar-over-ssh transport is now the
   authoritative structured sync path for native remote runs.
+- The harness now has a final `closure` stage with two new suites:
+  - `coverage_audit`
+  - `downstream`
+- `coverage_audit` runs locally and derives the closure inventory from source
+  files, not memory.
+- `downstream` runs the existing OpenResty and Kong native demos as standard
+  driver-managed gates instead of leaving them as side-only scripts.
 
 ## Native Runs
+
+- `20260323-direct-soak-restamp`
+  - Stage: `closure-remediation`
+  - Suite: reduced native repros plus `trace_gc_churn`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: the previously failing closure soak surface is green again on the
+    authoritative native tree after three targeted fixes:
+    - `src/lj_snap.c`
+      - restore and replay sunk fresh allocations structurally from store
+        edges instead of depending only on `RID_SUNK`
+    - `src/lj_asm_s390x.h`
+      - guarded `asm_uref` now keeps the closed-upvalue test in a separate
+        scratch register instead of clobbering the live upvalue pointer
+    - `src/lj_asm_s390x.h`
+      - fused dynamic `AREF` base allocation now prefers preserved GPRs so
+        live array bases do not get lost across helper `%` calls under
+        register pressure
+    Direct native `kdz` proofs now pass for:
+    - `/tmp/s390x_keep_worker.lua`
+    - `/tmp/s390x_mode0_only.lua`
+    - `tests/s390x/soak/trace_gc_churn.lua`
+    The next full closure restamp is running as `closure-kdz-20260323c`.
+
+- `closure-audit-local-20260323T005100Z`
+  - Stage: `closure`
+  - Suite: `coverage_audit`
+  - Host: local
+  - Result: pass
+  - Notes: first local closure inventory restamp is green and now emits:
+    - `coverage/remaining-stubs.json`
+    - `coverage/bc-opcodes.json`
+    - `coverage/ir-ops.json`
+    - `coverage/vm-handlers.json`
+    - `coverage/helper-calls.json`
+    - `coverage/report.md`
+    The current report explicitly keeps the remaining s390x asm stubs and VM
+    NYIs visible so closure is gated on source-backed evidence rather than
+    optimism.
 
 - `20260322-openresty-leadership-demo`
   - Stage: `product-demo`
@@ -239,6 +285,28 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - the full-JIT Kong startup demo path now passes on `kdz`
   - these trace guardrails should remain under regression watch while wider
     matrix and product demos continue
+
+## 2026-03-23 Closure Soak Remediation
+
+- The last known `closure/soak` blocker was narrowed away from the original raw
+  `ASTORE` crash into three separate correctness bugs:
+  - fresh-table unsink and replay on exit
+  - guarded upvalue load aliasing in `asm_uref`
+  - volatile fused-array-base loss across `%` helper calls under pressure
+- The reduced repro chain on native `kdz` was:
+  - fresh table store only:
+    - green after the earlier `asm_tvstore64x()` scratch exclusion fix
+  - `keep + item.value`:
+    - green after the `src/lj_snap.c` sunk-allocation restore/replay fix
+  - `keep + worker(item.value)`:
+    - green after the guarded `asm_uref` alias fix
+  - mixed `{ tag = ..., value = ... }` table plus stored worker call:
+    - green after preferring preserved registers for the fused dynamic array
+      base path in `src/lj_asm_s390x.h`
+- The direct native `trace_gc_churn.lua` restamp is now green again on the
+  authoritative `kdz` worktree.
+- Closure remains gated on the full structured `closure` rerun and the required
+  `zkd0` spot check, but the front-most soak runtime crash is no longer open.
 
 ## 2026-03-20 Traced FFI Direct-Call Fix
 

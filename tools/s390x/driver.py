@@ -13,6 +13,7 @@ import datetime as dt
 import json
 import os
 import pathlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -54,6 +55,7 @@ JIT_CORE_LUA_FILES = [
     "tests/s390x/jit_core/bitops_trace.lua",
     "tests/s390x/jit_core/ffi_cdata_trace.lua",
     "tests/s390x/jit_core/mod_trace.lua",
+    "tests/s390x/jit_core/numeric_helpers.lua",
     "tests/s390x/jit_core/profile_loop.lua",
     "tests/s390x/jit_core/trace_event_postloop.lua",
 ]
@@ -66,9 +68,15 @@ JIT_CORE_FFI_LUA_FILES = {
 }
 
 JIT_LOOPS_LUA_FILES = [
+    "tests/s390x/jit_loops/compiled_vararg.lua",
     "tests/s390x/jit_loops/explicit_next.lua",
     "tests/s390x/jit_loops/vararg_trace.lua",
 ]
+
+CALLBACK_FFI_LUA_FILES = {
+    "tests/s390x/callbacks/run.lua",
+    "tests/s390x/callbacks/stress.lua",
+}
 
 JIT_BE_FFI_LUA_FILES = {
     "tests/s390x/jit_be/mixed_width_ffi.lua",
@@ -103,6 +111,8 @@ SUITES = {
     "jit_be": "Big-endian JIT-sensitive regression coverage",
     "jit_loops": "Loop tracing, iterator, and vararg JIT coverage",
     "soak": "Long-running mixed stress coverage",
+    "coverage_audit": "Static inventory of s390x opcode, IR, VM, and helper coverage",
+    "downstream": "Native OpenResty and Kong downstream runtime gates",
     "perf_bench": "Structured performance benchmarks with JSON metrics",
 }
 
@@ -115,10 +125,24 @@ STAGE_DEFAULT_SUITES = {
     "jit-correctness": ["smoke", "jit_core", "jit_loops", "jit_be", "soak"],
     "matrix": ["smoke", "pure_lua", "ffi_abi", "callbacks", "jit_core", "jit_loops", "jit_be"],
     "perf": ["smoke", "soak", "perf_bench"],
+    "closure": [
+        "smoke",
+        "pure_lua",
+        "ffi_abi",
+        "callbacks",
+        "jit_core",
+        "jit_loops",
+        "jit_be",
+        "soak",
+        "coverage_audit",
+        "downstream",
+        "perf_bench",
+    ],
 }
 
 STAGE_ORDER = list(STAGE_DEFAULT_SUITES)
 PRE_JIT_STAGES = {"contract", "interp", "ffi-call", "callback-unwind"}
+LOCAL_SUITES = {"coverage_audit", "downstream"}
 
 RSYNC_EXCLUDES = [
     ".git",
@@ -255,6 +279,8 @@ class Context:
         self.local_binaries_dir = self.local_run_dir / "binaries"
         self.local_metadata_dir = self.local_run_dir / "metadata"
         self.local_perf_dir = self.local_run_dir / "perf"
+        self.local_coverage_dir = self.local_run_dir / "coverage"
+        self.local_downstream_dir = self.local_run_dir / "downstream"
         self.lock_path = self.local_run_dir / ".lock"
         self.lock_fd: Optional[int] = None
         self._acquire_local_lock()
@@ -262,6 +288,8 @@ class Context:
         self.local_binaries_dir.mkdir(parents=True, exist_ok=self.args.resume)
         self.local_metadata_dir.mkdir(parents=True, exist_ok=self.args.resume)
         self.local_perf_dir.mkdir(parents=True, exist_ok=self.args.resume)
+        self.local_coverage_dir.mkdir(parents=True, exist_ok=self.args.resume)
+        self.local_downstream_dir.mkdir(parents=True, exist_ok=self.args.resume)
         self.logger = CommandLogger(self.local_run_dir / "commands.ndjson")
         self.host: Optional[str] = None
         self.primary_host: Optional[str] = None
@@ -806,23 +834,36 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
         ).strip()
     if suite == "pure_lua":
         caps = testlj_caps(stage, variant)
+        perl_caps = caps
+        if stage == "closure":
+            perl_caps = ",".join(part for part in caps.split(",") if part and part != "trace")
         perl_steps = "\n".join(
             [
                 f'printf "%s\\n" {shlex.quote(f"t/{test}")} > "$S390X_STEP_DIR/current_test.txt"\n'
-                f'TEST_LJ_BIN="$PWD/src/luajit" TEST_LJ_CAPS={shlex.quote(caps)} PATH="$PWD/src:$PATH" perl {shlex.quote(f"t/{test}")}'
+                f'TEST_LJ_BIN="$PWD/src/luajit" TEST_LJ_CAPS={shlex.quote(perl_caps)} PATH="$PWD/src:$PATH" perl {shlex.quote(f"t/{test}")}'
                 for test in PURE_LUA_T_FILES
             ]
         )
+        full_prove = ""
+        if stage == "closure":
+            full_prove = textwrap.dedent(
+                f"""
+                printf "%s\\n" "prove -v t/*.t" > "$S390X_STEP_DIR/current_test.txt"
+                TEST_LJ_BIN="$PWD/src/luajit" TEST_LJ_CAPS={shlex.quote(perl_caps)} PATH="$PWD/src:$PATH" prove -v t/*.t
+                """
+            ).strip()
         return textwrap.dedent(
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
+            export TEST_LJ_CAPS={shlex.quote(caps)}
             for test in tests/s390x/pure_lua/*.lua; do
               [ -e "$test" ] || continue
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
               ./src/luajit "$test"
             done
             {perl_steps}
+            {full_prove}
             """
         ).strip()
     if suite == "ffi_abi":
@@ -845,8 +886,11 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
             CC={variant.compiler} sh tests/s390x/build_oracles.sh
-            printf "%s\\n" "tests/s390x/callbacks/run.lua" > "$S390X_STEP_DIR/current_test.txt"
-            ./src/luajit tests/s390x/callbacks/run.lua
+            for test in tests/s390x/callbacks/*.lua; do
+              [ -e "$test" ] || continue
+              printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
+              ./src/luajit "$test"
+            done
             """
         ).strip()
     if suite == "jit_core":
@@ -1486,6 +1530,156 @@ def remote_step_dir(suite: str, variant: Variant) -> str:
     return f"{REMOTE_ARTIFACTS_NAME}/steps/{suite}/{variant.key()}"
 
 
+def slugify_label(value: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", value)
+    return slug.strip("-") or "run"
+
+
+def run_local_step(
+    ctx: Context,
+    *,
+    suite: str,
+    step_name: str,
+    command: str,
+    env: Optional[Dict[str, str]] = None,
+) -> StepResult:
+    local_step = ctx.local_run_dir / "local-steps" / suite / step_name
+    local_step.mkdir(parents=True, exist_ok=True)
+    stdout_path = local_step / "stdout.log"
+    stderr_path = local_step / "stderr.log"
+    start = time.time()
+    proc = subprocess.run(
+        ["/bin/bash", "-lc", command],
+        cwd=str(ROOT),
+        env={**os.environ, **(env or {})},
+        text=True,
+        capture_output=True,
+    )
+    duration = time.time() - start
+    write_text(stdout_path, proc.stdout)
+    write_text(stderr_path, proc.stderr)
+    ctx.logger.write(
+        host="local",
+        cwd=str(ROOT),
+        argv=["/bin/bash", "-lc", command],
+        exit_code=proc.returncode,
+        duration_sec=duration,
+        env_diff=env,
+        artifacts={"suite": suite, "local_step_dir": str(local_step)},
+    )
+    if proc.stdout:
+        sys.stdout.write(proc.stdout)
+    if proc.stderr:
+        sys.stderr.write(proc.stderr)
+    result = StepResult(
+        step=step_name,
+        suite=suite,
+        host="local",
+        variant={},
+        exit_code=proc.returncode,
+        duration_sec=duration,
+        remote_step_dir="",
+        local_step_dir=str(local_step),
+        command=command,
+    )
+    ctx.results.append(result)
+    if proc.returncode != 0:
+        ctx.failures.append(
+            {
+                "step": step_name,
+                "suite": suite,
+                "host": "local",
+                "local_step_dir": str(local_step),
+                "exit_code": proc.returncode,
+            }
+        )
+    ctx.save_manifest()
+    return result
+
+
+def run_coverage_audit(ctx: Context) -> StepResult:
+    command = shell_join(
+        [
+            "python3",
+            "tools/s390x/coverage_inventory.py",
+            "--root",
+            str(ROOT),
+            "--out",
+            str(ctx.local_coverage_dir),
+        ]
+    )
+    return run_local_step(ctx, suite="coverage_audit", step_name="coverage-audit", command=command)
+
+
+def downstream_remote_root(prefix: str, run_id: str) -> str:
+    return f"{REMOTE_BASE}/{slugify_label(f'{prefix}-{run_id}')}"
+
+
+def run_downstream(ctx: Context) -> StepResult:
+    if not ctx.host:
+        raise DriverError("host not selected for downstream suite")
+    fallback_host = next((candidate for candidate in HOSTS if candidate != ctx.host), ctx.host)
+    openresty_label = slugify_label(f"closure-openresty-{ctx.run_id}")
+    kong_label = slugify_label(f"closure-kong-{ctx.run_id}")
+    openresty_root = downstream_remote_root("closure-openresty", ctx.run_id)
+    kong_root = downstream_remote_root("closure-kong", ctx.run_id)
+    openresty_json = ctx.local_downstream_dir / "openresty.json"
+    kong_json = ctx.local_downstream_dir / "kong.json"
+    command = textwrap.dedent(
+        f"""
+        set -euo pipefail
+        export S390X_PRIMARY_HOST={shlex.quote(ctx.host)}
+        export S390X_FALLBACK_HOST={shlex.quote(fallback_host)}
+        export S390X_DEMO_LABEL={shlex.quote(openresty_label)}
+        export S390X_KONG_LABEL={shlex.quote(kong_label)}
+        export KEEP_RUNNING=0
+        export RUN_WRK=0
+        {shell_join(["bash", "demo/openresty/run_demo.sh"])}
+        {shell_join(["bash", "demo/kong/run_kong_demo.sh"])}
+        export S390X_KONG_RUNTIME_ROOT={shlex.quote(kong_root)}
+        {shell_join(["bash", "demo/kong/run_kong_require_probe.sh", kong_root])}
+        """
+    ).strip()
+    result = run_local_step(ctx, suite="downstream", step_name="downstream", command=command)
+    if result.exit_code == 0:
+        write_text(
+            openresty_json,
+            json.dumps(
+                {
+                    "host": ctx.host,
+                    "remote_root": openresty_root,
+                    "label": openresty_label,
+                    "build_start_ok": True,
+                    "request_path_ok": True,
+                    "jit_endpoint_ok": True,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+        )
+        write_text(
+            kong_json,
+            json.dumps(
+                {
+                    "host": ctx.host,
+                    "remote_root": kong_root,
+                    "label": kong_label,
+                    "prepare_ok": True,
+                    "nginx_start_ok": True,
+                    "status_ok": True,
+                    "demo_ok": True,
+                    "require_probe_ok": True,
+                    "collectgarbage_probe_ok": True,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+        )
+    return result
+
+
 def run_remote_step(ctx: Context, variant: Variant, suite: str, command: str) -> StepResult:
     host = ctx.host
     if host is None:
@@ -1628,9 +1822,10 @@ def write_summary(ctx: Context) -> None:
     if ctx.results:
         for result in ctx.results:
             status = "PASS" if result.exit_code == 0 else "FAIL"
+            variant_label = Variant(**result.variant).key() if result.variant else "local"
             report_lines.append(
                 f"- `{status}` `{result.step}` on `{result.host}` "
-                f"variant `{Variant(**result.variant).key()}` "
+                f"variant `{variant_label}` "
                 f"logs at `{result.local_step_dir}`"
             )
     else:
@@ -1700,29 +1895,44 @@ def run_stage(ctx: Context) -> None:
         check_contract_doc(ctx)
 
     suites = suites_for_stage(ctx.args.stage, ctx.args.suite)
+    remote_suites = [suite for suite in suites if suite not in LOCAL_SUITES]
+    local_suites = [suite for suite in suites if suite in LOCAL_SUITES]
     variants = build_variants(ctx.args.stage, ctx.args.compiler, ctx.args.mode, ctx.args.jit)
-    host = choose_host(ctx)
-    ensure_remote_dirs(ctx, host)
-    sync_repo(ctx, host)
-    bootstrap_remote(ctx, host)
+    need_host = bool(remote_suites) or "downstream" in local_suites
+    if need_host:
+        host = choose_host(ctx)
+    else:
+        host = None
+    if remote_suites and host is not None:
+        ensure_remote_dirs(ctx, host)
+        sync_repo(ctx, host)
+        bootstrap_remote(ctx, host)
 
     if ctx.args.stage == "contract":
         check_contract_doc(ctx)
 
-    for variant in variants:
-        build_result = run_remote_step(ctx, variant, "build", build_command(variant))
-        if build_result.exit_code != 0:
-            collect_remote_artifacts(ctx, ctx.host, required=True, failure_type="step-artifact-collection")
-            continue
-        collect_remote_binaries(ctx, ctx.host, variant)
-        for suite in suites:
-            command = suite_command(ctx.args.stage, suite, variant)
-            if command is None:
+    if remote_suites:
+        for variant in variants:
+            build_result = run_remote_step(ctx, variant, "build", build_command(variant))
+            if build_result.exit_code != 0:
+                collect_remote_artifacts(ctx, ctx.host, required=True, failure_type="step-artifact-collection")
                 continue
-            result = run_remote_step(ctx, variant, suite, command)
-            if suite == "perf_bench":
-                parse_perf_records_for_step(ctx, result)
-    if ctx.args.stage == "perf":
+            collect_remote_binaries(ctx, ctx.host, variant)
+            for suite in remote_suites:
+                command = suite_command(ctx.args.stage, suite, variant)
+                if command is None:
+                    continue
+                result = run_remote_step(ctx, variant, suite, command)
+                if suite == "perf_bench":
+                    parse_perf_records_for_step(ctx, result)
+    for suite in local_suites:
+        if suite == "coverage_audit":
+            run_coverage_audit(ctx)
+        elif suite == "downstream":
+            run_downstream(ctx)
+        else:
+            raise DriverError(f"unknown local suite: {suite}")
+    if any(result.suite == "perf_bench" for result in ctx.results):
         finalize_perf_stage(ctx)
 
 

@@ -34,6 +34,20 @@ sync loop.
 ## Current Working Position
 
 - The branch is back on a trustworthy remediation loop.
+- The closure layer is now wired into the harness:
+  - new stage: `closure`
+  - new suites:
+    - `coverage_audit`
+    - `downstream`
+  - closure-local source audit artifacts now emit under:
+    - `artifacts/s390x/<run-id>/coverage/`
+  - first local closure audit restamp:
+    - run `closure-audit-local-20260323T005100Z`
+    - artifacts:
+      [coverage/report.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/closure-audit-local-20260323T005100Z/coverage/report.md)
+- The closure coverage audit remains the authoritative source-backed inventory
+  for remaining candidate gaps. Treat `coverage/report.md` as the source of
+  truth instead of relying on older summary lists in this overview.
 - The clean native gcc `prove -v t/*.t` sweep is now green on both:
   - `kdz:/root/luajit2-s390x/clean-loop-20260321`
   - `zkd0:/root/luajit2-s390x/spotcheck-20260321`
@@ -113,22 +127,60 @@ sync loop.
     failure when a variant does not produce every output
   - the active structured reruns are widening from that hardened baseline
     across compiler, mode, and host axes
+- The next support claim gate is no longer the generic matrix alone. It is a
+  full green `closure` stage on `kdz`, plus second-host closure spot checks on
+  `zkd0`, with the coverage report showing no exercised backend/runtime stub
+  left unimplemented.
+- The previously failing closure soak frontier is now materially reduced on the
+  current native loop:
+  - the reduced fresh-table restore path is fixed in `src/lj_snap.c`
+  - the guarded upvalue load alias in `asm_uref` is fixed in
+    `src/lj_asm_s390x.h`
+  - the fused dynamic array-base preservation fix is in
+    `src/lj_asm_s390x.h`
+  - direct native `kdz` repros now pass again for:
+    - `/tmp/s390x_keep_worker.lua`
+    - `/tmp/s390x_mode0_only.lua`
+    - `tests/s390x/soak/trace_gc_churn.lua`
+  - the full closure restamp is being rerun as:
+    - `closure-kdz-20260323c`
 
 ## Current Next Actions
 
-1. Keep `vararg_trace`, the direct-exit `SAVE_L` path, `side_exit.lua`, and
-   `thread.exdata()` in the focused regression set so these fixes do not
-   silently regress.
-2. Finish the current widened `jit_loops` proof wave:
-   - `kdz` clang debug
-   - `zkd0` gcc debug
-3. Carry the same proof pattern into:
-   - `jit_loops` gcc release on `kdz`
-   - then `jit_be` and `soak` across clang, release, and second-host lanes
-4. Once those matrix cuts are stamped, restate the branch as a validated
-   matrix/hardening branch rather than an active backend rescue branch.
-5. Keep the new full-JIT Kong startup path under regression watch while the
-   broader matrix and perf work continues.
+1. Finish the current full `closure` restamp on `kdz`:
+   - active run: `closure-kdz-20260323c`
+2. If that run is green, restamp the required second-host closure spot checks
+   on `zkd0`:
+   - `smoke`
+   - full `prove -v t/*.t`
+   - `jit_core`
+   - `jit_loops`
+   - `jit_be`
+   - `downstream`
+3. Keep the reduced soak regressions in the hot native set:
+   - `/tmp/s390x_keep_worker.lua`
+   - `/tmp/s390x_mode0_only.lua`
+   - `tests/s390x/soak/trace_gc_churn.lua`
+4. Close or explicitly rule out every exercised item still listed in the
+   latest closure coverage report.
+5. Only after those gates are green should the branch documentation claim
+   branch-level native `s390x` support with JIT as a closure-stamped result.
+
+## Closure Suite Order
+
+The current full closure restamp on `kdz` is driving this order:
+
+- `smoke`
+- full `prove -v t/*.t`
+- `ffi_abi`
+- `callbacks`
+- `jit_core`
+- `jit_loops`
+- `jit_be`
+- `soak`
+- `coverage_audit`
+- `downstream`
+- `perf_bench` with the current `dispatch_trace` gate
 
 ## Detail Links
 

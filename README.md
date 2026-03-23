@@ -75,9 +75,39 @@ Current trustworthy checkpoint:
   - `jit_core` gcc release
 - the structured second-host restamp is also green on `zkd0` for:
   - `jit_core` gcc debug
-- the next structured proof wave is already in flight for `jit_loops` on:
-  - `kdz` clang debug
-  - `zkd0` gcc debug
+- the harness now has a `closure` stage for final support-claim proof, with:
+  - source-derived `coverage_audit`
+  - downstream OpenResty and Kong gates
+  - a bounded `dispatch_trace` perf regression check
+- first closure audit restamp:
+  - `closure-audit-local-20260323T005100Z`
+  - emits:
+    - `coverage/remaining-stubs.json`
+    - `coverage/bc-opcodes.json`
+    - `coverage/ir-ops.json`
+    - `coverage/vm-handlers.json`
+    - `coverage/helper-calls.json`
+    - `coverage/report.md`
+- the next branch-level support claim gate is no longer just the matrix:
+  - it is a full green `closure` stage on `kdz`
+  - plus second-host closure spot checks on `zkd0`
+  - plus a coverage report with no exercised s390x backend/runtime stub left
+    unimplemented
+- the latest closure remediation on the authoritative `kdz` tree fixed the
+  remaining mixed-table JIT crash path by:
+  - teaching `src/lj_snap.c` to restore and replay structurally sunk table
+    allocations from store edges instead of relying only on `RID_SUNK`
+  - separating the guarded `asm_uref` closed-upvalue check from the live
+    upvalue pointer register in `src/lj_asm_s390x.h`
+  - preferring preserved GPRs for fused dynamic array-base operands in
+    `src/lj_asm_s390x.h`
+- the native targeted reductions that previously blocked `closure/soak` are
+  now green again on `kdz`:
+  - `/tmp/s390x_keep_worker.lua`
+  - `/tmp/s390x_mode0_only.lua`
+  - `tests/s390x/soak/trace_gc_churn.lua`
+- a fresh full closure restamp is now in progress on `kdz` as:
+  - `closure-kdz-20260323c`
 - the harness transport now uses a tracked-files-only tar-over-ssh sync path,
   strips macOS metadata from the archive stream, and avoids syncing untracked
   local junk into remote validation trees
@@ -99,7 +129,7 @@ Current trustworthy checkpoint:
   - [docs/s390x/leadership-demo.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/leadership-demo.md)
   - [docs/s390x/runtime-remediation.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runtime-remediation.md)
 - the current structured restamp work is no longer smoke recovery; it is
-  widening the validated matrix across compiler, mode, and host axes
+  widening the validated matrix across compiler, mode, host, and closure axes
 - the detailed narrowing trail and current procedure are recorded in
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 
