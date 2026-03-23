@@ -3319,3 +3319,44 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - `closure-zkd0-20260323a`
 - The patched `zkd0` downstream restamp is now green too:
   - `closure-downstream-zkd0-20260323b`
+
+## 2026-03-23 Closure Backlog Refresh and Perf Queue Hardening
+
+- The closure inventory is now refreshed from current source state as:
+  - `closure-audit-local-20260323b`
+- The refreshed report corrects one stale closure conclusion immediately:
+  - `asm_tobit` is implemented in `src/lj_asm_s390x.h`
+  - it is no longer part of the live stub backlog
+- The refreshed closure report now freezes the remaining backlog by track:
+  - `numeric_helpers`
+  - `reference_string_barrier`
+  - `vm_runtime`
+  - `feature_gated_debug`
+- Current active closure backlog from that report:
+  - `11` blocking items
+  - `asm_prof` is tracked separately as a feature-gated/debug surface
+- A new targeted native traced-integer-modulo repro is now in-tree:
+  - `tests/s390x/jit_core/mod_int_trace.lua`
+- Native `kdz` release currently exposes that path as a real remaining
+  correctness gap:
+  - `jitcore-kdz-20260323h`
+  - `tests/s390x/jit_core/mod_int_trace.lua:44`
+  - expected `6700`, got `0`
+- That probe is intentionally kept out of the default `jit_core` lane for now.
+  It is the tracked Stream A repro for the traced integer `%` path until the
+  native release result is fixed.
+- The latest structured native perf restamp is now:
+  - `perf-kdz-20260323a`
+  - green on `kdz`
+- That perf run adds two new machine-readable artifacts:
+  - `perf/family-status.json`
+  - `perf/hotspots.json`
+- Current Stream B state from those artifacts:
+  - `dispatch_trace` is the only default perf gate
+  - `iterator_table` is first in the family promotion queue
+  - the remaining perf families stay probe-only until release-stable
+- The local cross-arch control path also exposed a host-side tooling gap:
+  - macOS local control builds were failing because
+    `MACOSX_DEPLOYMENT_TARGET` was not exported
+  - the driver now sets that automatically for local control builds
+  - a fresh perf restamp is still needed to confirm the local-control lane
