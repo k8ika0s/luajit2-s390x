@@ -11,12 +11,12 @@ jit.opt.start("hotloop=2", "hotexit=2")
 t.with_finally(function()
   cap.stop()
 end, function()
-  for i = 1, 120 do
-    total = total + ((i * 3) % 17)
+  for i = 1, 200 do
+    total = total + i
   end
 end)
 
-t.eq(total, 955, "root trace total")
+t.eq(total, 20100, "root trace total")
 t.truthy(t.find_trace_event(cap.events, "start"), "trace start event")
 local stop_ev = t.assert_trace_stop(cap.events, "trace stop event")
 local traceno = tonumber(stop_ev[2])

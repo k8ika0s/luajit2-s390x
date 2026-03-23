@@ -127,7 +127,9 @@ Every failing stage should archive:
 - `vm_s390x.dasc` interpreter audit remains in scope so the earlier
   string-key/global issue does not regress
 - OpenResty request-path trace-observer support, which is still disabled in
-  the leadership demo because `jit.attach("trace")` remains a separate s390x
-  risk surface
+  the leadership demo by default; the next staged hardening path is the new
+  opt-in `S390X_DEMO_TRACE_OBSERVER=1` worker listener mode so `/__jit` can
+  report real observer counters without replacing the stable `jit.util`
+  fallback path
 - continued backend invariant checks to ensure `RID_SP` cannot re-enter value
   allocation paths

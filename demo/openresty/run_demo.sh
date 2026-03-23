@@ -19,6 +19,7 @@ WARMUP_REQUESTS="${WARMUP_REQUESTS:-12}"
 RUN_WRK="${RUN_WRK:-0}"
 KEEP_RUNNING="${KEEP_RUNNING:-1}"
 LOCAL_ONLY="${LOCAL_ONLY:-0}"
+S390X_DEMO_TRACE_OBSERVER="${S390X_DEMO_TRACE_OBSERVER:-0}"
 
 log() {
   printf '[leadership-demo] %s\n' "$*"
@@ -77,6 +78,7 @@ REMOTE_WRK_DURATION="$8"
 WARMUP_REQUESTS="$9"
 RUN_WRK="${10}"
 KEEP_RUNNING="${11}"
+TRACE_OBSERVER="${12}"
 
 REPO_ROOT="${REMOTE_ROOT}/repo"
 RUNTIME_DIR="${REMOTE_ROOT}/runtime"
@@ -128,7 +130,8 @@ cp "${REPO_ROOT}/demo/openresty/nginx.conf" "${RUNTIME_DIR}/nginx.conf"
 cp "${REPO_ROOT}/demo/openresty/lua/"*.lua "${RUNTIME_DIR}/lua/"
 
 printf '[remote-demo] starting openresty\n'
-"${OPENRESTY_PREFIX}/nginx/sbin/nginx" -p "${RUNTIME_DIR}/" -c nginx.conf
+S390X_DEMO_TRACE_OBSERVER="${TRACE_OBSERVER}" \
+  "${OPENRESTY_PREFIX}/nginx/sbin/nginx" -p "${RUNTIME_DIR}/" -c nginx.conf
 
 sleep 1
 
@@ -239,7 +242,7 @@ main() {
   sync_repo "${host}" "${remote_root}"
 
   log "running remote build and demo flow"
-  ssh "${host}" "bash -s -- '${remote_root}' '${OPENRESTY_VERSION}' '${OPENRESTY_URL}' '${LUAJIT_XCFLAGS}' '${REMOTE_HTTP_PORT}' '${REMOTE_WRK_THREADS}' '${REMOTE_WRK_CONNECTIONS}' '${REMOTE_WRK_DURATION}' '${WARMUP_REQUESTS}' '${RUN_WRK}' '${KEEP_RUNNING}'" \
+  ssh "${host}" "bash -s -- '${remote_root}' '${OPENRESTY_VERSION}' '${OPENRESTY_URL}' '${LUAJIT_XCFLAGS}' '${REMOTE_HTTP_PORT}' '${REMOTE_WRK_THREADS}' '${REMOTE_WRK_CONNECTIONS}' '${REMOTE_WRK_DURATION}' '${WARMUP_REQUESTS}' '${RUN_WRK}' '${KEEP_RUNNING}' '${S390X_DEMO_TRACE_OBSERVER}'" \
     <<<"$(remote_script)"
 
   log "demo completed on ${host}"

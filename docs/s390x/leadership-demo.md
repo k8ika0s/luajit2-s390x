@@ -31,10 +31,15 @@ The current operator stance is:
 - The gateway routes the request to mock `approve` or `review` backends.
 - `GET /__jit` exposes `jit.status()`, compiled-trace count from `jit.util`,
   policy-path counters, worker PID, and arch.
-- The current branch does not rely on a live `jit.attach("trace")` listener in
-  the request path, because that observer path is still a separate s390x risk
-  area. The demo instead proves the request path stays in JIT mode and reports
-  compiled-trace state via `jit.util`.
+- The default demo path still uses the conservative metrics mode:
+  - `trace_count` comes from `jit.util.traceinfo()`
+  - no live observer is attached in the worker by default
+- An opt-in observer mode now exists for hardening and tooling work:
+  - set `S390X_DEMO_TRACE_OBSERVER=1`
+  - `/__jit` then reports worker-local `jit.attach("trace")` and
+    `jit.attach("texit")` counters in addition to the `jit.util` trace count
+  - this mode is intended for staged validation first, not as the default
+    leadership demo setting
 
 ## How to run
 
@@ -58,6 +63,7 @@ Useful overrides:
 OPENRESTY_VERSION=1.27.1.2 demo/openresty/run_demo.sh
 S390X_PRIMARY_HOST=zkd0 demo/openresty/run_demo.sh
 REMOTE_HTTP_PORT=18080 demo/openresty/run_demo.sh
+S390X_DEMO_TRACE_OBSERVER=1 demo/openresty/run_demo.sh
 KONG_FORCE_JIT_OFF_IN_NGINX=1 demo/kong/run_kong_demo.sh
 ```
 

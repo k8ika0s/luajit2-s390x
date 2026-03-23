@@ -110,6 +110,14 @@ sync loop.
   - `demo/openresty/run_demo.sh` builds and starts OpenResty against this tree
   - the OpenResty request path uses Lua policy code plus `ffi.C.abs(...)`
   - `GET /__jit` reports enabled JIT and native trace counters
+  - the demo now also has an opt-in observer mode:
+    - `S390X_DEMO_TRACE_OBSERVER=1`
+    - `/__jit` exposes worker-local `jit.attach("trace")` and
+      `jit.attach("texit")` counters
+    - the latest `kdz` observer-mode restamp is stable and shows attach
+      success plus live event counters, but the current request-path workload
+      still aborts without a committed `stop`, so this remains a hardening
+      surface rather than the default demo mode
 - The downstream Kong proof is now real in staged bridge mode:
   - `demo/kong/run_kong_demo.sh` runs staged `resty` probes first
   - `require("kong.cmd.init")` and `collectgarbage()` are stable
@@ -151,6 +159,8 @@ sync loop.
   - suite: `trace_tools`
   - first native `kdz` restamp:
     - `trace-tools-kdz-20260323a`
+  - second-host `zkd0` restamp:
+    - `trace-tools-zkd0-20260323c`
   - covered surfaces:
     - `jit.attach("trace")`
     - `jit.attach("texit")`
