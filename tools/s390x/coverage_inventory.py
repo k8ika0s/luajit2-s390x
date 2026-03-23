@@ -7,24 +7,36 @@ import argparse
 import json
 import pathlib
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 
-KNOWN_RISKS = [
-    "asm_prof",
-    "asm_abs",
-    "asm_fpdiv",
-    "asm_fpmath",
-    "asm_tobit",
-    "asm_min",
-    "asm_max",
-    "asm_fref",
-    "asm_strref",
-    "asm_obar",
-    "asm_strto",
-    "vm_mod fast path",
-    "compiled vararg function path",
-]
+RISK_TRACKS = {
+    "numeric_helpers": [
+        "asm_abs",
+        "asm_fpdiv",
+        "asm_fpmath",
+        "asm_tobit",
+        "asm_min",
+        "asm_max",
+    ],
+    "reference_string_barrier": [
+        "asm_fref",
+        "asm_strref",
+        "asm_obar",
+        "asm_strto",
+    ],
+    "vm_runtime": [
+        "vm_mod fast path",
+        "compiled vararg function path",
+    ],
+    "feature_gated_debug": [
+        "asm_prof",
+    ],
+}
+
+RISK_POLICIES = {
+    "asm_prof": "feature-gated",
+}
 
 BC_GROUP_PATTERNS = [
     ("comparison", {"ISLT", "ISGE", "ISLE", "ISGT", "ISEQV", "ISNEV", "ISEQS", "ISNES", "ISEQN", "ISNEN", "ISEQP", "ISNEP"}),
@@ -40,6 +52,13 @@ BC_GROUP_PATTERNS = [
 ]
 
 IR_STUB_PATTERN = re.compile(r"ASM_S390X_STUB_IR\(([^)]+)\)")
+
+
+def ordered_known_risks() -> List[str]:
+    ordered: List[str] = []
+    for names in RISK_TRACKS.values():
+        ordered.extend(names)
+    return ordered
 
 
 def write_json(path: pathlib.Path, payload: object) -> None:
@@ -132,8 +151,76 @@ def parse_remaining_stubs(root: pathlib.Path) -> Dict[str, object]:
     for line_no, line in enumerate(vm_text.splitlines(), start=1):
         if "NYI" in line or "TODO:" in line:
             vm_risks.append({"line": line_no, "text": line.strip()})
+
+    def find_track(name: str) -> str:
+        for track, names in RISK_TRACKS.items():
+            if name in names:
+                return track
+        return "other"
+
+    def asm_status(name: str) -> Tuple[str, Optional[int], str]:
+        stub_match = re.search(rf"ASM_S390X_STUB_IR\({re.escape(name)}\)", s390x_text)
+        if stub_match:
+            line_no = s390x_text[:stub_match.start()].count("\n") + 1
+            return ("stubbed", line_no, f"src/lj_asm_s390x.h:{line_no}")
+        impl_match = re.search(rf"\b(?:static\s+void|#define)\s+{re.escape(name)}\b", s390x_text)
+        if impl_match:
+            line_no = s390x_text[:impl_match.start()].count("\n") + 1
+            return ("implemented", line_no, f"src/lj_asm_s390x.h:{line_no}")
+        return ("missing", None, "")
+
+    def vm_status(name: str) -> Tuple[str, List[Dict[str, object]]]:
+        matches: List[Dict[str, object]] = []
+        if name == "vm_mod fast path":
+            patterns = [r"->vm_mod:", r"TODO: implement fast mod operation"]
+        elif name == "compiled vararg function path":
+            patterns = [r"compiled vararg functions", r"case BC_FUNCV", r"case BC_JFUNCV"]
+        else:
+            patterns = []
+        for line_no, line in enumerate(vm_text.splitlines(), start=1):
+            if any(re.search(pattern, line) for pattern in patterns):
+                matches.append({"line": line_no, "text": line.strip()})
+        if not matches:
+            return ("implemented", matches)
+        if any("NYI" in entry["text"] or "TODO:" in entry["text"] for entry in matches):
+            return ("nyi", matches)
+        return ("tracked", matches)
+
+    risk_items = []
+    tracks: Dict[str, List[dict]] = {track: [] for track in RISK_TRACKS}
+    for name in ordered_known_risks():
+        track = find_track(name)
+        policy = RISK_POLICIES.get(name, "closure-blocker")
+        if name.startswith("asm_"):
+            status, line_no, source = asm_status(name)
+            item = {
+                "name": name,
+                "track": track,
+                "policy": policy,
+                "kind": "asm",
+                "status": status,
+                "source": source,
+            }
+            if line_no is not None:
+                item["line"] = line_no
+        else:
+            status, matches = vm_status(name)
+            item = {
+                "name": name,
+                "track": track,
+                "policy": policy,
+                "kind": "vm",
+                "status": status,
+                "matches": matches,
+            }
+        risk_items.append(item)
+        tracks.setdefault(track, []).append(item)
+
     return {
-        "known_risks": KNOWN_RISKS,
+        "known_risks": ordered_known_risks(),
+        "risk_tracks": RISK_TRACKS,
+        "risk_items": risk_items,
+        "tracks": tracks,
         "asm_stubs": stub_lines,
         "vm_nyi": vm_risks,
     }
@@ -164,6 +251,12 @@ def write_report(out_dir: pathlib.Path, bc: Dict[str, object], ir: Dict[str, obj
     stubbed_ops = ir["stubbed_ops"]
     asm_stub_lines = stubs["asm_stubs"]
     vm_nyi = stubs["vm_nyi"]
+    risk_items = stubs["risk_items"]
+    blocking_items = [
+        item
+        for item in risk_items
+        if item["status"] in {"stubbed", "nyi", "missing", "tracked"} and item["policy"] != "feature-gated"
+    ]
     lines = [
         "# s390x Closure Coverage Report",
         "",
@@ -177,6 +270,7 @@ def write_report(out_dir: pathlib.Path, bc: Dict[str, object], ir: Dict[str, obj
         f"- Stubbed IR ops: `{len(stubbed_ops)}`",
         f"- VM NYI/TODO markers: `{len(vm_nyi)}`",
         f"- Helper fallback references: `{len(helper_calls['helper_calls'])}`",
+        f"- Active closure backlog items: `{len(blocking_items)}`",
         "",
         "## Closure Policy",
         "",
@@ -184,11 +278,24 @@ def write_report(out_dir: pathlib.Path, bc: Dict[str, object], ir: Dict[str, obj
         "- Any intentionally unreachable item must be backed by a guard test and documented here.",
         "- Generic helper fallback use is tracked explicitly so measured hotspots can be separated from correctness blockers.",
         "",
-        "## Known Explicit Risk Items",
+        "## Frozen Closure Backlog",
         "",
     ]
-    for risk in KNOWN_RISKS:
-        lines.append(f"- `{risk}`")
+    for track, items in stubs["tracks"].items():
+        lines.append(f"### `{track}`")
+        lines.append("")
+        for item in items:
+            suffix = ""
+            if item["kind"] == "asm" and item.get("source"):
+                suffix = f" ({item['source']})"
+            if item["kind"] == "vm" and item.get("matches"):
+                first = item["matches"][0]
+                suffix = f" (src/vm_s390x.dasc:{first['line']})"
+            lines.append(
+                f"- `{item['name']}`: `{item['status']}`"
+                f", policy `{item['policy']}`{suffix}"
+            )
+        lines.append("")
     lines.extend(["", "## Current Stub Inventory", ""])
     if asm_stub_lines:
         for entry in asm_stub_lines:
@@ -209,6 +316,10 @@ def write_report(out_dir: pathlib.Path, bc: Dict[str, object], ir: Dict[str, obj
         lines.append("- `IR_MOD -> IRCALL_lj_vm_modi` remains the first measured post-closure optimization target.")
     else:
         lines.append("- No `IRCALL_lj_vm_modi` fallback was found in the current source scan.")
+    if any(item["name"] == "asm_tobit" and item["status"] == "implemented" for item in risk_items):
+        lines.append("- `asm_tobit` is implemented and should no longer be treated as a closure stub.")
+    if any(item["name"] == "asm_prof" for item in risk_items):
+        lines.append("- `asm_prof` is tracked as a feature-gated/debug surface until a support-surface exercise test proves it closure-critical.")
     (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

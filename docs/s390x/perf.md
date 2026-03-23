@@ -89,6 +89,8 @@ The primary local artifacts are:
 
 - `artifacts/s390x/<run-id>/perf/benchmarks.json`
 - `artifacts/s390x/<run-id>/perf/comparisons.json`
+- `artifacts/s390x/<run-id>/perf/family-status.json`
+- `artifacts/s390x/<run-id>/perf/hotspots.json`
 - `artifacts/s390x/<run-id>/perf/perf-summary.md`
 
 Raw per-benchmark stdout, stderr, and optional `perf stat` outputs stay under
@@ -127,6 +129,16 @@ Authoritative structured runs:
   [artifacts/s390x/20260322T145555.369124Z-p31961](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961)
   - summary:
     [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961/summary.md)
+- refreshed dispatch-only restamp:
+  [artifacts/s390x/perf-kdz-20260323a](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a)
+  - summary:
+    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/summary.md)
+  - perf summary:
+    [perf-summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/perf-summary.md)
+  - family status:
+    [family-status.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/family-status.json)
+  - hotspots:
+    [hotspots.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/hotspots.json)
 
 Representative median runtimes on `kdz`, `gcc release`, `ffi=on`, `mixed`:
 
@@ -159,6 +171,11 @@ Current conclusion:
 - z13 tuning already helps the side-exit-heavy dispatch shape materially
 - the dispatch and side-exit family is currently a real optimization hotspot,
   because the present s390x JIT-on path is slower than JIT-off on this family
+- `family-status.json` is now the machine-readable promotion queue:
+  - `dispatch_trace`: default perf gate
+  - `iterator_table`: first promotion candidate
+  - remaining families: probe-only until release-stable
+- `hotspots.json` is now the machine-readable hotspot backlog for Stream B
 
 That is a useful result, not a benchmark failure. It identifies the first
 measured Tier 1/Tier 2 optimization target.
@@ -187,6 +204,9 @@ Cross-arch control:
 - never a correctness or release gate
 - best-effort only; missing local control data must not invalidate native s390x
   perf artifacts
+- the local macOS control path now exports `MACOSX_DEPLOYMENT_TARGET`
+  automatically; the next perf restamp should confirm whether this removes the
+  current local-control skip
 
 Comparison rules:
 

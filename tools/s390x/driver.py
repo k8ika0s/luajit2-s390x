@@ -13,6 +13,7 @@ import datetime as dt
 import json
 import os
 import pathlib
+import platform
 import re
 import shlex
 import shutil
@@ -108,6 +109,72 @@ PERF_STAT_BENCH_LUA_FILES = [
 ]
 
 PERF_TOP_CROSS_ARCH_COUNT = 5
+
+PERF_FAMILY_METADATA = {
+    "dispatch_trace": {
+        "default_gate": True,
+        "promotion_order": 0,
+        "status": "baseline-gate",
+        "priority": "hotspot-active",
+        "notes": "Primary release-stable dispatch, side-exit, and hotexit perf gate.",
+    },
+    "iterator_table": {
+        "default_gate": False,
+        "promotion_order": 1,
+        "status": "probe-only",
+        "priority": "promote-next",
+        "notes": "First perf family to promote once release-stable on kdz.",
+    },
+    "bitops_mix": {
+        "default_gate": False,
+        "promotion_order": 2,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Bitops/tobit perf probe kept out of the default lane until release-stable.",
+    },
+    "vararg_paths": {
+        "default_gate": False,
+        "promotion_order": 3,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Vararg return/select probe pending release-stable native runs.",
+    },
+    "ffi_calls": {
+        "default_gate": False,
+        "promotion_order": 4,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Traced direct and stored FFI call probe.",
+    },
+    "ffi_cdata": {
+        "default_gate": False,
+        "promotion_order": 5,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Cdata load/store perf probe.",
+    },
+    "be_helpers": {
+        "default_gate": False,
+        "promotion_order": 6,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Big-endian helper and pack/unpack probe.",
+    },
+    "mixed_noffi": {
+        "default_gate": False,
+        "promotion_order": 7,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Mixed JIT-heavy workload without FFI.",
+    },
+    "mixed_ffi": {
+        "default_gate": False,
+        "promotion_order": 8,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Mixed Lua + FFI workload.",
+    },
+}
 
 SUITES = {
     "smoke": "Build and runtime smoke checks",
@@ -472,6 +539,7 @@ def run_local_shell(
     cwd: Optional[pathlib.Path] = None,
     check: bool = False,
     echo_output: bool = True,
+    env: Optional[Dict[str, str]] = None,
     artifacts: Optional[Dict[str, str]] = None,
 ) -> subprocess.CompletedProcess:
     argv = ["/bin/bash", "-lc", command]
@@ -479,6 +547,7 @@ def run_local_shell(
     proc = subprocess.run(
         argv,
         cwd=str(cwd or ROOT),
+        env={**os.environ, **(env or {})},
         text=True,
         capture_output=True,
     )
@@ -489,6 +558,7 @@ def run_local_shell(
         argv=argv,
         exit_code=proc.returncode,
         duration_sec=duration,
+        env_diff=env,
         artifacts=artifacts,
     )
     if echo_output and proc.stdout:
@@ -1274,6 +1344,7 @@ def maybe_add_comparison(ctx: Context, comparison_type: str, left: dict, right: 
 
 
 def generate_perf_comparisons(ctx: Context) -> None:
+    ctx.perf_comparisons = []
     baseline_index = build_perf_baseline_index(ctx.perf_records, perf_baseline_selector)
     for record in ctx.perf_records:
         baseline = baseline_index.get(perf_suite_key(record))
@@ -1315,10 +1386,111 @@ def generate_perf_comparisons(ctx: Context) -> None:
             maybe_add_comparison(ctx, "cross_arch_vs_kdz", control_record, baseline, "local-control", "kdz")
 
 
+def build_perf_family_status(ctx: Context) -> List[dict]:
+    family_records: Dict[str, List[dict]] = {}
+    for record in ctx.perf_records:
+        family = str(record.get("family", ""))
+        family_records.setdefault(family, []).append(record)
+
+    statuses = []
+    for family, meta in sorted(
+        PERF_FAMILY_METADATA.items(),
+        key=lambda item: (item[1]["promotion_order"], item[0]),
+    ):
+        records = family_records.get(family, [])
+        hosts = sorted({str(record.get("host", "")) for record in records if record.get("host")})
+        compilers = sorted({str(record.get("compiler", "")) for record in records if record.get("compiler")})
+        modes = sorted({str(record.get("mode", "")) for record in records if record.get("mode")})
+        jit_modes = sorted({str(record.get("jit", "")) for record in records if record.get("jit")})
+        tunings = sorted({str(record.get("tuning", "")) for record in records if record.get("tuning")})
+        statuses.append(
+            {
+                "family": family,
+                "default_gate": meta["default_gate"],
+                "promotion_order": meta["promotion_order"],
+                "status": meta["status"],
+                "priority": meta["priority"],
+                "notes": meta["notes"],
+                "records": len(records),
+                "hosts": hosts,
+                "compilers": compilers,
+                "modes": modes,
+                "jit_modes": jit_modes,
+                "tunings": tunings,
+                "has_primary_baseline": any(perf_baseline_selector(record) for record in records),
+                "has_jit_off": any(record.get("jit") == "off" for record in records),
+                "has_z13": any(record.get("tuning") == "z13" for record in records),
+            }
+        )
+    return statuses
+
+
+def build_perf_hotspots(ctx: Context) -> List[dict]:
+    baseline_records = [record for record in ctx.perf_records if perf_baseline_selector(record)]
+    off_index = build_perf_baseline_index(
+        ctx.perf_records,
+        lambda r: (
+            r.get("host") == "kdz"
+            and r.get("compiler") == "gcc"
+            and r.get("mode") == "release"
+            and r.get("jit") == "off"
+            and r.get("ffi") == "on"
+            and r.get("tuning") == "baseline"
+        ),
+    )
+    z13_index = build_perf_baseline_index(
+        ctx.perf_records,
+        lambda r: (
+            r.get("host") == "kdz"
+            and r.get("compiler") == "gcc"
+            and r.get("mode") == "release"
+            and r.get("jit") == "on"
+            and r.get("ffi") == "on"
+            and r.get("tuning") == "z13"
+        ),
+    )
+    hotspots = []
+    for record in baseline_records:
+        key = perf_suite_key(record)
+        off_record = off_index.get(key)
+        z13_record = z13_index.get(key)
+        on_runtime = float(record.get("median_runtime_sec", 0.0))
+        off_runtime = float(off_record.get("median_runtime_sec", 0.0)) if off_record else 0.0
+        z13_runtime = float(z13_record.get("median_runtime_sec", 0.0)) if z13_record else 0.0
+        jit_on_over_off = (on_runtime / off_runtime) if off_runtime > 0 else None
+        z13_speedup = (on_runtime / z13_runtime) if z13_runtime > 0 else None
+        hotspots.append(
+            {
+                "family": record.get("family"),
+                "workload": record.get("workload"),
+                "scale": record.get("scale"),
+                "baseline_median_runtime_sec": on_runtime,
+                "baseline_p95_runtime_sec": float(record.get("p95_runtime_sec", 0.0)),
+                "jit_off_median_runtime_sec": off_runtime or None,
+                "jit_on_over_off_ratio": jit_on_over_off,
+                "z13_median_runtime_sec": z13_runtime or None,
+                "z13_speedup_vs_baseline": z13_speedup,
+                "classification": "jit-regression" if jit_on_over_off and jit_on_over_off > 1.0 else "baseline",
+            }
+        )
+    hotspots.sort(
+        key=lambda entry: (
+            float(entry.get("jit_on_over_off_ratio") or 0.0),
+            float(entry.get("baseline_median_runtime_sec") or 0.0),
+        ),
+        reverse=True,
+    )
+    return hotspots
+
+
 def write_perf_artifacts(ctx: Context) -> None:
     ctx.local_perf_dir.mkdir(parents=True, exist_ok=True)
+    family_status = build_perf_family_status(ctx)
+    hotspots = build_perf_hotspots(ctx)
     write_text(ctx.local_perf_dir / "benchmarks.json", json.dumps(ctx.perf_records, indent=2, sort_keys=True) + "\n")
     write_text(ctx.local_perf_dir / "comparisons.json", json.dumps(ctx.perf_comparisons, indent=2, sort_keys=True) + "\n")
+    write_text(ctx.local_perf_dir / "family-status.json", json.dumps(family_status, indent=2, sort_keys=True) + "\n")
+    write_text(ctx.local_perf_dir / "hotspots.json", json.dumps(hotspots, indent=2, sort_keys=True) + "\n")
 
     baseline_records = [record for record in ctx.perf_records if perf_baseline_selector(record)]
     baseline_sorted = sorted(baseline_records, key=lambda record: float(record.get("median_runtime_sec", 0.0)), reverse=True)
@@ -1343,6 +1515,7 @@ def write_perf_artifacts(ctx: Context) -> None:
         key=lambda entry: float(entry.get("right_runtime_sec", 0.0)),
         reverse=True,
     )[:5]
+    regressions = [entry for entry in hotspots if entry.get("classification") == "jit-regression"][:5]
 
     lines = [
         "# s390x Performance Summary",
@@ -1351,9 +1524,22 @@ def write_perf_artifacts(ctx: Context) -> None:
         f"- Total benchmark records: `{len(ctx.perf_records)}`",
         f"- Total comparisons: `{len(ctx.perf_comparisons)}`",
         "",
-        "## Slowest Baseline Workloads",
+        "## Family Status",
         "",
     ]
+    for entry in family_status:
+        lines.append(
+            f"- `{entry['family']}`: `{entry['status']}`, "
+            f"default gate `{entry['default_gate']}`, "
+            f"records `{entry['records']}`, "
+            f"primary baseline `{entry['has_primary_baseline']}`"
+        )
+
+    lines.extend([
+        "",
+        "## Slowest Baseline Workloads",
+        "",
+    ])
     if slowest:
         for record in slowest:
             lines.append(
@@ -1362,6 +1548,17 @@ def write_perf_artifacts(ctx: Context) -> None:
             )
     else:
         lines.append("- No primary baseline records captured.")
+
+    lines.extend(["", "## Top JIT-On Regressions vs JIT-Off", ""])
+    if regressions:
+        for entry in regressions:
+            lines.append(
+                f"- `{entry['family']}/{entry['workload']}/{entry['scale']}` "
+                f"on/off `{entry['jit_on_over_off_ratio']:.3f}x`, "
+                f"baseline `{entry['baseline_median_runtime_sec']:.6f}s`"
+            )
+    else:
+        lines.append("- No JIT-on regressions relative to JIT-off are currently captured.")
 
     lines.extend(["", "## JIT On vs Off", ""])
     if jit_wins:
@@ -1416,6 +1613,16 @@ def local_control_variant() -> Variant:
     return Variant(compiler=compiler, mode="release", jit="on", ffi="on", build_style="static", tuning="local-control")
 
 
+def local_control_env() -> Dict[str, str]:
+    env: Dict[str, str] = {}
+    if sys.platform == "darwin" and not os.environ.get("MACOSX_DEPLOYMENT_TARGET"):
+        version = platform.mac_ver()[0]
+        parts = version.split(".")
+        if len(parts) >= 2:
+            env["MACOSX_DEPLOYMENT_TARGET"] = f"{parts[0]}.{parts[1]}"
+    return env
+
+
 def run_local_control_perf(ctx: Context) -> None:
     baseline_records = [record for record in ctx.perf_records if perf_baseline_selector(record)]
     if not baseline_records:
@@ -1456,6 +1663,7 @@ def run_local_control_perf(ctx: Context) -> None:
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
     control_variant = local_control_variant()
+    control_env = local_control_env()
     build_cmd = (
         f"make -C src clean BUILDMODE=static CC={shlex.quote(control_variant.compiler)} "
         f"HOST_CC={shlex.quote(control_variant.compiler)} && "
@@ -1467,6 +1675,7 @@ def run_local_control_perf(ctx: Context) -> None:
         build_cmd,
         cwd=source_root,
         check=False,
+        env=control_env,
         artifacts={"perf_control_build": str(source_root)},
     )
     if build_proc.returncode != 0:
@@ -1492,7 +1701,7 @@ def run_local_control_perf(ctx: Context) -> None:
         proc = subprocess.run(
             ["./src/luajit", bench_file],
             cwd=str(source_root),
-            env={**os.environ, **env},
+            env={**os.environ, **control_env, **env},
             text=True,
             capture_output=True,
         )

@@ -45,9 +45,20 @@ sync loop.
     - run `closure-audit-local-20260323T005100Z`
     - artifacts:
       [coverage/report.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/closure-audit-local-20260323T005100Z/coverage/report.md)
+  - refreshed local closure audit restamp:
+    - run `closure-audit-local-20260323b`
+    - artifacts:
+      [coverage/report.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/closure-audit-local-20260323b/coverage/report.md)
 - The closure coverage audit remains the authoritative source-backed inventory
   for remaining candidate gaps. Treat `coverage/report.md` as the source of
   truth instead of relying on older summary lists in this overview.
+- The refreshed audit now freezes the remaining backlog by track:
+  - `numeric_helpers`
+  - `reference_string_barrier`
+  - `vm_runtime`
+  - `feature_gated_debug`
+- The refreshed report also reconciles one stale item:
+  - `asm_tobit` is implemented and no longer part of the live stub backlog
 - The clean native gcc `prove -v t/*.t` sweep is now green on both:
   - `kdz:/root/luajit2-s390x/clean-loop-20260321`
   - `zkd0:/root/luajit2-s390x/spotcheck-20260321`
@@ -192,23 +203,26 @@ sync loop.
 
 ## Current Next Actions
 
-1. Restamp the required second-host closure spot checks on `zkd0` from the
-   now-hardened downstream harness:
-   - correctness suites are already green in `closure-zkd0-20260323a`
-   - downstream lane is green in `closure-downstream-zkd0-20260323b`
-2. Commit and push the downstream hardening plus documentation restamp.
-   - `trace_tools`
-   - `downstream`
-3. Keep the reduced soak regressions in the hot native set:
-   - `/tmp/s390x_keep_worker.lua`
-   - `/tmp/s390x_mode0_only.lua`
-   - `tests/s390x/soak/trace_gc_churn.lua`
-4. Restamp the required second-host `trace_tools` and closure spot checks on
-   `zkd0`.
+1. Use `closure-audit-local-20260323b` as the frozen Stream A backlog source:
+   - active closure blockers: `11`
+   - `asm_prof` is tracked separately as `feature_gated_debug`
+   - `asm_tobit` is reconciled as implemented
+2. Keep the new integer-modulo repro hot:
+   - `tests/s390x/jit_core/mod_int_trace.lua`
+   - native `kdz` release currently fails this with a wrong-result traced `%`
+     path
+   - keep it targeted until it is green enough to promote into default
+     `jit_core`
+3. Keep Stream B anchored on the new structured perf restamp:
+   - `perf-kdz-20260323a`
+   - `dispatch_trace` remains the only default perf gate
+   - `family-status.json` is now the family promotion queue
+   - `hotspots.json` is now the machine-readable hotspot list
+4. Re-restamp local cross-arch perf control after the new macOS
+   `MACOSX_DEPLOYMENT_TARGET` export hardening.
 5. Close or explicitly rule out every exercised item still listed in the
-   latest closure coverage report.
-6. Only after those gates are green should the branch documentation claim
-   branch-level native `s390x` support with JIT as a closure-stamped result.
+   refreshed closure coverage report before widening the support claim beyond
+   the current branch-level wording.
 
 ## Closure Suite Order
 
@@ -248,6 +262,11 @@ The current full closure restamp on `kdz` is driving this order:
   benchmark artifacts under `artifacts/s390x/<run-id>/perf/`.
 - The first stamped native release baseline is the `dispatch_trace` family on
   `kdz`.
+- The latest structured perf restamp is now:
+  - [perf-kdz-20260323a summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/summary.md)
+  - [perf summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/perf-summary.md)
+  - [family status](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/family-status.json)
+  - [hotspots](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/hotspots.json)
 - Authoritative perf run artifacts:
   - JIT on:
     [20260322T145212.814679Z-p29811 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811/summary.md)
@@ -265,3 +284,7 @@ The current full closure restamp on `kdz` is driving this order:
 - The broader perf catalog remains in-tree, but only the release-stable subset
   should gate the current perf stage until the remaining families are
   correctness-stable under native release measurement.
+- `dispatch_trace` is the only current default perf gate.
+- `iterator_table` is first in the promotion queue.
+- The remaining perf families stay probe-only until they are release-stable on
+  native `s390x`.

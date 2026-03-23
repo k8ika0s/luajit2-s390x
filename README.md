@@ -91,7 +91,7 @@ Current trustworthy checkpoint:
   - a bounded `dispatch_trace` perf regression check
   - a dedicated `trace_tools` observer/tooling lane inside the staged suites
 - first closure audit restamp:
-  - `closure-audit-local-20260323T005100Z`
+  - `closure-audit-local-20260323b`
   - emits:
     - `coverage/remaining-stubs.json`
     - `coverage/bc-opcodes.json`
@@ -99,6 +99,8 @@ Current trustworthy checkpoint:
     - `coverage/vm-handlers.json`
     - `coverage/helper-calls.json`
     - `coverage/report.md`
+  - the refreshed report now freezes the remaining backlog by track and
+    correctly treats `asm_tobit` as implemented rather than as a live stub
 - the next branch-level support claim gate is no longer just the matrix:
   - it is a full green `closure` stage on `kdz`
   - plus second-host closure spot checks on `zkd0`
@@ -119,6 +121,11 @@ Current trustworthy checkpoint:
   - `tests/s390x/soak/trace_gc_churn.lua`
 - the full native `kdz` closure restamp is now green as:
   - `closure-kdz-20260323e`
+- a new targeted native release repro now exists for traced integer modulo:
+  - `tests/s390x/jit_core/mod_int_trace.lua`
+  - native `kdz` release currently fails this probe with a wrong-result
+    hot-trace path, so it is tracked as an explicit remaining functional gap
+    and is not yet promoted into the default `jit_core` suite
 - the harness transport now uses a tracked-files-only tar-over-ssh sync path,
   strips macOS metadata from the archive stream, and avoids syncing untracked
   local junk into remote validation trees
@@ -152,6 +159,11 @@ Current trustworthy checkpoint:
   widening the validated matrix across compiler, mode, host, and closure axes
 - the detailed narrowing trail and current procedure are recorded in
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
+- the latest structured native perf restamp is:
+  - `perf-kdz-20260323a`
+  - and now emits:
+    - `perf/family-status.json`
+    - `perf/hotspots.json`
 
 # OpenResty extensions
 
