@@ -101,6 +101,10 @@ Current trustworthy checkpoint:
     - `coverage/report.md`
   - the refreshed report now freezes the remaining backlog by track and
     correctly treats `asm_tobit` as implemented rather than as a live stub
+- the traced integer modulo queue is now split explicitly:
+  - `tests/s390x/jit_core/mod_int_trace.lua` is the green optimization lane
+  - `tests/s390x/jit_loops/mod_hotexit_stress.lua` is the remaining
+    hotexit/stitch closure stress lane
 - the next branch-level support claim gate is no longer just the matrix:
   - it is a full green `closure` stage on `kdz`
   - plus second-host closure spot checks on `zkd0`
@@ -121,11 +125,13 @@ Current trustworthy checkpoint:
   - `tests/s390x/soak/trace_gc_churn.lua`
 - the full native `kdz` closure restamp is now green as:
   - `closure-kdz-20260323e`
-- a new targeted native release repro now exists for traced integer modulo:
-  - `tests/s390x/jit_core/mod_int_trace.lua`
-  - native `kdz` release currently fails this probe with a wrong-result
-    hot-trace path, so it is tracked as an explicit remaining functional gap
-    and is not yet promoted into the default `jit_core` suite
+- the traced integer modulo queue is now intentionally split:
+  - `tests/s390x/jit_core/mod_int_trace.lua` is green on the root and simple
+    side-exit `%` surfaces and stays out of the default suite only until the
+    optimization slice is ready for promotion
+  - `tests/s390x/jit_loops/mod_hotexit_stress.lua` is the remaining
+    aggressive hotexit/stitch correctness repro and stays in Stream A until it
+    is native-release green
 - the harness transport now uses a tracked-files-only tar-over-ssh sync path,
   strips macOS metadata from the archive stream, and avoids syncing untracked
   local junk into remote validation trees

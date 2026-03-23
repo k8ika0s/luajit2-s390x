@@ -3337,14 +3337,29 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - `asm_prof` is tracked separately as a feature-gated/debug surface
 - A new targeted native traced-integer-modulo repro is now in-tree:
   - `tests/s390x/jit_core/mod_int_trace.lua`
-- Native `kdz` release currently exposes that path as a real remaining
-  correctness gap:
-  - `jitcore-kdz-20260323h`
-  - `tests/s390x/jit_core/mod_int_trace.lua:44`
-  - expected `6700`, got `0`
-- That probe is intentionally kept out of the default `jit_core` lane for now.
-  It is the tracked Stream A repro for the traced integer `%` path until the
-  native release result is fixed.
+- The modulo queue is now split into two native surfaces:
+  - green optimization lane:
+    - `tests/s390x/jit_core/mod_int_trace.lua`
+    - fresh native `kdz` proof on branch head is green for the root and simple
+      side-exit `%` shapes
+  - red closure lane:
+    - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+    - fresh native `kdz` proof still fails under the aggressive
+      `hotloop=2`, `hotexit=2` hotexit/stitch workload with:
+      - expected `6778`, got `0`
+      - `-jv -jdump=im` shows a root trace followed by a side-trace explosion
+        up to `TRACE 104`, then interpreter return with the wrong final total
+    - targeted threshold sweep on `kdz` shows this is specifically the
+      low-threshold hotexit/stitch regime:
+      - `hotloop=2`, `hotexit=2`: wrong
+      - `hotloop=2`, `hotexit=2`, `minstitch=1`: still wrong
+      - `hotloop=2`, `hotexit=5`: still wrong
+      - `hotloop=10`, `hotexit=10`: correct
+- `mod_int_trace.lua` stays intentionally out of the default `jit_core` lane
+  until the modulo work is ready for promotion, but it is now the tracked
+  Stream B entry point rather than a blended Stream A/B repro.
+- `mod_hotexit_stress.lua` is the explicit Stream A closure repro for the
+  remaining `%` hotexit/stitch correctness gap.
 - The latest structured native perf restamp is now:
   - `perf-kdz-20260323a`
   - green on `kdz`

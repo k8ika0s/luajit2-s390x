@@ -209,10 +209,15 @@ sync loop.
    - `asm_tobit` is reconciled as implemented
 2. Keep the new integer-modulo repro hot:
    - `tests/s390x/jit_core/mod_int_trace.lua`
-   - native `kdz` release currently fails this with a wrong-result traced `%`
-     path
-   - keep it targeted until it is green enough to promote into default
-     `jit_core`
+   - native `kdz` release is now green for the root and simple side-exit `%`
+     shapes on the current branch head
+   - the remaining aggressive hotexit/stitch `%` failure is now split out as:
+     - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+   - fresh native `kdz` proof currently fails that stress repro with:
+     - expected `6778`, got `0`
+   - keep `mod_int_trace.lua` as the Stream B optimization entry point, and
+     keep `mod_hotexit_stress.lua` as the Stream A closure repro until it is
+     native-release green
 3. Keep Stream B anchored on the new structured perf restamp:
    - `perf-kdz-20260323a`
    - `dispatch_trace` remains the only default perf gate
