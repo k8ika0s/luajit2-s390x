@@ -1,22 +1,51 @@
 local M = {}
 
-function M.trace_capture()
+local function append_package_path(prefix)
+  if not package.path:find(prefix, 1, true) then
+    package.path = prefix .. ";" .. package.path
+  end
+end
+
+function M.enable_repo_jit_modules()
+  append_package_path("./src/?.lua")
+  append_package_path("./src/?/init.lua")
+  append_package_path("./?.lua")
+  append_package_path("./?/init.lua")
+end
+
+local function make_capture(kind)
   local jit = require("jit")
   local events = {}
+  local active = true
   local function handler(...)
+    if not active then
+      return
+    end
     local event = { n = select("#", ...) }
     for i = 1, event.n do
       event[i] = select(i, ...)
     end
     events[#events + 1] = event
   end
-  jit.attach(handler, "trace")
+  jit.attach(handler, kind)
   return {
     events = events,
+    kind = kind,
     stop = function()
-      jit.attach(handler)
+      if active then
+        active = false
+        jit.attach(handler)
+      end
     end,
   }
+end
+
+function M.trace_capture()
+  return make_capture("trace")
+end
+
+function M.texit_capture()
+  return make_capture("texit")
 end
 
 function M.find_trace_event(events, kind)
@@ -26,6 +55,65 @@ function M.find_trace_event(events, kind)
     end
   end
   return nil
+end
+
+function M.count_trace_events(events, kind)
+  local count = 0
+  for i = 1, #events do
+    if events[i][1] == kind then
+      count = count + 1
+    end
+  end
+  return count
+end
+
+function M.assert_trace_stop(events, label)
+  local ev = M.find_trace_event(events, "stop")
+  M.truthy(ev, label or "trace stop")
+  return ev
+end
+
+function M.traceinfo_snapshot(limit)
+  local util = require("jit.util")
+  local traces = {}
+  if type(limit) == "number" and limit > 0 and limit < 256 then
+    local info = util.traceinfo(limit)
+    if info then
+      traces[1] = {
+        traceno = limit,
+        link = tonumber(info.link) or 0,
+        linktype = tostring(info.linktype),
+        nins = tonumber(info.nins) or 0,
+        nk = tonumber(info.nk) or 0,
+        nexit = tonumber(info.nexit) or 0,
+      }
+    end
+    return traces
+  end
+  limit = limit or 256
+  for tr = 1, limit do
+    local info = util.traceinfo(tr)
+    if info then
+      traces[#traces + 1] = {
+        traceno = tr,
+        link = tonumber(info.link) or 0,
+        linktype = tostring(info.linktype),
+        nins = tonumber(info.nins) or 0,
+        nk = tonumber(info.nk) or 0,
+        nexit = tonumber(info.nexit) or 0,
+      }
+    end
+  end
+  return traces
+end
+
+function M.with_finally(finalizer, fn)
+  local ok, a, b, c, d = xpcall(fn, debug.traceback)
+  pcall(finalizer)
+  if not ok then
+    error(a, 0)
+  end
+  return a, b, c, d
 end
 
 function M.eq(actual, expected, label)

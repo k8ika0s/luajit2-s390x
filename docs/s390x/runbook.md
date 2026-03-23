@@ -49,6 +49,7 @@ The closure stage now includes:
 - `callbacks`
 - `jit_core`
 - `jit_loops`
+- `trace_tools`
 - `jit_be`
 - `soak`
 - `coverage_audit`
@@ -66,6 +67,17 @@ add `src/jit/*.lua` to `LUA_PATH`, for example:
 
 Without that, repo-root `-jv` or `-jdump` probes can look like “no JIT output”
 even on a correctly JIT-enabled s390x build.
+
+The dedicated trace-tooling lane now covers this area structurally:
+
+- `tests/s390x/trace_tools/trace_attach_root.lua`
+- `tests/s390x/trace_tools/texit_observer.lua`
+- `tests/s390x/trace_tools/traceinfo_lifecycle.lua`
+- `tests/s390x/trace_tools/jit_module_loading.lua`
+
+First native restamp:
+
+- `trace-tools-kdz-20260323a`
 
 ## Gateway And Kong Demo Workflow
 
@@ -194,8 +206,8 @@ Important current defaults:
 - `matrix`: run the wider compiler and build-style matrix.
 - `perf`: treat tuning as performance-only, never as correctness.
 - `closure`: run the final support-claim gate, including source audit,
-  downstream product demos, and the bounded `dispatch_trace` perf regression
-  check.
+  downstream product demos, the `trace_tools` observer/tooling lane, and the
+  bounded `dispatch_trace` perf regression check.
 
 ## Performance Stage
 
