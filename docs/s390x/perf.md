@@ -30,6 +30,15 @@ release-mode crash or wrong-result shapes.
   - simple numeric trace
   - side-exit-heavy loop
   - hotexit-heavy loop
+  - current `%` boundary:
+    - root and simple side-exit modulo traces are green enough for Stream B
+      optimization work
+    - the aggressive modulo hotexit/stitch stress shape is tracked separately
+      as `tests/s390x/jit_loops/mod_hotexit_stress.lua` and remains a Stream A
+      closure item until it is native-release green
+    - current native `kdz` threshold split:
+      - aggressive `hotloop=2`, `hotexit=2` is still wrong
+      - perf-default `hotloop=10`, `hotexit=10` is correct
 - `bitops_mix.lua`
   - `bit.*`
   - `tobit`
@@ -176,6 +185,11 @@ Current conclusion:
   - `iterator_table`: first promotion candidate
   - remaining families: probe-only until release-stable
 - `hotspots.json` is now the machine-readable hotspot backlog for Stream B
+- the `%` queue is now intentionally split:
+  - Stream B optimization entry point:
+    - `tests/s390x/jit_core/mod_int_trace.lua`
+  - Stream A closure blocker:
+    - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
 
 That is a useful result, not a benchmark failure. It identifies the first
 measured Tier 1/Tier 2 optimization target.
