@@ -1125,7 +1125,12 @@ static void ra_rename_(ASMState *as, Reg down, Reg up, int addrename)
   ra_noweak(as, up);
   RA_DBGX((as, "rename    $f $r $r", regcost_ref(as->cost[up]), down, up));
   emit_movrr(as, ir, down, up);  /* Backwards codegen needs inverse move. */
-  if (addrename && !ra_hasspill(IR(ref)->s)) {  /* Add the rename to the IR. */
+  if (addrename &&
+      (!ra_hasspill(IR(ref)->s)
+#if LJ_TARGET_S390X
+       || irt_isinteger(IR(ref)->t)
+#endif
+      )) {  /* Add the rename to the IR. */
     /*
     ** The rename is effective at the subsequent (already emitted) exit
     ** branch. This is for the current snapshot (as->snapno). Except if we

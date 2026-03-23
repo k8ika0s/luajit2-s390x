@@ -3342,36 +3342,34 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
     - `tests/s390x/jit_core/mod_int_trace.lua`
     - fresh native `kdz` proof on branch head is green for the root and simple
       side-exit `%` shapes
-  - red closure lane:
+  - former closure lane, now remediated:
     - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-    - the repro is now reduced to the smallest currently failing native shape:
+    - the repro was reduced to the smallest failing native shape:
       - one hotexit guard: `i % 5 == 0`
       - one payload modulo: `total = total + (i % 97)`
       - `else total = total + 1`
-    - fresh native `kdz` proof still fails under the aggressive
-      `hotloop=2`, `hotexit=2` workload with:
-      - expected `4104`, got `4119` in the reduced tracked repro
-      - older larger shapes showed the same family of failure with much larger
-        trace churn, so the reduced file is now the authoritative closure repro
-    - targeted threshold sweep on `kdz` shows this is specifically the
-      low-threshold hotexit/stitch regime:
-      - larger modulo hotexit shape:
-        - `hotloop=2`, `hotexit=2`: `6490 -> 6928`
-        - `hotloop=2`, `hotexit=2`, `minstitch=1`: still `6490 -> 6928`
-        - `hotloop=2`, `hotexit=5`: still wrong as `6490 -> 7501`
-        - `hotloop=10`, `hotexit=10`: correct
-    - the baseline is now computed explicitly with `jit.off(hotexit_loop, true)`
-      before reenabling JIT for the traced run, so the remaining mismatch is a
-      real traced-execution bug, not an expected-value contamination artifact
-    - additional reduction on native `kdz` shows the bug needs both pieces:
+    - the failure was specific to the low-threshold hotexit/stitch regime:
       - guard-only `% 5` with constant payload: green
       - `% 5` guard with plain `+i` payload: green
       - `% 5` guard with `% 97` payload: wrong
+    - the front-most bug was not generic modulo lowering. It was root-trace
+      restore of loop-carried integer state on hot exits:
+      - `exit=1` duplicated an inherited `SLOAD` snapshot ref
+      - `exit=5` restored the carried total from a stale seed ref instead of
+        the current loop-carried state
+    - the remediation combined three s390x-specific fixes:
+      - duplicate `SNAP_NORESTORE` ref reuse in `lj_snap_restore()`
+      - narrower register-preference rules for the bad root exits in
+        `snap_restoreval()`
+      - integer loop-state PHI canonicalization during root exit restore
+    - fresh native proof is now green on both hosts:
+      - `kdz`
+      - `zkd0`
 - `mod_int_trace.lua` stays intentionally out of the default `jit_core` lane
   until the modulo work is ready for promotion, but it is now the tracked
   Stream B entry point rather than a blended Stream A/B repro.
-- `mod_hotexit_stress.lua` is the explicit Stream A closure repro for the
-  remaining `%` hotexit/stitch correctness gap.
+- `mod_hotexit_stress.lua` is no longer a red closure blocker on the current
+  branch head and can move out of Stream A.
 - The latest structured native perf restamp is now:
   - `perf-kdz-20260323a`
   - green on `kdz`

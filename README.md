@@ -129,9 +129,9 @@ Current trustworthy checkpoint:
   - `tests/s390x/jit_core/mod_int_trace.lua` is green on the root and simple
     side-exit `%` surfaces and stays out of the default suite only until the
     optimization slice is ready for promotion
-  - `tests/s390x/jit_loops/mod_hotexit_stress.lua` is the remaining
-    aggressive hotexit/stitch correctness repro and stays in Stream A until it
-    is native-release green
+  - `tests/s390x/jit_loops/mod_hotexit_stress.lua` is now green on the
+    current branch head on both `kdz` and `zkd0`, after fixing root-trace
+    restore handling for loop-carried modulo hotexit exits
 - the harness transport now uses a tracked-files-only tar-over-ssh sync path,
   strips macOS metadata from the archive stream, and avoids syncing untracked
   local junk into remote validation trees

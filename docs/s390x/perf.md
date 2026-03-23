@@ -33,15 +33,10 @@ release-mode crash or wrong-result shapes.
   - current `%` boundary:
     - root and simple side-exit modulo traces are green enough for Stream B
       optimization work
-    - the aggressive modulo hotexit/stitch stress shape is tracked separately
-      as `tests/s390x/jit_loops/mod_hotexit_stress.lua` and remains a Stream A
-      closure item until it is native-release green
-    - current native `kdz` threshold split:
-      - aggressive `hotloop=2`, `hotexit=2` is still wrong (`6490 -> 6928`)
-      - perf-default `hotloop=10`, `hotexit=10` is correct
-    - the current reduced closure repro shows the smaller failing family:
-      - `% 5` hotexit guard + `% 97` payload
-      - current `kdz` result: `4104 -> 4119`
+    - the aggressive modulo hotexit/stitch stress shape is now correctness-green
+      on both native hosts as `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+    - that closes the old Stream A blocker and leaves `%` as a pure Stream B
+      optimization target again
 - `bitops_mix.lua`
   - `bit.*`
   - `tobit`
@@ -191,7 +186,7 @@ Current conclusion:
 - the `%` queue is now intentionally split:
   - Stream B optimization entry point:
     - `tests/s390x/jit_core/mod_int_trace.lua`
-  - Stream A closure blocker:
+  - former Stream A closure blocker, now green:
     - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
 
 That is a useful result, not a benchmark failure. It identifies the first
