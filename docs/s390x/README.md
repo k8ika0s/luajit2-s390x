@@ -214,7 +214,7 @@ sync loop.
    - the remaining aggressive hotexit/stitch `%` failure is now split out as:
      - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
    - fresh native `kdz` proof currently fails that stress repro with:
-     - expected `6778`, got `0`
+     - expected `6490`, got `7024`
    - keep `mod_int_trace.lua` as the Stream B optimization entry point, and
      keep `mod_hotexit_stress.lua` as the Stream A closure repro until it is
      native-release green

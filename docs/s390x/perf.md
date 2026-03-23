@@ -37,7 +37,7 @@ release-mode crash or wrong-result shapes.
       as `tests/s390x/jit_loops/mod_hotexit_stress.lua` and remains a Stream A
       closure item until it is native-release green
     - current native `kdz` threshold split:
-      - aggressive `hotloop=2`, `hotexit=2` is still wrong
+      - aggressive `hotloop=2`, `hotexit=2` is still wrong (`6490 -> 6928`)
       - perf-default `hotloop=10`, `hotexit=10` is correct
 - `bitops_mix.lua`
   - `bit.*`

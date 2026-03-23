@@ -16,10 +16,11 @@ local function hotexit_loop(n)
   return total
 end
 
+jit.off(hotexit_loop, true)
+local expected = hotexit_loop(400)
+jit.on(hotexit_loop, true)
 jit.flush()
 jit.opt.start("hotloop=2", "hotexit=2")
-
-local expected = hotexit_loop(400)
 local actual = hotexit_loop(400)
 
 t.eq(actual, expected, "hotexit modulo stress result")
