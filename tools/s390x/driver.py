@@ -1634,6 +1634,8 @@ def run_downstream(ctx: Context) -> StepResult:
         export S390X_KONG_LABEL={shlex.quote(kong_label)}
         export KEEP_RUNNING=0
         export RUN_WRK=0
+        export KONG_DELAYED_JIT_ON_IN_NGINX=1
+        export KONG_DELAYED_JIT_ON_SECS=3
         {shell_join(["bash", "demo/openresty/run_demo.sh"])}
         {shell_join(["bash", "demo/kong/run_kong_demo.sh"])}
         export S390X_KONG_RUNTIME_ROOT={shlex.quote(kong_root)}
@@ -1669,6 +1671,7 @@ def run_downstream(ctx: Context) -> StepResult:
                     "nginx_start_ok": True,
                     "status_ok": True,
                     "demo_ok": True,
+                    "jit_startup_guard": "delayed-init-worker-reenable",
                     "require_probe_ok": True,
                     "collectgarbage_probe_ok": True,
                 },

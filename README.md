@@ -106,8 +106,8 @@ Current trustworthy checkpoint:
   - `/tmp/s390x_keep_worker.lua`
   - `/tmp/s390x_mode0_only.lua`
   - `tests/s390x/soak/trace_gc_churn.lua`
-- a fresh full closure restamp is now in progress on `kdz` as:
-  - `closure-kdz-20260323c`
+- the full native `kdz` closure restamp is now green as:
+  - `closure-kdz-20260323e`
 - the harness transport now uses a tracked-files-only tar-over-ssh sync path,
   strips macOS metadata from the archive stream, and avoids syncing untracked
   local junk into remote validation trees
@@ -117,14 +117,23 @@ Current trustworthy checkpoint:
   - staged `resty` module-load probes
   - `require("kong.cmd.init")`
   - `require("kong.cmd.init"); collectgarbage()`
-  - scripted `prepare`, nginx start, `/status`, and `/demo`
-- the full-JIT native Kong startup path now also passes on `kdz` from:
-  - `/root/luajit2-s390x/kong-demo-20260323T000006Z`
+  - scripted `prepare`
+  - a structured-green delayed-JIT-reenable nginx startup bridge on `kdz`
+  - `GET /status`
+  - `GET /demo`
+- the raw full-JIT native Kong startup path is still not the default
+  downstream gate:
+  - the current proven bridge keeps JIT off through Kong init and init_worker
+  - JIT is re-enabled from a delayed worker timer after startup settles
+- the downstream Kong harness now also allocates per-run proxy/admin ports and
+  shuts the runtime back down after verification, so closure runs do not
+  collide with stale `8000/8001` listeners anymore
 - the Kong demo still carries one demo-only plumbing override:
   - workers forced to `root` only because the runtime tree lives under `/root`
 - the recent LuaJIT runtime remediation moved the remaining startup issue out
   of the earlier interpreter `BC_TGETS` path, added trace GC guardrails on
-  `s390x` GC64, and cleared the current full-JIT Kong startup demo path
+  `s390x` GC64, and cleared the current downstream closure blocker with the
+  delayed startup bridge
 - the current runtime remediation and demo operator notes are tracked in:
   - [docs/s390x/leadership-demo.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/leadership-demo.md)
   - [docs/s390x/runtime-remediation.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runtime-remediation.md)
