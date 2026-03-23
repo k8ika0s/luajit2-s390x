@@ -20,6 +20,46 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `20260322-openresty-leadership-demo`
+  - Stage: `product-demo`
+  - Surface: `openresty`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: OpenResty now builds and starts natively on `s390x` against this
+    LuaJIT tree; the gateway request path uses Lua policy code plus
+    `ffi.C.abs(...)`, and `/__jit` reports enabled JIT with native trace
+    activity.
+
+- `20260322-kong-require-probe`
+  - Stage: `product-demo`
+  - Surface: `kong`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: the earlier `require("kong.cmd.init")` startup crash was narrowed
+    and then cleared; staged probes for `resty.openssl.version`,
+    `ngx.errlog`, `kong.tools.dns`, `kong.cmd.init`, and
+    `kong.cmd.init + collectgarbage()` now pass natively on `s390x`.
+
+- `20260322T234217Z`
+  - Stage: `product-demo`
+  - Surface: `kong`
+  - Host: `kdz`
+  - Result: pass with bridge mode
+  - Notes: scripted Kong startup now reaches `prepare`, direct nginx start,
+    `GET /status`, and `GET /demo` on native `s390x`. The current stable demo
+    mode patches nginx init blocks with `require("jit").off()` and runs demo
+    workers as `root` because the runtime tree lives under `/root`.
+
+- `20260322-full-jit-kong-startup`
+  - Stage: `product-demo`
+  - Surface: `kong`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: after the s390x GC64 trace guardrails were added, the full-JIT
+    Kong nginx startup path now completes on the current branch. Latest known
+    good root:
+    `/root/luajit2-s390x/kong-demo-20260323T000006Z`
+
 - `20260318T162505Z`
   - Stage: `interp`
   - Suite: `smoke`
@@ -169,6 +209,36 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   `CALLXS`
   - after unblocking that lowering, the next likely issue is the exit-state
     contract around traced foreign calls if the native crash persists
+
+## 2026-03-22 Kong Runtime Remediation Loop
+
+- The product-shaped runtime work split into two distinct problems:
+  - a JIT backend `RID_SP` leak that let `r15` act like a value register
+  - a later startup-time interpreter crash during Kong module load
+- The `RID_SP` problem was materially reduced by hardening:
+  - allocator selection
+  - rename/inheritance paths
+  - snapshot restore
+  - temp pseudo-register handling
+- The interpreter-side startup crash was then contained by routing the risky
+  GC64 big-endian string-key/global fast paths through the generic helpers in
+  `vm_s390x.dasc`.
+- After that change:
+  - `require("kong.cmd.init")` is stable
+  - `require("kong.cmd.init"); collectgarbage()` is stable
+- The remaining full-JIT startup frontier is now later in the runtime:
+  - a startup-time trace GC crash while Kong nginx `init_by_lua` is running
+  - one observed symptom was bogus gray-list entries that looked like Lua
+    source text rather than real `GCtrace` or other GC objects
+- Current in-tree mitigation:
+  - validate trace GC roots and `IR_KGC` payloads before committing a trace on
+    `s390x` GC64
+  - defensively sanitize malformed trace references and malformed `IR_KGC`
+    objects during GC traversal instead of allowing a crash path to proceed
+- Current result after the rerun:
+  - the full-JIT Kong startup demo path now passes on `kdz`
+  - these trace guardrails should remain under regression watch while wider
+    matrix and product demos continue
 
 ## 2026-03-20 Traced FFI Direct-Call Fix
 

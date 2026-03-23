@@ -3441,7 +3441,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lg TAB:RB, LFUNC:RB->env
     |  sllg TMPR1, RD, 3
     |  lg STR:RC, 0(TMPR1, KBASE)
-    |  j ->BC_TGETS_Z
+    |  j ->vmeta_tgets
     break;
   case BC_GSET:
     |  ins_AND	// RA = src, RD = str const (~)
@@ -3450,7 +3450,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lg TAB:RB, LFUNC:RB->env
     |  sllg TMPR1, RD, 3
     |  lg STR:RC, 0(TMPR1, KBASE)
-    |  j ->BC_TSETS_Z
+    |  j ->vmeta_tsets
     break;
 
   case BC_TGETV:
@@ -3488,7 +3488,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |5:  // String key?
     |  cghi ITYPE, LJ_TSTR; jne ->vmeta_tgetv
     |  cleartp STR:RC
-    |  j ->BC_TGETS_Z
+    |  j ->vmeta_tgets
     break;
   case BC_TGETS:
     |  ins_ABC
@@ -3499,6 +3499,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  sllg RC, RC, 3
     |  lg STR:RC, 0(RC, KBASE)
     |  checktab TAB:RB, ->vmeta_tgets
+    |  // The local GC64 big-endian string-key fast path is under remediation.
+    |  // Route through the generic helper until frame/slot handling is proven.
+    |  j ->vmeta_tgets
     |->BC_TGETS_Z:	// RB = GCtab *, RC = GCstr *
     |  l TMPR1, TAB:RB->hmask
     |  n TMPR1, STR:RC->sid
@@ -3617,7 +3620,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |5:  // String key?
     |  cghi ITYPE, LJ_TSTR; jne ->vmeta_tsetv
     |  cleartp STR:RC
-    |  j ->BC_TSETS_Z
+    |  j ->vmeta_tsets
     |
     |7:  // Possible table write barrier for the value. Skip valiswhite check.
     |  barrierback TAB:RB, TMPR1
@@ -3632,6 +3635,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  sllg RC, RC, 3
     |  lg STR:RC, 0(RC, KBASE)
     |  checktab TAB:RB, ->vmeta_tsets
+    |  // The local GC64 big-endian string-key fast path is under remediation.
+    |  // Route through the generic helper until frame/slot handling is proven.
+    |  j ->vmeta_tsets
     |->BC_TSETS_Z:	// RB = GCtab *, RC = GCstr *
     |  l TMPR1, TAB:RB->hmask
     |  n TMPR1, STR:RC->sid

@@ -19,6 +19,27 @@ how to read the resulting artifacts.
    manually edited, throw it away and restamp from a fresh run-id instead of
    repairing it in place.
 
+## Gateway And Kong Demo Workflow
+
+Use these when the goal is product-shaped proof instead of harness matrix work.
+
+1. OpenResty leadership demo:
+   - `demo/openresty/run_demo.sh`
+2. Kong staged runtime demo:
+   - `demo/kong/run_kong_demo.sh`
+3. Kong minimal runtime probe against an existing remote root:
+   - `demo/kong/run_kong_require_probe.sh`
+
+Important current defaults:
+
+- `demo/kong/run_kong_demo.sh` now defaults to the stronger proof path:
+  - `KONG_FORCE_JIT_OFF_IN_NGINX=0`
+  - `KONG_NGINX_RUN_AS_ROOT=1`
+- The old bridge mode is still available as a fallback:
+  - `KONG_FORCE_JIT_OFF_IN_NGINX=1`
+- Use the staged probe before full `kong start` whenever the LuaJIT runtime
+  behavior has changed.
+
 ## Host Selection
 
 - Primary host: `kdz`
@@ -71,6 +92,14 @@ how to read the resulting artifacts.
   - `diagnostics/objdump.txt`
 - If a step timed out, inspect `metadata.json` first. The harness uses a default
   remote timeout of 1800 seconds unless `S390X_TIMEOUT_SEC` is overridden.
+- For the product demos, also inspect:
+  - `logs/stage-current.txt`
+  - `logs/stage-history.txt`
+  - `logs/require-probe.log`
+  - `logs/require-probe-last-ok.txt`
+  - `logs/kong-prepare.txt`
+  - `logs/kong-nginx-start.txt`
+  - `logs/coredumpctl-info.txt`
 
 ## Remote Trust Reset
 

@@ -90,6 +90,22 @@ sync loop.
   correctness on the tested surface. It is about making the driver’s remote
   sync/collection path robust on banner-printing hosts so the structured
   artifacts keep pace with the green manual native matrix.
+- The downstream gateway proof is now real on native `s390x`:
+  - `demo/openresty/run_demo.sh` builds and starts OpenResty against this tree
+  - the OpenResty request path uses Lua policy code plus `ffi.C.abs(...)`
+  - `GET /__jit` reports enabled JIT and native trace counters
+- The downstream Kong proof is now real in staged bridge mode:
+  - `demo/kong/run_kong_demo.sh` runs staged `resty` probes first
+  - `require("kong.cmd.init")` and `collectgarbage()` are stable
+  - the scripted Kong path reaches `prepare`, nginx start, `GET /status`, and
+    `GET /demo`
+  - the full-JIT startup path now also passes on `kdz`
+  - the remaining demo-only override is worker-as-root for runtime trees under
+    `/root`
+- The recent product-shaped LuaJIT runtime loop has now:
+  - cleared the old interpreter-side `BC_TGETS` startup crash
+  - added s390x GC64 trace guardrails around trace commit and trace traversal
+  - cleared the current full-JIT Kong startup demo path
 - The current harness transport state:
   - repo sync is now tracked-files-only tar-over-ssh
   - macOS metadata is stripped from the tar stream
@@ -111,6 +127,8 @@ sync loop.
    - then `jit_be` and `soak` across clang, release, and second-host lanes
 4. Once those matrix cuts are stamped, restate the branch as a validated
    matrix/hardening branch rather than an active backend rescue branch.
+5. Keep the new full-JIT Kong startup path under regression watch while the
+   broader matrix and perf work continues.
 
 ## Detail Links
 
@@ -120,6 +138,10 @@ sync loop.
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 - Bring-up workflow and artifact guide:
   [docs/s390x/runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
+- Leadership demo operator notes:
+  [docs/s390x/leadership-demo.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/leadership-demo.md)
+- Runtime remediation tracker:
+  [docs/s390x/runtime-remediation.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runtime-remediation.md)
 - Performance validation plan:
   [docs/s390x/perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md)
 

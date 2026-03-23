@@ -28,6 +28,7 @@
 #include "lj_dispatch.h"
 #include "lj_vm.h"
 #include "lj_vmevent.h"
+#include <stdio.h>
 
 #define GCSTEPSIZE	1024u
 #define GCSWEEPMAX	40
@@ -240,10 +241,57 @@ static void gc_traverse_func(global_State *g, GCfunc *fn)
 }
 
 #if LJ_HASJIT
+#if LJ_TARGET_S390X && LJ_GC64
+static int gc_s390x_gcobj_valid(GCobj *o, int want_trace)
+{
+  if (o == NULL || !checkptrGC(o) || (((uintptr_t)o) & (sizeof(GCRef)-1)) != 0)
+    return 0;
+  switch (o->gch.gct) {
+  case ~LJ_TSTR:
+  case ~LJ_TUPVAL:
+  case ~LJ_TTHREAD:
+  case ~LJ_TPROTO:
+  case ~LJ_TFUNC:
+  case ~LJ_TTRACE:
+  case ~LJ_TCDATA:
+  case ~LJ_TTAB:
+  case ~LJ_TUDATA:
+    return !want_trace || o->gch.gct == ~LJ_TTRACE;
+  default:
+    return 0;
+  }
+}
+
+static GCtrace *gc_s390x_traceref(global_State *g, TraceNo traceno)
+{
+  jit_State *J = G2J(g);
+  GCtrace *T;
+  if (traceno == 0 || (MSize)traceno >= J->sizetrace)
+    return NULL;
+  T = (GCtrace *)gcref(J->trace[traceno]);
+  if (!gc_s390x_gcobj_valid(obj2gco(T), 1) || T->traceno != traceno) {
+    fprintf(stderr,
+	    "[s390x] dropping malformed trace reference %u during GC\n",
+	    (unsigned int)traceno);
+    setgcrefnull(J->trace[traceno]);
+    return NULL;
+  }
+  return T;
+}
+#endif
+
 /* Mark a trace. */
 static void gc_marktrace(global_State *g, TraceNo traceno)
 {
+#if LJ_TARGET_S390X && LJ_GC64
+  GCtrace *T = gc_s390x_traceref(g, traceno);
+  GCobj *o;
+  if (T == NULL)
+    return;
+  o = obj2gco(T);
+#else
   GCobj *o = obj2gco(traceref(G2J(g), traceno));
+#endif
   lj_assertG(traceno != G2J(g)->cur.traceno, "active trace escaped");
   if (iswhite(o)) {
     white2gray(o);
@@ -259,8 +307,20 @@ static void gc_traverse_trace(global_State *g, GCtrace *T)
   if (T->traceno == 0) return;
   for (ref = T->nk; ref < REF_TRUE; ref++) {
     IRIns *ir = &T->ir[ref];
-    if (ir->o == IR_KGC)
+    if (ir->o == IR_KGC) {
+#if LJ_TARGET_S390X && LJ_GC64
+      GCobj *o = ir_kgc(ir);
+      if (!gc_s390x_gcobj_valid(o, 0)) {
+	fprintf(stderr,
+		"[s390x] skipping invalid IR_KGC while traversing trace %u ref %u\n",
+		(unsigned int)T->traceno, (unsigned int)ref);
+	continue;
+      }
+      gc_markobj(g, o);
+#else
       gc_markobj(g, ir_kgc(ir));
+#endif
+    }
     if (irt_is64(ir->t) && ir->o != IR_KNULL)
       ref++;
   }
@@ -904,4 +964,3 @@ void *lj_mem_grow(lua_State *L, void *p, MSize *szp, MSize lim, MSize esz)
   *szp = sz;
   return p;
 }
-
