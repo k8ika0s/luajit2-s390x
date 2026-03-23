@@ -12,12 +12,12 @@ jit.opt.start("hotloop=2", "hotexit=2")
 t.with_finally(function()
   cap.stop()
 end, function()
-  for i = 1, 90 do
-    total = total + ((i * 7) % 13)
+  for i = 1, 200 do
+    total = total + i
   end
 end)
 
-t.eq(total, 546, "traceinfo total")
+t.eq(total, 20100, "traceinfo total")
 
 local stop_ev = t.find_trace_event(cap.events, "stop")
 t.truthy(stop_ev, "trace stop event")

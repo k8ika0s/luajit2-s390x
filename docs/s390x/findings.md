@@ -27,6 +27,32 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `20260323-openresty-observer-demo`
+  - Stage: `product-demo`
+  - Surface: `openresty`
+  - Host: `kdz`
+  - Result: pass with observer mode
+  - Notes: the opt-in worker observer path is now wired through
+    `S390X_DEMO_TRACE_OBSERVER=1`. `/__jit` reports:
+    - `observer_enabled=true`
+    - `observer_attach_ok=true`
+    - live `trace_start`, `trace_abort`, and `texit` counters
+    The latest request-path restamp stayed stable and shut down cleanly, but
+    it still showed `start/abort` activity without a committed `stop`, so this
+    is a tooling-hardening proof, not a proof that the current OpenResty
+    request path commits traces under observer mode on every run.
+
+- `trace-tools-zkd0-20260323c`
+  - Stage: `closure`
+  - Suite: `trace_tools`
+  - Host: `zkd0`
+  - Result: pass
+  - Notes: second-host debug restamp is green after simplifying the
+    `traceinfo_lifecycle` workload away from the older modulo-heavy shape.
+    Current authoritative trace-tooling stamps are now:
+    - `trace-tools-kdz-20260323a`
+    - `trace-tools-zkd0-20260323c`
+
 - `trace-tools-kdz-20260323a`
   - Stage: `closure`
   - Suite: `trace_tools`
