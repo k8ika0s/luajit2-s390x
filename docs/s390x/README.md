@@ -211,17 +211,13 @@ sync loop.
    - `tests/s390x/jit_core/mod_int_trace.lua`
    - native `kdz` release is now green for the root and simple side-exit `%`
      shapes on the current branch head
-   - the remaining aggressive hotexit/stitch `%` failure is now split out as:
+   - the previously failing aggressive hotexit/stitch `%` stress repro is now
+     green on both native hosts as:
      - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-   - fresh native `kdz` proof currently fails that stress repro with:
-     - expected `4104`, got `4119`
-   - the reduced repro now isolates the smallest failing shape:
-     - `% 5` hotexit guard
-     - `% 97` payload on the taken branch
-     - `+1` on the fallthrough branch
-   - keep `mod_int_trace.lua` as the Stream B optimization entry point, and
-     keep `mod_hotexit_stress.lua` as the Stream A closure repro until it is
-     native-release green
+   - the fix was in root-trace restore handling for loop-carried integer state
+     on modulo hotexit exits, not in generic `%` lowering
+   - keep `mod_int_trace.lua` as the Stream B optimization entry point now
+     that the hotexit correctness repro is no longer red
 3. Keep Stream B anchored on the new structured perf restamp:
    - `perf-kdz-20260323a`
    - `dispatch_trace` remains the only default perf gate

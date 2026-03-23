@@ -438,10 +438,13 @@ static void lj_trace_s390x_exit_log(const char *phase, jit_State *J,
 	SnapEntry sn = map[i];
 	IRRef ref = snap_ref(sn);
 	IRIns *ir = &CT->ir[ref];
-	fprintf(stderr, " slot%u=ref%u%s[r=%u prev=%u]",
+	fprintf(stderr, " slot%u=ref%u%s[o=%u op1=%u op2=%u r=%u prev=%u]",
 		(unsigned int)snap_slot(sn),
 		(unsigned int)(ref - REF_BIAS),
 		(sn & SNAP_NORESTORE) ? "!" : "",
+		(unsigned int)ir->o,
+		(unsigned int)ir->op1,
+		(unsigned int)ir->op2,
 		(unsigned int)ir->r,
 		(unsigned int)ir->prev);
       }

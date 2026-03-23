@@ -83,6 +83,14 @@ static int asm_s390x_sload_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_stack_restore_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_STACK_RESTORE_LOG") != NULL);
+  return enabled;
+}
+
 static int asm_s390x_varg_bias_override(void)
 {
   static int bias = -1000;
@@ -658,6 +666,38 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
     if ((sn & SNAP_NORESTORE))
       continue;
 
+    /* If the same ref already exists in a no-restore slot, duplicate the
+    ** live stack TValue instead of rebuilding it from potentially stale
+    ** reg/spill state. This matches the root-exit shadow-slot pattern seen
+    ** on s390x loop resumes.
+    */
+    if (!(sn & SNAP_KEYINDEX)) {
+      MSize m;
+      for (m = 0; m < n; m++) {
+        SnapEntry srcsn = map[m];
+        if ((srcsn & SNAP_NORESTORE) && snap_ref(srcsn) == ref &&
+            !(srcsn & SNAP_KEYINDEX)) {
+          int32_t srcofs = 8 * ((int32_t)snap_slot(srcsn) - 1 - LJ_FR2);
+          Reg tmp = ra_scratch(as, rset_exclude(RSET_GPR, RID_BASE));
+          emit_store64ofs(as, tmp, RID_BASE, ofs);
+          emit_load64ofs(as, tmp, RID_BASE, srcofs);
+          checkmclim(as);
+          goto nextslot;
+        }
+      }
+    }
+
+    if (asm_s390x_stack_restore_log_enabled()) {
+      fprintf(stderr,
+	      "S390X_STACK_RESTORE trace=%u snapno=%u slot=%u ref=%u op=%u type=%u key=%u norestore=%u ofs=%d\n",
+	      (unsigned int)as->T->traceno, (unsigned int)as->snapno,
+	      (unsigned int)s, (unsigned int)(ref - REF_BIAS),
+	      (unsigned int)ir->o, (unsigned int)irt_type(ir->t),
+	      (unsigned int)((sn & SNAP_KEYINDEX) != 0),
+	      (unsigned int)((sn & SNAP_NORESTORE) != 0),
+	      (int)ofs);
+    }
+
     allow = rset_exclude(RSET_GPR, RID_BASE);
     if ((sn & SNAP_KEYINDEX)) {
       src = irref_isk(ref) ? ra_allock(as, ir->i, allow) :
@@ -671,22 +711,15 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
       continue;
     }
 
-    if (irt_isint(ir->t) || irt_isu32(ir->t)) {
-      src = irref_isk(ref) ? ra_allock(as, ir->i, allow) :
-			     ra_alloc1(as, ref, allow);
-      lj_assertA(src != RID_SP, "snap int restore picked RID_SP");
-      rset_clear(allow, src);
-      emit_store32ofs(as, src, RID_BASE, ofs + (LJ_BE ? 4 : 0));
-      emit_store32ofs(as,
-		      ra_allock(as, (int32_t)((uint32_t)LJ_TISNUM << 15), allow),
-		      RID_BASE, ofs + (LJ_BE ? 0 : 4));
-    } else if (irt_isnum(ir->t)) {
+    if (irt_isnum(ir->t)) {
       src = ra_alloc1(as, ref, RSET_FPR);
       emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, src, 0, RID_BASE, ofs));
     } else {
       asm_tvstore64(as, RID_BASE, ofs, ref);
     }
     checkmclim(as);
+  nextslot:
+    ;
   }
 }
 
