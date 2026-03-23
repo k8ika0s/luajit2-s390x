@@ -83,6 +83,14 @@ Important current defaults:
 - `demo/kong/run_kong_demo.sh` now defaults to the stronger proof path:
   - `KONG_FORCE_JIT_OFF_IN_NGINX=0`
   - `KONG_NGINX_RUN_AS_ROOT=1`
+- Current Kong startup bridge option:
+  - `KONG_DELAYED_JIT_ON_IN_NGINX=1`
+  - `KONG_DELAYED_JIT_ON_SECS=3`
+  - this keeps JIT off through `Kong.init()` and `Kong.init_worker()`, then
+    re-enables it from a delayed worker timer after startup settles
+- Kong demo runs now also derive deterministic per-run proxy/admin ports and
+  stop nginx on exit, which avoids cross-run `8000/8001` collisions during
+  closure restamps
 - The old bridge mode is still available as a fallback:
   - `KONG_FORCE_JIT_OFF_IN_NGINX=1`
 - Use the staged probe before full `kong start` whenever the LuaJIT runtime

@@ -16,7 +16,25 @@ BUILD_KONG_OPENRESTY="${BUILD_KONG_OPENRESTY:-1}"
 RUN_KONG_REQUIRE_PROBE="${RUN_KONG_REQUIRE_PROBE:-1}"
 RUN_KONG_START="${RUN_KONG_START:-1}"
 KONG_FORCE_JIT_OFF_IN_NGINX="${KONG_FORCE_JIT_OFF_IN_NGINX:-0}"
+KONG_DELAYED_JIT_ON_IN_NGINX="${KONG_DELAYED_JIT_ON_IN_NGINX:-0}"
+KONG_DELAYED_JIT_ON_SECS="${KONG_DELAYED_JIT_ON_SECS:-3}"
 KONG_NGINX_RUN_AS_ROOT="${KONG_NGINX_RUN_AS_ROOT:-1}"
+KONG_PROXY_PORT="${KONG_PROXY_PORT:-}"
+KONG_ADMIN_PORT="${KONG_ADMIN_PORT:-}"
+
+if [ -z "${KONG_PROXY_PORT}" ] || [ -z "${KONG_ADMIN_PORT}" ]; then
+  read -r KONG_PROXY_PORT KONG_ADMIN_PORT <<EOF
+$(python3 - <<'PY' "${REMOTE_LABEL}"
+import hashlib
+import sys
+
+label = sys.argv[1]
+offset = int(hashlib.sha256(label.encode()).hexdigest()[:6], 16) % 1000
+print(18000 + offset, 19000 + offset)
+PY
+)
+EOF
+fi
 
 log() {
   printf '[kong-demo] %s\n' "$*"
@@ -49,7 +67,11 @@ BUILD_KONG_OPENRESTY="$6"
 RUN_KONG_START="$7"
 RUN_KONG_REQUIRE_PROBE="$8"
 KONG_FORCE_JIT_OFF_IN_NGINX="$9"
-KONG_NGINX_RUN_AS_ROOT="${10}"
+KONG_DELAYED_JIT_ON_IN_NGINX="${10}"
+KONG_DELAYED_JIT_ON_SECS="${11}"
+KONG_NGINX_RUN_AS_ROOT="${12}"
+KONG_PROXY_PORT="${13}"
+KONG_ADMIN_PORT="${14}"
 
 ROOT="${REMOTE_ROOT}"
 REPO_ROOT="${ROOT}/repo"
@@ -77,6 +99,13 @@ KONG_LUAROCKS_BIN="${ROOT}/luarocks/bin/luarocks"
 KONG_LUA_NOJIT="${ROOT}/luajit-nojit.sh"
 
 mkdir -p "${ROOT}" "${LOGS}" "${DEPS_PREFIX}" "${UPSTREAM_ROOT}" "${KONG_PREFIX}"
+
+cleanup_runtime() {
+  pkill -f "python3 -m http.server 18090 --bind 127.0.0.1 --directory ${UPSTREAM_ROOT}" >/dev/null 2>&1 || true
+  "${KONG_OPENRESTY_PREFIX}/nginx/sbin/nginx" -p "${KONG_PREFIX}" -c nginx.conf -s quit >/dev/null 2>&1 || true
+}
+
+trap cleanup_runtime EXIT
 
 stage_set() {
   printf '%s\n' "$1" | tee "${LOGS}/stage-current.txt" >/dev/null
@@ -168,14 +197,16 @@ prepare_kong_prefix() {
 }
 
 patch_kong_nginx_bridge() {
-  python3 - <<'PY' "${KONG_PREFIX}/nginx-kong.conf" "${KONG_PREFIX}/nginx.conf" "${KONG_FORCE_JIT_OFF_IN_NGINX}" "${KONG_NGINX_RUN_AS_ROOT}"
+  python3 - <<'PY' "${KONG_PREFIX}/nginx-kong.conf" "${KONG_PREFIX}/nginx.conf" "${KONG_FORCE_JIT_OFF_IN_NGINX}" "${KONG_DELAYED_JIT_ON_IN_NGINX}" "${KONG_DELAYED_JIT_ON_SECS}" "${KONG_NGINX_RUN_AS_ROOT}"
 from pathlib import Path
 import sys
 
 kong_conf = Path(sys.argv[1])
 main_conf = Path(sys.argv[2])
 force_jit_off = sys.argv[3] == "1"
-run_as_root = sys.argv[4] == "1"
+delayed_jit_on = sys.argv[4] == "1"
+delayed_jit_secs = sys.argv[5]
+run_as_root = sys.argv[6] == "1"
 
 text = kong_conf.read_text()
 if force_jit_off and "require('jit').off()" not in text:
@@ -183,6 +214,22 @@ if force_jit_off and "require('jit').off()" not in text:
     new1 = "init_by_lua_block {\n    require('jit').off()\n    Kong = require 'kong'\n    Kong.init()\n}"
     old2 = "init_worker_by_lua_block {\n    Kong.init_worker()\n}"
     new2 = "init_worker_by_lua_block {\n    require('jit').off()\n    Kong.init_worker()\n}"
+    if old1 not in text or old2 not in text:
+        raise SystemExit("expected init blocks not found in nginx-kong.conf")
+    text = text.replace(old1, new1, 1).replace(old2, new2, 1)
+    kong_conf.write_text(text)
+elif delayed_jit_on and "ngx.timer.at(" not in text:
+    old1 = "init_by_lua_block {\n    Kong = require 'kong'\n    Kong.init()\n}"
+    new1 = "init_by_lua_block {\n    local jit = require('jit')\n    jit.off()\n    Kong = require 'kong'\n    Kong.init()\n}"
+    old2 = "init_worker_by_lua_block {\n    Kong.init_worker()\n}"
+    new2 = (
+        "init_worker_by_lua_block {\n"
+        "    local jit = require('jit')\n"
+        "    jit.off()\n"
+        "    Kong.init_worker()\n"
+        f"    ngx.timer.at({delayed_jit_secs}, function() require('jit').on() end)\n"
+        "}"
+    )
     if old1 not in text or old2 not in text:
         raise SystemExit("expected init blocks not found in nginx-kong.conf")
     text = text.replace(old1, new1, 1).replace(old2, new2, 1)
@@ -453,8 +500,8 @@ YAML
 database = off
 declarative_config = ${ROOT}/kong.yml
 prefix = ${KONG_PREFIX}
-proxy_listen = 127.0.0.1:8000
-admin_listen = 127.0.0.1:8001
+proxy_listen = 127.0.0.1:${KONG_PROXY_PORT}
+admin_listen = 127.0.0.1:${KONG_ADMIN_PORT}
 admin_gui_listen = off
 nginx_worker_processes = 1
 log_level = notice
@@ -475,7 +522,7 @@ CONF
   fi
   stage_log "kong_prepare:ok"
 
-  if [ "${KONG_FORCE_JIT_OFF_IN_NGINX}" = "1" ] || [ "${KONG_NGINX_RUN_AS_ROOT}" = "1" ]; then
+  if [ "${KONG_FORCE_JIT_OFF_IN_NGINX}" = "1" ] || [ "${KONG_DELAYED_JIT_ON_IN_NGINX}" = "1" ] || [ "${KONG_NGINX_RUN_AS_ROOT}" = "1" ]; then
     printf '[remote-kong] patching generated nginx config for demo stability\n'
     stage_set "kong_patch_nginx"
     stage_log "kong_patch_nginx:start"
@@ -494,8 +541,8 @@ CONF
   ); then
     printf '[remote-kong] verifying admin and proxy endpoints\n'
     stage_set "kong_verify_endpoints"
-    curl -fsS http://127.0.0.1:8001/status >"${LOGS}/admin-status.json"
-    curl -fsS http://127.0.0.1:8000/demo >"${LOGS}/proxy-demo.txt"
+    curl -fsS "http://127.0.0.1:${KONG_ADMIN_PORT}/status" >"${LOGS}/admin-status.json"
+    curl -fsS "http://127.0.0.1:${KONG_PROXY_PORT}/demo" >"${LOGS}/proxy-demo.txt"
     cat "${LOGS}/admin-status.json"
     printf '\n'
     cat "${LOGS}/proxy-demo.txt"
@@ -525,6 +572,7 @@ main() {
   local remote_root="${REMOTE_BASE}/${REMOTE_LABEL}"
   log "selected host ${host}"
   log "remote workdir ${remote_root}"
+  log "ports proxy=${KONG_PROXY_PORT} admin=${KONG_ADMIN_PORT}"
 
   ssh "${host}" "rm -rf '${remote_root}' && mkdir -p '${remote_root}/repo'"
   log "syncing local repo to ${host}:${remote_root}/repo"
@@ -537,7 +585,7 @@ main() {
     --exclude 'docs/s390x/artifacts' \
     "${REPO_ROOT}/" "${host}:${remote_root}/repo/"
   log "running remote kong bootstrap"
-  ssh "${host}" "bash -s -- '${remote_root}' '${OPENRESTY_VERSION}' '${LUAROCKS_VERSION}' '${LIBYAML_VERSION}' '${BASE_DEMO_ROOT}' '${BUILD_KONG_OPENRESTY}' '${RUN_KONG_START}' '${RUN_KONG_REQUIRE_PROBE}' '${KONG_FORCE_JIT_OFF_IN_NGINX}' '${KONG_NGINX_RUN_AS_ROOT}'" \
+  ssh "${host}" "bash -s -- '${remote_root}' '${OPENRESTY_VERSION}' '${LUAROCKS_VERSION}' '${LIBYAML_VERSION}' '${BASE_DEMO_ROOT}' '${BUILD_KONG_OPENRESTY}' '${RUN_KONG_START}' '${RUN_KONG_REQUIRE_PROBE}' '${KONG_FORCE_JIT_OFF_IN_NGINX}' '${KONG_DELAYED_JIT_ON_IN_NGINX}' '${KONG_DELAYED_JIT_ON_SECS}' '${KONG_NGINX_RUN_AS_ROOT}' '${KONG_PROXY_PORT}' '${KONG_ADMIN_PORT}'" \
     <<<"$(remote_script)"
 }
 

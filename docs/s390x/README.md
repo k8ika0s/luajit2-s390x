@@ -111,9 +111,22 @@ sync loop.
 - The downstream Kong proof is now real in staged bridge mode:
   - `demo/kong/run_kong_demo.sh` runs staged `resty` probes first
   - `require("kong.cmd.init")` and `collectgarbage()` are stable
-  - the scripted Kong path reaches `prepare`, nginx start, `GET /status`, and
-    `GET /demo`
-  - the full-JIT startup path now also passes on `kdz`
+  - the raw full-JIT nginx startup path is still unstable on `kdz`
+  - the current proven downstream bridge is a delayed startup guard:
+    - `KONG_DELAYED_JIT_ON_IN_NGINX=1`
+    - `KONG_DELAYED_JIT_ON_SECS=3`
+    - JIT stays off through `init_by_lua` and `init_worker_by_lua`
+    - JIT is re-enabled from a delayed worker timer after startup settles
+  - that guarded path is manually proven on `kdz` for:
+    - nginx start
+    - `GET /status`
+    - `GET /demo`
+  - the structured downstream restamp is now green from:
+    - `closure-downstream-kdz-20260323d`
+    - `closure-downstream-zkd0-20260323b`
+  - the Kong demo harness now assigns deterministic per-run proxy/admin ports
+    and stops nginx on exit, so closure restamps no longer collide on fixed
+    `8000/8001` listeners
   - the remaining demo-only override is worker-as-root for runtime trees under
     `/root`
 - The recent product-shaped LuaJIT runtime loop has now:
@@ -131,6 +144,11 @@ sync loop.
   full green `closure` stage on `kdz`, plus second-host closure spot checks on
   `zkd0`, with the coverage report showing no exercised backend/runtime stub
   left unimplemented.
+- The last `kdz` closure blocker was the downstream Kong lane:
+  - `closure-kdz-20260323c` was green everywhere except `downstream`
+  - `closure-downstream-kdz-20260323d` now restamps that lane green with the
+    delayed startup guard
+  - `closure-kdz-20260323e` now restamps the full `kdz` closure stage green
 - The previously failing closure soak frontier is now materially reduced on the
   current native loop:
   - the reduced fresh-table restore path is fixed in `src/lj_snap.c`
@@ -142,18 +160,16 @@ sync loop.
     - `/tmp/s390x_keep_worker.lua`
     - `/tmp/s390x_mode0_only.lua`
     - `tests/s390x/soak/trace_gc_churn.lua`
-  - the full closure restamp is being rerun as:
-    - `closure-kdz-20260323c`
+  - the full closure restamp is now green as:
+    - `closure-kdz-20260323e`
 
 ## Current Next Actions
 
-1. Finish the current full `closure` restamp on `kdz`:
-   - active run: `closure-kdz-20260323c`
-2. If that run is green, restamp the required second-host closure spot checks
-   on `zkd0`:
-   - `smoke`
-   - full `prove -v t/*.t`
-   - `jit_core`
+1. Restamp the required second-host closure spot checks on `zkd0` from the
+   now-hardened downstream harness:
+   - correctness suites are already green in `closure-zkd0-20260323a`
+   - downstream lane is green in `closure-downstream-zkd0-20260323b`
+2. Commit and push the downstream hardening plus documentation restamp.
    - `jit_loops`
    - `jit_be`
    - `downstream`

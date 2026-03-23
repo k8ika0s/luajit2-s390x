@@ -3216,3 +3216,59 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 - The next optimization loop should stay on that hotspot before widening the
   default perf gate to the unstable `bitops`, `vararg`, iterator-table update,
   or traced FFI perf families.
+
+## 2026-03-23 Downstream Kong Startup Narrowing
+
+- `closure-kdz-20260323c` is green for every closure suite except
+  `downstream`.
+- The failing downstream edge is now narrowed on `kdz` to Kong nginx startup
+  with raw JIT enabled in the generated `init_by_lua` / `init_worker_by_lua`
+  blocks.
+- Fresh native `gdb` startup repro does not match the older coarse coredump
+  summary. The live crash is:
+  - `lj_tab_getstr()` / `lj_tab_get()` / `lj_meta_tget()`
+  - while requiring `kong.tools.string` through nested `package.require`
+  - during `ngx_http_lua_init_by_inline`
+- The worker follow-on crash after a naive startup-only guard is the same class
+  of failure:
+  - worker cores resolve to `libluajit + 0x150ec/+0x15118`
+  - `addr2line` maps those back into `hashmask` / `lj_tab_getstr` /
+    `lj_tab_get` / `lj_tab_set`
+- Full `jit.off()` in Kong nginx is a valid fallback and brings the runtime up
+  cleanly, but that disables request-path JIT for the whole worker and is too
+  blunt for the main downstream gate.
+- The first downstream bridge that works end to end on native `kdz` is the
+  delayed startup guard:
+  - `init_by_lua_block`: `jit.off(); Kong = require 'kong'; Kong.init()`
+  - `init_worker_by_lua_block`:
+    `jit.off(); Kong.init_worker(); ngx.timer.at(3, function() require("jit").on() end)`
+  - result:
+    - nginx start succeeds
+    - `GET /status` returns `200`
+    - `GET /demo` returns `200`
+- That guard is now wired into `demo/kong/run_kong_demo.sh` behind:
+  - `KONG_DELAYED_JIT_ON_IN_NGINX=1`
+  - `KONG_DELAYED_JIT_ON_SECS=3`
+- The structured `downstream` restamp from that state is now green:
+  - `closure-downstream-kdz-20260323d`
+  - OpenResty lane: green
+  - Kong lane: green through staged require probe, `prepare`, nginx start,
+    `GET /status`, `GET /demo`, and post-start `run_kong_require_probe.sh`
+- The first full `kdz` closure rerun from that state failed for a harness-only
+  reason, not a runtime regression:
+  - `closure-kdz-20260323d`
+  - Kong tried to bind fixed `127.0.0.1:8000/8001` while an older demo worker
+    was still listening there
+  - the collision came from the demo harness leaving Kong nginx up after a
+    successful run
+- The downstream harness is now hardened in `demo/kong/run_kong_demo.sh`:
+  - deterministic per-run proxy/admin ports derived from the run label
+  - best-effort runtime teardown on exit
+- The fresh full `kdz` closure rerun from that hardened state is now green:
+  - `closure-kdz-20260323e`
+- The old `zkd0` full closure restamp cleared every correctness suite and only
+  failed in the stale downstream wrapper after the remote Kong demo had
+  already passed:
+  - `closure-zkd0-20260323a`
+- The patched `zkd0` downstream restamp is now green too:
+  - `closure-downstream-zkd0-20260323b`
