@@ -6,9 +6,7 @@ local function hotexit_loop(n)
   local total = 0
   for i = 1, n do
     if i % 5 == 0 then
-      total = total + ((i % 97) * 3)
-    elseif i % 3 == 0 then
-      total = total - (i % 97)
+      total = total + (i % 97)
     else
       total = total + 1
     end
