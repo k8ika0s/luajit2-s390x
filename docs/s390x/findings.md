@@ -3344,20 +3344,29 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
       side-exit `%` shapes
   - red closure lane:
     - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+    - the repro is now reduced to the smallest currently failing native shape:
+      - one hotexit guard: `i % 5 == 0`
+      - one payload modulo: `total = total + (i % 97)`
+      - `else total = total + 1`
     - fresh native `kdz` proof still fails under the aggressive
-      `hotloop=2`, `hotexit=2` hotexit/stitch workload with:
-      - expected `6490`, got `7024` in the direct staged repro
-      - `-jv -jdump=im` shows a root trace followed by a side-trace explosion
-        up to `TRACE 104`
+      `hotloop=2`, `hotexit=2` workload with:
+      - expected `4104`, got `4119` in the reduced tracked repro
+      - older larger shapes showed the same family of failure with much larger
+        trace churn, so the reduced file is now the authoritative closure repro
     - targeted threshold sweep on `kdz` shows this is specifically the
       low-threshold hotexit/stitch regime:
-      - `hotloop=2`, `hotexit=2`: `6490 -> 6928`
-      - `hotloop=2`, `hotexit=2`, `minstitch=1`: still `6490 -> 6928`
-      - `hotloop=2`, `hotexit=5`: still wrong as `6490 -> 7501`
-      - `hotloop=10`, `hotexit=10`: correct
+      - larger modulo hotexit shape:
+        - `hotloop=2`, `hotexit=2`: `6490 -> 6928`
+        - `hotloop=2`, `hotexit=2`, `minstitch=1`: still `6490 -> 6928`
+        - `hotloop=2`, `hotexit=5`: still wrong as `6490 -> 7501`
+        - `hotloop=10`, `hotexit=10`: correct
     - the baseline is now computed explicitly with `jit.off(hotexit_loop, true)`
       before reenabling JIT for the traced run, so the remaining mismatch is a
       real traced-execution bug, not an expected-value contamination artifact
+    - additional reduction on native `kdz` shows the bug needs both pieces:
+      - guard-only `% 5` with constant payload: green
+      - `% 5` guard with plain `+i` payload: green
+      - `% 5` guard with `% 97` payload: wrong
 - `mod_int_trace.lua` stays intentionally out of the default `jit_core` lane
   until the modulo work is ready for promotion, but it is now the tracked
   Stream B entry point rather than a blended Stream A/B repro.

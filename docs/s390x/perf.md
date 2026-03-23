@@ -39,6 +39,9 @@ release-mode crash or wrong-result shapes.
     - current native `kdz` threshold split:
       - aggressive `hotloop=2`, `hotexit=2` is still wrong (`6490 -> 6928`)
       - perf-default `hotloop=10`, `hotexit=10` is correct
+    - the current reduced closure repro shows the smaller failing family:
+      - `% 5` hotexit guard + `% 97` payload
+      - current `kdz` result: `4104 -> 4119`
 - `bitops_mix.lua`
   - `bit.*`
   - `tobit`
