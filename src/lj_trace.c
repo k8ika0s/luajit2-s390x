@@ -85,6 +85,49 @@ static int lj_trace_s390x_varg_dump_enabled(void)
   return enabled;
 }
 
+#if LJ_TARGET_S390X && LJ_GC64
+static int lj_trace_s390x_gcobj_valid(GCobj *o, int want_trace)
+{
+  if (o == NULL || !checkptrGC(o) || (((uintptr_t)o) & (sizeof(GCRef)-1)) != 0)
+    return 0;
+  switch (o->gch.gct) {
+  case ~LJ_TSTR:
+  case ~LJ_TUPVAL:
+  case ~LJ_TTHREAD:
+  case ~LJ_TPROTO:
+  case ~LJ_TFUNC:
+  case ~LJ_TTRACE:
+  case ~LJ_TCDATA:
+  case ~LJ_TTAB:
+  case ~LJ_TUDATA:
+    return !want_trace || o->gch.gct == ~LJ_TTRACE;
+  default:
+    return 0;
+  }
+}
+
+static int lj_trace_s390x_traceconsts_valid(jit_State *J, GCtrace *T)
+{
+  IRRef ref;
+  if (!lj_trace_s390x_gcobj_valid(obj2gco(T), 1) || T->traceno != J->cur.traceno)
+    return 0;
+  if (!lj_trace_s390x_gcobj_valid(gcref(T->startpt), 0))
+    return 0;
+  for (ref = T->nk; ref < REF_TRUE; ref++) {
+    IRIns *ir = &T->ir[ref];
+    if (ir->o == IR_KGC && !lj_trace_s390x_gcobj_valid(ir_kgc(ir), 0)) {
+      fprintf(stderr,
+	      "[s390x] rejecting trace %u due to invalid IR_KGC at ref %u\n",
+	      (unsigned int)T->traceno, (unsigned int)ref);
+      return 0;
+    }
+    if (irt_is64(ir->t) && ir->o != IR_KNULL)
+      ref++;
+  }
+  return 1;
+}
+#endif
+
 static int lj_trace_s390x_start_log_enabled(void)
 {
   static int enabled = -1;
@@ -895,6 +938,11 @@ static void trace_stop(jit_State *J)
   GCproto *pt = &gcref(J->cur.startpt)->pt;
   TraceNo traceno = J->cur.traceno;
   GCtrace *T = J->curfinal;
+
+#if LJ_TARGET_S390X && LJ_GC64
+  if (!lj_trace_s390x_traceconsts_valid(J, T))
+    lj_trace_err(J, LJ_TRERR_RETRY);
+#endif
 
   switch (op) {
   case BC_FORL:

@@ -81,6 +81,23 @@ Current trustworthy checkpoint:
 - the harness transport now uses a tracked-files-only tar-over-ssh sync path,
   strips macOS metadata from the archive stream, and avoids syncing untracked
   local junk into remote validation trees
+- the native OpenResty leadership demo is now running on `s390x` with LuaJIT
+  enabled in the request path
+- the native Kong demo path now passes through:
+  - staged `resty` module-load probes
+  - `require("kong.cmd.init")`
+  - `require("kong.cmd.init"); collectgarbage()`
+  - scripted `prepare`, nginx start, `/status`, and `/demo`
+- the full-JIT native Kong startup path now also passes on `kdz` from:
+  - `/root/luajit2-s390x/kong-demo-20260323T000006Z`
+- the Kong demo still carries one demo-only plumbing override:
+  - workers forced to `root` only because the runtime tree lives under `/root`
+- the recent LuaJIT runtime remediation moved the remaining startup issue out
+  of the earlier interpreter `BC_TGETS` path, added trace GC guardrails on
+  `s390x` GC64, and cleared the current full-JIT Kong startup demo path
+- the current runtime remediation and demo operator notes are tracked in:
+  - [docs/s390x/leadership-demo.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/leadership-demo.md)
+  - [docs/s390x/runtime-remediation.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runtime-remediation.md)
 - the current structured restamp work is no longer smoke recovery; it is
   widening the validated matrix across compiler, mode, and host axes
 - the detailed narrowing trail and current procedure are recorded in

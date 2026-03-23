@@ -14,7 +14,7 @@ static Reg ra_hintalloc(ASMState *as, IRRef ref, Reg hint, RegSet allow)
 {
   Reg r = IR(ref)->r;
   if (ra_noreg(r)) {
-    if (!ra_hashint(r) && !iscrossref(as, ref))
+    if (!ra_hashint(r) && !iscrossref(as, ref) && hint != RID_SP)
       ra_sethint(IR(ref)->r, hint);
     r = ra_allocref(as, ref, allow);
   }
@@ -273,7 +273,7 @@ static Reg ra_allocbase(ASMState *as, RegSet allow)
 static Reg ra_alloc1_nobase(ASMState *as, IRRef ref, RegSet allow, int32_t tag)
 {
   Reg r = ra_alloc1(as, ref, allow);
-  if (LJ_UNLIKELY(ref != REF_BASE && r == RID_BASE))
+  if (LJ_UNLIKELY(ref != REF_BASE && (r == RID_BASE || r == RID_SP)))
     asm_s390x_nyi_tag(as, tag);
   return r;
 }
@@ -282,7 +282,7 @@ static Reg ra_hintalloc_nobase(ASMState *as, IRRef ref, Reg hint, RegSet allow,
 			       int32_t tag)
 {
   Reg r = ra_hintalloc(as, ref, hint, allow);
-  if (LJ_UNLIKELY(ref != REF_BASE && r == RID_BASE))
+  if (LJ_UNLIKELY(ref != REF_BASE && (r == RID_BASE || r == RID_SP)))
     asm_s390x_nyi_tag(as, tag);
   return r;
 }
@@ -290,7 +290,7 @@ static Reg ra_hintalloc_nobase(ASMState *as, IRRef ref, Reg hint, RegSet allow,
 static Reg ra_dest_nobase(ASMState *as, IRIns *ir, RegSet allow, int32_t tag)
 {
   Reg r = ra_dest(as, ir, allow);
-  if (LJ_UNLIKELY(r == RID_BASE))
+  if (LJ_UNLIKELY(r == RID_BASE || r == RID_SP))
     asm_s390x_nyi_tag(as, tag);
   return r;
 }
@@ -651,6 +651,7 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
     if ((sn & SNAP_KEYINDEX)) {
       src = irref_isk(ref) ? ra_allock(as, ir->i, allow) :
 			     ra_alloc1(as, ref, allow);
+      lj_assertA(src != RID_SP, "snap keyindex restore picked RID_SP");
       rset_clear(allow, src);
       emit_store32ofs(as, src, RID_BASE, ofs + (LJ_BE ? 4 : 0));
       emit_store32ofs(as, ra_allock(as, LJ_KEYINDEX, allow), RID_BASE,
@@ -662,6 +663,7 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
     if (irt_isint(ir->t) || irt_isu32(ir->t)) {
       src = irref_isk(ref) ? ra_allock(as, ir->i, allow) :
 			     ra_alloc1(as, ref, allow);
+      lj_assertA(src != RID_SP, "snap int restore picked RID_SP");
       rset_clear(allow, src);
       emit_store32ofs(as, src, RID_BASE, ofs + (LJ_BE ? 4 : 0));
       emit_store32ofs(as,
@@ -772,6 +774,7 @@ static void asm_gc_check(ASMState *as)
 
   tmp1 = ra_releasetmp(as, ASMREF_TMP1);
   tmp2 = ra_releasetmp(as, ASMREF_TMP2);
+  lj_assertA(tmp1 != RID_SP && tmp2 != RID_SP, "gc tmp uses RID_SP");
   emit_loadi(as, tmp2, as->gcsteps);
   /* Jump around GC step if GC total < GC threshold. */
   emit_condbranch(as, CC_LO, l_end);

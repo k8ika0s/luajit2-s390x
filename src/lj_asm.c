@@ -134,6 +134,52 @@ static void lj_asm_s390x_guard_log(ASMState *as, int cc, const void *target,
 	  (const void *)as->invmcp);
 }
 
+static LJ_NORET LJ_NOINLINE void ra_s390x_nosp(ASMState *as, int32_t tag)
+{
+  setintV(&as->J->errinfo, tag);
+  lj_trace_err_info(as->J, LJ_TRERR_NYIIR);
+}
+
+static RegSet ra_s390x_strip_badfixed(ASMState *as, RegSet allow)
+{
+  RegSet badfixed = RID2RSET(RID_BASE) | RID2RSET(RID_SP);
+  RegSet nofixed = allow & ~badfixed;
+  if (nofixed != RSET_EMPTY)
+    return nofixed;
+  if (allow & RID2RSET(RID_SP))
+    ra_s390x_nosp(as, -301);
+  return allow;
+}
+
+static Reg ra_s390x_check_reg(ASMState *as, Reg r, int32_t tag)
+{
+  if (LJ_UNLIKELY(r == RID_SP))
+    ra_s390x_nosp(as, tag);
+  return r;
+}
+
+static Reg ra_s390x_sanitize_hint(Reg r)
+{
+  if (ra_hashint(r) && ra_gethint(r) == RID_SP)
+    return RID_INIT;
+  return r;
+}
+
+static RegSP ra_s390x_sanitize_regsp(ASMState *as, RegSP rs,
+				     int32_t regtag, int32_t hinttag)
+{
+  Reg r = regsp_reg(rs);
+  if (ra_noreg(r)) {
+    if (ra_hashint(r) && ra_gethint(r) == RID_SP) {
+      UNUSED(hinttag);
+      return REGSP(RID_INIT, regsp_spill(rs));
+    }
+  } else if (LJ_UNLIKELY(r == RID_SP)) {
+    ra_s390x_nosp(as, regtag);
+  }
+  return rs;
+}
+
 static int lj_asm_s390x_phi_log_enabled(void)
 {
   static int enabled = -1;
@@ -702,11 +748,20 @@ static int32_t ra_spill(ASMState *as, IRIns *ir)
   return sps_scale(slot);
 }
 
+static Reg ra_scratch(ASMState *as, RegSet allow);
+
 /* Release the temporarily allocated register in ASMREF_TMP1/ASMREF_TMP2. */
 static Reg ra_releasetmp(ASMState *as, IRRef ref)
 {
   IRIns *ir = IR(ref);
   Reg r = ir->r;
+#if LJ_TARGET_S390X
+  if (ra_noreg(r) || r == RID_BASE || r == RID_SP || ra_hasspill(ir->s)) {
+    ir->r = RID_INIT;
+    ir->s = SPS_NONE;
+    return ra_scratch(as, rset_exclude(RSET_GPR, RID_BASE));
+  }
+#endif
   lj_assertA(ra_hasreg(r), "release of TMP%d has no reg", ref-ASMREF_TMP1+1);
   lj_assertA(!ra_hasspill(ir->s),
 	     "release of TMP%d has spill slot [%x]", ref-ASMREF_TMP1+1, ir->s);
@@ -734,6 +789,10 @@ static Reg ra_restore(ASMState *as, IRRef ref)
     int32_t ofs = ra_spill(as, ir);  /* Force a spill slot. */
     lj_asm_s390x_spill_log(as, "restore", ir, ofs);
     Reg r = ir->r;
+#if LJ_TARGET_S390X
+    if (LJ_UNLIKELY(r == RID_SP))
+      ra_s390x_nosp(as, -321);
+#endif
     lj_assertA(ra_hasreg(r), "restore of IR %04d has no reg", ref - REF_BIAS);
     ra_sethint(ir->r, r);  /* Keep hint. */
     ra_free(as, r);
@@ -787,23 +846,29 @@ static Reg ra_evict(ASMState *as, RegSet allow)
 static Reg ra_pick(ASMState *as, RegSet allow)
 {
 #if LJ_TARGET_S390X
-  if (allow != RID2RSET(RID_BASE)) {
-    RegSet nobase = rset_exclude(allow, RID_BASE);
-    if (nobase != RSET_EMPTY)
-      allow = nobase;
-  }
+  allow = ra_s390x_strip_badfixed(as, allow);
 #endif
   RegSet pick = as->freeset & allow;
   if (!pick)
     return ra_evict(as, allow);
-  else
-    return rset_picktop(pick);
+  else {
+    Reg r = rset_picktop(pick);
+#if LJ_TARGET_S390X
+    if (LJ_UNLIKELY(r == RID_SP))
+      ra_s390x_nosp(as, -302);
+#endif
+    return r;
+  }
 }
 
 /* Get a scratch register (marked as free). */
 static Reg ra_scratch(ASMState *as, RegSet allow)
 {
   Reg r = ra_pick(as, allow);
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(r == RID_SP))
+    ra_s390x_nosp(as, -307);
+#endif
   ra_modified(as, r);
   RA_DBGX((as, "scratch        $r", r));
   return r;
@@ -868,11 +933,7 @@ static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow)
   RegSet pick, work;
   Reg r;
 #if LJ_TARGET_S390X
-  if (allow != RID2RSET(RID_BASE)) {
-    RegSet nobase = rset_exclude(allow, RID_BASE);
-    if (nobase != RSET_EMPTY)
-      allow = nobase;
-  }
+  allow = ra_s390x_strip_badfixed(as, allow);
 #endif
   work = ~as->freeset & RSET_GPR & allow;
   while (work) {
@@ -919,6 +980,10 @@ static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow)
   } else {
     r = ra_evict(as, allow);
   }
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(r == RID_SP))
+    ra_s390x_nosp(as, -303);
+#endif
   RA_DBGX((as, "allock    $x $r", k, r));
   if (LJ_UNLIKELY(r >= RID_MIN_FPR &&
 		  getenv("LUAJIT_S390X_RA_LOG") != NULL)) {
@@ -959,16 +1024,19 @@ static Reg ra_allocref(ASMState *as, IRRef ref, RegSet allow)
   lj_assertA(ra_noreg(ir->r),
 	     "IR %04d already has reg %d", ref - REF_BIAS, ir->r);
 #if LJ_TARGET_S390X
-  /* Reserve RID_BASE for explicit REF_BASE materialization. Any generic
-  ** allocator path that accidentally sees r13 in a broad allow set should
-  ** prefer another GPR first.
+  /* Reserve RID_BASE for explicit REF_BASE materialization and never reuse
+  ** RID_SP as a generic value register. Any generic allocator path that
+  ** accidentally sees r13/r15 in a broad allow set should prefer another
+  ** GPR first.
   */
   if (ref != REF_BASE) {
-    if ((allow & ~RID2RSET(RID_BASE)) != RSET_EMPTY)
-      allow = rset_exclude(allow, RID_BASE);
+    allow = ra_s390x_strip_badfixed(as, allow);
     pick = as->freeset & allow;
-    if (ra_hashint(ir->r) && ra_gethint(ir->r) == RID_BASE)
-      ir->r = RID_INIT;
+    if (ra_hashint(ir->r)) {
+      ir->r = (uint8_t)ra_s390x_sanitize_hint(ir->r);
+      if (ra_hashint(ir->r) && ra_gethint(ir->r) == RID_BASE)
+	ir->r = RID_INIT;
+    }
   }
 #endif
   if (pick) {
@@ -1000,6 +1068,10 @@ static Reg ra_allocref(ASMState *as, IRRef ref, RegSet allow)
   }
 found:
   RA_DBGX((as, "alloc     $f $r", ref, r));
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(ref != REF_BASE && r == RID_SP))
+    ra_s390x_nosp(as, -304);
+#endif
   lj_asm_s390x_ra_trace("allocref", as, ref, r, allow, ir->s);
   ir->r = (uint8_t)r;
   rset_clear(as->freeset, r);
@@ -1022,6 +1094,9 @@ static Reg ra_alloc1(ASMState *as, IRRef ref, RegSet allow)
 static void ra_addrename(ASMState *as, Reg down, IRRef ref, SnapNo snapno)
 {
   IRRef ren;
+#if LJ_TARGET_S390X
+  down = ra_s390x_check_reg(as, down, -308);
+#endif
   lj_asm_s390x_rename_log(as, down, ref, snapno);
   lj_ir_set(as->J, IRT(IR_RENAME, IRT_NIL), ref, snapno);
   ren = tref_ref(lj_ir_emit(as->J));
@@ -1034,6 +1109,10 @@ static void ra_rename_(ASMState *as, Reg down, Reg up, int addrename)
 {
   IRRef ref = regcost_ref(as->cost[up] = as->cost[down]);
   IRIns *ir = IR(ref);
+#if LJ_TARGET_S390X
+  down = ra_s390x_check_reg(as, down, -309);
+  up = ra_s390x_check_reg(as, up, -310);
+#endif
   ir->r = (uint8_t)up;
   as->cost[down] = 0;
   lj_assertA((down < RID_MAX_GPR) == (up < RID_MAX_GPR),
@@ -1076,11 +1155,20 @@ static Reg ra_dest(ASMState *as, IRIns *ir, RegSet allow)
 {
   Reg dest = ir->r;
 #if LJ_TARGET_S390X
-  if (ra_hashint(dest) && ra_gethint(dest) == RID_BASE &&
-      (allow & ~RID2RSET(RID_BASE)) != RSET_EMPTY)
-    dest = RID_INIT;
+  if (ra_hashint(dest)) {
+    RegSet badfixed = RID2RSET(RID_BASE) | RID2RSET(RID_SP);
+    dest = ra_s390x_sanitize_hint(dest);
+    Reg hint = ra_gethint(dest);
+    if ((hint == RID_BASE || hint == RID_SP) &&
+	(allow & ~badfixed) != RSET_EMPTY)
+      dest = RID_INIT;
+  }
 #endif
   if (ra_hasreg(dest)) {
+#if LJ_TARGET_S390X
+    if (LJ_UNLIKELY(dest == RID_SP))
+      ra_s390x_nosp(as, -305);
+#endif
     ra_free(as, dest);
     ra_modified(as, dest);
   } else {
@@ -1093,6 +1181,10 @@ static Reg ra_dest(ASMState *as, IRIns *ir, RegSet allow)
     }
     ir->r = dest;
   }
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(dest == RID_SP))
+    ra_s390x_nosp(as, -306);
+#endif
   if (LJ_UNLIKELY(ra_hasspill(ir->s))) ra_save(as, ir, dest);
   return dest;
 }
@@ -2320,6 +2412,10 @@ static void asm_head_side(ASMState *as)
 	       "IR %04d has bad parent op %d",
 	       (int)(ir - as->ir) - REF_BIAS, ir->o);
     rs = as->parentmap[i - REF_FIRST];
+#if LJ_TARGET_S390X
+    rs = ra_s390x_sanitize_regsp(as, rs, -311, -312);
+    as->parentmap[i - REF_FIRST] = (uint16_t)rs;
+#endif
     if (ra_hasreg(ir->r)) {
       rset_clear(allow, ir->r);
       if (ra_hasspill(ir->s)) {
@@ -2361,8 +2457,12 @@ static void asm_head_side(ASMState *as)
 	RegSP rs;
 	irt_clearmark(ir->t);
 	rs = as->parentmap[i - REF_FIRST];
+#if LJ_TARGET_S390X
+	rs = ra_s390x_sanitize_regsp(as, rs, -313, -314);
+	as->parentmap[i - REF_FIRST] = (uint16_t)rs;
+#endif
 	if (!ra_hasspill(regsp_spill(rs)))
-	  ra_sethint(ir->r, rs);  /* Hint may be gone, set it again. */
+	  ra_sethint(ir->r, regsp_reg(rs));  /* Hint may be gone, set it again. */
 	else if (sps_scale(regsp_spill(rs))+spdelta == sps_scale(ir->s))
 	  continue;  /* Same spill slot, do nothing. */
 	mask = ((!LJ_SOFTFP && irt_isfp(ir->t)) ? RSET_FPR : RSET_GPR) & allow;
@@ -2399,6 +2499,10 @@ static void asm_head_side(ASMState *as)
       Reg r = rset_pickbot(work);
       IRRef ref = regcost_ref(as->cost[r]);
       RegSP rs = as->parentmap[ref - REF_FIRST];
+#if LJ_TARGET_S390X
+      rs = ra_s390x_sanitize_regsp(as, rs, -315, -316);
+      as->parentmap[ref - REF_FIRST] = (uint16_t)rs;
+#endif
       rset_clear(work, r);
       if (ra_hasspill(regsp_spill(rs))) {
 	int32_t ofs = sps_scale(regsp_spill(rs));
@@ -2597,8 +2701,11 @@ static void asm_setup_regsp(ASMState *as)
     as->stopins = (IRRef)((lastir-1) - as->ir);
     for (p = as->parentmap; ir < lastir; ir++) {
       RegSP rs = ir->prev;
+#if LJ_TARGET_S390X
+      rs = ra_s390x_sanitize_regsp(as, rs, -317, -318);
+#endif
       *p++ = (uint16_t)rs;  /* Copy original parent RegSP to parentmap. */
-      if (!ra_hasspill(regsp_spill(rs)))
+      if (!ra_hasspill(regsp_spill(rs)) && !ra_noreg(regsp_reg(rs)))
 	ir->prev = (uint16_t)REGSP_HINT(regsp_reg(rs));
       else
 	ir->prev = REGSP_INIT;
@@ -2817,10 +2924,15 @@ static void asm_setup_regsp(ASMState *as)
       /* fallthrough */
     default:
       /* Propagate hints across likely 'op reg, imm' or 'op reg'. */
-      if (irref_isk(ir->op2) && !irref_isk(ir->op1) &&
-	  ra_hashint(regsp_reg(IR(ir->op1)->prev))) {
-	ir->prev = IR(ir->op1)->prev;
-	continue;
+      if (irref_isk(ir->op2) && !irref_isk(ir->op1)) {
+	RegSP prev = IR(ir->op1)->prev;
+#if LJ_TARGET_S390X
+	prev = ra_s390x_sanitize_regsp(as, prev, -319, -320);
+#endif
+	if (ra_hashint(regsp_reg(prev))) {
+	  ir->prev = prev;
+	  continue;
+	}
       }
       break;
     }

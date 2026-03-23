@@ -836,7 +836,8 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
     rs = renamed_rs = snap_renameref(T, snapno, ref, rs);
 #if LJ_TARGET_S390X
   if (irt_isinteger(t) && ra_hasspill(regsp_spill(rs)) &&
-      !ra_noreg(regsp_reg(rs)) && snap_s390x_restore_pref_reg_enabled()) {
+      !ra_noreg(regsp_reg(rs)) && regsp_reg(rs) != RID_SP &&
+      snap_s390x_restore_pref_reg_enabled()) {
     rs = REGSP(regsp_reg(rs), SPS_NONE);
     pref_applied = 1;
   }
@@ -860,6 +861,10 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
     }
   } else {  /* Restore from register. */
     Reg r = regsp_reg(rs);
+#if LJ_TARGET_S390X
+    lj_assertJ(r != RID_SP, "restore from IR %04d uses RID_SP",
+	       ref - REF_BIAS);
+#endif
     if (ra_noreg(r)) {
       lj_assertJ(ir->o == IR_CONV && ir->op2 == IRCONV_NUM_INT,
 		 "restore from IR %04d has no reg", ref - REF_BIAS);
@@ -921,6 +926,10 @@ static void snap_restoredata(jit_State *J, GCtrace *T, ExitState *ex,
       }
     } else {
       Reg r = regsp_reg(rs);
+#if LJ_TARGET_S390X
+      lj_assertJ(r != RID_SP, "restoredata from IR %04d uses RID_SP",
+		 ref - REF_BIAS);
+#endif
       if (ra_noreg(r)) {
 	/* Note: this assumes CNEWI is never used for SOFTFP split numbers. */
 	lj_assertJ(sz == 8 && ir->o == IR_CONV && ir->op2 == IRCONV_NUM_INT,
