@@ -3455,3 +3455,40 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - a first `BC_ISNEXT` JLOOP-unpatch port on s390x built cleanly but did not
     materially move the iterator numbers, so it is not part of the active
     patch set
+
+2026-03-24: coherent iterator perf tuning wave
+
+- The earlier `hotexit=200` default experiment is now revalidated on a
+  coherent source tree instead of a stale mixed worktree.
+- Safe patch set used for the clean native `kdz` probe:
+  - remove the `BC_IITERL` debug helper call in `vm_s390x.dasc`
+  - stop forcing `hotloop=10,hotexit=10` in `tests/s390x/perf/benchlib.lua`
+  - set s390x default `JIT_P_hotexit = 200` in `src/lib_jit.c`
+- Clean native run root:
+  - `kdz:/root/luajit2-s390x/perf-wave-20260324b`
+- Measured iterator medians on that coherent build:
+  - `pairs_sum/hot`: `0.045205s`
+  - `pairs_array_sum/hot`: `0.046697s`
+- Relative to the older structured iterator restamp:
+  - `pairs_sum/hot`: `0.528441s -> 0.045205s` (`11.69x` faster)
+  - `pairs_array_sum/hot`: `0.401933s -> 0.046697s` (`8.61x` faster)
+- Repeated same-process `pairs()` timing on that same coherent build:
+  - `jit.on` runs: `0.003175`, `0.006357`, `0.010301`, `0.016793`,
+    `0.024084`, `0.030375`
+  - `jit.off` runs: about `0.0314`
+  - so current `jit.on` iterator execution is now materially below
+    interpreter cost on that path instead of catastrophically above it
+- Dispatch remains near the current `%`-fast-path baseline on the same build:
+  - `numeric_loop/hot`: `0.032363s`
+  - `side_exit_loop/hot`: `0.017595s`
+  - `hotexit_loop/hot`: `0.008959s`
+- Current correctness slice stays green on the same build:
+  - `tests/s390x/jit_core/mod_int_trace.lua`
+  - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+  - `tests/s390x/jit_core/side_exit.lua`
+  - `tests/s390x/soak/mixed_stress.lua`
+- So the current best iterator performance explanation is now:
+  - helper removal fixed one direct VM-side cost
+  - perf harness stopped forcing the worst threshold pair
+  - a higher default `hotexit` meaningfully reduces root-linked iterator
+    side-trace churn on s390x

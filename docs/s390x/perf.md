@@ -233,6 +233,32 @@ Current conclusion:
 - A first `BC_ISNEXT` JLOOP-unpatch port on s390x built cleanly but did not
   materially change the iterator timings, so it is not part of the active
   patch set.
+- The next coherent native `kdz` probe keeps that safe iterator patch set and
+  adds one more s390x-only runtime tuning change:
+  - default `JIT_P_hotexit = 200` in
+    [src/lib_jit.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lib_jit.c)
+- On `kdz:/root/luajit2-s390x/perf-wave-20260324b`, that reduces iterator hot
+  medians further to:
+  - `pairs_sum/hot`: `0.045205s`
+  - `pairs_array_sum/hot`: `0.046697s`
+- Relative to the older structured iterator restamp, that is:
+  - `pairs_sum/hot`: about `11.69x` faster
+  - `pairs_array_sum/hot`: about `8.61x` faster
+- Repeated same-process `pairs()` timing on that coherent build is now:
+  - `jit.on`: `0.003175`, `0.006357`, `0.010301`, `0.016793`, `0.024084`,
+    `0.030375`
+  - `jit.off`: about `0.0314`
+- That means the current best iterator path on s390x is now at or below
+  interpreter cost on the same workload, instead of catastrophically above it.
+- The same coherent build kept the current correctness slice green:
+  - `tests/s390x/jit_core/mod_int_trace.lua`
+  - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+  - `tests/s390x/jit_core/side_exit.lua`
+  - `tests/s390x/soak/mixed_stress.lua`
+- Dispatch remained near the current `%`-fast-path baseline on that same run:
+  - `numeric_loop/hot`: `0.032363s`
+  - `side_exit_loop/hot`: `0.017595s`
+  - `hotexit_loop/hot`: `0.008959s`
 
 That is a useful result, not a benchmark failure. It identifies the first
 measured Tier 1/Tier 2 optimization target.
