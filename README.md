@@ -166,7 +166,7 @@ Current trustworthy checkpoint:
 - the detailed narrowing trail and current procedure are recorded in
   [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 - the latest structured native perf restamp is:
-  - `perf-kdz-20260323a`
+  - `20260324T022735.280630Z-p89021`
   - and now emits:
     - `perf/family-status.json`
     - `perf/hotspots.json`
