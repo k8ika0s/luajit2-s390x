@@ -128,9 +128,18 @@ function M.configure_jit()
   end
   local ok_opt, opt = pcall(require, "jit.opt")
   if ok_opt and opt and opt.start then
-    local hotloop = tonumber(os.getenv("S390X_PERF_HOTLOOP") or "") or 10
-    local hotexit = tonumber(os.getenv("S390X_PERF_HOTEXIT") or "") or 10
-    opt.start("hotloop=" .. hotloop, "hotexit=" .. hotexit)
+    local hotloop_env = os.getenv("S390X_PERF_HOTLOOP")
+    local hotexit_env = os.getenv("S390X_PERF_HOTEXIT")
+    local opts = {}
+    if hotloop_env and hotloop_env ~= "" then
+      opts[#opts + 1] = "hotloop=" .. assert(tonumber(hotloop_env), "bad S390X_PERF_HOTLOOP")
+    end
+    if hotexit_env and hotexit_env ~= "" then
+      opts[#opts + 1] = "hotexit=" .. assert(tonumber(hotexit_env), "bad S390X_PERF_HOTEXIT")
+    end
+    if #opts > 0 then
+      opt.start(unpack(opts))
+    end
   end
 end
 

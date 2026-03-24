@@ -4306,13 +4306,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  ins_AJ	// RA = base, RD = target
     |  sllg RA, RA, 3
     |  la RA, 0(RA, BASE)
-    |.if JIT
-    |  stg RA, SAVE_TMP
-    |  lgr CARG1, BASE
-    |  lgr CARG2, RA
-    |  brasl r14, extern lj_trace_s390x_iter_log
-    |  lg RA, SAVE_TMP
-    |.endif
     |  lg RB, 0(RA)
     |  cghi RB, LJ_TNIL; je >1		// Stop if iterator returned nil.
     if (op == BC_JITERL) {

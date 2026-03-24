@@ -300,10 +300,27 @@ The current full closure restamp on `kdz` is driving this order:
 - The broader perf catalog remains in-tree, but only the release-stable subset
   should gate the current perf stage until the remaining families are
   correctness-stable under native release measurement.
-- `dispatch_trace` is the only current default perf gate.
-- `iterator_table` is still first in the promotion queue.
-- manual `kdz` release probes now show `iterator_table` is baseline- and
-  `z13`-stable on the current branch head, but it is not promoted into the
-  structured default lane yet.
+- `dispatch_trace` remains the only default structured perf gate.
+- `iterator_table` remains the first focused perf-family probe.
+- A clean native `kdz` probe from `HEAD` plus two local perf changes:
+  - removal of the `BC_IITERL` debug helper call in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - stopping the forced `hotloop=10,hotexit=10` override in
+    [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
+  materially improved iterator hot medians while keeping the current
+  `%`/side-exit/soak correctness slice green.
+- Clean native `kdz` results from
+  `kdz:/root/luajit2-s390x/perf-wave-20260324b`:
+  - `iterator_table pairs_sum/hot`: `0.371870s` vs older structured
+    `0.528441s` (`1.42x` faster)
+  - `iterator_table pairs_array_sum/hot`: `0.280803s` vs older structured
+    `0.401933s` (`1.43x` faster)
+  - `dispatch_trace numeric_loop/hot`: `0.032289s`
+  - `dispatch_trace side_exit_loop/hot`: `0.017768s`
+  - `dispatch_trace hotexit_loop/hot`: `0.009131s`
+- The first `BC_ISNEXT` JLOOP-unpatch port built cleanly but did not materially
+  change iterator timings, so it is not part of the active patch set.
+- The next Stream B target remains iterator / `next()` overhead on traced
+  `pairs()` paths, specifically the remaining root-linked child-trace churn.
 - The remaining perf families stay probe-only until they are release-stable on
   native `s390x`.

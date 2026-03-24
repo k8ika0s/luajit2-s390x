@@ -22,10 +22,11 @@ The repo-local structured benchmarks live in
 [tests/s390x/perf](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf):
 
 The current default `perf_bench` lane is intentionally narrower than the full
-catalog below. Right now it runs only `dispatch_trace.lua`, while the
-remaining microbenchmarks stay in-tree as follow-up probes for known
-release-mode crash or wrong-result shapes.
+catalog below. Right now it runs only:
+- `dispatch_trace.lua`
 
+The remaining microbenchmarks stay in-tree as follow-up probes for known
+release-mode crash or wrong-result shapes.
 - `dispatch_trace.lua`
   - simple numeric trace
   - side-exit-heavy loop
@@ -197,7 +198,7 @@ Current conclusion:
   and `side_exit_loop`
 - `family-status.json` is now the machine-readable promotion queue:
   - `dispatch_trace`: default perf gate
-  - `iterator_table`: first promotion candidate
+  - `iterator_table`: first focused probe family
   - remaining families: probe-only until release-stable
 - `hotspots.json` is now the machine-readable hotspot backlog for Stream B
 - the `%` queue is now intentionally split:
@@ -205,16 +206,33 @@ Current conclusion:
     - `tests/s390x/jit_core/mod_int_trace.lua`
   - former Stream A closure blocker, now green:
     - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-- manual `kdz` release probes also show `tests/s390x/perf/iterator_table.lua`
-  is baseline- and `z13`-stable on the current branch head:
-  - baseline:
-    - `pairs_sum/hot`: `0.528940s`
-    - `pairs_array_sum/hot`: `0.390094s`
-  - `z13`:
-    - `pairs_sum/hot`: `0.542014s`
-    - `pairs_array_sum/hot`: `0.395524s`
-  - it remains probe-only until it gets a clean structured restamp and a
-    trustworthy `jit=off` comparison on a fresh fully synced tree
+- `tests/s390x/perf/iterator_table.lua` remains the next focused probe family.
+  The older structured `kdz` restamp `perf-iterator-kdz-20260323a` exposed the
+  iterator cliff:
+  - `jit=on baseline pairs_sum/hot`: `0.528441s`
+  - `jit=on baseline pairs_array_sum/hot`: `0.401933s`
+- The current clean native probe on `kdz`
+  (`kdz:/root/luajit2-s390x/perf-wave-20260324b`) keeps `HEAD` plus only two
+  local perf changes:
+  - remove the `BC_IITERL` debug helper call from
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - stop forcing `hotloop=10,hotexit=10` in
+    [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
+- On that clean native probe, hot medians improved to:
+  - `pairs_sum/hot`: `0.371870s`
+  - `pairs_array_sum/hot`: `0.280803s`
+- Relative to the older structured iterator restamp, that is:
+  - `pairs_sum/hot`: about `1.42x` faster
+  - `pairs_array_sum/hot`: about `1.43x` faster
+- The same clean native probe kept the current `%`/side-exit/soak correctness
+  slice green:
+  - `tests/s390x/jit_core/mod_int_trace.lua`
+  - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+  - `tests/s390x/jit_core/side_exit.lua`
+  - `tests/s390x/soak/mixed_stress.lua`
+- A first `BC_ISNEXT` JLOOP-unpatch port on s390x built cleanly but did not
+  materially change the iterator timings, so it is not part of the active
+  patch set.
 
 That is a useful result, not a benchmark failure. It identifies the first
 measured Tier 1/Tier 2 optimization target.

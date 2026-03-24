@@ -94,19 +94,11 @@ SOAK_FFI_LUA_FILES = {
     "tests/s390x/soak/mixed_stress.lua",
 }
 
-PERF_BENCH_LUA_FILES = [
-    "tests/s390x/perf/dispatch_trace.lua",
-]
-
 PERF_FFI_LUA_FILES = {
     "tests/s390x/perf/ffi_calls.lua",
     "tests/s390x/perf/ffi_cdata.lua",
     "tests/s390x/perf/mixed_ffi.lua",
 }
-
-PERF_STAT_BENCH_LUA_FILES = [
-    "tests/s390x/perf/dispatch_trace.lua",
-]
 
 PERF_TOP_CROSS_ARCH_COUNT = 5
 
@@ -123,7 +115,7 @@ PERF_FAMILY_METADATA = {
         "promotion_order": 1,
         "status": "probe-only",
         "priority": "promote-next",
-        "notes": "First perf family to promote once release-stable on kdz.",
+        "notes": "Iterator/pairs hotspot under active remediation; use --perf-family iterator_table for focused restamps.",
     },
     "bitops_mix": {
         "default_gate": False,
@@ -175,6 +167,24 @@ PERF_FAMILY_METADATA = {
         "notes": "Mixed Lua + FFI workload.",
     },
 }
+
+PERF_BENCH_LUA_FILE_BY_FAMILY = {
+    family: f"tests/s390x/perf/{family}.lua"
+    for family in PERF_FAMILY_METADATA
+}
+
+PERF_BENCH_LUA_FILES = [
+    PERF_BENCH_LUA_FILE_BY_FAMILY[family]
+    for family, meta in sorted(
+        PERF_FAMILY_METADATA.items(),
+        key=lambda item: (item[1]["promotion_order"], item[0]),
+    )
+    if meta["default_gate"]
+]
+
+PERF_STAT_BENCH_LUA_FILES = [
+    PERF_BENCH_LUA_FILE_BY_FAMILY["dispatch_trace"],
+]
 
 SUITES = {
     "smoke": "Build and runtime smoke checks",
@@ -483,6 +493,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-id", default="auto")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--keep-remote", action="store_true")
+    parser.add_argument(
+        "--perf-family",
+        action="append",
+        choices=tuple(sorted(PERF_FAMILY_METADATA)),
+        default=[],
+        help="Run only the selected perf family or families instead of the default gate set.",
+    )
     return parser.parse_args()
 
 
@@ -896,7 +913,24 @@ def shell_skip_condition(paths: Iterable[str]) -> str:
     return f"if {joined}; then\n    continue\n  fi"
 
 
-def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
+def selected_perf_families(args: argparse.Namespace) -> List[str]:
+    if args.perf_family:
+        return list(dict.fromkeys(args.perf_family))
+    return [
+        family
+        for family, meta in sorted(
+            PERF_FAMILY_METADATA.items(),
+            key=lambda item: (item[1]["promotion_order"], item[0]),
+        )
+        if meta["default_gate"]
+    ]
+
+
+def selected_perf_bench_files(args: argparse.Namespace) -> List[str]:
+    return [PERF_BENCH_LUA_FILE_BY_FAMILY[family] for family in selected_perf_families(args)]
+
+
+def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Optional[str]:
     expect_ffi = "1" if variant.ffi == "on" else "0"
     expect_jit = "1" if variant.jit == "on" else "0"
     if suite == "smoke":
@@ -1088,7 +1122,7 @@ def suite_command(stage: str, suite: str, variant: Variant) -> Optional[str]:
         ).strip()
     if suite == "perf_bench":
         bench_files = [
-            test for test in PERF_BENCH_LUA_FILES
+            test for test in selected_perf_bench_files(ctx.args)
             if variant.ffi == "on" or test not in PERF_FFI_LUA_FILES
         ]
         bench_steps: List[str] = [
@@ -1636,7 +1670,7 @@ def run_local_control_perf(ctx: Context) -> None:
             family_order.append(family)
         if len(family_order) >= PERF_TOP_CROSS_ARCH_COUNT:
             break
-    bench_map = {pathlib.Path(path).stem: path for path in PERF_BENCH_LUA_FILES}
+    bench_map = PERF_BENCH_LUA_FILE_BY_FAMILY
     selected_files = [bench_map[family] for family in family_order if family in bench_map]
     if not selected_files:
         return
@@ -2156,7 +2190,7 @@ def run_stage(ctx: Context) -> None:
                 continue
             collect_remote_binaries(ctx, ctx.host, variant)
             for suite in remote_suites:
-                command = suite_command(ctx.args.stage, suite, variant)
+                command = suite_command(ctx, ctx.args.stage, suite, variant)
                 if command is None:
                     continue
                 result = run_remote_step(ctx, variant, suite, command)

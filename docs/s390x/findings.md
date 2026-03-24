@@ -3383,8 +3383,8 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - `perf/family-status.json`
   - `perf/hotspots.json`
 - Current Stream B state from those artifacts:
-  - `dispatch_trace` is the only default perf gate
-  - `iterator_table` is first in the family promotion queue
+  - `dispatch_trace` remains the default perf gate
+  - `iterator_table` remains the first focused probe family
   - the remaining perf families stay probe-only until release-stable
 - The local cross-arch control path also exposed a host-side tooling gap:
   - macOS local control builds were failing because
@@ -3427,11 +3427,31 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
     - `side_exit_loop/hot`: about `4.80x`
     - `hotexit_loop/hot`: about `1.62x`
 - First perf-family widening beyond `dispatch_trace` is also partially proved:
-  - manual `kdz` release probes show `tests/s390x/perf/iterator_table.lua`
-    is stable on baseline and `z13`
-  - it remains probe-only until it gets a clean structured restamp and a
-    trustworthy `jit=off` comparison on a fresh fully synced tree
-- That makes the next Stream B step straightforward:
-  - use the new structured `%` runs as the active baseline
-  - then start on the remaining dispatch/side-exit overhead, not generic `%`
-    correctness
+  - older structured `kdz` restamp `perf-iterator-kdz-20260323a` exposed the
+    iterator cliff:
+    - `jit=on baseline pairs_sum/hot`: `0.528441s`
+    - `jit=on baseline pairs_array_sum/hot`: `0.401933s`
+  - the current clean native probe on `kdz` (`perf-wave-20260324b`) keeps
+    `HEAD` plus only two local perf changes:
+    - remove the `BC_IITERL` debug helper call in `vm_s390x.dasc`
+    - stop forcing `hotloop=10,hotexit=10` in `tests/s390x/perf/benchlib.lua`
+  - that improved hot medians to:
+    - `pairs_sum/hot`: `0.371870s`
+    - `pairs_array_sum/hot`: `0.280803s`
+  - relative to the older structured restamp, that is:
+    - `pairs_sum/hot`: about `1.42x` faster
+    - `pairs_array_sum/hot`: about `1.43x` faster
+  - the same clean probe kept the current correctness slice green on `kdz`:
+    - `tests/s390x/jit_core/mod_int_trace.lua`
+    - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+    - `tests/s390x/jit_core/side_exit.lua`
+    - `tests/s390x/soak/mixed_stress.lua`
+- That changes the Stream B priority order:
+  - `dispatch_trace` remains a default gate and still shows real wins from the
+    `%` fast path
+  - `iterator_table` remains the next focused probe, not a default gate yet
+  - the next major optimization target is still traced iterator / `next()`
+    overhead, not generic modulo correctness
+  - a first `BC_ISNEXT` JLOOP-unpatch port on s390x built cleanly but did not
+    materially move the iterator numbers, so it is not part of the active
+    patch set
