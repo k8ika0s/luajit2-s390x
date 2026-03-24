@@ -282,6 +282,14 @@ The current full closure restamp on `kdz` is driving this order:
   - z13 tuning already improves the side-exit-heavy dispatch shape
   - the dispatch/side-exit family is the first proven performance hotspot,
     because current s390x `jit=on` is slower than `jit=off` on that workload
+  - the first `%` optimization slice is now landed locally and natively
+    restamped on `kdz` and `zkd0`: positive constant divisors no longer fall
+    through `lj_vm_modi` on the common traced int path
+  - latest manual `kdz` rerun from the current branch head shows the first real
+    JIT-side improvement on `dispatch_trace`:
+    - `numeric_loop/hot`: `0.043941s` -> `0.032199s` (`1.36x` faster)
+    - `side_exit_loop/hot`: `0.027545s` -> `0.017842s` (`1.54x` faster)
+    - `hotexit_loop/hot`: `0.011175s` -> `0.009221s` (`1.21x` faster)
   - first headline ratios:
     - `side_exit_loop/hot`: `z13` is about `1.18x` faster than baseline
     - `numeric_loop/hot`: baseline `jit=on` is about `21.69x` slower than

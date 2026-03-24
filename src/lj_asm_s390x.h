@@ -1483,6 +1483,46 @@ static void asm_mul(ASMState *as, IRIns *ir)
   if (dest != left)
     emit_movrr(as, ir, dest, left);
 }
+
+static int asm_modk_int(ASMState *as, IRIns *ir)
+{
+  IRIns *k = IR(ir->op2);
+  Reg left, divr;
+  RegSet allow;
+  MCode *l_done;
+  const Reg rem = RID_R4;
+  const Reg quot = RID_R5;
+
+  if (!irt_isint(ir->t) || !irref_isk(ir->op2) || k->o != IR_KINT || k->i <= 0)
+    return 0;
+
+  /* First fast path: signed integer modulo by a positive constant divisor.
+  ** Use DSGR to avoid the generic lj_vm_modi helper on the common traced
+  ** loop-index path. Keep all other cases on the existing helper fallback.
+  */
+  ra_destreg(as, ir, rem);
+  ra_evictset(as, RID2RSET(quot));
+  ra_modified(as, quot);
+  allow = RSET_GPR_NOB;
+  rset_clear(allow, rem);
+  rset_clear(allow, quot);
+  left = ra_alloc1_nobase(as, ir->op1, allow, -278);
+  allow = rset_exclude(RSET_GPR_NOB, left);
+  rset_clear(allow, rem);
+  rset_clear(allow, quot);
+  divr = ra_allock(as, k->i, allow);
+  l_done = as->mcp;
+  emit_u32(as, S390X_INS_RXE(S390XI_AGR, rem, divr));
+  emit_condbranch(as, CC_GE, l_done);
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, rem, 0));
+  emit_u32(as, S390X_INS_RXE(S390XI_DSGR, rem, divr));
+  emit_shiftimm(as, S390XI_SRAG, rem, quot, 63);
+  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, quot, quot));
+  if (quot != left)
+    emit_movrr(as, ir, quot, left);
+  return 1;
+}
+
 static void asm_neg(ASMState *as, IRIns *ir)
 {
   Reg dest, left;

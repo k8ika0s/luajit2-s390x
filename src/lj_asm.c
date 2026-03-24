@@ -2190,6 +2190,10 @@ static void asm_div(ASMState *as, IRIns *ir)
 
 static void asm_mod(ASMState *as, IRIns *ir)
 {
+#if LJ_TARGET_S390X
+  if (asm_modk_int(as, ir))
+    return;
+#endif
 #if LJ_64 && LJ_HASFFI
   if (!irt_isint(ir->t))
     asm_callid(as, ir, irt_isi64(ir->t) ? IRCALL_lj_carith_modi64 :

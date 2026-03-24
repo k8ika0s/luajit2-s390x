@@ -175,9 +175,25 @@ Current conclusion:
 - the latest closure soak/runtime remediation is correctness-only and keeps the
   branch on track for performance work; it does not change the first measured
   optimization priority
+- the first real `%` optimization slice is now in the branch:
+  - s390x lowers signed int modulo by positive constant divisors through
+    native `dsgr` instead of always calling `lj_vm_modi`
+  - the fast path is restamped correct on both hosts for:
+    - `tests/s390x/jit_core/mod_int_trace.lua`
+    - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+    - `tests/s390x/jit_core/side_exit.lua`
+    - `tests/s390x/soak/mixed_stress.lua`
+  - `mod_int_trace.lua` now also covers negative dividends to keep the
+    signed-remainder correction path pinned down
 - z13 tuning already helps the side-exit-heavy dispatch shape materially
 - the dispatch and side-exit family is currently a real optimization hotspot,
   because the present s390x JIT-on path is slower than JIT-off on this family
+- a fresh manual native rerun on `kdz` from the current branch head shows the
+  first measured win on that hotspot family relative to the stamped
+  `perf-kdz-20260323a` baseline:
+  - `numeric_loop/hot`: `0.043941s` -> `0.032199s` (`1.36x` faster)
+  - `side_exit_loop/hot`: `0.027545s` -> `0.017842s` (`1.54x` faster)
+  - `hotexit_loop/hot`: `0.011175s` -> `0.009221s` (`1.21x` faster)
 - `family-status.json` is now the machine-readable promotion queue:
   - `dispatch_trace`: default perf gate
   - `iterator_table`: first promotion candidate

@@ -3385,3 +3385,31 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
     `MACOSX_DEPLOYMENT_TARGET` was not exported
   - the driver now sets that automatically for local control builds
   - a fresh perf restamp is still needed to confirm the local-control lane
+
+2026-03-23: first native `%` fast path landed
+
+- Commit `26ee6d1b` fixed the remaining low-threshold `%` hotexit correctness
+  bug by repairing root-trace restore/canonicalization; that moved `%` fully
+  into Stream B performance work.
+- The next cut now lands the first real s390x modulo optimization:
+  - `IR_MOD` on signed ints with positive constant divisors no longer falls
+    straight through `IRCALL_lj_vm_modi`
+  - the new path uses native `dsgr`, with signed-remainder correction for
+    negative dividends
+- Native correctness restamp after that change is green on both hosts for:
+  - `tests/s390x/jit_core/mod_int_trace.lua`
+  - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+  - `tests/s390x/jit_core/side_exit.lua`
+- Additional safety restamp on `kdz` is green:
+  - `tests/s390x/soak/mixed_stress.lua`
+- `mod_int_trace.lua` now includes negative-dividend coverage so the signed
+  correction path stays pinned down under JIT.
+- Manual `kdz` dispatch rerun from the current branch head shows the first
+  measured `%`-driven win against the stamped `perf-kdz-20260323a` baseline:
+  - `numeric_loop/hot`: `0.043941s` -> `0.032199s` (`1.36x` faster)
+  - `side_exit_loop/hot`: `0.027545s` -> `0.017842s` (`1.54x` faster)
+  - `hotexit_loop/hot`: `0.011175s` -> `0.009221s` (`1.21x` faster)
+- That makes the next Stream B step straightforward:
+  - restamp a structured perf run with the new modulo path
+  - then start on the remaining dispatch/side-exit overhead, not generic `%`
+    correctness
