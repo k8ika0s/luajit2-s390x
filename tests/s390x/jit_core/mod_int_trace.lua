@@ -36,6 +36,14 @@ local function hotexit_loop(n)
   return total
 end
 
+local function signed_loop(n)
+  local total = 0
+  for i = -n, n do
+    total = total + (i % 97)
+  end
+  return total
+end
+
 local function expect(fn, n)
   jit.off(fn, true)
   local expected = fn(n)
@@ -50,6 +58,7 @@ end
 t.truthy(select(1, jit.status()), "jit enabled")
 expect(numeric_loop, 400)
 expect(side_exit_loop, 400)
+expect(signed_loop, 200)
 
 -- Keep the aggressive hotexit/stitch shape as a separate tracked repro until
 -- it is closure-green on native s390x release builds.
