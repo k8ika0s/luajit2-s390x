@@ -320,6 +320,26 @@ The current full closure restamp on `kdz` is driving this order:
   - `dispatch_trace hotexit_loop/hot`: `0.009131s`
 - The first `BC_ISNEXT` JLOOP-unpatch port built cleanly but did not materially
   change iterator timings, so it is not part of the active patch set.
+- The next coherent native probe on top of that same safe patch set adds one
+  more s390x-only runtime tuning change:
+  - default `JIT_P_hotexit = 200` in
+    [src/lib_jit.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lib_jit.c)
+- On `kdz:/root/luajit2-s390x/perf-wave-20260324b`, that drops iterator hot
+  medians again while preserving the current modulo/side-exit/soak checks:
+  - `iterator_table pairs_sum/hot`: `0.045205s`
+  - `iterator_table pairs_array_sum/hot`: `0.046697s`
+  - repeated same-process `pairs()` timing falls to roughly
+    `0.003175s -> 0.030375s` across warmup, versus the earlier
+    `0.066625s -> 0.234235s`
+  - dispatch stays near the current `%`-fast-path baseline:
+    - `numeric_loop/hot`: `0.032363s`
+    - `side_exit_loop/hot`: `0.017595s`
+    - `hotexit_loop/hot`: `0.008959s`
+- That makes the current best s390x iterator perf story:
+  - remove the `BC_IITERL` helper overhead
+  - stop forcing `hotexit=10` in perf probes
+  - raise the native default `hotexit` threshold to reduce root-linked
+    iterator side-trace churn
 - The next Stream B target remains iterator / `next()` overhead on traced
   `pairs()` paths, specifically the remaining root-linked child-trace churn.
 - The remaining perf families stay probe-only until they are release-stable on
