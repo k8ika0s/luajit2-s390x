@@ -3228,31 +3228,37 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   `tests/s390x/perf/dispatch_trace.lua`.
 - Authoritative native runs:
   - JIT on baseline and z13:
-    [artifacts/s390x/20260322T145212.814679Z-p29811](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811)
+    [artifacts/s390x/20260324T022735.280630Z-p89021](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021)
   - JIT off baseline and z13:
-    [artifacts/s390x/20260322T145555.369124Z-p31961](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961)
+    [artifacts/s390x/20260324T023224.602906Z-p91889](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T023224.602906Z-p91889)
 - Representative hot-scale medians on `kdz`, `gcc release`:
   - JIT on baseline:
-    - `numeric_loop`: `0.044697s`
-    - `side_exit_loop`: `0.032459s`
-    - `hotexit_loop`: `0.011691s`
+    - `numeric_loop`: `0.032174s`
+    - `side_exit_loop`: `0.017588s`
+    - `hotexit_loop`: `0.009095s`
   - JIT on z13:
-    - `numeric_loop`: `0.043573s`
-    - `side_exit_loop`: `0.027554s`
-    - `hotexit_loop`: `0.011168s`
+    - `numeric_loop`: `0.032158s`
+    - `side_exit_loop`: `0.017870s`
+    - `hotexit_loop`: `0.009307s`
   - JIT off baseline:
-    - `numeric_loop`: `0.002061s`
-    - `side_exit_loop`: `0.003735s`
-    - `hotexit_loop`: `0.005610s`
+    - `numeric_loop`: `0.002070s`
+    - `side_exit_loop`: `0.003668s`
+    - `hotexit_loop`: `0.005599s`
 - The first headline performance ratios from those runs are:
-  - `side_exit_loop/hot`: `z13` is about `1.18x` faster than baseline
-  - `numeric_loop/hot`: `z13` is about `1.03x` faster than baseline
+  - `%` fast path vs the pre-fast-path stamped baseline:
+    - `numeric_loop/hot`: about `1.37x` faster
+    - `side_exit_loop/hot`: about `1.57x` faster
+    - `hotexit_loop/hot`: about `1.23x` faster
+  - `numeric_loop/hot`: `z13` is about `1.00x` vs baseline
+  - `side_exit_loop/hot`: `z13` is about `0.98x` vs baseline
   - baseline `jit=on` vs `jit=off`:
-    - `numeric_loop/hot`: about `21.69x` slower
-    - `side_exit_loop/hot`: about `8.69x` slower
+    - `numeric_loop/hot`: about `15.54x` slower
+    - `side_exit_loop/hot`: about `4.80x` slower
+    - `hotexit_loop/hot`: about `1.62x` slower
 - Current interpretation:
   - the perf harness is working
-  - z13 tuning gives an immediate measured gain on the side-exit-heavy shape
+  - the first `%` fast path produced a real measured win on the dispatch
+    family, but the branch is still leaving substantial speed on the table
   - dispatch and side-exit overhead are now proven optimization hotspots for
     the s390x JIT path
 - Follow-up validation:
@@ -3371,7 +3377,7 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 - `mod_hotexit_stress.lua` is no longer a red closure blocker on the current
   branch head and can move out of Stream A.
 - The latest structured native perf restamp is now:
-  - `perf-kdz-20260323a`
+  - `20260324T022735.280630Z-p89021`
   - green on `kdz`
 - That perf run adds two new machine-readable artifacts:
   - `perf/family-status.json`
@@ -3384,7 +3390,8 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - macOS local control builds were failing because
     `MACOSX_DEPLOYMENT_TARGET` was not exported
   - the driver now sets that automatically for local control builds
-  - a fresh perf restamp is still needed to confirm the local-control lane
+  - the refreshed run now emits cross-arch ratios again, but they remain
+    diagnostic only and not a support gate
 
 2026-03-23: first native `%` fast path landed
 
@@ -3404,12 +3411,27 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - `tests/s390x/soak/mixed_stress.lua`
 - `mod_int_trace.lua` now includes negative-dividend coverage so the signed
   correction path stays pinned down under JIT.
-- Manual `kdz` dispatch rerun from the current branch head shows the first
-  measured `%`-driven win against the stamped `perf-kdz-20260323a` baseline:
-  - `numeric_loop/hot`: `0.043941s` -> `0.032199s` (`1.36x` faster)
-  - `side_exit_loop/hot`: `0.027545s` -> `0.017842s` (`1.54x` faster)
-  - `hotexit_loop/hot`: `0.011175s` -> `0.009221s` (`1.21x` faster)
+- Fresh structured native runs now restamp that same `%` win with current
+  branch artifacts:
+  - JIT on:
+    - `20260324T022735.280630Z-p89021`
+  - JIT off:
+    - `20260324T023224.602906Z-p91889`
+  - against the older stamped dispatch baseline, the current branch is now:
+    - `numeric_loop/hot`: about `1.37x` faster
+    - `side_exit_loop/hot`: about `1.57x` faster
+    - `hotexit_loop/hot`: about `1.23x` faster
+  - but the branch is still slower than interpreter-only execution on that
+    family:
+    - `numeric_loop/hot`: about `15.54x`
+    - `side_exit_loop/hot`: about `4.80x`
+    - `hotexit_loop/hot`: about `1.62x`
+- First perf-family widening beyond `dispatch_trace` is also partially proved:
+  - manual `kdz` release probes show `tests/s390x/perf/iterator_table.lua`
+    is stable on baseline and `z13`
+  - it remains probe-only until it gets a clean structured restamp and a
+    trustworthy `jit=off` comparison on a fresh fully synced tree
 - That makes the next Stream B step straightforward:
-  - restamp a structured perf run with the new modulo path
+  - use the new structured `%` runs as the active baseline
   - then start on the remaining dispatch/side-exit overhead, not generic `%`
     correctness

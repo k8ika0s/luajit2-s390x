@@ -268,36 +268,42 @@ The current full closure restamp on `kdz` is driving this order:
 - The first stamped native release baseline is the `dispatch_trace` family on
   `kdz`.
 - The latest structured perf restamp is now:
-  - [perf-kdz-20260323a summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/summary.md)
-  - [perf summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/perf-summary.md)
-  - [family status](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/family-status.json)
-  - [hotspots](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/hotspots.json)
+  - [20260324T022735.280630Z-p89021 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/summary.md)
+  - [perf summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/perf-summary.md)
+  - [family status](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/family-status.json)
+  - [hotspots](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/hotspots.json)
 - Authoritative perf run artifacts:
   - JIT on:
-    [20260322T145212.814679Z-p29811 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811/summary.md)
+    [20260324T022735.280630Z-p89021 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/summary.md)
   - JIT off:
-    [20260322T145555.369124Z-p31961 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961/summary.md)
+    [20260324T023224.602906Z-p91889 summary](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T023224.602906Z-p91889/summary.md)
 - Current measured result:
   - the harness is working
-  - z13 tuning already improves the side-exit-heavy dispatch shape
-  - the dispatch/side-exit family is the first proven performance hotspot,
-    because current s390x `jit=on` is slower than `jit=off` on that workload
-  - the first `%` optimization slice is now landed locally and natively
-    restamped on `kdz` and `zkd0`: positive constant divisors no longer fall
-    through `lj_vm_modi` on the common traced int path
-  - latest manual `kdz` rerun from the current branch head shows the first real
-    JIT-side improvement on `dispatch_trace`:
-    - `numeric_loop/hot`: `0.043941s` -> `0.032199s` (`1.36x` faster)
-    - `side_exit_loop/hot`: `0.027545s` -> `0.017842s` (`1.54x` faster)
-    - `hotexit_loop/hot`: `0.011175s` -> `0.009221s` (`1.21x` faster)
+  - the first `%` optimization slice is now landed and structurally restamped:
+    positive constant divisors no longer fall through `lj_vm_modi` on the
+    common traced int path
+  - the post-fast-path structured `dispatch_trace` run now shows:
+    - `numeric_loop/hot`: `0.032174s`
+    - `side_exit_loop/hot`: `0.017588s`
+    - `hotexit_loop/hot`: `0.009095s`
+  - against the previous stamped baseline, that is:
+    - `numeric_loop/hot`: about `1.37x` faster
+    - `side_exit_loop/hot`: about `1.57x` faster
+    - `hotexit_loop/hot`: about `1.23x` faster
   - first headline ratios:
-    - `side_exit_loop/hot`: `z13` is about `1.18x` faster than baseline
-    - `numeric_loop/hot`: baseline `jit=on` is about `21.69x` slower than
-      `jit=off`
+    - post-fast-path baseline `jit=on` vs `jit=off`, `numeric_loop/hot`:
+      about `15.54x` slower
+    - post-fast-path baseline `jit=on` vs `jit=off`, `side_exit_loop/hot`:
+      about `4.80x` slower
+    - post-fast-path baseline `jit=on` vs `jit=off`, `hotexit_loop/hot`:
+      about `1.62x` slower
 - The broader perf catalog remains in-tree, but only the release-stable subset
   should gate the current perf stage until the remaining families are
   correctness-stable under native release measurement.
 - `dispatch_trace` is the only current default perf gate.
-- `iterator_table` is first in the promotion queue.
+- `iterator_table` is still first in the promotion queue.
+- manual `kdz` release probes now show `iterator_table` is baseline- and
+  `z13`-stable on the current branch head, but it is not promoted into the
+  structured default lane yet.
 - The remaining perf families stay probe-only until they are release-stable on
   native `s390x`.

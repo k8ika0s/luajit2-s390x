@@ -129,45 +129,50 @@ dispatch family on `kdz`.
 Authoritative structured runs:
 
 - JIT-on baseline and z13:
-  [artifacts/s390x/20260322T145212.814679Z-p29811](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811)
+  [artifacts/s390x/20260324T022735.280630Z-p89021](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021)
   - summary:
-    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145212.814679Z-p29811/summary.md)
+    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/summary.md)
 - JIT-off baseline and z13:
-  [artifacts/s390x/20260322T145555.369124Z-p31961](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961)
+  [artifacts/s390x/20260324T023224.602906Z-p91889](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T023224.602906Z-p91889)
   - summary:
-    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260322T145555.369124Z-p31961/summary.md)
+    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T023224.602906Z-p91889/summary.md)
 - refreshed dispatch-only restamp:
-  [artifacts/s390x/perf-kdz-20260323a](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a)
+  [artifacts/s390x/20260324T022735.280630Z-p89021](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021)
   - summary:
-    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/summary.md)
+    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/summary.md)
   - perf summary:
-    [perf-summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/perf-summary.md)
+    [perf-summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/perf-summary.md)
   - family status:
-    [family-status.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/family-status.json)
+    [family-status.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/family-status.json)
   - hotspots:
-    [hotspots.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/perf-kdz-20260323a/perf/hotspots.json)
+    [hotspots.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/hotspots.json)
 
 Representative median runtimes on `kdz`, `gcc release`, `ffi=on`, `mixed`:
 
 - JIT on, baseline:
-  - `numeric_loop/hot`: `0.044697s`
-  - `side_exit_loop/hot`: `0.032459s`
-  - `hotexit_loop/hot`: `0.011691s`
+  - `numeric_loop/hot`: `0.032174s`
+  - `side_exit_loop/hot`: `0.017588s`
+  - `hotexit_loop/hot`: `0.009095s`
 - JIT on, z13:
-  - `numeric_loop/hot`: `0.043573s`
-  - `side_exit_loop/hot`: `0.027554s`
-  - `hotexit_loop/hot`: `0.011168s`
+  - `numeric_loop/hot`: `0.032158s`
+  - `side_exit_loop/hot`: `0.017870s`
+  - `hotexit_loop/hot`: `0.009307s`
 - JIT off, baseline:
-  - `numeric_loop/hot`: `0.002061s`
-  - `side_exit_loop/hot`: `0.003735s`
-  - `hotexit_loop/hot`: `0.005610s`
+  - `numeric_loop/hot`: `0.002070s`
+  - `side_exit_loop/hot`: `0.003668s`
+  - `hotexit_loop/hot`: `0.005599s`
 
 Headline ratios from those runs:
 
-- `z13` vs baseline, `jit=on`, `side_exit_loop/hot`: about `1.18x` faster
-- `z13` vs baseline, `jit=on`, `numeric_loop/hot`: about `1.03x` faster
-- `jit=on` vs `jit=off`, baseline, `side_exit_loop/hot`: about `8.69x` slower
-- `jit=on` vs `jit=off`, baseline, `numeric_loop/hot`: about `21.69x` slower
+- `%` fast path vs pre-fast-path stamped baseline:
+  - `numeric_loop/hot`: about `1.37x` faster
+  - `side_exit_loop/hot`: about `1.57x` faster
+  - `hotexit_loop/hot`: about `1.23x` faster
+- `z13` vs baseline, `jit=on`, `numeric_loop/hot`: about `1.00x`
+- `z13` vs baseline, `jit=on`, `side_exit_loop/hot`: about `0.98x`
+- `jit=on` vs `jit=off`, baseline, `numeric_loop/hot`: about `15.54x` slower
+- `jit=on` vs `jit=off`, baseline, `side_exit_loop/hot`: about `4.80x` slower
+- `jit=on` vs `jit=off`, baseline, `hotexit_loop/hot`: about `1.62x` slower
 
 Current conclusion:
 
@@ -185,15 +190,11 @@ Current conclusion:
     - `tests/s390x/soak/mixed_stress.lua`
   - `mod_int_trace.lua` now also covers negative dividends to keep the
     signed-remainder correction path pinned down
-- z13 tuning already helps the side-exit-heavy dispatch shape materially
 - the dispatch and side-exit family is currently a real optimization hotspot,
   because the present s390x JIT-on path is slower than JIT-off on this family
-- a fresh manual native rerun on `kdz` from the current branch head shows the
-  first measured win on that hotspot family relative to the stamped
-  `perf-kdz-20260323a` baseline:
-  - `numeric_loop/hot`: `0.043941s` -> `0.032199s` (`1.36x` faster)
-  - `side_exit_loop/hot`: `0.027545s` -> `0.017842s` (`1.54x` faster)
-  - `hotexit_loop/hot`: `0.011175s` -> `0.009221s` (`1.21x` faster)
+- the current perf story is materially better than the pre-fast-path baseline,
+  but the branch is still leaving large gains on the table on `numeric_loop`
+  and `side_exit_loop`
 - `family-status.json` is now the machine-readable promotion queue:
   - `dispatch_trace`: default perf gate
   - `iterator_table`: first promotion candidate
@@ -204,6 +205,16 @@ Current conclusion:
     - `tests/s390x/jit_core/mod_int_trace.lua`
   - former Stream A closure blocker, now green:
     - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
+- manual `kdz` release probes also show `tests/s390x/perf/iterator_table.lua`
+  is baseline- and `z13`-stable on the current branch head:
+  - baseline:
+    - `pairs_sum/hot`: `0.528940s`
+    - `pairs_array_sum/hot`: `0.390094s`
+  - `z13`:
+    - `pairs_sum/hot`: `0.542014s`
+    - `pairs_array_sum/hot`: `0.395524s`
+  - it remains probe-only until it gets a clean structured restamp and a
+    trustworthy `jit=off` comparison on a fresh fully synced tree
 
 That is a useful result, not a benchmark failure. It identifies the first
 measured Tier 1/Tier 2 optimization target.
