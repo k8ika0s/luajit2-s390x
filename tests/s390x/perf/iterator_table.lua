@@ -2,9 +2,9 @@ local bench = dofile("tests/s390x/perf/benchlib.lua")
 
 local scale_order = { "small", "medium", "hot" }
 local scales = {
-  small = 200,
-  medium = 800,
-  hot = 3200,
+  small = 4000,
+  medium = 20000,
+  hot = 80000,
 }
 
 local base_table = { a = 1, b = 2, c = 3, d = 4, e = 5 }
@@ -38,6 +38,7 @@ for _, scale in ipairs(scale_order) do
     workload = "pairs_sum",
     scale = scale,
     iterations = n,
+    warmup_runs = 2,
     run = pairs_sum,
     validate = function(result)
       bench.eq(result, expected_pairs, "pairs_sum/" .. scale)
@@ -47,6 +48,7 @@ for _, scale in ipairs(scale_order) do
     workload = "pairs_array_sum",
     scale = scale,
     iterations = n,
+    warmup_runs = 2,
     run = pairs_array_sum,
     validate = function(result)
       bench.eq(result, expected_array_pairs, "pairs_array_sum/" .. scale)
