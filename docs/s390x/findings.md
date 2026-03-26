@@ -3561,3 +3561,50 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - it is useful because it converts the remaining iterator question from
     “why is the carried total corrupted?” into
     “why does the clean `BC_JLOOP` follow-on still abort as `LINNER`?”
+
+2026-03-26: iterator classifier split cleanly into array and hash fronts
+
+- The current scratch candidate pair is now proven to be array-specific, not a
+  general iterator completion:
+  - skip the local `asm_gencall_sload()` type guard for `IRSLOAD_KEYINDEX`
+  - guard the post-call `lj_vm_next` numeric key lane on the array path
+  - allow the direct payload descendant for the exposed
+    `parent==root, exit==1, BC_JMP -> BC_ADDVV` side-entry shape
+- Direct native classifier runs on `kdz` show the array path is now
+  semantically clean under that pair:
+  - `pairs_array_sum hot50`: correct after the payload descendant wins
+  - `pairs_array_sum hot100`: correct with a true `parent=1 exit=1` side trace
+  - `pairs_array_sum hot200`: correct with only the root fallback path
+- The same promoted scratch pair is not shippable because it breaks the hash
+  iterator family:
+  - `tests/s390x/perf/iterator_table.lua` fails immediately on native `kdz`
+  - `pairs_sum/small` returns `60000` instead of the expected `56871`
+  - tiny direct `pairs_sum` classifiers also stay wrong (`actual=6`, `8`,
+    `158`, etc. vs expected `300`)
+- The hash path is now classified much more tightly than before:
+  - the active root owner is no longer the array-style numeric key guard
+  - root `trace 1 exit 4` is the second-half post-call `vload_addr` owner in
+    the repeated `lj_vm_next` result cluster
+  - the first true side trace on the hash path comes from `parent=1 exit=4`,
+    not from `parent=1 exit=1`
+- The new first-stop native probes show that hash `exit 4` is not firing on
+  random garbage:
+  - the first stopped root `exit 4` already has a sane carried total
+    (`slot0 = 8`)
+  - the `lj_vm_next` value-lane probe reads real table values (`2`, `3`, `4`)
+  - the new address-lane probe reads real boxed string-key qwords before the
+    failing boundary, then sees the expected nil/end qword from `tmptv`
+    (`0xffffffffffffffff`)
+- That changes the remaining hash diagnosis:
+  - helper ABI is not the blocker
+  - KEYINDEX restore ownership is not the blocker
+  - recorder-side nil-descendant suppression on `parent=1 exit=4` is not the
+    blocker; it was tested and cleanly reverted
+  - the remaining red is the hash restart/resume path after a real
+    end-of-iteration post-call key-lane exit, not another pre-call guard issue
+- So the current iterator state is:
+  - array side: classifier is coherent enough to guide a real fix
+  - hash side: still incorrect, still the reason no iterator completion patch
+    has been committed
+  - no promotion or perf restamp is justified until the hash `exit 4` restart
+    boundary is fixed

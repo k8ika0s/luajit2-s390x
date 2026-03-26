@@ -383,5 +383,15 @@ The current full closure restamp on `kdz` is driving this order:
     iterator side-trace churn
 - The next Stream B target remains iterator / `next()` overhead on traced
   `pairs()` paths, specifically the remaining root-linked child-trace churn.
+- As of the latest 2026-03-26 scratch classifier wave, that iterator story is
+  split:
+  - array-backed `pairs()` now has a coherent classifier path and a plausible
+    narrow fix direction
+  - hash-backed `pairs()` is still incorrect and is the real blocker for any
+    iterator completion commit
+  - the active hash owner is root `exit 4` in the second-half post-call
+    `lj_vm_next` key-lane cluster, not the earlier array-style `exit 1`
+    boundary
+  - no iterator completion patch is currently promotable from this tree
 - The remaining perf families stay probe-only until they are release-stable on
   native `s390x`.
