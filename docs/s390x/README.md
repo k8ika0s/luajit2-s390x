@@ -200,6 +200,27 @@ sync loop.
     - `tests/s390x/soak/trace_gc_churn.lua`
   - the full closure restamp is now green as:
     - `closure-kdz-20260323e`
+- The iterator family is now in a split state:
+  - structural trace-shape guardrail is green on both native hosts through
+    [tests/s390x/jit_loops/iterator_trace_shape.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/iterator_trace_shape.lua)
+  - the old unbounded `root -> n` iterator trace churn is no longer the live
+    blocker
+  - the remaining blocker is steady-state performance on native `kdz`
+    release JIT, not basic correctness
+- The latest concrete iterator/backend finding is a real Linux/s390x ABI fix:
+  - `lj_vm_next` in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    was incorrectly using saved register `r6` as helper scratch state
+  - that could clobber a loop-carried integer live range across the iterator
+    helper boundary
+  - the helper now preserves `r6`, and native iterator probes remain correct
+- The remaining iterator performance red is narrower now:
+  - safe baseline hotspot still centers on `trace 2 exit 1`
+  - scratch suppression of the duplicated KEYINDEX-side pre-call guard is not
+    the landing fix; with the helper ABI fix in place it still only exposes the
+    deeper owner at root `exit 2`
+  - that surviving owner maps to the post-call carried-total boundary
+    (`CALLL -> HIOP -> VLOAD -> SLOAD -> ADDOV`)
 
 ## Current Next Actions
 
@@ -218,14 +239,20 @@ sync loop.
      on modulo hotexit exits, not in generic `%` lowering
    - keep `mod_int_trace.lua` as the Stream B optimization entry point now
      that the hotexit correctness repro is no longer red
-3. Keep Stream B anchored on the new structured perf restamp:
+3. Keep iterator work on the post-call carried-total boundary:
+   - keep the `lj_vm_next` `r6` preservation fix
+   - keep duplicate-guard diagnostics as scratch-only until the final iterator
+     perf fix is proven
+   - next live target is the standalone post-call `sload_int` owner before
+     `ADDOV`, not generic iterator policy or helper return-register mechanics
+4. Keep Stream B anchored on the new structured perf restamp:
    - `perf-kdz-20260323a`
    - `dispatch_trace` remains the only default perf gate
    - `family-status.json` is now the family promotion queue
    - `hotspots.json` is now the machine-readable hotspot list
-4. Re-restamp local cross-arch perf control after the new macOS
+5. Re-restamp local cross-arch perf control after the new macOS
    `MACOSX_DEPLOYMENT_TARGET` export hardening.
-5. Close or explicitly rule out every exercised item still listed in the
+6. Close or explicitly rule out every exercised item still listed in the
    refreshed closure coverage report before widening the support claim beyond
    the current branch-level wording.
 

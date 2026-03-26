@@ -2417,7 +2417,7 @@ static void build_subroutines(BuildCtx *ctx)
 |.define NEXT_IDX,		CARG2
 |.define NEXT_ASIZE,		CARG4
 |.define NEXT_NODE,		CARG3
-|.define NEXT_ARR,		CARG5
+|.define NEXT_ARR,		CARG3	// Array/hash paths are disjoint; keep r6 preserved.
 |.define NEXT_VAL,		TMPR1
 |.define NEXT_KEY,		TMPR0
 |

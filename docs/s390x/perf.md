@@ -211,6 +211,27 @@ Current conclusion:
   iterator cliff:
   - `jit=on baseline pairs_sum/hot`: `0.528441s`
   - `jit=on baseline pairs_array_sum/hot`: `0.401933s`
+- The current iterator status is now split cleanly:
+  - structure:
+    - green on both native hosts via
+      [tests/s390x/jit_loops/iterator_trace_shape.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/iterator_trace_shape.lua)
+    - the old unbounded iterator-family explosion is contained
+  - steady-state performance:
+    - still red on `kdz`
+    - the safe baseline remains dominated by `trace 2 exit 1`
+    - the hot guard owner on that safe path is still `guardmark=0x508`
+      (`asm_gencall_sload()` pre-call typecheck on the iterator helper path)
+    - suppressing only the KEYINDEX-side gencall guard remains
+      classification-only: it shifts churn to root `exit 2`
+      `guardmark=0x101`, which maps to the standalone post-call `sload_int`
+      right before `ADDOV`
+- One real helper-side ABI bug is now fixed in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - `lj_vm_next` no longer uses saved register `r6` as `NEXT_ARR`
+  - that fix removes a genuine Linux/s390x callee-save violation and keeps the
+    helper from clobbering a loop-carried integer live range
+  - it improves backend correctness hygiene, but it does not by itself remove
+    the remaining iterator perf hotspot
 - The current clean native probe on `kdz`
   (`kdz:/root/luajit2-s390x/perf-wave-20260324b`) keeps `HEAD` plus only two
   local perf changes:
