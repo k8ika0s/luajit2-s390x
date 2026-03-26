@@ -824,7 +824,14 @@ def expand_choice(value: str, ordered: List[str]) -> List[str]:
     return [value]
 
 
-def build_variants(stage: str, compiler_choice: str, mode_choice: str, jit_choice: str) -> List[Variant]:
+def build_variants(
+    stage: str,
+    compiler_choice: str,
+    mode_choice: str,
+    jit_choice: str,
+    *,
+    perf_family_selected: bool = False,
+) -> List[Variant]:
     compilers = expand_choice(compiler_choice, ["gcc", "clang"])
     modes = expand_choice(mode_choice, ["debug", "release"])
     jits = expand_choice(jit_choice, ["off", "on"])
@@ -840,9 +847,15 @@ def build_variants(stage: str, compiler_choice: str, mode_choice: str, jit_choic
     if stage == "perf":
         for compiler in compilers:
             for mode in modes:
+                if perf_family_selected and jit_choice == "on":
+                    variants.append(Variant(compiler=compiler, mode=mode, jit="on", tuning="baseline"))
+                    variants.append(Variant(compiler=compiler, mode=mode, jit="on", tuning="z13"))
+                    variants.append(Variant(compiler=compiler, mode=mode, jit="off", tuning="baseline"))
+                    continue
                 for jit in jits:
                     variants.append(Variant(compiler=compiler, mode=mode, jit=jit, tuning="baseline"))
-                    variants.append(Variant(compiler=compiler, mode=mode, jit=jit, tuning="z13"))
+                    if jit == "on":
+                        variants.append(Variant(compiler=compiler, mode=mode, jit=jit, tuning="z13"))
         return variants
     for compiler in compilers:
         for mode in modes:
@@ -1341,6 +1354,15 @@ def perf_baseline_selector(record: dict) -> bool:
     )
 
 
+def perf_authoritative_selector(record: dict) -> bool:
+    return (
+        record.get("host") == "kdz"
+        and record.get("compiler") == "gcc"
+        and record.get("mode") == "release"
+        and record.get("ffi") == "on"
+    )
+
+
 def perf_suite_key(record: dict) -> tuple[str, str, str]:
     return (
         str(record.get("family", "")),
@@ -1392,22 +1414,22 @@ def generate_perf_comparisons(ctx: Context) -> None:
     def record_index(selector) -> Dict[tuple[str, str, str], dict]:
         return build_perf_baseline_index(ctx.perf_records, selector)
 
-    on_index = record_index(lambda r: r.get("jit") == "on")
-    off_index = record_index(lambda r: r.get("jit") == "off")
+    on_index = record_index(lambda r: perf_authoritative_selector(r) and r.get("jit") == "on" and r.get("tuning") == "baseline")
+    off_index = record_index(lambda r: perf_authoritative_selector(r) and r.get("jit") == "off" and r.get("tuning") == "baseline")
     for key, on_record in on_index.items():
         off_record = off_index.get(key)
         if off_record:
             maybe_add_comparison(ctx, "jit_on_vs_off", on_record, off_record, "jit=on", "jit=off")
 
-    z13_index = record_index(lambda r: r.get("host") == "kdz" and r.get("tuning") == "z13")
-    base_index = record_index(lambda r: r.get("host") == "kdz" and r.get("tuning") == "baseline")
+    z13_index = record_index(lambda r: perf_authoritative_selector(r) and r.get("jit") == "on" and r.get("tuning") == "z13")
+    base_index = record_index(lambda r: perf_authoritative_selector(r) and r.get("jit") == "on" and r.get("tuning") == "baseline")
     for key, tuned_record in z13_index.items():
         base_record = base_index.get(key)
         if base_record:
             maybe_add_comparison(ctx, "z13_vs_baseline", tuned_record, base_record, "z13", "baseline")
 
-    clang_index = record_index(lambda r: r.get("host") == "kdz" and r.get("compiler") == "clang")
-    gcc_index = record_index(lambda r: r.get("host") == "kdz" and r.get("compiler") == "gcc")
+    clang_index = record_index(lambda r: r.get("host") == "kdz" and r.get("compiler") == "clang" and r.get("mode") == "release" and r.get("jit") == "on" and r.get("ffi") == "on" and r.get("tuning") == "baseline")
+    gcc_index = record_index(lambda r: perf_authoritative_selector(r) and r.get("jit") == "on" and r.get("tuning") == "baseline")
     for key, clang_record in clang_index.items():
         gcc_record = gcc_index.get(key)
         if gcc_record:
@@ -1464,22 +1486,16 @@ def build_perf_hotspots(ctx: Context) -> List[dict]:
     off_index = build_perf_baseline_index(
         ctx.perf_records,
         lambda r: (
-            r.get("host") == "kdz"
-            and r.get("compiler") == "gcc"
-            and r.get("mode") == "release"
+            perf_authoritative_selector(r)
             and r.get("jit") == "off"
-            and r.get("ffi") == "on"
             and r.get("tuning") == "baseline"
         ),
     )
     z13_index = build_perf_baseline_index(
         ctx.perf_records,
         lambda r: (
-            r.get("host") == "kdz"
-            and r.get("compiler") == "gcc"
-            and r.get("mode") == "release"
+            perf_authoritative_selector(r)
             and r.get("jit") == "on"
-            and r.get("ffi") == "on"
             and r.get("tuning") == "z13"
         ),
     )
@@ -2168,7 +2184,13 @@ def run_stage(ctx: Context) -> None:
     suites = suites_for_stage(ctx.args.stage, ctx.args.suite)
     remote_suites = [suite for suite in suites if suite not in LOCAL_SUITES]
     local_suites = [suite for suite in suites if suite in LOCAL_SUITES]
-    variants = build_variants(ctx.args.stage, ctx.args.compiler, ctx.args.mode, ctx.args.jit)
+    variants = build_variants(
+        ctx.args.stage,
+        ctx.args.compiler,
+        ctx.args.mode,
+        ctx.args.jit,
+        perf_family_selected=bool(ctx.args.perf_family),
+    )
     need_host = bool(remote_suites) or "downstream" in local_suites
     if need_host:
         host = choose_host(ctx)

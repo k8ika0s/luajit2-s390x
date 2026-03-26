@@ -117,6 +117,32 @@ static int lj_asm_s390x_guard_log_enabled(void)
   return enabled;
 }
 
+static int lj_asm_s390x_asmir_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ASMIR_LOG") != NULL);
+  return enabled;
+}
+
+static void lj_asm_s390x_asmir_log(ASMState *as, const char *phase, IRIns *ir)
+{
+  if (!lj_asm_s390x_asmir_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_ASMIR phase=%s curins=%d ref=%d op=%d type=%d op1=%d op2=%d prev=%d freeset=0x%08x phiset=0x%08x\n",
+	  phase,
+	  (int)(as->curins - REF_BIAS),
+	  (int)((ir - as->ir) - REF_BIAS),
+	  (int)ir->o,
+	  (int)irt_type(ir->t),
+	  (int)(ir->op1 - REF_BIAS),
+	  (int)(ir->op2 - REF_BIAS),
+	  (int)(ir->prev - REF_BIAS),
+	  (unsigned int)as->freeset,
+	  (unsigned int)as->phiset);
+}
+
 static void lj_asm_s390x_guard_log(ASMState *as, int cc, const void *target,
 				   const void *patchpoint, int loopinv)
 {
@@ -2235,6 +2261,7 @@ static void asm_alen(ASMState *as, IRIns *ir)
 /* Assemble a single instruction. */
 static void asm_ir(ASMState *as, IRIns *ir)
 {
+  lj_asm_s390x_asmir_log(as, "enter", ir);
   switch ((IROp)ir->o) {
   /* Miscellaneous ops. */
   case IR_LOOP: asm_loop(as); break;
@@ -2364,6 +2391,7 @@ static void asm_ir(ASMState *as, IRIns *ir)
     lj_trace_err_info(as->J, LJ_TRERR_NYIIR);
     break;
   }
+  lj_asm_s390x_asmir_log(as, "leave", ir);
 }
 
 /* -- Head of trace ------------------------------------------------------- */

@@ -3984,8 +3984,23 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lghi TMPR0, BC_JMP
     |  stcy  TMPR0, PC_OP
     |  branchPC RD
+    |.if JIT
+    |  llgc TMPR0, PC_OP
+    |  clfi TMPR0, BC_ITERN; jne >6
+    |.endif
     |  mvi 3(PC), BC_ITERC
     |  j <1
+    |.if JIT
+    |6:  // Unpatch JLOOP.
+    |  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
+    |  llgh RD, PC_RD
+    |  sllg RD, RD, 3
+    |  lg TRACE:RD, 0(RD, TMPR1)
+    |  llgf TMPR0, TRACE:RD->startins
+    |  st TMPR0, 0(PC)
+    |  mvi 3(PC), BC_ITERC
+    |  j <1
+    |.endif
     break;
 
   case BC_VARG:
