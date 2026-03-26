@@ -3518,3 +3518,46 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - perf harness stopped forcing the worst threshold pair
   - a higher default `hotexit` meaningfully reduces root-linked iterator
     side-trace churn on s390x
+
+2026-03-26: iterator boundary classifier narrowed the last semantic red
+
+- The remaining iterator investigation is now past the older
+  `root -> n` trace explosion and the earlier `trace 2 exit 1` ownership
+  debate. The current frontier is a scratch-only semantic classifier on the
+  post-call `lj_vm_next` tuple boundary.
+- `iterator-exit2-twostep-20260326a` proved the old exposed root `exit 2`
+  path was genuinely wrong:
+  - first `trace 1 exit 2` resumed with a clean boxed carried total
+  - second `trace 1 exit 2` already had the carried total polluted by the
+    stale value-lane low word from the iterator-end tuple
+  - that pinned the old red on the root `CALLL -> VLOAD #0 -> ADDOV` boundary,
+    not on helper ABI, KEYINDEX restore, or child-trace replay
+- A new scratch-only s390x classifier in
+  [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  now guards the post-call `lj_vm_next` key lane before the carried-total add
+  path can consume the iterator-end tuple.
+- `iterator-keylane-guard-20260326a` showed the first clean semantic split:
+  - `pairs_array_sum:20` returned the expected result on native `kdz`
+  - the hot owner moved from the broken `BC_ADDVV` resume path to
+    `guardmark=0x427`
+  - hot exits now land at `pc op=87`, i.e. `BC_JLOOP`, instead of re-entering
+    the body add with a stale value lane
+- `iterator-keylane-stop-20260326a` then showed that the new hot `exit 1`
+  path is semantically clean:
+  - repeated exits keep slot `0` as a valid boxed integer (`4`, then `9`)
+  - outer-loop state remains sane
+  - the remaining red is no longer stale payload corruption at the exit
+    boundary
+- The next blocker exposed by that cleaner boundary is trace formation, not
+  wrong arithmetic:
+  - `iterator-keylane-guard-20260326a` shows `TRACE 2 start` followed by
+    `TRACE 2 abort otr=9`
+  - `otr=9` is `LJ_TRERR_LINNER`
+  - so the remaining problem is now the follow-on trace path after a correct
+    iterator-end `BC_JLOOP` exit, not the old root `exit 2` corruption
+- This key-lane guard is still classification-only:
+  - it is not committed
+  - it is not performance-restamped
+  - it is useful because it converts the remaining iterator question from
+    “why is the carried total corrupted?” into
+    “why does the clean `BC_JLOOP` follow-on still abort as `LINNER`?”
