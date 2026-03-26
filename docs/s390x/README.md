@@ -221,6 +221,17 @@ sync loop.
     deeper owner at root `exit 2`
   - that surviving owner maps to the post-call carried-total boundary
     (`CALLL -> HIOP -> VLOAD -> SLOAD -> ADDOV`)
+  - the latest scratch-only key-lane classifier now proves the bad
+    `BC_ADDVV` resume is not the final frontier:
+    - a narrow post-call key-lane guard keeps the direct iterator repro
+      correct and moves the hot owner to `guardmark=0x427`
+    - the exposed hot exits now land at `BC_JLOOP`, not the stale-add resume
+      path
+    - repeated stop probes keep the carried total sane on that path
+    - the next live blocker is the follow-on `TRACE 2 abort otr=9`
+      (`LJ_TRERR_LINNER`) after the clean `BC_JLOOP` boundary
+  - that key-lane guard remains scratch-only until the follow-on abort is
+    understood and the perf story is promotable
 
 ## Current Next Actions
 
@@ -239,12 +250,15 @@ sync loop.
      on modulo hotexit exits, not in generic `%` lowering
    - keep `mod_int_trace.lua` as the Stream B optimization entry point now
      that the hotexit correctness repro is no longer red
-3. Keep iterator work on the post-call carried-total boundary:
+3. Keep iterator work on the clean `BC_JLOOP` follow-on path:
    - keep the `lj_vm_next` `r6` preservation fix
    - keep duplicate-guard diagnostics as scratch-only until the final iterator
      perf fix is proven
-   - next live target is the standalone post-call `sload_int` owner before
-     `ADDOV`, not generic iterator policy or helper return-register mechanics
+   - the current live target is why the semantically clean iterator-end
+     boundary still aborts the next trace as `LJ_TRERR_LINNER`
+   - the next exact cut is `BC_JLOOP` side-entry / follow-on trace startup,
+     not helper return-register mechanics, KEYINDEX restore ownership, or the
+     old stale `ADDVV` resume path
 4. Keep Stream B anchored on the new structured perf restamp:
    - `perf-kdz-20260323a`
    - `dispatch_trace` remains the only default perf gate

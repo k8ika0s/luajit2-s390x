@@ -225,6 +225,24 @@ Current conclusion:
       classification-only: it shifts churn to root `exit 2`
       `guardmark=0x101`, which maps to the standalone post-call `sload_int`
       right before `ADDOV`
+- The latest scratch-only iterator classifier moves the semantic frontier
+  again:
+  - run: `iterator-keylane-guard-20260326a`
+  - host: `kdz`
+  - status: classification only, not promotable
+  - a narrow post-call key-lane guard on the `lj_vm_next` result tuple keeps
+    the direct iterator repro correct and prevents the bad `BC_ADDVV` resume
+    path that previously let stale value-lane data poison the carried total
+  - the hot owner on that classifier path becomes `guardmark=0x427`
+    (`vload_next_key_int`)
+  - the hot exits now land at `pc op=87`, i.e. `BC_JLOOP`, not the earlier
+    `BC_ADDVV` body-resume path
+  - repeated stop-run probes on that classifier path keep slot `0` sane as a
+    boxed integer across exits, so the live blocker is no longer stale payload
+    math at the first exposed post-call boundary
+  - the remaining red on that path is follow-on trace formation:
+    `TRACE 2 abort otr=9`, i.e. `LJ_TRERR_LINNER`
+  - this guard is classification-only and is not part of the active patch set
 - One real helper-side ABI bug is now fixed in
   [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
   - `lj_vm_next` no longer uses saved register `r6` as `NEXT_ARR`
