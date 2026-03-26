@@ -27,6 +27,32 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `iterator-r6-preserve-20260325a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: pass
+  - Notes: this probe confirmed one real Linux/s390x ABI bug in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+    `lj_vm_next` was using saved register `r6` as `NEXT_ARR` and clobbering a
+    loop-carried integer live range across the helper boundary. The helper now
+    keeps that scratch state off `r6`, and the native probe completed cleanly
+    with the expected result again. This is a real backend fix, but it does
+    not clear the remaining iterator performance issue by itself.
+
+- `iterator-r6-plus-keyindex-ab-20260325a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: rerunning the scratch KEYINDEX-only `asm_gencall_sload()`
+    suppression after the `r6` helper fix still shifts churn from the old
+    pre-call `guardmark=0x508` path to root `exit 2` with `guardmark=0x101`.
+    That means the duplicated pre-call KEYINDEX guard is not the landing fix.
+    The remaining steady-state red is still on the post-call carried-total
+    boundary (`CALLL -> HIOP -> VLOAD -> SLOAD -> ADDOV`), not in KEYINDEX
+    restore ownership or helper return-register selection.
+
 - `20260323-openresty-observer-demo`
   - Stage: `product-demo`
   - Surface: `openresty`
