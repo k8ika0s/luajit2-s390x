@@ -243,6 +243,14 @@ Current conclusion:
   - the remaining red on that path is follow-on trace formation:
     `TRACE 2 abort otr=9`, i.e. `LJ_TRERR_LINNER`
   - this guard is classification-only and is not part of the active patch set
+- A later scratch narrowing keeps the deeper descendant policy array-only:
+  - numeric-key iterators keep the deeper payload descendant behind the clean
+    `0x427` key-lane owner
+  - hash iterators fall back to the older `0x509` pre-call owner and no
+    longer crash under the hot50 classifier
+  - this makes the array/hash split stable enough to continue optimization,
+    but it still does not justify a perf restamp because both sides remain
+    slower than the interpreter in the focused family
 - One real helper-side ABI bug is now fixed in
   [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
   - `lj_vm_next` no longer uses saved register `r6` as `NEXT_ARR`

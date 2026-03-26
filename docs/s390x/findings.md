@@ -3608,3 +3608,38 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
     has been committed
   - no promotion or perf restamp is justified until the hash `exit 4` restart
     boundary is fixed
+
+2026-03-26: numeric-key-only descendant widening keeps the split stable
+
+- The next scratch narrowing keeps the deeper payload-descendant allowance only
+  for numeric-key iterator families:
+  - the direct `parent==root, exit==1, BC_JMP -> BC_ADDVV` payload child is
+    still allowed for all iterator roots
+  - deeper same-root payload descendants are now allowed only when the control
+    var `SLOAD` is tagged with `IRSLOAD_KIDX_NUMKEY`
+  - this uses the existing recorder-side `rec_next_types()` classification and
+    does not widen the policy for hash iterators
+- Native `kdz` hot50 classifiers show the split is now stable instead of
+  crashing:
+  - `iterator-array-desc2-numkeyonly-hot50-20260326d`
+    - `pairs_array_sum:20` stays correct (`500/500`)
+    - the array path still builds through `trace 4`
+    - the hot owner remains `guardmark=0x427`
+  - `iterator-hash-desc2-numkeyonly-hot50-20260326d`
+    - `pairs_sum:20` stays correct (`300/300`)
+    - the hash path falls back to the older `trace 3 start otr=2 oex=1 ->
+      abort otr=8` shape instead of crashing
+    - the hot owner remains the pre-call `guardmark=0x509`
+- This is useful because it proves the deeper descendant policy is not
+  inherently unsafe:
+  - array-backed iterators do need the deeper descendant to get past the old
+    `trace 3 parent=2 exit=1` `LLEAVE` barrier
+  - hash-backed iterators are not ready for the same widening and should stay
+    on the older policy until the hash-side restart boundary is fixed
+- The current non-promotable state is now:
+  - array side: structurally improved, still performance-red
+  - hash side: structurally safe again, still blocked on the old
+    pre-call `0x509` owner
+  - the next real optimization target is no longer “one iterator rule for
+    everything”; it is separate array and hash completion work under a stable
+    split

@@ -392,6 +392,10 @@ The current full closure restamp on `kdz` is driving this order:
   - the active hash owner is root `exit 4` in the second-half post-call
     `lj_vm_next` key-lane cluster, not the earlier array-style `exit 1`
     boundary
+  - a newer numeric-key-only descendant split keeps that classifier stable:
+    array still takes the deeper payload descendant with hot owner `0x427`,
+    while hash falls back to the older `0x509`/`LLEAVE` shape instead of
+    crashing
   - no iterator completion patch is currently promotable from this tree
 - The remaining perf families stay probe-only until they are release-stable on
   native `s390x`.
