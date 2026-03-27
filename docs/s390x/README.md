@@ -397,5 +397,14 @@ The current full closure restamp on `kdz` is driving this order:
     while hash falls back to the older `0x509`/`LLEAVE` shape instead of
     crashing
   - no iterator completion patch is currently promotable from this tree
+- The newest array-side narrowing is more specific than the older
+  `0x427`/descendant discussion:
+  - `trace 5` is now proven to be an `LJ_TRLINK_INTERP` bridge, not the first
+    real recovered loop child
+  - `trace 6` is the first recovered loop child
+  - a scratch-only `prime-interp` hotcount classifier can remove that bridge's
+    extra `hotexit` budget stage while keeping the direct repro correct
+  - that tightens the array family materially, but the steady-state owner is
+    still the same legitimate `0x427` end split further down the chain
 - The remaining perf families stay probe-only until they are release-stable on
   native `s390x`.

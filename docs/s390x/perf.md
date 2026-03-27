@@ -251,6 +251,23 @@ Current conclusion:
   - this makes the array/hash split stable enough to continue optimization,
     but it still does not justify a perf restamp because both sides remain
     slower than the interpreter in the focused family
+- The newest array-side hotcount classifier is the first one to remove a full
+  recovered-family stage without breaking correctness:
+  - the active recovered child `trace 5` is now proven to be an
+    `LJ_TRLINK_INTERP` bridge created after the bounded nil retry exhausts the
+    generic side-trace `hotexit + tryside` budget
+  - a scratch-only `prime-interp` classifier in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    pre-biases only that bridge's `exit 1` hotcount
+  - direct native `kdz` proof keeps the result correct (`500/500`) and
+    tightens the recovered-family histogram from
+    `5/1=10, 6/1=10, 7/1=1, 8/1=1, 9/1=111`
+    to
+    `5/1=1, 6/1=10, 7/1=1, 8/1=120`
+  - that is still classification-only:
+    - it does not change the surviving owner
+    - it still leaves the hot path on the legitimate `0x427` iterator-end
+      split, now later in the collapsed chain
 - One real helper-side ABI bug is now fixed in
   [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
   - `lj_vm_next` no longer uses saved register `r6` as `NEXT_ARR`
