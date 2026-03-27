@@ -27,6 +27,56 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `iter-array-vload-next-guard-direct-20260327a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the direct guard-site probe now observes the real steady-state
+    recovered-loop seam on the current array scratch baseline. The hot exit is
+    `trace 8 exit 1` with `guardmark=0x527`, and the corresponding
+    `vload_next_key_int` site is `trace 8 / curins 7` in the in-loop copy, not
+    the earlier preheader copy. The probe fires directly from that site and
+    shows:
+    - the base pointer is `gl_tmptv`
+    - the loaded key qword is `0xffffffffffffffff`
+    - the compared low-word lane is `0xffffffff`
+    - `tmptv.q0` remains stale non-nil data
+    - `tmptv.q1` is nil
+    - `tmptv2` is fully nil
+    That matches the end-of-iteration contract in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+    array-end returns `&tmptv`, leaves the value side stale, and nils the key
+    side separately. So the current live array red is no longer bad data,
+    preheader re-entry, or a broken compare. It is the in-loop
+    `CALLL lj_vm_next -> key-lane nil split` cluster itself.
+
+- `iter-array-loophead-liveness-20260327a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the loop-head spill/liveness pass showed the recovered loop anchor
+    is not a standalone external entry ABI. Common loop setup in
+    [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c)
+    spill-backs the carried helper/index lane and total lane, but the carried
+    VLOAD key/value lanes are still register-only at loop entry. That explains
+    why direct `sideexit -> mcloop` entry was initially unsafe, and why making
+    it safe still did not improve the current collapsed branch: the hot steady
+    seam on that branch is the later in-loop `0x527` copy, not the preheader.
+
+- `iter-array-collapsed-guardmark-split-20260327a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: splitting the two `vload_next_key_int` copies with distinct guard
+    markers proved the current steady-state payer on the collapsed array branch
+    is the later in-loop copy. The first/preheader copy keeps the `0x427`
+    family and the later copy emits the `0x527` family; current hot exits on
+    `kdz` report only `0x527`. That rules out preheader re-entry as the main
+    remaining bottleneck on the collapsed branch.
+
 - `iterator-r6-preserve-20260325a`
   - Stage: focused native iterator probe
   - Surface: `pairs_array_sum`

@@ -215,7 +215,21 @@ sync loop.
     helper boundary
   - the helper now preserves `r6`, and native iterator probes remain correct
 - The remaining iterator performance red is narrower now:
-  - safe baseline hotspot still centers on `trace 2 exit 1`
+  - safe baseline hotspot still centers on the iterator array family, but the
+    current collapsed scratch branch has moved the steady-state payer later
+    into the recovered loop family
+  - direct `kdz` guard-site probing now confirms the live payer is the later
+    in-loop `vload_next_key_int` copy marked `0x527`, not the earlier
+    preheader `0x427` copy
+  - that hot `trace 8 / curins 7` site reads `tmptv` directly and sees the
+    expected end-of-iteration helper result:
+    - stale non-nil value side in `tmptv`
+    - nil key side in `tmptv`
+    - fully nil `tmptv2`
+  - so the remaining array-side red is not bad helper data, not bad compare
+    logic, and not preheader re-entry on the collapsed branch
+  - the live frontier is now the in-loop `CALLL lj_vm_next -> key-lane nil
+    split` cluster inside the recovered steady loop body
   - scratch suppression of the duplicated KEYINDEX-side pre-call guard is not
     the landing fix; with the helper ABI fix in place it still only exposes the
     deeper owner at root `exit 2`

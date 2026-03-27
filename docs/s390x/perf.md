@@ -218,6 +218,17 @@ Current conclusion:
     - the old unbounded iterator-family explosion is contained
   - steady-state performance:
     - still red on `kdz`
+    - the current array-side scratch classifiers do reduce family-formation
+      overhead, but they do not remove the remaining steady-state cost
+    - the current collapsed array branch still scales badly:
+      - `pairs_array_sum n=10`: hot `trace 8 exit 1 = 30`
+      - `pairs_array_sum n=50`: hot `trace 8 exit 1 = 390`
+    - the current live payer is the in-loop `vload_next_key_int` copy marked
+      `0x527`, not the preheader `0x427` copy
+    - direct `kdz` guard-site probing now confirms that hot `0x527` site reads
+      a legitimate end-of-iteration helper result from `tmptv`, so the
+      remaining work is amortization through the recovered steady loop body,
+      not bad data or a broken compare
     - the safe baseline remains dominated by `trace 2 exit 1`
     - the hot guard owner on that safe path is still `guardmark=0x508`
       (`asm_gencall_sload()` pre-call typecheck on the iterator helper path)
