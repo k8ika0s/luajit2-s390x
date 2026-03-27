@@ -3637,9 +3637,61 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
   - hash-backed iterators are not ready for the same widening and should stay
     on the older policy until the hash-side restart boundary is fixed
 - The current non-promotable state is now:
-  - array side: structurally improved, still performance-red
+ - array side: structurally improved, still performance-red
   - hash side: structurally safe again, still blocked on the old
     pre-call `0x509` owner
   - the next real optimization target is no longer “one iterator rule for
     everything”; it is separate array and hash completion work under a stable
     split
+
+2026-03-26: recovered array payload family narrowed to an interpreter bridge seam
+
+- The current array-only scratch path now has a much tighter structural model:
+  - `trace 4 exit 1 / guardmark=0x427` is still a legitimate iterator-end split
+  - the first recovered payload child is `trace 5`
+  - `trace 5` is not equivalent to `trace 6`
+  - `trace 5` is an `LJ_TRLINK_INTERP` bridge, while `trace 6` is the first
+    real recovered payload loop child
+- The field-level `trace 5 -> 6` diff is now explicit:
+  - `trace 5`
+    - `linktype=6` (`LJ_TRLINK_INTERP`)
+    - `nsnap=3`
+    - `nins=32778`
+    - stop anchored at payload `BC_ADDVV` (`pc ...7b0`, `op=32`)
+  - `trace 6`
+    - `linktype=2` (`LJ_TRLINK_LOOP`)
+    - `nsnap=4`
+    - `nins=32782`
+    - stop anchored at compiled `BC_JLOOP` (`pc ...7c4`, `op=87`)
+- That proves the remaining `5 -> 6` jump is a real trace-shape transition,
+  not just another equivalent recovered payload child being missed by hotside
+  equivalence.
+- The causal reason for that bridge is now also explicit in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+  - after the bounded nil window on `parent=4 exit=1`, the parent exit has
+    already spent the generic `hotexit + tryside` budget
+  - the first recovered payload child therefore hits the generic
+    `sidecheck_interp` path and closes as `LJ_TRLINK_INTERP`
+  - only the next side trace (`trace 6`) becomes the first real loop child
+- A scratch-only bypass of that `sidecheck_interp` cutoff was tested and
+  reverted immediately:
+  - it was a clean miss
+  - instead of producing the first loop child sooner, it made `trace 5`
+    re-enter and abort repeatedly on the nil path while `trace 4` stayed hot
+- The first useful hotcount-side experiment on this seam is now
+  `prime-interp`, a scratch-only classifier in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - when the active recovered child is exactly that `LJ_TRLINK_INTERP` bridge,
+    its `exit 1` hotcount is pre-biased so the next real loop child can form
+    on the next hit
+  - direct native `kdz` proof:
+    - result stays correct (`500/500`)
+    - the old collapsed-shape histogram
+      `5/1=10, 6/1=10, 7/1=1, 8/1=1, 9/1=111`
+      tightens to
+      `5/1=1, 6/1=10, 7/1=1, 8/1=120`
+    - so one full hotcount stage is removed instead of merely renamed
+- This is still not a finish-line fix:
+  - the hot owner remains the same legitimate `0x427` iterator-end split
+  - the family is merely tighter than before
+  - the next live seam is now `trace 6 -> 8`, not `trace 5 -> 6`
