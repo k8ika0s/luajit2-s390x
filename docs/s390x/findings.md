@@ -27,6 +27,77 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `iter-root-owner-split-kdz-20260328a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the root-owner split is now proven on a real JIT-enabled `kdz`
+    binary. `trace_exit()` no longer has to fall through
+    `phase=dispatch-original` on the recovered root seam:
+    - root trace `1` still saves `target_startop=70` (`BC_ITERN`)
+    - scratch `ownerop` can be split to `85` (`BC_LOOP`)
+    - `S390X_JLOOP_EXIT` then flips from `dispatch-original` to
+      `resume-linked`
+    That is the first coherent proof that root ownership, not the `0x527`
+    guard, is the remaining iterator frontier. But it is not a landing fix:
+    resumed root `trace 1` still spins immediately with identical state at
+    `parent=1 exit=1`.
+
+- `iter-root-freeze-kdz-20260328a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: root-freeze logging in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    and
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    now proves where the root start contract is lost. On root `trace 1`:
+    - `root_before_rec_setup_root` starts at `startins=70` (`BC_ITERN`)
+    - early retries in `rec_setup_root()` can normalize to post-`ITERN`
+      follow ops (`82..88`)
+    - but by `trace_stop_pre_rootpatch` and `trace_save_pre_memcpy`, the
+      winning root attempt is back at `startins=70`
+    So the iterator root is not failing because birth-time normalization never
+    happens. It is failing because the successful root attempt still persists
+    the old `ITERN` contract.
+
+- `iter-root-owner-buildgate-kdz-20260328a`
+  - Stage: focused native iterator probe
+  - Surface: remote build path validation
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the recent silent `kdz` runs were not iterator evidence. They were
+    no-JIT builds. Native s390x JIT requires:
+    - `XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT'`
+    - an explicit static relink of `src/luajit`
+    The authoritative rebuild loop on `kdz` is now:
+    - sync the touched source and header files
+    - `cd .../repo/src`
+    - `make clean`
+    - `make XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT' BUILDMODE=static luajit`
+    This is now the only trustworthy remote path for the iterator endgame.
+
+- `iter-root-itern-follow-kdz-20260328a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the post-`ITERN` follow op used by the winning root trace is not
+    stable. Across retries, root `trace 1` sees:
+    - `82` `BC_ITERL`
+    - `83` `BC_IITERL`
+    - `84` `BC_JITERL`
+    - `85` `BC_LOOP`
+    - `86` `BC_ILOOP`
+    - `87` `BC_JLOOP`
+    - `88` `BC_JMP`
+    - `89` `BC_FUNCF`
+    That is why the naive recorder-side birth hook keeps missing the final
+    saved root: it was following transient patched bytecode, not a stable root
+    ownership contract.
+
 - `iter-array-vload-next-guard-direct-20260327a`
   - Stage: focused native iterator probe
   - Surface: `pairs_array_sum`

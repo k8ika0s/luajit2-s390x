@@ -123,6 +123,32 @@ static void s390x_recret_log(jit_State *J, const char *phase, TValue *frame,
   fflush(out);
 }
 
+static void s390x_recret_branch_log(jit_State *J, const char *site,
+				    TValue *frame, BCReg rbase,
+				    ptrdiff_t gotresults, BCReg baseadj,
+				    BCReg cbase, ptrdiff_t nresults)
+{
+  FILE *out;
+  BCOp op = bc_op(*J->pc);
+  BCOp startop = bc_op(J->cur.startins);
+  BCOp prevop = J->pc > proto_bc(J->pt) ? bc_op(J->pc[-1]) : BC__MAX;
+  if (!s390x_recret_log_enabled())
+    return;
+  out = stderr;
+  fprintf(out,
+	  "S390X_RECRET_BRANCH site=%s trace=%u parent=%u exit=%u pc=%p op=%u prevop=%u startop=%u root=%u framedepth=%u retdepth=%u baseslot=%u maxslot=%u rbase=%u gotresults=%d baseadj=%u cbase=%u nresults=%d frame=%p islua=%d iscont=%d isvarg=%d\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (void *)J->pc, (unsigned int)op,
+	  (unsigned int)prevop, (unsigned int)startop,
+	  (unsigned int)J->cur.root, (unsigned int)J->framedepth,
+	  (unsigned int)J->retdepth, (unsigned int)J->baseslot,
+	  (unsigned int)J->maxslot, (unsigned int)rbase, (int)gotresults,
+	  (unsigned int)baseadj, (unsigned int)cbase, (int)nresults,
+	  (void *)frame, frame_islua(frame), frame_iscont(frame),
+	  frame_isvarg(frame));
+  fflush(out);
+}
+
 /* -- Sanity checks ------------------------------------------------------- */
 
 #ifdef LUA_USE_ASSERT
@@ -361,6 +387,7 @@ typedef enum {
 
 static int lj_record_s390x_stop_log_enabled(void);
 static void lj_record_s390x_ir_log(jit_State *J, TraceLink linktype, TraceNo lnk);
+static int lj_record_s390x_mark_nil_desc_done_enabled(void);
 
 /* Canonicalize slots: convert integers to numbers. */
 static void canonicalize_slots(jit_State *J)
@@ -398,6 +425,20 @@ void lj_record_stop(jit_State *J, TraceLink linktype, TraceNo lnk)
 	    (unsigned int)J->retdepth);
   }
   lj_record_s390x_ir_log(J, linktype, lnk);
+#if LJ_TARGET_S390X
+  if (J->s390x_nil_restart_desc &&
+      lj_record_s390x_mark_nil_desc_done_enabled() &&
+      J->cur.nsnap > 1) {
+    J->cur.snap[1].count = SNAPCOUNT_DONE;
+    if (lj_record_s390x_stop_log_enabled()) {
+      fprintf(stderr,
+	      "S390X_NILRESTART_DONE trace=%u parent=%u exit=%u nsnap=%u site=record_stop\n",
+      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+      (unsigned int)J->exitno, (unsigned int)J->cur.nsnap);
+    }
+  }
+  J->s390x_nil_restart_desc = 0;
+#endif
   lj_trace_end(J);
   J->cur.linktype = (uint8_t)linktype;
   J->cur.link = (uint16_t)lnk;
@@ -522,6 +563,82 @@ static int lj_record_s390x_stop_log_enabled(void)
   return enabled;
 }
 
+static int lj_record_s390x_root_freeze_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ROOT_FREEZE_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_root_itern_setup_iterl_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ROOT_ITERN_SETUP_ITERL") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_root_itern_owner_loop_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ROOT_ITERN_OWNER_LOOP") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_is_itern_follow_op(BCOp op)
+{
+  return op == BC_ITERL || op == BC_IITERL || op == BC_JITERL ||
+	 op == BC_LOOP || op == BC_ILOOP || op == BC_JLOOP ||
+	 op == BC_JMP;
+}
+
+static const BCIns *lj_record_s390x_itern_resume_pc(const BCIns *pc)
+{
+  if (lj_record_s390x_is_itern_follow_op(bc_op(pc[1])))
+    return pc + 1;
+  return NULL;
+}
+
+static int lj_record_s390x_root_itern_saved_match(jit_State *J,
+						  const BCIns *pc)
+{
+  return lj_record_s390x_root_itern_setup_iterl_enabled() &&
+	 J->parent == 0 &&
+	 J->cur.traceno == 1 &&
+	 bc_op(pc[0]) == BC_ITERN &&
+	 J->s390x_root_itern_savedvalid &&
+	 J->s390x_root_itern_savedpc == pc + 1;
+}
+
+static int lj_record_s390x_root_itern_setup_iterl_match(jit_State *J,
+							const BCIns *pc)
+{
+  /* Scratch-only classifier for the recovered array root family. Keep this
+  ** narrow so we don't perturb unrelated root traces while proving where the
+  ** ownership change must be born.
+  */
+  return lj_record_s390x_root_itern_setup_iterl_enabled() &&
+	 J->parent == 0 &&
+	 J->cur.traceno == 1 &&
+	 bc_op(pc[0]) == BC_ITERN &&
+	 lj_record_s390x_itern_resume_pc(pc) != NULL &&
+	 bc_j(pc[1]) < 0;
+}
+
+static void lj_record_s390x_root_freeze_log(jit_State *J, const char *site)
+{
+  if (!lj_record_s390x_root_freeze_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_ROOT_FREEZE site=%s trace=%u parent=%u exit=%u pc=%p startpc=%p cur_startpc=%p startins=%u\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (const void *)J->pc,
+	  (const void *)J->startpc, (const void *)mref(J->cur.startpc, BCIns),
+	  (unsigned int)bc_op(J->cur.startins));
+}
+
 static int lj_record_s390x_ir_log_enabled(void)
 {
   static int enabled = -1;
@@ -553,17 +670,380 @@ static void lj_record_s390x_ir_log(jit_State *J, TraceLink linktype, TraceNo lnk
   fprintf(stderr, "S390X_RECIR_END trace=%u\n", (unsigned int)J->cur.traceno);
 }
 
-static void lj_record_s390x_lleave_log(jit_State *J, const char *site)
+static void lj_record_s390x_loopslot_log(jit_State *J, const char *site)
 {
+  int i;
   if (!lj_record_s390x_stop_log_enabled())
     return;
   fprintf(stderr,
-	  "S390X_LLEAVE site=%s trace=%u parent=%u exit=%u pc=%p op=%u startop=%u framedepth=%u retdepth=%u\n",
+	  "S390X_LOOPSLOTS site=%s trace=%u parent=%u exit=%u pc=%p op=%u startop=%u\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (const void *)J->pc,
+	  (unsigned int)bc_op(*J->pc), (unsigned int)bc_op(J->cur.startins));
+  for (i = 0; i < 6; i++) {
+    TValue *o = &J->L->base[i];
+    fprintf(stderr, "S390X_LOOPSLOT idx=%d itype=%d u64=0x%016llx\n",
+	    i, (int)itype(o), (unsigned long long)o->u64);
+  }
+}
+
+static int lj_record_s390x_recloop_exit2_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RECLOOP_EXIT2") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_allow_iter_desc_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ALLOW_ITER_DESC") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_restart_desc_loop_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RESTART_DESC_LOOP") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_mark_nil_desc_done_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_MARK_NIL_DESC_DONE") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_skip_nil_desc_done_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_SKIP_NIL_DESC_DONE") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_retry_first_array_exit_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RETRY_FIRST_ARRAY_EXIT") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_retry_first_array_exit_limit(void)
+{
+  static int limit = -1;
+  if (limit == -1) {
+    const char *s = getenv("LUAJIT_S390X_RETRY_FIRST_ARRAY_EXIT_LIMIT");
+    limit = s ? atoi(s) : 5;
+  }
+  return limit;
+}
+
+static int lj_record_s390x_restore_payload_startpc_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RESTORE_PAYLOAD_STARTPC") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_restore_side_jloop_startpc_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RESTORE_SIDE_JLOOP_STARTPC") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_looplink_payload_desc_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_LOOPLINK_PAYLOAD_DESC") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_recbc_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RECBC_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_side_focus_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_SIDE_FOCUS") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_side_focus_parent(void)
+{
+  static int parent = -2;
+  if (parent == -2) {
+    const char *s = getenv("LUAJIT_S390X_SIDE_FOCUS_PARENT");
+    parent = s ? atoi(s) : 4;
+  }
+  return parent;
+}
+
+static int lj_record_s390x_side_focus_exit(void)
+{
+  static int exitno = -2;
+  if (exitno == -2) {
+    const char *s = getenv("LUAJIT_S390X_SIDE_FOCUS_EXIT");
+    exitno = s ? atoi(s) : 1;
+  }
+  return exitno;
+}
+
+static int lj_record_s390x_itern_focus_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ITERN_FOCUS") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_itern_focus_parent(void)
+{
+  static int parent = -2;
+  if (parent == -2) {
+    const char *s = getenv("LUAJIT_S390X_ITERN_FOCUS_PARENT");
+    parent = s ? atoi(s) : 4;
+  }
+  return parent;
+}
+
+static int lj_record_s390x_itern_focus_exit(void)
+{
+  static int exitno = -2;
+  if (exitno == -2) {
+    const char *s = getenv("LUAJIT_S390X_ITERN_FOCUS_EXIT");
+    exitno = s ? atoi(s) : 1;
+  }
+  return exitno;
+}
+
+static void lj_record_s390x_setup_log(jit_State *J, const char *site)
+{
+  BCOp op = bc_op(*J->pc);
+  BCOp prevop = J->pc > proto_bc(J->pt) ? bc_op(J->pc[-1]) : BC__MAX;
+  BCOp startop = bc_op(J->cur.startins);
+  if (!lj_record_s390x_stop_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_RECSETUP site=%s trace=%u parent=%u exit=%u root=%u state=%u baseslot=%u maxslot=%u startpc=%p pc=%p op=%u prevop=%u startop=%u framedepth=%u retdepth=%u\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (unsigned int)J->cur.root,
+	  (unsigned int)J->state, (unsigned int)J->baseslot,
+	  (unsigned int)J->maxslot, (const void *)J->startpc,
+	  (const void *)J->pc, (unsigned int)op, (unsigned int)prevop,
+	  (unsigned int)startop, (unsigned int)J->framedepth,
+	  (unsigned int)J->retdepth);
+}
+
+static void lj_record_s390x_lleave_log(jit_State *J, const char *site)
+{
+  GCtrace *parent = (J->parent > 0) ? traceref(J, J->parent) : NULL;
+  SnapNo exitno = (SnapNo)J->exitno;
+  uint32_t snapcount = 0;
+  uint8_t snapnent = 0;
+  uint16_t linktype = 0;
+  uint16_t root = 0;
+  if (!lj_record_s390x_stop_log_enabled())
+    return;
+  if (parent && exitno < parent->nsnap) {
+    snapcount = parent->snap[exitno].count;
+    snapnent = parent->snap[exitno].nent;
+    linktype = parent->linktype;
+    root = parent->root ? parent->root : parent->traceno;
+  }
+  fprintf(stderr,
+	  "S390X_LLEAVE site=%s trace=%u parent=%u exit=%u pc=%p op=%u startop=%u framedepth=%u retdepth=%u parent_root=%u parent_linktype=%u parent_snapcount=%u parent_snapnent=%u\n",
 	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
 	  (unsigned int)J->exitno, (const void *)J->pc,
 	  (unsigned int)bc_op(*J->pc), (unsigned int)bc_op(J->cur.startins),
+	  (unsigned int)J->framedepth, (unsigned int)J->retdepth,
+	  (unsigned int)root, (unsigned int)linktype,
+	  (unsigned int)snapcount, (unsigned int)snapnent);
+}
+
+static void lj_record_s390x_linner_log(jit_State *J, const char *site,
+				       LoopEvent ev, TraceNo lnk)
+{
+  BCOp prevop = J->pc > proto_bc(J->pt) ? bc_op(J->pc[-1]) : BC__MAX;
+  if (!lj_record_s390x_stop_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_LINNER site=%s trace=%u parent=%u exit=%u startpc=%p pc=%p op=%u prevop=%u startop=%u ev=%u lnk=%u root=%u framedepth=%u retdepth=%u\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (const void *)J->startpc,
+	  (const void *)J->pc, (unsigned int)bc_op(*J->pc),
+	  (unsigned int)prevop, (unsigned int)bc_op(J->cur.startins),
+	  (unsigned int)ev, (unsigned int)lnk, (unsigned int)J->cur.root,
 	  (unsigned int)J->framedepth, (unsigned int)J->retdepth);
 }
+
+static void lj_record_s390x_side_replay_log(jit_State *J, const char *site,
+					    GCtrace *T)
+{
+  int i;
+  BCOp prevop = J->pc > proto_bc(J->pt) ? bc_op(J->pc[-1]) : BC__MAX;
+  static int focus_parent = -2;
+  static int focus_exit = -2;
+  if (focus_parent == -2) {
+    const char *s = getenv("LUAJIT_S390X_SIDE_REPLAY_PARENT");
+    focus_parent = s ? atoi(s) : 1;
+  }
+  if (focus_exit == -2) {
+    const char *s = getenv("LUAJIT_S390X_SIDE_REPLAY_EXIT");
+    focus_exit = s ? atoi(s) : 1;
+  }
+  if (!lj_record_s390x_stop_log_enabled() ||
+      (focus_parent >= 0 && J->parent != (TraceNo)focus_parent) ||
+      (focus_exit >= 0 && J->exitno != (SnapNo)focus_exit))
+    return;
+  fprintf(stderr,
+	  "S390X_SIDE_REPLAY site=%s trace=%u parent=%u exit=%u root=%u startpc=%p pc=%p op=%u prevop=%u startop=%u parent_startop=%u parent_root=%u snapcount=%u snapnent=%u\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (unsigned int)J->cur.root,
+	  (const void *)J->startpc, (const void *)J->pc,
+	  (unsigned int)bc_op(*J->pc), (unsigned int)prevop,
+	  (unsigned int)bc_op(J->cur.startins),
+	  (unsigned int)bc_op(T->startins), (unsigned int)(T->root ? T->root : T->traceno),
+	  (unsigned int)T->snap[J->exitno].count,
+	  (unsigned int)T->snap[J->exitno].nent);
+  for (i = 0; i < 6; i++) {
+    TRef tr = J->base[i];
+    TValue *tv = &J->L->base[i];
+    fprintf(stderr,
+	    "S390X_SIDE_SLOT site=%s idx=%d tref=%#x ref=%d type=%d itype=%d u64=0x%016llx\n",
+	    site, i, (unsigned int)tr, (int)(tref_ref(tr) - REF_BIAS),
+	    (int)tref_type(tr), (int)itype(tv), (unsigned long long)tv->u64);
+  }
+}
+
+static void lj_record_s390x_side_focus_log(jit_State *J, const char *site,
+					   GCtrace *T)
+{
+  BCOp prevop = J->pc > proto_bc(J->pt) ? bc_op(J->pc[-1]) : BC__MAX;
+  SnapNo exitno = (SnapNo)J->exitno;
+  uint32_t snapcount = 0;
+  uint8_t snapnent = 0;
+  uint32_t snapref = 0;
+  const BCIns *snappc = NULL;
+  unsigned int snapop = 0;
+  uint32_t snapsig = 0;
+  int32_t baseop1 = 0, baseop2 = 0;
+  if (!lj_record_s390x_side_focus_enabled() ||
+      (lj_record_s390x_side_focus_parent() >= 0 &&
+       J->parent != (TraceNo)lj_record_s390x_side_focus_parent()) ||
+      (lj_record_s390x_side_focus_exit() >= 0 &&
+       J->exitno != (SnapNo)lj_record_s390x_side_focus_exit()))
+    return;
+  if (T && exitno < T->nsnap) {
+    const SnapShot *snap = &T->snap[exitno];
+    const SnapEntry *map = &T->snapmap[snap->mapofs];
+    MSize i;
+    snapcount = snap->count;
+    snapnent = snap->nent;
+    snapref = snap->ref;
+    snappc = snap_pc(&map[snap->nent]);
+    snapop = (unsigned int)(snappc ? bc_op(*snappc) : 0);
+    for (i = 0; i < snap->nent; i++) {
+      SnapEntry sn = map[i];
+      uint32_t slot = (uint32_t)snap_slot(sn);
+      uint32_t ref = (uint32_t)(snap_ref(sn) - REF_BIAS);
+      uint32_t flags = 0;
+      if (sn & SNAP_NORESTORE) flags |= 1u;
+      if (sn & SNAP_FRAME) flags |= 2u;
+      snapsig = (snapsig * 16777619u) ^ (slot + (ref << 8) + (flags << 24));
+    }
+    baseop1 = (int32_t)(T->ir[REF_BASE].op1 - REF_BIAS);
+    baseop2 = (int32_t)(T->ir[REF_BASE].op2 - REF_BIAS);
+  }
+  fprintf(stderr,
+	  "S390X_SIDE_FOCUS site=%s trace=%u parent=%u exit=%u root=%u parent_linktype=%u parent_link=%u parent_nchild=%u startpc=%p pc=%p op=%u prevop=%u startop=%u parent_startop=%u parent_baseop1=%d parent_baseop2=%d parent_snapcount=%u parent_snapref=%u parent_snapnent=%u parent_snapsig=%#x snappc=%p snapop=%u framedepth=%u retdepth=%u\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (unsigned int)(T->root ? T->root : T->traceno),
+	  (unsigned int)T->linktype, (unsigned int)T->link,
+	  (unsigned int)T->nchild, (const void *)J->startpc, (const void *)J->pc,
+	  (unsigned int)bc_op(*J->pc), (unsigned int)prevop,
+	  (unsigned int)bc_op(J->cur.startins),
+	  (unsigned int)bc_op(T->startins),
+	  (int)baseop1, (int)baseop2,
+	  (unsigned int)snapcount, (unsigned int)snapref, (unsigned int)snapnent,
+	  (unsigned int)snapsig,
+	  (const void *)snappc, snapop,
+	  (unsigned int)J->framedepth, (unsigned int)J->retdepth);
+}
+
+static void lj_record_s390x_itern_focus_log(jit_State *J, const char *site,
+					    BCReg ra, const RecordIndex *ix,
+					    IRType nextt, uint32_t keyflags)
+{
+  TValue *base = J->L->base;
+  TValue *tab = &base[ra-2];
+  TValue *ctrl = &base[ra-1];
+  TValue *key = &base[ra];
+  TValue *val = &base[ra+1];
+  GCtab *t = tvistab(tab) ? tabV(tab) : NULL;
+  if (!lj_record_s390x_itern_focus_enabled() ||
+      (lj_record_s390x_itern_focus_parent() >= 0 &&
+       J->parent != (TraceNo)lj_record_s390x_itern_focus_parent()) ||
+      (lj_record_s390x_itern_focus_exit() >= 0 &&
+       J->exitno != (SnapNo)lj_record_s390x_itern_focus_exit()))
+    return;
+  fprintf(stderr,
+	  "S390X_ITERN_FOCUS site=%s trace=%u parent=%u exit=%u startpc=%p pc=%p op=%u startop=%u nextt=%u keyflags=0x%x numkey=%u key_nil=%u idxchain=%u mobj_ref=%d key_ref=%d val_ref=%d tab_u64=0x%016llx ctrl_u64=0x%016llx key_u64=0x%016llx val_u64=0x%016llx ix_keyv=0x%016llx ix_tabv=0x%016llx tab_asize=%u tab_hmask=%u\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (const void *)J->startpc, (const void *)J->pc,
+	  (unsigned int)bc_op(*J->pc), (unsigned int)bc_op(J->cur.startins),
+	  (unsigned int)(nextt & 0xff), (unsigned int)keyflags,
+	  (unsigned int)((keyflags & IRSLOAD_KIDX_NUMKEY) != 0),
+	  (unsigned int)tref_isnil(ix->key), (unsigned int)ix->idxchain,
+	  (int)(tref_ref(ix->mobj) - REF_BIAS),
+	  (int)(tref_ref(ix->key) - REF_BIAS),
+	  (int)(tref_ref(ix->val) - REF_BIAS),
+	  (unsigned long long)tab->u64, (unsigned long long)ctrl->u64,
+	  (unsigned long long)key->u64, (unsigned long long)val->u64,
+	  (unsigned long long)ix->keyv.u64, (unsigned long long)ix->tabv.u64,
+	  (unsigned int)(t ? t->asize : 0), (unsigned int)(t ? t->hmask : 0));
+  fprintf(stderr,
+	  "S390X_ITERN_TREF site=%s s_ctrl=%#x s_key=%#x s_val=%#x s_ra1=%#x s_ra2=%#x\n",
+	  site, (unsigned int)J->base[ra-1], (unsigned int)J->base[ra],
+	  (unsigned int)J->base[ra+1], (unsigned int)J->base[1],
+	  (unsigned int)J->base[2]);
+}
+
+static void lj_record_s390x_recbc_log(jit_State *J, const BCIns *pc,
+				      BCIns ins, BCReg ra, BCReg rb, BCReg rc)
+{
+  TValue *base = J->L->base;
+  BCOp prevop = pc > proto_bc(J->pt) ? bc_op(pc[-1]) : BC__MAX;
+  if (!lj_record_s390x_recbc_log_enabled() || J->parent != 1 || J->exitno != 1)
+    return;
+  fprintf(stderr,
+	  "S390X_RECBC trace=%u parent=%u exit=%u pc=%p op=%u prevop=%u startop=%u ra=%u rb=%u rc=%u s0=0x%016llx s1=0x%016llx s2=0x%016llx s3=0x%016llx s4=0x%016llx s5=0x%016llx\n",
+	  (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (const void *)pc, (unsigned int)bc_op(ins),
+	  (unsigned int)prevop, (unsigned int)bc_op(J->cur.startins),
+	  (unsigned int)ra, (unsigned int)rb, (unsigned int)rc,
+	  (unsigned long long)base[0].u64, (unsigned long long)base[1].u64,
+	  (unsigned long long)base[2].u64, (unsigned long long)base[3].u64,
+	  (unsigned long long)base[4].u64, (unsigned long long)base[5].u64);
+}
+
+static IRType rec_next_types(GCtab *t, uint32_t idx);
 
 /* Simulate the runtime behavior of the FOR loop iterator. */
 static LoopEvent rec_for_iter(IROp *op, cTValue *o, int isforl)
@@ -791,8 +1271,10 @@ static void rec_loop_interp(jit_State *J, const BCIns *pc, LoopEvent ev)
       ** an inner loop even in a root trace. But it's better to be a bit
       ** more conservative here and only do it for very short loops.
       */
-      if (bc_j(*pc) != -1 && !innerloopleft(J, pc))
+      if (bc_j(*pc) != -1 && !innerloopleft(J, pc)) {
+	lj_record_s390x_linner_log(J, "rec_loop_interp_root", ev, 0);
 	lj_trace_err(J, LJ_TRERR_LINNER);  /* Root trace hit an inner loop. */
+      }
       if ((ev != LOOPEV_ENTERLO &&
 	   J->loopref && J->cur.nins - J->loopref > 100) || --J->loopunroll < 0)
 	lj_trace_err(J, LJ_TRERR_LUNROLL);  /* Limit loop unrolling. */
@@ -810,9 +1292,11 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
 {
   if (J->parent == 0 && J->exitno == 0) {  /* Root trace hit an inner loop. */
     /* Better let the inner loop spawn a side trace back here. */
+    lj_record_s390x_linner_log(J, "rec_loop_jit_root", ev, lnk);
     lj_trace_err(J, LJ_TRERR_LINNER);
   } else if (ev != LOOPEV_LEAVE) {  /* Side trace enters a compiled loop. */
     int iterator_restart_loop = 0;
+    int payload_desc_loop = 0;
     if (lj_record_s390x_stop_log_enabled()) {
       fprintf(stderr,
 	      "S390X_RECLOOP trace=%u parent=%u exit=%u pc=%p startpc=%p op=%u startop=%u ev=%u lnk=%u framedepth=%u retdepth=%u\n",
@@ -825,16 +1309,36 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
 	      (unsigned int)J->framedepth, (unsigned int)J->retdepth);
     }
 #if LJ_TARGET_S390X
-    if (J->parent != 0 && J->exitno == 1 &&
+    if (J->parent != 0 &&
+	(J->exitno == 1 || (J->exitno == 2 && lj_record_s390x_recloop_exit2_enabled())) &&
 	J->cur.root != 0 &&
 	J->framedepth + J->retdepth == 0 &&
 	bc_op(J->cur.startins) == BC_JMP &&
 	bc_op(*J->pc) == BC_JLOOP &&
-	J->parent == J->cur.root)
-      iterator_restart_loop = 1;
+		(J->parent == J->cur.root ||
+		 (lj_record_s390x_restart_desc_loop_enabled() &&
+		  J->parent != 0 &&
+		  traceref(J, J->parent)->root == J->cur.root)))
+	      iterator_restart_loop = 1;
+    if (iterator_restart_loop)
+      lj_record_s390x_loopslot_log(J, "rec_loop_jit_restart");
+    if (lj_record_s390x_looplink_payload_desc_enabled() &&
+	J->parent != 0 && J->parent != J->cur.root &&
+	J->exitno == 1 &&
+	J->cur.root != 0 &&
+	J->framedepth + J->retdepth == 0 &&
+	bc_op(J->cur.startins) == BC_JMP &&
+	bc_op(*J->pc) == BC_JLOOP &&
+	traceref(J, J->parent)->root == J->cur.root)
+      payload_desc_loop = 1;
+    if (payload_desc_loop && lj_record_s390x_stop_log_enabled())
+      fprintf(stderr,
+	      "S390X_RECLOOP trace=%u parent=%u exit=%u payload_desc_loop=1 root=%u\n",
+	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	      (unsigned int)J->exitno, (unsigned int)J->cur.root);
 #endif
     J->instunroll = 0;  /* Cannot continue across a compiled loop op. */
-    if ((J->pc == J->startpc || iterator_restart_loop) &&
+    if ((J->pc == J->startpc || iterator_restart_loop || payload_desc_loop) &&
 	J->framedepth + J->retdepth == 0)
       lj_record_stop(J, LJ_TRLINK_LOOP, J->cur.traceno);  /* Form extra loop. */
     else
@@ -846,6 +1350,8 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
 static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 {
   RecordIndex ix;
+  IRType nextt;
+  uint32_t keyflags;
   /* Since ITERN is recorded at the start, we need our own loop detection. */
   if (J->pc == J->startpc &&
       J->framedepth + J->retdepth == 0 && J->parent == 0 && J->exitno == 0) {
@@ -863,30 +1369,78 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
   J->maxslot = ra;
   lj_snap_add(J);  /* Required to make JLOOP the first ins in a side-trace. */
   ix.tab = getslot(J, ra-2);
-  ix.key = J->base[ra-1] ? J->base[ra-1] :
-	   sloadt(J, (int32_t)(ra-1), IRT_GUARD|IRT_INT,
-		  IRSLOAD_TYPECHECK|IRSLOAD_KEYINDEX);
   copyTV(J->L, &ix.tabv, &J->L->base[ra-2]);
   copyTV(J->L, &ix.keyv, &J->L->base[ra-1]);
+  nextt = rec_next_types(tabV(&ix.tabv), ix.keyv.u32.lo);
+  keyflags = IRSLOAD_TYPECHECK|IRSLOAD_KEYINDEX;
+  if ((nextt & 0xff) == IRT_INT)
+    keyflags |= IRSLOAD_KIDX_NUMKEY;
+  ix.key = J->base[ra-1] ? J->base[ra-1] :
+	   sloadt(J, (int32_t)(ra-1), IRT_GUARD|IRT_INT,
+		  keyflags);
   ix.idxchain = (rb < 3);  /* Omit value type check, if unused. */
   ix.mobj = 1;  /* We need the next index, too. */
   J->maxslot = ra + lj_record_next(J, &ix);
   J->needsnap = 1;
+  lj_record_s390x_itern_focus_log(J, "after_next", ra, &ix, nextt, keyflags);
   if (!tref_isnil(ix.key)) {  /* Looping back? */
     const BCIns *oldpc = J->pc;
+    if (lj_record_s390x_retry_first_array_exit_enabled() &&
+	J->parent == 4 && J->exitno == 1 &&
+	(keyflags & IRSLOAD_KIDX_NUMKEY)) {
+      GCtrace *parent = traceref(J, J->parent);
+      parent->snap[J->exitno].count = SNAPCOUNT_DONE;
+      if (lj_record_s390x_stop_log_enabled()) {
+	fprintf(stderr,
+		"S390X_ITERN_RETRY site=payload_done trace=%u parent=%u exit=%u snapcount=%u\n",
+		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		(unsigned int)J->exitno,
+		(unsigned int)parent->snap[J->exitno].count);
+      }
+    }
+    lj_record_s390x_itern_focus_log(J, "payload", ra, &ix, nextt, keyflags);
     J->base[ra-1] = ix.mobj | TREF_KEYINDEX;  /* Control var has next index. */
     J->base[ra] = ix.key;
     J->base[ra+1] = ix.val;
     J->pc += bc_j(J->pc[1])+2;
 #if LJ_TARGET_S390X
     TraceNo root = J->cur.root;
-    int allow_payload_desc = (root != 0 &&
-			      J->parent == root + 2 &&
-			      bc_op(J->cur.startins) == BC_JMP &&
-			      bc_op(*J->pc) == BC_ADDVV);
-    if (lj_record_s390x_stop_log_enabled()) {
-      fprintf(stderr,
-	      "S390X_RECITERN trace=%u parent=%u exit=%u oldpc=%p oldop=%u newpc=%p newop=%u startpc=%p key_nil=0\n",
+    const BCIns *entrypc = mref(J->cur.startpc, const BCIns);
+    int allow_payload_desc = 0;
+	    if (root != 0 &&
+		J->exitno == 1 &&
+		bc_op(J->cur.startins) == BC_JMP &&
+		bc_op(*J->pc) == BC_ADDVV) {
+	      if (J->parent == root) {
+	allow_payload_desc = 1;
+      } else if ((keyflags & IRSLOAD_KIDX_NUMKEY) &&
+		 J->parent != 0 && traceref(J, J->parent)->root == root) {
+	/* Allow payload descendants that stay within the same iterator-root
+	** family only for numeric-key iterators. The deeper trace is needed
+	** to get past the hot trace-2 exit-1 loop on native s390x for array
+	** traversal, but the same widening is not safe for hash iterators.
+	*/
+		allow_payload_desc = 1;
+	      }
+	    }
+    if (lj_record_s390x_restore_payload_startpc_enabled() &&
+	(keyflags & IRSLOAD_KIDX_NUMKEY) &&
+	J->parent != 0 && J->exitno == 1 &&
+	J->startpc == NULL &&
+	entrypc != NULL && bc_op(*entrypc) == BC_JLOOP &&
+	root != 0 && traceref(J, J->parent)->root == root) {
+      J->startpc = entrypc;
+      if (lj_record_s390x_stop_log_enabled()) {
+	fprintf(stderr,
+		"S390X_RECITERN trace=%u parent=%u exit=%u restored_startpc=%p startop=%u\n",
+		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		(unsigned int)J->exitno, (const void *)J->startpc,
+		(unsigned int)bc_op(*J->startpc));
+      }
+    }
+	    if (lj_record_s390x_stop_log_enabled()) {
+	      fprintf(stderr,
+		      "S390X_RECITERN trace=%u parent=%u exit=%u oldpc=%p oldop=%u newpc=%p newop=%u startpc=%p key_nil=0\n",
 	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
 	      (unsigned int)J->exitno, (const void *)oldpc,
 	      (unsigned int)bc_op(*oldpc), (const void *)J->pc,
@@ -896,7 +1450,8 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     ** tracing that parent exit and fall back to the interpreter directly.
     ** This avoids pathological descendant retry ladders on native s390x.
     */
-    if (J->parent != 0 && J->exitno == 1) {
+    if (!lj_record_s390x_allow_iter_desc_enabled() &&
+	J->parent != 0 && J->exitno == 1) {
       GCtrace *parent = traceref(J, J->parent);
       if (parent->linktype == LJ_TRLINK_LOOP &&
 	  parent->root != 0 &&
@@ -919,8 +1474,10 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 #endif
     return LOOPEV_ENTER;
   } else {
+  lj_record_s390x_itern_focus_log(J, "nil", ra, &ix, nextt, keyflags);
 #if LJ_TARGET_S390X
     BCOp nextop = bc_op(J->pc[2]);
+    int allow_numkey_nil_desc = 0;
     if (lj_record_s390x_stop_log_enabled()) {
       fprintf(stderr,
 	      "S390X_RECITERN trace=%u parent=%u exit=%u oldpc=%p oldop=%u newpc=%p newop=%u startpc=%p key_nil=1\n",
@@ -928,11 +1485,33 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 	      (unsigned int)J->exitno, (const void *)J->pc,
 	      (unsigned int)bc_op(*J->pc), (const void *)(J->pc + 2),
 	      (unsigned int)nextop, (const void *)J->startpc);
+      if (J->parent != 0 && (J->exitno == 1 || J->exitno == 4))
+	lj_record_s390x_loopslot_log(J, "rec_itern_key_nil");
     }
-    if (J->parent != 0 && J->exitno == 1) {
+    if (lj_record_s390x_restart_desc_loop_enabled() &&
+	J->parent != 0 && J->exitno == 1) {
       GCtrace *parent = traceref(J, J->parent);
-      if (parent->linktype == LJ_TRLINK_LOOP && parent->root != 0) {
-	parent->snap[J->exitno].count = SNAPCOUNT_DONE;
+      TraceNo root = parent->root;
+      if (root != 0 && J->parent != root &&
+	  bc_op(J->cur.startins) == BC_JMP && nextop == BC_FORL)
+	allow_numkey_nil_desc = 1;
+    }
+    if (allow_numkey_nil_desc)
+      J->s390x_nil_restart_desc = 1;
+    if (!lj_record_s390x_allow_iter_desc_enabled() &&
+	J->parent != 0 && J->exitno == 1) {
+      GCtrace *parent = traceref(J, J->parent);
+      int skip_done = lj_record_s390x_skip_nil_desc_done_enabled();
+      if (lj_record_s390x_retry_first_array_exit_enabled() &&
+	  J->parent == 4 && J->exitno == 1 &&
+	  (keyflags & IRSLOAD_KIDX_NUMKEY) == 0 &&
+	  parent->snap[J->exitno].count <
+	    J->param[JIT_P_hotexit] + lj_record_s390x_retry_first_array_exit_limit())
+	skip_done = 1;
+      if (parent->linktype == LJ_TRLINK_LOOP && parent->root != 0 &&
+	  !allow_numkey_nil_desc) {
+	if (!skip_done)
+	  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
 	lj_record_s390x_lleave_log(J, "rec_itern_nil_loop_descendant");
 	lj_trace_err(J, LJ_TRERR_LLEAVE);
       }
@@ -941,11 +1520,14 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
       ** root-linked trace family. Keep restart handling in the interpreter
       ** and wait for the payload path off the same parent exit instead.
       */
-      if (parent->root != 0)
-	parent->snap[J->exitno].count = SNAPCOUNT_DONE;
-      UNUSED(nextop);
-      lj_record_s390x_lleave_log(J, "rec_itern_nil_descendant");
-      lj_trace_err(J, LJ_TRERR_LLEAVE);
+      if (parent->root != 0 && !allow_numkey_nil_desc)
+	if (!skip_done)
+	  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
+      if (!allow_numkey_nil_desc) {
+	UNUSED(nextop);
+	lj_record_s390x_lleave_log(J, "rec_itern_nil_descendant");
+	lj_trace_err(J, LJ_TRERR_LLEAVE);
+      }
     }
 #endif
     J->maxslot = ra-3;
@@ -1155,6 +1737,7 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
   TValue *frame = J->L->base - 1;
   ptrdiff_t i;
   BCReg baseadj = 0;
+  s390x_recret_branch_log(J, "entry", frame, rbase, gotresults, baseadj, 0, 0);
   for (i = 0; i < gotresults; i++)
     (void)getslot(J, rbase+i);  /* Ensure all results have a reference. */
   while (frame_ispcall(frame)) {  /* Immediately resolve pcall() returns. */
@@ -1177,6 +1760,8 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
 	(J->parent == 0 && J->exitno == 0 &&
 	 !bc_isret(bc_op(J->cur.startins))))) {
     /* NYI: specialize to frame type and return directly, not via RET*. */
+    s390x_recret_branch_log(J, "interp_return_stop", frame, rbase, gotresults,
+			      baseadj, 0, 0);
     for (i = 0; i < (ptrdiff_t)rbase; i++)
       J->base[i] = 0;  /* Purge dead slots. */
     J->maxslot = rbase + (BCReg)gotresults;
@@ -1201,10 +1786,14 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
     ptrdiff_t nresults = bc_b(callins) ? (ptrdiff_t)bc_b(callins)-1 :gotresults;
     BCReg cbase = bc_a(callins);
     GCproto *pt = funcproto(frame_func(frame - (cbase+1+LJ_FR2)));
+    s390x_recret_branch_log(J, "lua_pre", frame, rbase, gotresults, baseadj,
+			      cbase, nresults);
     if ((pt->flags & PROTO_NOJIT))
       lj_trace_err(J, LJ_TRERR_CJITOFF);
     if (J->framedepth == 0 && J->pt && frame == J->L->base - 1) {
       if (!J->cur.root && check_downrec_unroll(J, pt)) {
+	s390x_recret_branch_log(J, "lua_downrec_stop", frame, rbase,
+				  gotresults, baseadj, cbase, nresults);
 	J->maxslot = (BCReg)(rbase + gotresults);
 	lj_snap_purge(J);
 	lj_record_stop(J, LJ_TRLINK_DOWNREC, J->cur.traceno);  /* Down-rec. */
@@ -1216,6 +1805,8 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
       J->base[i-1-LJ_FR2] = i < gotresults ? J->base[rbase+i] : TREF_NIL;
     J->maxslot = cbase+(BCReg)nresults;
     if (J->framedepth > 0) {  /* Return to a frame that is part of the trace. */
+      s390x_recret_branch_log(J, "lua_intrace_return", frame, rbase,
+				gotresults, baseadj, cbase, nresults);
       J->framedepth--;
       lj_assertJ(J->baseslot > cbase+1+LJ_FR2, "bad baseslot for return");
       J->baseslot -= cbase+1+LJ_FR2;
@@ -1223,14 +1814,22 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
     } else if (J->parent == 0 && J->exitno == 0 &&
 	       !bc_isret(bc_op(J->cur.startins))) {
       /* Return to lower frame would leave the loop in a root trace. */
+      s390x_recret_branch_log(J, "lua_root_lower_frame_lleave", frame, rbase,
+				gotresults, baseadj, cbase, nresults);
       lj_record_s390x_lleave_log(J, "record_ret_lower_frame");
       lj_trace_err(J, LJ_TRERR_LLEAVE);
     } else if (J->needsnap) {  /* Tailcalled to ff with side-effects. */
+      s390x_recret_branch_log(J, "lua_needsnap_nyiretl", frame, rbase,
+				gotresults, baseadj, cbase, nresults);
       lj_trace_err(J, LJ_TRERR_NYIRETL);  /* No way to insert snapshot here. */
     } else if (1 + pt->framesize >= LJ_MAX_JSLOTS ||
 	       J->baseslot + J->maxslot >= LJ_MAX_JSLOTS) {
+      s390x_recret_branch_log(J, "lua_stackov", frame, rbase, gotresults,
+				baseadj, cbase, nresults);
       lj_trace_err(J, LJ_TRERR_STACKOV);
     } else {  /* Return to lower frame. Guard for the target we return to. */
+      s390x_recret_branch_log(J, "lua_lower_frame_retf", frame, rbase,
+				gotresults, baseadj, cbase, nresults);
       TRef trpt = lj_ir_kgc(J, obj2gco(pt), IRT_PROTO);
       TRef trpc = lj_ir_kptr(J, (void *)frame_pc(frame));
       emitir(IRTG(IR_RETF, IRT_PGC), trpt, trpc);
@@ -1244,6 +1843,8 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
     }
   } else if (frame_iscont(frame)) {  /* Return to continuation frame. */
     s390x_recret_log(J, "cont", frame, rbase, gotresults, baseadj);
+    s390x_recret_branch_log(J, "cont_pre", frame, rbase, gotresults, baseadj,
+			      0, 0);
     ASMFunction cont = frame_contf(frame);
     BCReg cbase = (BCReg)frame_delta(frame);
     if ((J->framedepth -= 2) < 0)
@@ -2566,6 +3167,7 @@ void lj_record_ins(jit_State *J)
   ins = *pc;
   op = bc_op(ins);
   ra = bc_a(ins);
+  lj_record_s390x_recbc_log(J, pc, ins, ra, bc_b(ins), bc_c(ins));
   ix.val = 0;
   switch (bcmode_a(op)) {
   case BCMvar:
@@ -3017,8 +3619,10 @@ static const BCIns *rec_setup_root(jit_State *J)
     J->bc_min = pc;
     break;
   case BC_ITERL:
-    if (bc_op(pc[-1]) == BC_JLOOP)
+    if (bc_op(pc[-1]) == BC_JLOOP) {
+      lj_record_s390x_linner_log(J, "rec_setup_root_iterl_jloop", LOOPEV_ENTER, 0);
       lj_trace_err(J, LJ_TRERR_LINNER);
+    }
     lj_assertJ(bc_op(pc[-1]) == BC_ITERC, "no ITERC before ITERL");
     J->maxslot = ra + bc_b(pc[-1]) - 1;
     J->bc_extent = (MSize)(-bc_j(ins))*sizeof(BCIns);
@@ -3027,10 +3631,69 @@ static const BCIns *rec_setup_root(jit_State *J)
     J->bc_min = pc;
     break;
   case BC_ITERN:
-    lj_assertJ(bc_op(pc[1]) == BC_ITERL, "no ITERL after ITERN");
+    if (lj_record_s390x_root_freeze_log_enabled() &&
+	!lj_record_s390x_is_itern_follow_op(bc_op(pc[1]))) {
+      fprintf(stderr,
+	      "S390X_ROOT_FREEZE site=rec_setup_root_bad_itern trace=%u parent=%u exit=%u pc=%p op0=%u pc1=%p op1=%u iterl=%u iiterl=%u jiterl=%u loop=%u iloop=%u jloop=%u jmp=%u match=%u startpc=%p cur_startpc=%p startins=%u\n",
+	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	      (unsigned int)J->exitno, (const void *)pc,
+	      (unsigned int)bc_op(pc[0]), (const void *)(pc + 1),
+	      (unsigned int)bc_op(pc[1]),
+	      (unsigned int)BC_ITERL, (unsigned int)BC_IITERL,
+	      (unsigned int)BC_JITERL, (unsigned int)BC_LOOP,
+	      (unsigned int)BC_ILOOP, (unsigned int)BC_JLOOP,
+	      (unsigned int)BC_JMP,
+	      (unsigned int)lj_record_s390x_is_itern_follow_op(bc_op(pc[1])),
+	      (const void *)J->startpc,
+	      (const void *)mref(J->cur.startpc, BCIns),
+	      (unsigned int)bc_op(J->cur.startins));
+    }
+    lj_assertJ(lj_record_s390x_is_itern_follow_op(bc_op(pc[1])),
+	       "no resumable loop op after ITERN");
     J->maxslot = ra;
     J->bc_extent = (MSize)(-bc_j(pc[1]))*sizeof(BCIns);
     J->bc_min = pc+2 + bc_j(pc[1]);
+    if (lj_record_s390x_root_itern_setup_iterl_match(J, pc) ||
+	lj_record_s390x_root_itern_saved_match(J, pc)) {
+      const BCIns *newpc;
+      BCIns newins;
+      if (lj_record_s390x_root_itern_setup_iterl_match(J, pc)) {
+	newpc = lj_record_s390x_itern_resume_pc(pc);
+	newins = *newpc;
+	if (!J->s390x_root_itern_savedvalid) {
+	  J->s390x_root_itern_savedpc = newpc;
+	  J->s390x_root_itern_savedins = newins;
+	  J->s390x_root_itern_savedvalid = 1;
+	}
+      } else {
+	newpc = J->s390x_root_itern_savedpc;
+	newins = J->s390x_root_itern_savedins;
+      }
+      if (lj_record_s390x_root_freeze_log_enabled()) {
+        fprintf(stderr,
+                "S390X_ROOT_CANON phase=%s trace=%u parent=%u exit=%u oldpc=%p newpc=%p oldop=%u newop=%u savedvalid=%u\n",
+                lj_record_s390x_root_itern_setup_iterl_match(J, pc) ?
+                "rec_setup_root" : "rec_setup_root_saved",
+                (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+                (unsigned int)J->exitno, (const void *)pc, (const void *)newpc,
+                (unsigned int)bc_op(pc[0]),
+                (unsigned int)bc_op(newins),
+                (unsigned int)J->s390x_root_itern_savedvalid);
+      }
+      J->startpc = newpc;
+      setmref(J->cur.startpc, newpc);
+      J->cur.startins = newins;
+    }
+    if (lj_record_s390x_root_itern_owner_loop_enabled() &&
+	J->parent == 0 && J->cur.traceno == 1) {
+      J->cur.unused1 = (uint8_t)BC_LOOP;
+      if (lj_record_s390x_root_freeze_log_enabled()) {
+	fprintf(stderr,
+		"S390X_ROOT_CANON phase=rec_setup_root_owner trace=%u parent=%u exit=%u ownerop=%u\n",
+		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		(unsigned int)J->exitno, (unsigned int)J->cur.unused1);
+      }
+    }
     J->state = LJ_TRACE_RECORD_1ST;  /* Record the first ITERN, too. */
     break;
   case BC_LOOP:
@@ -3110,11 +3773,14 @@ void lj_record_setup(jit_State *J)
 
   J->startpc = J->pc;
   setmref(J->cur.startpc, J->pc);
+  J->cur.unused1 = 0;
   if (J->parent) {  /* Side trace. */
     GCtrace *T = traceref(J, J->parent);
     TraceNo root = T->root ? T->root : J->parent;
     J->cur.root = (uint16_t)root;
     J->cur.startins = BCINS_AD(BC_JMP, 0, 0);
+    lj_record_s390x_setup_log(J, "side_enter");
+    lj_record_s390x_side_focus_log(J, "enter", T);
     /* Check whether we could at least potentially form an extra loop. */
     if (J->exitno == 0 && T->snap[0].nent == 0) {
       /* We can narrow a FORL for some side traces, too. */
@@ -3127,11 +3793,34 @@ void lj_record_setup(jit_State *J)
     } else {
       J->startpc = NULL;  /* Prevent forming an extra loop. */
     }
+    lj_record_s390x_side_replay_log(J, "before_replay", T);
     lj_snap_replay(J, T);
+    lj_record_s390x_side_replay_log(J, "after_replay", T);
+    lj_record_s390x_side_focus_log(J, "after_replay", T);
   sidecheck:
+    lj_record_s390x_side_replay_log(J, "after_sidecheck", T);
+    lj_record_s390x_side_focus_log(J, "after_sidecheck", T);
+    if (lj_record_s390x_restore_side_jloop_startpc_enabled() &&
+	J->startpc == NULL &&
+	J->exitno == 1 &&
+	T->root != 0 &&
+	bc_op(T->startins) == BC_JLOOP &&
+	bc_op(*J->pc) == BC_JLOOP) {
+      J->startpc = J->pc;
+      if (lj_record_s390x_stop_log_enabled()) {
+	fprintf(stderr,
+		"S390X_RECSETUP trace=%u parent=%u exit=%u restored_side_startpc=%p startop=%u parent_startop=%u\n",
+		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		(unsigned int)J->exitno, (const void *)J->startpc,
+		(unsigned int)bc_op(*J->startpc),
+		(unsigned int)bc_op(T->startins));
+      }
+    }
+    lj_record_s390x_setup_log(J, "side_ready");
     if ((traceref(J, J->cur.root)->nchild >= J->param[JIT_P_maxside] ||
 	 T->snap[J->exitno].count >= J->param[JIT_P_hotexit] +
-				     J->param[JIT_P_tryside])) {
+					     J->param[JIT_P_tryside])) {
+      lj_record_s390x_side_focus_log(J, "sidecheck_interp", T);
       if (bc_op(*J->pc) == BC_JLOOP) {
 	BCIns startins = traceref(J, bc_d(*J->pc))->startins;
 	if (bc_op(startins) == BC_ITERN)
@@ -3142,7 +3831,9 @@ void lj_record_setup(jit_State *J)
   } else {  /* Root trace. */
     J->cur.root = 0;
     J->cur.startins = *J->pc;
+    lj_record_s390x_root_freeze_log(J, "root_before_rec_setup_root");
     J->pc = rec_setup_root(J);
+    lj_record_s390x_root_freeze_log(J, "root_after_rec_setup_root");
     /* Note: the loop instruction itself is recorded at the end and not
     ** at the start! So snapshot #0 needs to point to the *next* instruction.
     ** The one exception is BC_ITERN, which sets LJ_TRACE_RECORD_1ST.
@@ -3154,6 +3845,7 @@ void lj_record_setup(jit_State *J)
       J->startpc = NULL;
     if (1 + J->pt->framesize >= LJ_MAX_JSLOTS)
       lj_trace_err(J, LJ_TRERR_STACKOV);
+    lj_record_s390x_setup_log(J, "root_ready");
   }
 #if LJ_HASPROFILE
   J->prev_pt = NULL;
