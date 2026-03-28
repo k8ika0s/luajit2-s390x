@@ -229,6 +229,17 @@ Current conclusion:
       a legitimate end-of-iteration helper result from `tmptv`, so the
       remaining work is amortization through the recovered steady loop body,
       not bad data or a broken compare
+    - the newest root-side probes refine that again:
+      - the owner split for root `trace 1` can flip
+        `BC_JLOOP` fallback from `dispatch-original` to `resume-linked`
+      - but the resumed root still stalls with identical state at
+        `parent=1 exit=1`
+      - root birth logging now proves the winning root trace still persists
+        `startins=70` (`BC_ITERN`) by save time, even though early recorder
+        retries can temporarily normalize to post-`ITERN` follow ops
+      - the performance endgame is therefore not another `0x527` guard tweak;
+        it is making the successful array root be born with a stable,
+        resumable post-`ITERN` ownership contract
     - the safe baseline remains dominated by `trace 2 exit 1`
     - the hot guard owner on that safe path is still `guardmark=0x508`
       (`asm_gencall_sload()` pre-call typecheck on the iterator helper path)

@@ -205,8 +205,8 @@ sync loop.
     [tests/s390x/jit_loops/iterator_trace_shape.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/iterator_trace_shape.lua)
   - the old unbounded `root -> n` iterator trace churn is no longer the live
     blocker
-  - the remaining blocker is steady-state performance on native `kdz`
-    release JIT, not basic correctness
+  - the remaining blocker is root resume contract on native `kdz` release
+    JIT, not basic correctness
 - The latest concrete iterator/backend finding is a real Linux/s390x ABI fix:
   - `lj_vm_next` in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -235,6 +235,26 @@ sync loop.
     deeper owner at root `exit 2`
   - that surviving owner maps to the post-call carried-total boundary
     (`CALLL -> HIOP -> VLOAD -> SLOAD -> ADDOV`)
+  - the latest root-side iterator work has now moved the finish-line seam one
+    layer up:
+    - the owner split for root `trace 1` is real and can flip
+      `BC_JLOOP` fallback from `dispatch-original` to `resume-linked`
+    - but resumed root `trace 1` still stalls immediately with identical
+      state, so root ownership is diagnostic but not sufficient
+    - root birth logging now proves `rec_setup_root()` can normalize early
+      root attempts to post-`ITERN` follow ops, but the final saved root still
+      persists `startins=70` (`BC_ITERN`)
+    - the winning root attempt sees a moving post-`ITERN` follow-op family,
+      not one stable loop opcode:
+      `ITERL -> IITERL -> JITERL -> LOOP -> ILOOP -> JLOOP -> JMP -> FUNCF`
+    - so the active endgame is no longer guard placement or recovered-side
+      identity; it is preserving a stable root ownership contract for the
+      successful `BC_ITERN` root birth
+  - the current authoritative remote debug path is now fixed again:
+    - `kdz` rebuilds must use
+      `XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT' BUILDMODE=static`
+    - otherwise the remote `luajit` falls back to `LJ_HASJIT=0` and iterator
+      probes become non-authoritative
   - the latest scratch-only key-lane classifier now proves the bad
     `BC_ADDVV` resume is not the final frontier:
     - a narrow post-call key-lane guard keeps the direct iterator repro

@@ -470,6 +470,9 @@ typedef struct jit_State {
   uint8_t needsplit;	/* Need SPLIT pass. */
 #endif
   uint8_t retryrec;	/* Retry recording. */
+#if LJ_TARGET_S390X
+  uint8_t s390x_nil_restart_desc;  /* Scratch flag for nil-restart descendants. */
+#endif
 
   GCRef *trace;		/* Array of traces. */
   TraceNo freetrace;	/* Start of scan for next free trace. */
@@ -496,9 +499,12 @@ typedef struct jit_State {
   ScEvEntry scev;	/* Scalar evolution analysis cache slots. */
 
   const BCIns *startpc;	/* Bytecode PC of starting instruction. */
+  const BCIns *s390x_root_itern_savedpc;  /* Scratch preserved post-ITERN root owner. */
   TraceNo parent;	/* Parent of current side trace (0 for root traces). */
   ExitNo exitno;	/* Exit number in parent of current side trace. */
   int exitcode;		/* Exit code from unwound trace. */
+  BCIns s390x_root_itern_savedins;  /* Scratch preserved post-ITERN root ins. */
+  uint8_t s390x_root_itern_savedvalid;  /* Scratch preserved post-ITERN root owner valid. */
 
   BCIns *patchpc;	/* PC for pending re-patch. */
   BCIns patchins;	/* Instruction for pending re-patch. */
