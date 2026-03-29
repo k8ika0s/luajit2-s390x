@@ -27,6 +27,824 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `iter-chain-handoff-bridge-iitern-refresh-reject-20260330f`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: reject
+  - Notes: forcing the exact bridge-resumed `BC_ITERL` seam to jump directly
+    into `lj_vm_IITERN` is not a valid landing path. The idea was coherent:
+    the stable branch was replaying a frozen `IITERL` tail, so the next test
+    was to re-enter the iterator producer body instead of consuming the same
+    carried result bundle again. In
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+    the exact bridge branch was patched to detect the local `BC_JLOOP`
+    carrier, rewind `PC`, decode `RA`, and jump to `->vm_IITERN`.
+  - `gdb` shows the bridge lands in `lj_vm_IITERN+24` with the wrong frame
+    contract:
+    - `RA = 11`
+    - `r4 = 0x58` after the internal `sllg`
+    - `r7 = 0x2`
+    - `r5 = 0x3`
+    - crash at `llgf %r1,48(%r7)`
+  - The live frame around `BASE` confirms why:
+    - `BASE+48` still holds the iterator function
+    - `BASE+56` holds integer `0`
+    - `BASE+64` holds the special control-var sentinel
+    - `BASE+72` holds boxed integer `2`
+    - `BASE+80` holds boxed integer `3`
+    So with `RA=11`, the `-16(RA, BASE)` slot that `IITERN` expects to be the
+    iterator table actually resolves to the frozen key lane (`2`), not a table.
+  - A save/restore-side attempt to preserve one extra pre-call table slot did
+    not fix this. The failure is not “one missing lane”; it is that the bridge
+    is not re-entering the iterator producer through the original bytecode
+    frame shape at all.
+  - Consequence:
+    - do not force `vm_IITERN` from the bridge carrier path
+    - keep the stable `BC_ITERL -> BC_IITERL` bridge dispatch as the baseline
+    - the next seam remains the pre-tail refresh contract: the exact resumed
+      bytecode target/state that should precede the replayed `JLOOP/ITERL/FORL`
+      tail
+
+- `iter-chain-handoff-bridge-iiterl-stable-timeout-20260330e`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the exact post-bridge VM seam moved again, and this time the change
+    is a real stabilization. In
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+    the bridge-resumed static decode now special-cases `BC_ITERL` to dispatch
+    as `BC_IITERL` instead of running the `BC_ITERL` hotloop prologue. The
+    first cut missed because the `BC_JMP` fast-path branch jumped around the
+    rewrite; moving the `BC_ITERL -> BC_IITERL` rewrite ahead of that branch
+    fixed the control flow. On the authoritative `kdz` baseline, the run no
+    longer segfaults. It now times out cleanly, still repeatedly hitting the
+    exact bridge seam. So the active blocker is no longer the bridge crash
+    itself; it is forward progress after the stabilized bridge dispatch.
+
+- `iter-chain-handoff-bridge-iiterl-replay-state-20260330e`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: after the `BC_ITERL -> BC_IITERL` bridge fix, the exact bridge seam
+    is stable enough to observe directly in `gdb`. A breakpoint on
+    `lj_BC_IITERL` for the bridge-resumed `RD=32765` path shows:
+    - hit `n=1`: `vm_pc=...cc9c`, `RA=11`, `RD=32765`
+    - hit `n=50`: same `vm_pc`, same `RA/RD`
+    - hit `n=200`: same `vm_pc`, same `RA/RD`
+    and the carried slots around `BASE+80` / `BASE+104` stabilize after the
+    first hit and then stop changing:
+    - one lane materializes from the initial odd value to boxed `2`
+    - the surrounding iterator/result lanes remain fixed (`2`, `3`, GC refs)
+    This means the post-bridge path is no longer crashing, but it is replaying
+    the same `IITERL` state instead of making iterator progress. The next seam
+    is therefore not another VM crash contract; it is why the resumed bridge
+    path keeps re-entering `IITERL` with the same carried result bundle.
+
+- `iter-chain-handoff-bridge-resume-itern-reject-20260330e`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: reject
+  - Notes: shifting the exact bridge resume site one instruction earlier, from
+    bridge `BC_ITERL` to the preceding `BC_ITERN`, is not a safe fix. The idea
+    was coherent: post-bridge runs were replaying `IITERL` without re-hitting
+    `ITERN`, so resuming from the iterator call looked like the next boundary
+    to test. In
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+    the exact bridge branch was patched to detect a preceding `BC_ITERN` and
+    dispatch from there instead of from the bridge `BC_ITERL`. On the
+    authoritative `kdz` baseline, that regressed immediately to a hard
+    segfault (`RUN_EXIT=139`). So the bridge must not simply rewind to the
+    iterator call site wholesale. The stable branch remains the exact
+    `BC_ITERL -> BC_IITERL` bridge dispatch, which times out cleanly and keeps
+    the seam on post-bridge iterator progress instead of another VM crash.
+
+- `iter-chain-handoff-bridge-iterl-hotloop-jiterl-20260330e`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: a focused `gdb` stop on the fixed post-bridge branch proved the
+    next crash was not another ownership issue. The exact bridge-resumed
+    `BC_ITERL` at `trace3.resumepc+4` was being hotloop-patched in-place into
+    `BC_JITERL`:
+    - original bridge resume ins: `0x7ffd0b52` (`BC_ITERL`)
+    - patched live bytecode: `0x7ffd0b54` (`BC_JITERL`)
+    - preceding bytecode: `0x00040d57` (`BC_JLOOP 4`)
+    That patched `BC_JITERL` then jumped to `lj_BC_JLOOP` with `RD=32765`
+    (`0x7ffd`), which is still the iterator target field, not a trace number,
+    and crashed in the trace table lookup. This is why the correct bridge fix
+    is to skip the hotloop prologue on this exact resumed `ITERL` path, not to
+    mutate ownership or resume metadata again.
+
+- `iter-chain-handoff-bridge-helper-reg-preserve-20260330e`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: preserving the bridge helper’s `resumepc` and `resumeins` across
+    the C logging call in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    was a real fix. Before that change, the post-bridge resumed decode-state
+    was bogus at `lj_vmeta_istype` entry:
+    - `PC = 0x27`
+    - `RA = 0`
+    - `RD = 0`
+    After saving `resumepc` in `RB` and `resumeins` in `ITYPE` across the
+    helper call, the seam moved back onto an honest interpreter-side loop path:
+    repeated bridge hits followed by `lj_BC_JLOOP`, with real `PC`, `BASE`,
+    and live bytecode. That proved the earlier `ISTYPE` state corruption was
+    helper-call register clobbering, not the underlying bridge contract.
+
+- `iter-chain-handoff-partial-sync-false-regression-20260330d`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: a partial source sync back to `kdz` created a false regression
+    surface. Syncing only
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    and a few nearby files, while leaving older
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+    [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h),
+    and related continuation files on the remote host, collapsed the runtime
+    back onto the old `trace 3` illegal-instruction surface. A full sync of the
+    active continuation files is required before treating any `kdz` result as
+    authoritative.
+
+- `iter-chain-handoff-trace3-mcloop-baseline-20260330d`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: on the fully synced branch, the current safe `trace 3` baseline is
+    narrower than previously documented. The two env-gated `mcloop` controls:
+    - `LUAJIT_S390X_JLOOP_EXEC_SKIP_MCLOOP=1`
+    - `LUAJIT_S390X_VM_CHILD_SKIP_MCLOOP=1`
+    are both required to keep the branch off the old raw `trace 3` child-entry
+    crash. With those enabled, `trace 3` saves with:
+    - `resumeop=BC_JLOOP`
+    - `mcloop=20`
+    - `ownerop=0`
+    and the authoritative `kdz` harness again reaches:
+    - `trace 4`
+    - `parent=3 exit=0`
+    - `root=1`
+    - `startop=BC_JMP`
+    - `nins=32770`
+    - `mcloop=0`
+    So those `mcloop` gates are part of the current valid debug baseline on
+    this branch, not optional extras.
+
+- `iter-chain-handoff-vm-exit-child-entry-r6-valid-20260330d`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: a focused `gdb` stop on the fully synced branch shows the
+    `lj_vm_exit_interp` child-entry path is not failing because `TRACE:RD` is
+    garbage. At the `SIGILL` stop:
+    - `r6` points at a real trace object
+    - that trace is the live `trace 3` loop child
+    - the `mcode` field at offset `+104` is valid runtime mcode
+      (`0x...fc0c`)
+    - the process still eventually dies at `pc=0x3b`
+    So the current `0x3b` illegal-instruction is later than trace lookup and
+    later than the raw `mcode` load itself. A simple reload of `TRACE->mcode`
+    after the helper call in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    is not sufficient by itself. The remaining seam on that surface is still
+    inside the effective `trace 3` child-entry/entry-state path, unless the
+    `mcloop` gates are enabled to suppress it.
+
+- `iter-chain-handoff-safe-baseline-trace4-timeout-20260330d`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: with the fully synced branch and the two `mcloop` gates enabled:
+    - `LUAJIT_S390X_JLOOP_EXEC_SKIP_MCLOOP=1`
+    - `LUAJIT_S390X_VM_CHILD_SKIP_MCLOOP=1`
+    the recovered `kdz` baseline no longer dies at the old raw `trace 3`
+    child-entry fault. It settles into the expected pre-bridge shape:
+    - repeated `parent=3 exit=0`
+    - `target=2`
+    - `target_exec=3`
+    - `retop=87`
+    - `phase=loopdesc-child-query ... child=0`
+    - `phase=resume-linked`
+    and then records:
+    - `S390X_BCJMP_STOP trace=4 parent=3 exit=0 ... nins=32770`
+    before timing out. So the valid current seam is again the post-`trace 4`
+    bridge/continuation path, not the earlier raw `trace 3` child-entry crash.
+
+- `iter-chain-handoff-interp-resume-sigill-20260330c`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: reject
+  - Notes: widening the existing
+    `LUAJIT_S390X_BCJMP_LOOPDESC_RESUME` save-time setup in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    so it also covered the first non-stub `LJ_TRLINK_INTERP` bridge shape
+    (`root=1`, `startop=BC_JMP`, `nins=32770`) is not a safe landing path.
+    On `kdz`, the authoritative `iter-chain-handoff.lua` surface fails
+    immediately with `SIGILL` before the new focused `S390X_BRIDGE_META` line
+    can fire. So the first real interpreter bridge cannot simply inherit the
+    existing loop-desc resume setup wholesale.
+
+- `iter-chain-handoff-vm-bridge-helper-sigill-20260330c`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: reject
+  - Notes: a direct VM-side helper-call probe is also too intrusive on this
+    seam. Adding a logging-only helper call in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    at the exact static-resume consumption point, wired to
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    and gated by `LUAJIT_S390X_VM_BRIDGE_RESUME_LOG=1`, fails immediately with
+    `SIGILL` before any `S390X_VM_BRIDGE_RESUME` line can print. So the next
+    bridge probe must avoid introducing a helper call in the VM fast path and
+    instead use debugger stops or an even narrower non-call-side observation
+    technique.
+
+- `iter-chain-handoff-kdz-jit-plumbing-20260330b`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: `kdz` had regressed into a misleading non-JIT runtime surface even
+    after successful top-level repo rebuilds. The decisive proof came from the
+    temporary init log in
+    [src/lib_jit.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lib_jit.c):
+    repo-root rebuilds still printed:
+    - `S390X_JIT_LIB phase=luaopen_jit after_init flags=nojit`
+    - `jit.on()` then failed with `no JIT compiler for this architecture (yet)`
+    Rebuilding directly in
+    `/root/luajit2-s390x/perf-iterator-kdz-20260325u/repo/src` with:
+    - `make XCFLAGS=-DLUAJIT_ENABLE_S390X_JIT -j4`
+    restored the real surface:
+    - `S390X_JIT_LIB phase=jit_init flags=0x3ff0001`
+    - `jit.status() == true`
+    - `jit.on()` succeeds
+    So the active bridge work on `kdz` must use a direct `src/` rebuild; the
+    top-level repo rebuild path was not propagating the s390x JIT define into
+    all compilation units reliably enough for focused bridge work.
+
+- `iter-chain-handoff-trace102-restore-live-slot13-20260330b`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the authoritative remote harness on `kdz` is the repo copy:
+    [iter-chain-handoff.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/iter-chain-handoff.lua)
+    with its built-in:
+    - `require("jit.opt")`
+    - `hotloop=2`
+    - `hotexit=10`
+    - `minstitch=1`
+    On the recovered continuation bundle, that exact surface again reproduces
+    the full bridge ladder:
+    - `trace 1 -> 2 -> 3`
+    - then the pure-loop family through `trace 101`
+    - then the first non-stub bridge:
+      - `trace 102`
+      - `parent=101 exit=0`
+      - `linktype=6`
+      - `nins=32770`
+      - `mcloop=0`
+    The restore-time probe in
+    [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c)
+    now proves the hidden control-var lane is still live well past the old
+    early seams:
+    - slot `13` is a GC reference on `trace 1 exit=4`
+    - slot `13` is still a GC reference on `trace 3 exit=0`
+    - slot `13` is still a GC reference on `trace 101 exit=0` immediately
+      before `trace 102` forms
+    So the nil/compare failure found earlier is not caused by snapshot
+    restore. The hidden lane is being lost later, during or after the resumed
+    post-`trace 102` bridge/static-dispatch path.
+
+- `iter-chain-handoff-vm-bridge-nil-number-20260330a`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-short`
+  - Host: `zkd0`
+  - Result: classification only
+  - Notes: the VM-side bridge-dispatch experiment in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    no longer fails by raw-entering the `trace 4` bridge stub or by crashing in
+    `lj_BC_ISNEXT`. With the exact continuation baseline, the failing run now
+    reaches normal compare error handling:
+    - `lj_vmeta_comp`
+    - `lj_meta_comp`
+    - `lj_err_comp`
+    and reports:
+    - `attempt to compare nil with number`
+    A focused `gdb` stop on `lj_err_comp` shows the operands are:
+    - `o1 = L->base + 13`
+    - `o1->u64 = 0xffffffffffffffff` (`nil`)
+    - `o2->u64 = 0x0` (`number 0`)
+    So the remaining bridge bug is now value-level and specific: the hidden
+    control-var lane at slot `13` is still nil by the time the bridge path
+    reaches the resumed compare site. This rules out another ownership mistake
+    as the immediate blocker and points at bridge consumption / hidden slot
+    materialization instead.
+
+- `iter-chain-handoff-exec-self-reenter-fired-20260329m`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the exact `parent=3 exit=0` owner/self branch in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    is now proven live. With the recovered baseline plus:
+    - `LUAJIT_S390X_JLOOP_EXEC_SELF_REENTER=1`
+    - `LUAJIT_S390X_JLOOP_EXEC_SELF_PRED_LOG=1`
+    the focused `3/0` run shows:
+    - `use_resume=1`
+    - `idle=1`
+    - `parent_is_trace=1`
+    - `exec_is_trace=1`
+    - `is_jloop=1`
+    - initial `bcd=2`, then repeated `bcd=3`
+    - repeated `phase=exec-self-reenter`
+    So the old “branch never fires” fork is closed. The handoff logic now
+    really retargets the current `BC_JLOOP` from owner stub `2` onto owner
+    `3`. The remaining problem is after transfer, not before it.
+
+- `iter-chain-handoff-trace3-mcode-crash-20260329n`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: once the `3/0` exec-self-reenter branch is live, the short harness
+    no longer merely times out. It segfaults. A focused `gdb` run on the exact
+    recovered env shows:
+    - `S390X_VM_CHILD_ENTRY ... trace=3 ... mcode=0x331bfcb4 mcloop=20`
+    - repeated `phase=exec-self-reenter`
+    - crash at `pc = 0x331bfd00`, which is `trace 3` mcode `+0x4c`
+    The disassembly window around the trace shows the trace body begins at
+    `0x331bfcb4`, the mcloop entry is at `0x331bfcc8`, and the failing PC is
+    later inside the same trace body. This means the live seam has moved below
+    owner selection and transfer logic: the active bug is now the `trace 3`
+    self-entry / execution contract itself, likely its stack or entry-state
+    ABI, not the old `4 -> 5` owner candidate.
+
+- `iter-chain-handoff-vm-child-entry-trace3-20260329k`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: after a clean archive rebuild on `kdz` (`rm -f libluajit.a luajit
+    lj_trace.o` before `make`), the recovered baseline with
+    `LUAJIT_S390X_EMPTY_LOOP_FALLTHROUGH=1` plus the continuation envs can now
+    reproducibly reach real VM child entry for the loop-child owner:
+    - `S390X_VM_CHILD_ENTRY ... trace=3 ... resumeop=87 ... mcloop=20`
+    On the same run, `parent=3 exit=0` repeatedly logs:
+    - `target=2`
+    - `target_exec=3`
+    - `retop=87`
+    - `exec_resumeop=87`
+    but still only takes `phase=resume-linked`, never any visible
+    `parent=4/5` execution transfer. `trace 4` still stops later as:
+    - `S390X_BCJMP_STOP trace=4 parent=3 exit=0 ...`
+    So the recovered path is now deeper than the earlier root/trace-2 churn:
+    VM child entry for `trace 3` is real, but the post-entry self/owner
+    re-entry path at `parent=3 exit=0` still does not hand execution forward.
+
+- `iter-chain-handoff-owner-static-reenter-miss-20260329l`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: a narrow `lj_trace_exit()` experiment that forced `-17` static
+    re-entry for the exact stabilized loop-desc owner shape (`trace 5`
+    family) did change runtime behavior, but not at the expected seam. On the
+    recovered long harness it produced early `S390X_VM_CHILD_ENTRY trace=3`,
+    but still no `parent=5`, no `trace=6`, and no final `RESULT`. On the short
+    handoff harness it did not even reach the old `4 -> 5` seam; it remained
+    stuck in:
+    - root `exit 4`
+    - root `exit 1 -> target=2`
+    - `parent=3 exit=0 -> target=2 target_exec=3 retop=87`
+    Therefore the missing transfer is earlier than the exact `trace 5`
+    experiment. The live seam has moved to the `parent=3 exit=0` owner/self
+    re-entry path, not the old `4 -> 5` candidate alone.
+
+- `iter-chain-handoff-fallthrough-recovery-20260329i`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the apparent `trace 3` regression was partly a bad baseline. The
+    dedicated handoff harness had dropped `LUAJIT_S390X_EMPTY_LOOP_FALLTHROUGH=1`,
+    which reintroduced the old pure-loop self-hang before the deeper
+    continuation seam. With that env restored:
+    - the harness again gets past `trace 3`
+    - the recovered chain logs
+      `S390X_BCJMP_STOP trace=4 parent=3 exit=0 ... link=3 linktype=1 nins=32770`
+    - so the deeper continuation seam is still reachable on the current code
+      line
+    With the same recovered baseline and `parent=4 exit=0` focus, the plain
+    runtime now segfaults quickly instead of merely timing out. So the active
+    seam is once again the post-`trace 4` continuation boundary, not the old
+    pure-loop `trace 3` hang.
+
+- `iter-chain-handoff-root-stuck-on-2-20260329j`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: on the recovered baseline (`LUAJIT_S390X_EMPTY_LOOP_FALLTHROUGH=1`
+    restored, `LUAJIT_S390X_JLOOP_CURRENT_SELF_RESUME` off), root `exit 1`
+    does not immediately adopt the newly promoted loop child. The focused
+    `parent=1 exit=1` log shows repeated:
+    - `target=2`
+    - `target_exec=2`
+    - `retop=82`
+    - `target_resumechild=0`
+    even after `trace 3` promotion has begun. Only later in the same run does
+    the chain advance enough to save:
+    - `S390X_BCJMP_STOP trace=4 parent=3 exit=0 ...`
+    So the recovered deeper seam is real, but the root-side handoff still
+    spends measurable time stuck on continuation stub `2` before `3/0` is even
+    allowed to form. That makes the next precise question: why the `2 -> 3`
+    runtime-owner adoption is delayed on this harness, and whether that delay
+    is what eventually feeds the crashing `4/0` path.
+
+- `iter-chain-handoff-trace3-self-resume-mask-20260329h`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: on the current continuation branch, `trace 3` is now the active
+    masking seam. With the full continuation env set, the harness stalls after
+    `trace 3` promotion and never reaches any `parent=4 exit=0` activity. When
+    only `LUAJIT_S390X_JLOOP_CURRENT_SELF_RESUME` is removed, the same harness
+    immediately segfaults instead of timing out. So the current-self-resume
+    gate is no longer just a late `4 -> 5` policy tweak on this surface; it is
+    masking an earlier `trace 3 exit=0` failure. The live bug on this harness
+    has moved back up to the `trace 3` self-resume / exit-0 path.
+
+- `iter-chain-handoff-trace3-regression-20260329g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the dedicated `iter-chain-handoff.lua` harness currently no longer
+    reaches the old `4 -> 5` seam on the active continuation branch. With the
+    previously working continuation env set, it now stalls immediately after:
+    - `trace 2` promotion from `parent=1 exit=4`
+    - `trace 3` promotion from `parent=1 exit=1`
+    and emits only the seven root/child promotion lines before timing out.
+    This remains true both with and without
+    `LUAJIT_S390X_LOOPDESC_OWNER_DIRECT_ENTRY=1`, so the exact-owner scratch is
+    not the only cause. The current chain-handoff harness is therefore acting
+    as a higher-level regression surface: before any more `4 -> 5` transfer
+    work, the deeper continuation seam needs to be re-established on the exact
+    workload/configuration that previously reached it.
+
+- `iter-array-loopdesc-owner-patch-resumepc-jloop-20260329f`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: one-dispatch patching of the exact stabilized owner’s
+    `resume_bcpc` to `BC_JLOOP self` is not enough to force real owner entry.
+    The exact branch fires repeatedly:
+    - `phase=patch-resumepc-jloop`
+    - `parent=4`
+    - `exit=0`
+    - `target=5`
+    - `resumepc=<target startpc>`
+    but still never produces:
+    - any `S390X_VM_CHILD_ENTRY`
+    - any `parent=5`
+    - any `trace=6`
+    - any final `RESULT`
+    So the remaining blocker is now below owner selection, owner marking, and
+    even one-dispatch resume-site patching. The actual post-exit PC/dispatch
+    consumer is still not handing execution onto the selected owner body.
+
+- `iter-array-loopdesc-owner-self-jloop-20260329e`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the exact stabilized owner shape (`trace 5`) can be moved onto the
+    same self-`BC_JLOOP` resume contract used by the pure-loop family:
+    - `target=5`
+    - `target_exec=5`
+    - `target_resumeop=87`
+    - `target_resumechild=5`
+    - `target_ownerop=85`
+    and the steady-state root-side seam changes accordingly:
+    - `retop=87`
+    instead of the earlier `retop=82`. But this still does not produce:
+    - any `parent=5`
+    - any `trace=6`
+    - any `S390X_VM_CHILD_ENTRY`
+    - any final `RESULT`
+    So the remaining blocker is not just “wrong resume opcode family” for the
+    stabilized owner. Even when `trace 5` is self-`JLOOP` resumable, the
+    runtime still does not visibly transfer execution onto it.
+
+- `iter-array-loopdesc-owner-force-static-20260329d`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: forcing `lj_trace_exit()` to return `-17` for the exact stabilized
+    owner shape does not make the VM consume that owner through the existing
+    static `BC_JLOOP` child-entry path. The run repeatedly reports:
+    - `phase=force-static-owner`
+    - `target=5`
+    - `target_exec=5`
+    - `retop=82`
+    but still shows no:
+    - `S390X_VM_CHILD_ENTRY`
+    - `parent=5`
+    - `trace=6`
+    This means the missing transfer is not solved by simply forcing the
+    selected owner onto the `-17` static-dispatch path.
+
+- `iter-array-loopdesc-owner-direct-shape-20260329c`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: marking the exact stabilized owner candidate with:
+    - `resumechild=self`
+    - `ownerop=BC_LOOP`
+    changes the saved owner metadata exactly as intended:
+    - `target=5`
+    - `target_exec=5`
+    - `target_resumechild=5`
+    - `target_ownerop=85`
+    but it does not trigger actual owner entry under the current runtime
+    path. The steady-state exit still remains:
+    - `retop=82`
+    with no `S390X_VM_CHILD_ENTRY`, `parent=5`, `trace=6`, or `RESULT`.
+    So selecting and marking the owner is not enough by itself; the runtime
+    still does not transfer onto that selected owner body.
+
+- `iter-array-loopdesc-owner-gated-self-resume-20260329b`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the `4 -> 5` stall was not just “owner 5 never selected”. The
+    current-trace self-resume path in `trace_exit()` was still winning first.
+    On the authoritative baseline, repeated `parent=4 exit=0` showed:
+    - `target=5`
+    - `target_exec=5`
+    - but `retop=87`
+    which means the path was still returning through trace `4`'s own saved
+    `BC_JLOOP` contract.
+    Narrowing `LUAJIT_S390X_JLOOP_CURRENT_SELF_RESUME` so it only applies
+    when the current trace is itself the computed runtime owner changes that
+    decisively:
+    - `target=5`
+    - `target_exec=5`
+    - `retop=82`
+    - `target_resumechild=0`
+    So the selected owner contract is finally being consumed from trace `5`,
+    not from trace `4`.
+    But it is still not a landing fix. The run still does not produce:
+    - any `parent=5`
+    - any `trace=6`
+    - any `S390X_VM_CHILD_ENTRY`
+    - any final `RESULT`
+    That means the remaining blocker has moved again: it is no longer the
+    `trace 4` self-resume override. It is the VM-side/static-resume
+    consumption of trace `5`'s `BC_ITERL` resume contract.
+
+- `iter-array-loopdesc-self-owner-stop-20260329a`
+  - Stage: focused native iterator probe
+  - Surface: `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: stopping the `parent>=3 exit=0` pure-loop family against the
+    already self-`JLOOP`-capable owner materially changes the shape.
+    With:
+    - `LUAJIT_S390X_LOOPDESC_SELF_OWNER_STOP=1`
+    - plus the existing loop-desc self-`JLOOP` resume baseline
+    `rec_loop_jit()` now hits:
+    - `S390X_RECLOOP ... loopdesc_self_owner_stop=1 root=1 lnk=4`
+    on `trace 5 parent=4 exit=0`
+    and the new descendant saves as:
+    - `trace=5`
+    - `link=4`
+    - `linktype=2`
+    - `nins=32770`
+    - `szmcode=40`
+    - `mcloop=0`
+    This is the first time the endless pure-loop `BC_JMP` ladder has been cut
+    off before the old `trace 102 / LJ_TRLINK_INTERP` bridge. The remaining
+    blocker is now the handoff after owner `4`: runtime still stalls before
+    execution visibly transfers onto the new `trace 5` descendant.
+
+- `iter-array-loopdesc-targetexec4-20260328d`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: suppressing `resumechild` on the first non-stub loop-desc
+    candidate is a real improvement. With the current safe branch:
+    - `trace 4` still saves as a root-owned `BC_JMP` continuation trace with
+      a valid resume contract
+    - but `target_exec` now stays on `4`, not `3`
+    - the steady-state root-side seam becomes:
+      - `target=4`
+      - `target_exec=4`
+      - `target_resumeop=82`
+      - `target_resumechild=0`
+    This proves the first non-stub descendant can stand as its own execution
+    candidate instead of being forced backward into the previous tiny
+    pure-loop stub. It is not a landing fix yet: the chain still times out
+    with `retop=88`, so the remaining blocker is the continuation contract
+    after selecting `trace 4`, not child selection anymore.
+
+- `iter-array-loopdesc-record-orig-20260328d`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: reject
+  - Notes: a loop-desc-only variant of the old `dispatch-resume-bc` idea is
+    not safe. Trying to patch the `parent>=3 exit=0` seam through the selected
+    loop-desc stub’s saved `resumepc/resumeins` contract caused an immediate
+    crash. This means the supported next step is not “record through `trace 4`
+    by rewriting the current `BC_JLOOP` to its resume bytecode”.
+
+- `iter-array-loopdesc-nonstub-looplink-20260328d`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: reject
+  - Notes: changing `rec_loop_jit()` so the first non-stub loop-desc child
+    stays loop-linked to its parent regresses the chain. Instead of
+    stabilizing `trace 3 -> trace 4`, the runtime falls back to selecting the
+    earlier continuation stub:
+    - `parent=3 exit=0`
+    - `target=2`
+    - `target_exec=3`
+    So the first non-stub descendant should not simply be forced into the
+    ordinary loop-link path at record time.
+
+- `iter-array-exec-self-jloop-20260328c`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the `trace 4` loop-desc stub is no longer the wrong execution
+    owner by accident. With:
+    - `LUAJIT_S390X_BCJMP_LOOPDESC_RESUME=1`
+    - `LUAJIT_S390X_BCJMP_LOOPDESC_RESUME_CHILD=1`
+    - `LUAJIT_S390X_BCJMP_SELF_JLOOP_RESUME=1`
+    - `LUAJIT_S390X_JLOOP_EXEC_RESUME=1`
+    the runtime now proves all of:
+    - `trace 4` remains the selected target stub
+    - `target_exec=3`
+    - `trace 3` carries a saved self-`JLOOP` resume contract
+      - `exec_resumeop=87`
+      - `exec_mcloop=20`
+      - `exec_ownerop=85`
+    - `trace_exit()` now really returns through that exec-side contract:
+      - `phase=resume-linked`
+      - `retop=87`
+    This is the strongest handoff proof so far, but it is still not a
+    landing fix. The workload still times out. So the remaining blocker is no
+    longer “wrong stub contract” for `trace 4`, and no longer “cannot reach
+    trace 3’s saved loop contract”. The new result says `trace 3` itself is
+    still only a tiny pure-loop stub, not the final forward-progress owner.
+
+- `iter-array-pureloop-ladder-first-body-20260328c`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: with the newer exec-side handoff active but
+    `LUAJIT_S390X_LINK_LOOP_DESC` disabled, the old pure-loop ladder comes
+    back and exposes the first non-stub owner later in the chain. The run
+    saves:
+    - a long sequence of pure-loop `BC_JMP` stubs
+      - `parent=N exit=0`
+      - `startop=88`
+      - `nins=32772`
+      - `szmcode=24`
+      - `mcloop=20`
+    - followed by the first non-stub continuation trace:
+      - `trace=102`
+      - `parent=101 exit=0`
+      - `startop=88`
+      - `nins=32770`
+      - `szmcode=76`
+      - `mcloop=0`
+      - `linktype=6`
+    This is the strongest evidence so far that the current
+    `LUAJIT_S390X_LINK_LOOP_DESC` collapse is happening too early. `trace 4`
+    is not the real stabilized execution owner. The chain needs to be allowed
+    to advance past the tiny pure-loop stubs until the first non-stub
+    continuation trace appears, and only then should ownership be stabilized.
+
+- `iter-array-bcjmp-mcloop-entry-20260328c`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: direct `mcloop` entry for the self-loop `BC_JMP` stub is not a
+    safe landing path. Marking the pure-loop stub (`trace 3`) as directly
+    `mcloop`-enterable changes behavior immediately, but under the full chain
+    baseline it crashes instead of stabilizing. So the supported fix path is
+    not “treat the `BC_JMP` pure-loop stub as a raw external mcode entry ABI”.
+
+- `iter-array-loopdesc-skip-self-20260328c`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the `loopdesc-child` self-retarget guard is now authoritative on
+    `kdz`. The live loop-desc seam repeatedly shows:
+    - `target=4`
+    - `target_exec=3`
+    - `child=4`
+    - `phase=loopdesc-child-skip-self`
+    - `phase=resume-linked`
+    This proves the old self-patch bounce is gone. The continuation still
+    times out, but it is no longer because `trace_exit()` keeps rewriting the
+    current `BC_JLOOP` back to the same `trace 4` stub.
+
+- `iter-array-loopdesc-resume-contract-20260328b`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the loop-desc `BC_JMP` stub can now be given a real static-resume
+    contract without crashing immediately. With:
+    - `LUAJIT_S390X_SKIP_PATCHEXIT_BCJMP_LOOPDESC=1`
+    - `LUAJIT_S390X_BCJMP_LOOPDESC_RESUME=1`
+    the first stabilized descendant (`trace 4`) saves as:
+    - `startop=88` (`BC_JMP`)
+    - `resumevalid=1`
+    - `resumeop=82` (`BC_ITERL`)
+    and root-side `JLOOP` logs then report steady-state selection of:
+    - `target=4`
+    - `target_resumevalid=1`
+    - `target_resumeop=82`
+    This removes the old static-`BC_JMP` decode crash, but it is not a
+    landing fix. The runtime still times out while repeatedly selecting the
+    same `trace 4` stub. So the remaining blocker is no longer “`trace 4`
+    lacks a valid resume contract.” It is the handoff after that contract is
+    in place.
+
+- `iter-array-recloop-focus-manual-20260328a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: after the empty-loop backend fix, the pure-`LOOP` ladder is now
+    proven to be created by the normal `rec_loop_jit()` decision path, not by
+    a bypass around it. In the active continuation family:
+    - `trace 3` is the first tiny pure-`LOOP` descendant
+    - later descendants (`trace 4`, `5`, `6`, ...) are all recorded from
+      `parent>=3 exit=0`
+    - the focused log shows the deciding state is stable:
+      - `pc == startpc`
+      - `startop=88` (`BC_JMP`)
+      - `root=1`
+      - `framedepth + retdepth == 0`
+      - `iter_restart=0`
+      - `payload_desc=0`
+    That means the ladder is being driven by the generic
+    `J->pc == J->startpc` “form extra loop” branch in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+    not by iterator-specific restart classifiers.
+
+- `iter-array-link-loop-desc-stoplog-20260328a`
+  - Stage: focused native iterator probe
+  - Surface: `pairs_array_sum`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the existing `LUAJIT_S390X_LINK_LOOP_DESC` hook is now proven to
+    fire on the first pure-`LOOP` descendant. For `trace 4` from
+    `parent=3 exit=0`:
+    - `S390X_RECLOOP ... link_loop_desc=1`
+    - `S390X_RECSTOP ... linktype=1 link=1`
+    - `S390X_TRACE_META ... linktype=1`
+    So the hook really does convert that first descendant from a loop-linked
+    extra loop into a root-linked stabilization trace. But that alone is not a
+    landing fix:
+    - execution still stays on `trace 3`
+    - `trace 4` is recorded, but it is not adopted as the runtime owner
+    - the branch still times out without `RESULT`
+    This narrows the remaining issue again: once the first pure-`LOOP`
+    descendant is root-linked correctly, the next blocker is continuation
+    ownership/stitching, not `rec_loop_jit()` classification by itself.
+
 - `iter-root-owner-split-kdz-20260328a`
   - Stage: focused native iterator probe
   - Surface: `pairs_array_sum`
@@ -3813,6 +4631,627 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
       `5/1=1, 6/1=10, 7/1=1, 8/1=120`
     - so one full hotcount stage is removed instead of merely renamed
 - This is still not a finish-line fix:
-  - the hot owner remains the same legitimate `0x427` iterator-end split
+ - the hot owner remains the same legitimate `0x427` iterator-end split
   - the family is merely tighter than before
   - the next live seam is now `trace 6 -> 8`, not `trace 5 -> 6`
+
+2026-03-28: array root continuation chain narrowed from an endless loop ladder to a single post-`trace 4` stall
+
+- The root/continuation ownership model is now structurally explicit:
+  - `trace 1` remains the root owner
+  - `trace 2` is the continuation stub from `parent=1 exit=4`
+  - `trace 3` is the first loop child from `parent=1 exit=1`
+- The s390x backend bug in empty pure-`LOOP` stubs is real and separately
+  proven in [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h):
+  - with `LUAJIT_S390X_EMPTY_LOOP_FALLTHROUGH=1`, the old self-branching
+    `mcloop` fixup is corrected
+  - this removed the earlier hard hang in `trace 3` and exposed the true
+    runtime continuation problem
+- The next structural bug was then proven in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+  - the `trace 3 -> 4 -> 5 -> 6...` ladder is born in `rec_loop_jit()`
+  - focused `kdz` logs showed every descendant hitting:
+    - `parent>=3`
+    - `exit=0`
+    - `ev=2`
+    - `samepc=1`
+    - `startop=88` (`BC_JMP`)
+    - `lnk=1`
+  - so the stock `J->pc == J->startpc` rule kept choosing “form extra loop”
+    instead of stabilizing onto an existing owner
+- The continuation-chain mismatch was also made concrete in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - `trace 3` was being recorded from `parent=1 exit=1`
+  - the preserved continuation owner was still `trace 2`
+  - the old guard therefore logged `S390X_CHILD_LINK_SKIP owner=2 ... actual_parent=1`
+    and never attached `2 -> 3`
+- A narrow root-promotion fix now attaches that child explicitly:
+  - `S390X_CHILD_LINK_CHILD owner=2 newlink=3 newlinktype=2 root=1 actual_parent=1`
+  - after that, runtime owner resolution changes from `target_exec=2` to
+    `target_exec=3`
+- A matching recorder-side scratch path now lets the first `3/0` continuation
+  link against the loop owner instead of blindly re-rooting to `trace 1`:
+  - `S390X_RECLOOP trace=4 parent=3 exit=0 ... link_loop_desc=1 ... lnk=3`
+  - `S390X_RECSTOP trace=4 parent=3 exit=0 ... linktype=1 link=3 ...`
+- This materially changes the failure mode:
+  - before: unbounded pure-`LOOP` ladder (`trace 4`, `5`, `6`, ...)
+  - now: the ladder is cut off at `trace 4`
+  - the remaining array-side blocker is a single post-`trace 4` execution
+    stall, not continuation-family proliferation
+- The first post-fix trace dump makes that new stall shape concrete:
+  - `trace 3` remains the 24-byte pure-`LOOP` child with `loop=20`
+  - `trace 4` is not another identical descendant
+  - instead, `trace 4` saves as a one-IR, 40-byte, root-linked stub:
+    - `TRACEINFO tr=4 link=3 type=root nins=1 nexit=2`
+    - `TRACEMC tr=4 ... loop=0 size=40`
+
+2026-03-28: the first non-stub loop-desc descendant is still an interpreter bridge,
+not a reusable loop owner
+
+- Turning the loop-desc stabilization off entirely now gives a clean reference
+  chain for the continuation family:
+  - traces `4..101` are still tiny pure-loop descendants
+  - each one saves with:
+    - `parent=prev`
+    - `exit=0`
+    - `root=1`
+    - `startop=88` (`BC_JMP`)
+    - `nins=32772`
+    - `szmcode=24`
+    - `mcloop=20`
+    - `linktype=2` (`LJ_TRLINK_LOOP`)
+- The first descendant that is *not* another 24-byte pure-loop stub appears
+  much later:
+  - `trace=102`
+  - `parent=101 exit=0`
+  - `root=1`
+  - `startop=88` (`BC_JMP`)
+  - `nins=32770`
+  - `szmcode=76`
+  - `mcloop=0`
+  - `linktype=6` (`LJ_TRLINK_INTERP`)
+- So the current continuation family does **not** naturally discover a
+  directly-enterable loop owner just by descending past the early stubs.
+- The most likely reason is the generic side-trace cutoff in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+  - once the long `exit=0` stub chain spends the root side-trace budget, the
+    next non-stub continuation candidate falls through `sidecheck_interp` and
+    closes as `LJ_TRLINK_INTERP`
+- That means “first non-stub descendant” is still not a sufficient ownership
+  rule on this seam.
+
+2026-03-28: bypassing the loop-desc `sidecheck_interp` cutoff proves the chain
+still has no natural owner
+
+- A narrow recorder-side bypass at the `sidecheck_interp` gate in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  was used only for the `parent>=3, exit=0, root=1, startop=BC_JMP,
+  pcop=BC_JLOOP` continuation family.
+- With that bypass enabled, the earlier `trace 102 / LJ_TRLINK_INTERP` bridge
+  disappears, but the chain does not discover a usable owner behind it.
+- Instead it just keeps minting the same tiny pure-loop descendants:
+  - `startop=88` (`BC_JMP`)
+  - `linktype=2` (`LJ_TRLINK_LOOP`)
+  - `nins=32772`
+  - `mcloop=20`
+- In other words, the earlier `trace 102` bridge was only the generic cutoff.
+  It was not hiding a later directly-enterable loop owner.
+
+2026-03-28: giving the pure-loop loop-desc stubs a self-`BC_JLOOP` resume
+contract changes execution, but still does not land the chain
+
+- In [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  the pure-loop loop-desc stubs now save:
+  - `resumepc = startpc`
+  - `resumeins = BC_JLOOP`
+- That change is real at runtime:
+  - `S390X_CHILD_RESUME_LOOPDESC ... resumeins=87 ... purestub=1`
+  - the active `parent>=3 exit=0` stubs stop resuming with `retop=88`
+  - they now resume with `retop=87`
+- But the chain still does not stabilize:
+  - it still grows through the pure-loop descendants
+  - it still reaches `trace 102`
+  - `trace 102` is still the first `LJ_TRLINK_INTERP` bridge on `exit=1`
+- So the missing fix is no longer “the loop-desc stubs need a real resume
+  contract.” They now have one. The remaining bug is the bridge/handoff that
+  follows that pure-loop family.
+  - runtime `texit` output stops at `trace 3 ex=0` once `trace 4` forms, so
+    the live problem has moved from “keeps building new traces” to “hangs
+    after entering the first stabilized post-`trace 4` continuation”
+- So the live seam is no longer iterator data, no longer root ownership
+  metadata, and no longer endless descendant formation. It is the execution
+  contract after `trace 4` has been saved against loop owner `3`.
+- The next s390x-specific VM bug on that seam is now also proven:
+  - in [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+    static `BC_JLOOP` child selection originally loaded `resumechild` via
+    `0(r0, base)`, but s390 ignores `r0` as an index register
+  - that meant the child-trace table lookup silently reloaded the base trace
+    instead of the selected child
+  - switching that indexed load to a nonzero register fixed the first
+    continuation-selection crash and let the real post-selection seam appear
+- With that fixed, the runtime facts are now:
+  - `trace 2` remains the continuation stub with `resumevalid=1`
+  - `trace 3` is now explicitly saved as a non-stub loop child with
+    `resumevalid=0`
+  - `trace 4` still forms as the first stabilized `parent=3 exit=0`
+    descendant
+- The important new negative results are also now clear:
+  - skipping the stop-time raw patchexit into `trace 4` is not enough
+    (`trace 3` just keeps re-entering the `trace 2` stub path)
+  - one-dispatch retarget from `trace 3` straight to execution owner
+    `trace 3` is unsafe and segfaults
+  - one-dispatch retarget from `trace 3` to side child `trace 4` is also
+    unsafe unless the child carries a real resume contract
+- The crash reason for that child-4 static path is now concrete:
+  - side traces are born in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    with `J->cur.startins = BCINS_AD(BC_JMP, 0, 0)`
+  - so when the VM tries to drive `trace 4` through the static `BC_JMP`
+    resume path, it decodes `OP=BC_JMP` with `D=0` and dies in
+    `lj_vm_exit_interp` at the `branchPC` decode path
+  - that proves `trace 4` cannot be used through the raw `startins` static
+    `BC_JMP` path as currently saved
+- So the seam narrowed again:
+  - `trace 4` either needs a valid saved `resumepc/resumeins` continuation
+    contract, or it must remain a raw-mcode-only side entry
+  - any further work on `trace 4` has to respect that distinction instead of
+    treating its placeholder `startins` as a real branch instruction
+
+2026-03-29: collapsing the pure-loop family to `trace 5` makes owner
+selection real, but still does not transfer execution
+
+- A narrow recorder-side stop rule in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now cuts the old endless `parent>=3 exit=0` pure-loop family off early:
+  - `trace 5` forms from `parent=4 exit=0`
+  - it saves as `startop=88` (`BC_JMP`), `link=4`, `linktype=1`
+- With the existing `LUAJIT_S390X_JLOOP_EXEC_CHILD` path enabled in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  runtime owner selection now really advances:
+  - repeated `S390X_JLOOP_EXIT ... parent=4 exit=0 ... target=5 target_exec=5`
+- But there are still zero `parent=5` or `trace=6` events in the focused run.
+  That proves the old blocker is gone:
+  - runtime is no longer stuck on selecting owner `4`
+  - it is now selecting owner `5`
+  - but execution still does not transfer into the selected owner
+- The immediate control-flow reason is now explicit:
+  - the `BC_JLOOP` case in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    still ends that `target=5 target_exec=5` path with `return 0`
+  - `vm_exit_interp` only takes the static patched-dispatch path for
+    `BC_JLOOP` when `trace_exit()` returns `-17`
+  - so owner selection alone is not enough to enter `trace 5`
+
+2026-03-29: forcing the patched-dispatch path for the selected loop-desc owner
+is not a safe fix
+
+- A scratch experiment in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  tried to force the existing `-17` patched-dispatch path when a selected
+  root-owned `BC_JMP` trace had a valid resume contract.
+- Two cuts were tried:
+  - a broad version, which misfired earlier on the `1 -> 2` root-child seam
+    and crashed after `phase=dispatch-exec-resume-bc parent=1 exit=1 target=2`
+  - a narrowed `parent>=3 exit=0` loop-desc-only version, which still crashed
+    before the `4 -> 5` seam could validate
+- So the remaining bug is not just “return `-17` instead of `0`”.
+  The patched-static-dispatch contract itself is not valid for this selected
+  loop-desc owner path as currently shaped.
+- The live seam is now narrower again:
+  - `trace 5` is a real selected execution owner
+  - but neither plain `return 0` nor forced patched-dispatch currently enters
+    it safely
+ - the next fix has to be in how `vm_exit_interp` and the `BC_JLOOP`
+    continuation path consume the selected owner contract, not in recorder
+    stop policy or owner discovery
+
+2026-03-29: the exact `parent=3 exit=0` owner/self branch is real, and the
+old `trace 3` transfer question is closed
+
+- A focused branch in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  now handles only the exact current-owner seam:
+  - `parent == trace`
+  - `exit == 0`
+  - `execno == traceno`
+  - `use_resume_contract == 1`
+  - current opcode `BC_JLOOP`
+- On `kdz`, that branch really fires:
+  - `S390X_JLOOP_EXIT phase=exec-self-pred ... use_resume=1 idle=1 parent_is_trace=1 exec_is_trace=1 is_jloop=1`
+  - followed by `phase=exec-self-reenter`
+  - and the current `BC_JLOOP` retargets from `bcd=2` to `bcd=3`
+- That closes the old fork:
+  - the runtime is no longer failing because owner/self re-entry is not being
+    selected
+  - the branch selection is real
+- The first remaining crash on that branch was inside `trace 3` mcode at
+  `mcode + 0x4c`, which narrowed the bug from selection to post-transfer
+  execution
+
+2026-03-29: `trace 3` was being forced into direct owner entry too early; the
+save-time owner bit had to be cleared on the real birth path
+
+- The first attempt to skip `mcloop` entry for `trace 3` was a miss because it
+  targeted `parent>=3 exit=0`, but `trace 3` is actually born from
+  `parent=1 exit=1`
+- Updating the exact save-time predicate in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  to match the real `trace 3` birth path changed the runtime shape
+  materially:
+  - `trace 3` keeps `resumeop=87` (`BC_JLOOP`)
+  - but now saves with `ownerop=0`
+  - so `vm_exit_interp` no longer treats it as directly enterable owner mcode
+- This removed the old `trace 3` VM-child-entry crash surface:
+  - the corrected run no longer emits `S390X_VM_CHILD_ENTRY trace=3`
+  - instead, it repeatedly takes the exact `phase=exec-self-reenter` path
+    under `parent=3 exit=0`
+- That is the strongest current proof that the old `trace 3` crash was not
+  the true endgame bug. It was caused by forcing direct owner-entry on a trace
+  that still needed to be consumed through the static self-`JLOOP` path.
+
+2026-03-29: with the corrected `trace 3` save path, the seam advances cleanly
+to `trace 4`
+
+- On the corrected baseline, the focused `kdz` run now gets past the old
+  `trace 3` entry failure and forms:
+  - `S390X_BCJMP_STOP trace=4 parent=3 exit=0 root=1 startop=88 link=2 linktype=1 nins=32770`
+  - `S390X_TRACE_META phase=stop trace=4 ... mcode=... szmcode=40 mcloop=0`
+- The run still segfaults afterward, but the fault site has moved past the old
+  `trace 3` transfer seam:
+  - `trace 3` no longer crashes on entry
+  - the remaining failure is now later, after `trace 4` has been formed
+- So the active seam has advanced again:
+  - no more work is needed on `trace 3` owner selection itself
+  - the next fix target is the post-`trace 4` continuation/entry contract on
+    top of this corrected `trace 3` baseline
+
+2026-03-30: the recovered `trace 4` baseline is only authoritative with
+`SKIP_PATCHEXIT`, and that exposed a real `BC_JLOOP` resume-contract fault
+
+- The current valid `kdz` baseline needs all of:
+  - `LUAJIT_S390X_JLOOP_EXEC_SKIP_MCLOOP=1`
+  - `LUAJIT_S390X_VM_CHILD_SKIP_MCLOOP=1`
+  - `LUAJIT_S390X_SKIP_PATCHEXIT_BCJMP_LOOPDESC=1`
+- Without the `SKIP_PATCHEXIT` gate, the branch can still appear to “stall at
+  `trace 4`”, but that result is not authoritative for the real bridge seam.
+- Re-running the 60s low-noise classifier on `kdz` with the full safe
+  baseline changed the result materially:
+  - highest trace still `4`
+  - latest non-stub still `trace 4`
+  - but the run now died with `SIGSEGV` instead of timing out cleanly
+- A focused `gdb` stop on that exact surface showed the first real fault at:
+  - `lj_BC_JLOOP+12`
+  - instruction `lg %r6,0(%r6,%r1)`
+  - `r6 = 0x3ffe8`
+- That means the post-`trace 4` bridge path was reaching interpreter-side
+  `BC_JLOOP` static dispatch with a garbage trace operand. The live bug had
+  moved below ownership and below `trace 4` formation, into the exact resume
+  contract consumed after the bridge stop.
+
+2026-03-30: consuming the exact `trace 4` bridge through the linked trace in
+`vm_exit_interp` removes the `BC_JLOOP` crash, but still does not advance
+beyond `trace 4`
+
+- In
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+  the exact bridge-stub path in `vm_exit_interp` now resolves the selected
+  `trace 4` bridge through its linked trace before static dispatch, instead of
+  consuming `trace 4`'s own saved continuation contract directly.
+- That changed the seam again in the right direction:
+  - the `lj_BC_JLOOP` garbage-`RD` crash is gone on the full safe baseline
+  - the authoritative 60s classifier is back to a clean timeout
+  - highest trace remains `4`
+  - latest non-stub remains `trace 4`
+- So the VM-side linked-trace bridge consumption is directionally correct and
+  removes a real bridge-contract fault, but it is not yet sufficient to carry
+  execution past the real `trace 4` seam.
+
+2026-03-30: the exact `trace 4` bridge-child reenter path is now proven live
+on the full safe baseline
+
+- On `kdz`, with the full safe baseline including:
+  - `LUAJIT_S390X_JLOOP_EXEC_SKIP_MCLOOP=1`
+  - `LUAJIT_S390X_VM_CHILD_SKIP_MCLOOP=1`
+  - `LUAJIT_S390X_SKIP_PATCHEXIT_BCJMP_LOOPDESC=1`
+  the focused `parent=3 exit=0` run now repeatedly reaches:
+  - `target=4`
+  - `target_exec=3`
+  - `phase=loopdesc-child-query ... child=4`
+  - `phase=loopdesc-bridge-child-reenter`
+- That closes the old uncertainty around the exact bridge handoff. The
+  `trace 4` path is no longer merely forming and timing out; the runtime is
+  actively selecting it and repeatedly taking the exact bridge-child reenter
+  branch.
+
+2026-03-30: after removing the last C-side resume overrides, the `trace 4`
+bridge now exposes a pure static-dispatch seam
+
+- Narrowing
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  so the exact bridge stub no longer inherits:
+  - the current trace's self-`JLOOP` resume contract
+  - the linked exec trace's self-`JLOOP` resume contract
+  changed the focused `parent=3 exit=0` logs again.
+- The live bridge seam now shows:
+  - `target=4`
+  - `target_exec=3`
+  - `phase=loopdesc-bridge-child-reenter`
+  - `retop=88` (`BC_JMP`)
+  - while `target 4` still advertises `target_resumeop=82` (`BC_ITERL`)
+- So the remaining blocker is now narrower again:
+  - the bridge-child handoff itself is real
+  - the old C-side `retop=87` override is gone
+  - the runtime is now stalling on the pure static `BC_JMP` bridge path
+    after `loopdesc-bridge-child-reenter`
+- That makes the next exact seam VM-side: how `vm_exit_interp` consumes the
+  selected `trace 4` bridge once all of the earlier C-side resume overrides
+  have been stripped away.
+
+2026-03-30: the exact `trace 4` bridge handoff is live, but the remaining
+stall is now below the C-side `JLOOP_EXIT` view
+
+- On `kdz`, the focused `parent=3 exit=0` run now repeatedly shows the full
+  bridge handoff:
+  - `target=4`
+  - `target_exec=3`
+  - `phase=loopdesc-child-query ... child=4`
+  - `phase=loopdesc-bridge-child-reenter`
+- Narrowing the bridge case so it no longer inherits:
+  - the current trace's self-`JLOOP` resume contract
+  - the linked exec trace's self-`JLOOP` resume contract
+  removed the last visible C-side resume override.
+- The seam now reports:
+  - `retop=88`
+  - while `target 4` still advertises `target_resumeop=82`
+- So the bridge-child handoff itself is no longer hypothetical. The remaining
+  bug is now below the C-side `JLOOP_EXIT` reporting layer, in the exact VM
+  static-dispatch consumption that happens after `return -17`.
+
+2026-03-30: a mixed VM bridge contract did not change the visible seam
+
+- In
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+  a follow-up experiment tried a more precise bridge consumption rule:
+  - keep the linked trace for bridge context
+  - but dispatch using the bridge stub's own `resumepc/resumeins`
+- On the same focused `kdz` surface, that did not change the visible C-side
+  handoff:
+  - the run still times out
+  - `phase=loopdesc-bridge-child-reenter` still repeats
+  - `retop` still presents as `88` in `JLOOP_EXIT`
+- So the next useful probe is no longer another C-side retop rewrite. It is a
+  VM-side bridge-consumption probe that logs or inspects the post-`-17`
+  static opcode choice directly.
+
+2026-03-30: the VM bridge probe shows the exact post-`-17` static contract
+now being consumed
+
+- A narrow VM-side probe in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  and
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  now logs the static opcode and PC actually chosen after the exact
+  `loopdesc-bridge-child-reenter` handoff.
+- On `kdz`, the post-`-17` bridge dispatch is now explicit:
+  - linked trace context is `trace 3`
+  - static `pc = trace4.resumepc = ...cc78`
+  - static opcode is `BC_ITERL` (`op=82`)
+  - encoded instruction is `0x7ffd0b52`
+- So the remaining seam is no longer “which resume contract does the bridge
+  use”. That question is now answered:
+  - the exact bridge handoff is consuming `trace 4`'s own `BC_ITERL`
+    continuation contract
+  - and it is doing so under linked `trace 3` context
+- The visible C-side `retop=88` line is now known to be stale for this seam.
+  The real post-`-17` VM choice is `BC_ITERL`.
+- That moves the live blocker down one more level:
+  - no longer bridge ownership
+  - no longer bridge-child handoff
+  - no longer resume-contract selection
+  - specifically the resumed `BC_ITERL` path after the exact `trace 4`
+    bridge dispatch
+
+2026-03-30: the stable bridge seam does not re-enter the `IITERL` body
+
+- On the recovered `kdz` baseline, the stable VM probes now give one more
+  exact result:
+  - `S390X_VM_BRIDGE_DISPATCH` repeats after
+    `phase=loopdesc-bridge-child-reenter`
+  - the VM repeatedly chooses linked-trace context `trace=3`
+  - and static `pc = trace4.resumepc` with `op=82` (`BC_ITERL`)
+- But the existing `S390X_VM_ITERL` helper in the `BC_IITERL` body fires only
+  once, and it happens before the bridge loop starts:
+  - `pc=...cc7c`
+  - `op=79`
+  - then root promotion to `trace 2` and `trace 3`
+- So the current bridge seam is not repeatedly executing the `IITERL` body.
+  It is repeatedly resolving to a static `BC_ITERL` dispatch state and
+  stalling before a real `IITERL` body cycle happens again.
+- I also tried two deeper `ITERL`-front-edge classification cuts and rejected
+  both:
+  - adding pre/post-`hotloop` helper calls at `BC_ITERL` destabilized the VM
+    and segfaulted before the bridge seam; that probe is too intrusive to
+    trust
+  - forcing `-Ohotloop=1000000` on the same branch also failed too early, with
+    zero bridge-dispatch hits and zero `VM_ITERL` hits; that is not a valid
+    classification surface for this seam
+- Consequence:
+ - the trustworthy result is still the stable one: post-`-17` bridge
+    dispatch resolves to `BC_ITERL`, but the resumed `ITERL/IITERL` body is
+    not actually re-entered in a stable way
+  - next work should move to debugger-level observation on the stable branch,
+    not more intrusive `BC_ITERL` helper surgery or broad `hotloop`
+    overrides
+
+2026-03-30: the exact `trace 4` bridge bug in `vm_exit_interp` was a wrong
+branch target, and fixing it moves the seam beyond the bridge
+
+- Debugger work on `kdz` finally showed why the exact `trace 4` bridge never
+  reached `BC_ITERL`/`BC_IITERL` even though the VM bridge probe reported
+  `op=82` at `trace4.resumepc`:
+  - after `lj_trace_s390x_vm_bridge_dispatch_log` returned, control resumed at
+    `lj_vm_exit_interp+422`
+  - the bridge branch used `j >6`
+  - in the current local-label layout, that `>6` lands in the child-entry
+    block at `lj_vm_exit_interp+552`, not in the later static decode path
+  - the bridge therefore kept re-entering child-entry machinery instead of
+    dispatching the saved static opcode
+- I patched the exact bridge branch in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  to inline the static opcode decode and dispatch directly, instead of
+  jumping through the ambiguous local label.
+- That changed the runtime surface immediately:
+  - the endless bridge loop is gone
+  - the branch now gets past the bridge
+  - the first new fault is later, not at `trace 4`
+
+2026-03-30: the first honest post-bridge fault is now in
+`lj_vmeta_istype -> lj_meta_istype`
+
+- After the bridge-target fix, a clean `gdb` run on `kdz` reaches a new crash:
+  - `SIGSEGV` in `lj_meta_istype` at `lj_obj_itypename[tp]`
+  - caller is `lj_vmeta_istype`
+- The current crash shape:
+  - `r9 = 0x27` at `lj_vmeta_istype`
+  - `lj_meta_istype` is trying to index the type-name table with that invalid
+    type lane
+  - this is later than the old bridge seam and later than the old `IITERL`
+    suspicion
+- I also confirmed one intermediate crash was self-inflicted instrumentation:
+  - the temporary `lj_trace_s390x_vm_iterl_log` call inside `BC_IITERL`
+    clobbered `%r4` across the C call and crashed at `lg %r7,0(%r4)`
+  - that probe has been removed from
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+- Current state:
+  - the `trace 4` bridge handoff is no longer the active blocker
+  - the live seam is now the resumed interpreter path after the fixed bridge,
+    specifically the bad `vmeta_istype/meta_istype` argument lane
+
+2026-03-30: `lj_vmeta_istype` is entered with bogus decode-state registers
+
+- A focused `gdb` breakpoint on `lj_vmeta_istype` on the cleaned post-bridge
+  branch shows the new failure is not a normal `ISTYPE/ISNUM` fallback with
+  sane operands.
+- At entry to `lj_vmeta_istype`, the live register state is already wrong:
+  - `r4 = 0`
+  - `r6 = 0`
+  - `r9 = 0x27`
+  - `r13 = 0x...2cb8` (base is real)
+- The entry sequence is:
+  - `llgfr %r3,%r4`
+  - `llgfr %r4,%r6`
+  - `stg %r9,168(%r15)`
+  - `brasl ... lj_meta_istype`
+- So the later `lj_meta_istype` crash is downstream of already-corrupted
+  resumed decode state. This is not just a bad C helper call or a bad
+  type-name table lookup in isolation.
+- Current consequence:
+  - the bridge handoff itself is now working far enough to expose the next
+    seam
+  - the next exact target is resumed interpreter decode-state reconstruction
+    after the fixed bridge, not bridge ownership or `trace 4` dispatch
+
+2026-03-30: a residual root-owned `BC_ITERN` resumepc/resumeins restart was
+still live in `vm_exit_interp`, and removing it clears the tiny early crash
+
+- A minimal iterator reproducer (`run(1)`, `run(5)`, `run(20)`) on the
+  authoritative `kdz` baseline exposed an earlier fault than the long
+  handoff harness:
+  - only `trace 2` and `trace 3` promotion logs appeared
+  - then the process segfaulted in `lj_vm_exit_interp+444`
+- `gdb` plus `objdump` on the rebuilt remote binary mapped that crash to the
+  static dispatch path in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+  not to the exact bridge branch:
+  - the faulting block was still trying to restart certain root-owned traces
+    from `resumepc/resumeins`
+  - that path still carried the previously rejected `BC_ITERN` rewind logic
+- I removed that exact fallback locally:
+  - root-owned `BC_JMP` traces may still use `resumepc/resumeins`
+  - root-owned `BC_ITERN` traces now stay on `startpc/startins`
+- Result on `kdz` after rebuild:
+  - the tiny reproducer no longer segfaults in `lj_vm_exit_interp+444`
+  - it now rebuilds cleanly and times out instead
+- Consequence:
+  - the rejected `BC_ITERN` rewind was not fully backed out before
+  - the current branch is cleaner: the early tiny-script crash is gone, and
+    the next work should classify where the tiny reproducer now stalls rather
+    than revisiting that restart experiment
+
+2026-03-30: the cleaned tiny reproducer reaches the same `BC_IITERL` replay
+surface as the long handoff harness
+
+- After removing the residual `BC_ITERN` rewind, a no-log `gdb` stop on
+  `lj_BC_IITERL` confirms the tiny reproducer is not on a different early
+  seam:
+  - it reaches `trace 2` and `trace 3` promotion first
+  - then it stops in `lj_BC_IITERL`
+  - by hit `50`, the live iterator-tail state is still:
+    - `RD = 32765`
+    - `BASE = r13 = 0x...2ce8`
+    - `BASE+80 = 0xfff9000000000003` (boxed integer `3`)
+    - the surrounding carried lanes are already `nil`
+- So the tiny reproducer is now converging with the long harness instead of
+  exposing a separate earlier crash:
+  - same `BC_IITERL` replay surface
+  - same “iterator tail is being re-entered without fresh progress” pattern
+- Consequence:
+  - the current fast reproducer is trustworthy for the next seam
+  - next work should stay on the no-log branch and inspect why post-bridge
+    `IITERL` is replaying a frozen carried bundle instead of returning to a
+    fresh iterator-state update
+
+2026-03-30: the tiny reproducer's replayed `IITERL` bundle is a frozen
+`[2, 2, 3, nil, ...]` operand lane set
+
+- A second `gdb` stop on the cleaned tiny reproducer at `lj_BC_IITERL` hit
+  `50` adds the missing lane detail:
+  - `r13 = BASE = 0x...2ce8`
+  - `BASE+64 = 0xfff9000000000002`
+  - `BASE+72 = 0xfff9000000000002`
+  - `BASE+80 = 0xfff9000000000003`
+  - `BASE+88` and later nearby lanes are `nil`
+- So the replay is not just “same PC, same RD”. The actual operand bundle is
+  frozen too:
+  - a stable boxed `2`
+  - a second stable boxed `2`
+  - then boxed `3`
+  - then `nil`
+- This fits the VM source shape in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - `BC_IITERL` only consumes/stores the already-produced iterator result
+  - real iterator progress happens earlier in `BC_ITERN`, which updates the
+    control var and value slots
+- Consequence:
+  - the post-bridge replay seam is now specific
+  - next work should explain why the cleaned branch keeps re-entering
+    `BC_IITERL` with that frozen `[2, 2, 3, nil, ...]` bundle instead of
+    returning to a fresh `ITERN` update
+
+2026-03-30: the repeated tiny `IITERL` stop sits in a `JLOOP/ITERL/FORL`
+tail region, not next to `ISNEXT/ITERN`
+
+- A focused `gdb` stop at tiny `lj_BC_IITERL` hit `50` shows the live
+  bytecode words around `vm_pc`:
+  - `0x00040b57`
+  - `0x7ffd0952`
+  - `0x7ff8024f`
+  - `0x00010236`
+- Decoded semantically, the active local neighborhood is:
+  - `BC_JLOOP`
+  - `BC_ITERL`
+  - `BC_FORL`
+  - then later body bytecode
+- So by the time the replay seam is hot, the resumed interpreter is no
+  longer adjacent to `ISNEXT/ITERN`. It is running in a tail-only
+  `JLOOP/ITERL/FORL` region.
+- This matches the asymmetry from the debugger:
+  - `lj_BC_IITERL` reaches hit `50` quickly
+  - `lj_BC_ITERN` does not
+- Consequence:
+  - the frozen `[2, 2, 3, nil, ...]` bundle is not surprising anymore
+  - the resumed path is bypassing the state-refreshing iterator body in the
+    local bytecode stream
+  - next work should focus on how the bridge/root continuation hands control
+    back into this tail-only region, and what exact pre-tail refresh step is
+    missing

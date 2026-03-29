@@ -103,9 +103,72 @@ static MSize snapshot_slots(jit_State *J, SnapEntry *map, BCReg nslots)
   IRRef retf = J->chain[IR_RETF];  /* Limits SLOAD restore elimination. */
   BCReg s;
   MSize n = 0;
+  static int s390x_root_resume_precall_key_enabled = -1;
+  static int s390x_root_resume_slot10_precall_key_enabled = -1;
+  static int s390x_root_resume_slot9_precall_key_enabled = -1;
+  static int s390x_root_resume_slot13_precall_key_enabled = -1;
+  static int s390x_loopdesc_bridge_slot13_precall_key_enabled = -1;
+  if (s390x_root_resume_precall_key_enabled == -1)
+    s390x_root_resume_precall_key_enabled =
+      (getenv("LUAJIT_S390X_ROOT_RESUME_PRECALL_KEY") != NULL);
+  if (s390x_root_resume_slot10_precall_key_enabled == -1)
+    s390x_root_resume_slot10_precall_key_enabled =
+      (getenv("LUAJIT_S390X_ROOT_RESUME_SLOT10_PRECALL_KEY") != NULL);
+  if (s390x_root_resume_slot9_precall_key_enabled == -1)
+    s390x_root_resume_slot9_precall_key_enabled =
+      (getenv("LUAJIT_S390X_ROOT_RESUME_SLOT9_PRECALL_KEY") != NULL);
+  if (s390x_root_resume_slot13_precall_key_enabled == -1)
+    s390x_root_resume_slot13_precall_key_enabled =
+      (getenv("LUAJIT_S390X_ROOT_RESUME_SLOT13_PRECALL_KEY") != NULL);
+  if (s390x_loopdesc_bridge_slot13_precall_key_enabled == -1)
+    s390x_loopdesc_bridge_slot13_precall_key_enabled =
+      (getenv("LUAJIT_S390X_LOOPDESC_BRIDGE_SLOT13_PRECALL_KEY") != NULL);
   for (s = 0; s < nslots; s++) {
     TRef tr = J->slot[s];
     IRRef ref = tref_ref(tr);
+#if LJ_TARGET_S390X
+    if (s390x_root_resume_precall_key_enabled &&
+	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
+	J->s390x_root_resumekeyvalid &&
+	s == J->s390x_root_resumekeyslot &&
+	(tr & TREF_KEYINDEX)) {
+      tr = J->s390x_root_resumekey;
+      ref = tref_ref(tr);
+    }
+    if (s390x_root_resume_slot10_precall_key_enabled &&
+	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
+	J->s390x_root_resumekeyvalid &&
+	s == 10) {
+      tr = J->s390x_root_resumekey;
+      ref = tref_ref(tr);
+    }
+    if (s390x_root_resume_slot9_precall_key_enabled &&
+	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
+	J->s390x_root_resumekeyvalid &&
+	s == 9) {
+      tr = J->s390x_root_resumekey;
+      ref = tref_ref(tr);
+    }
+    if (s390x_root_resume_slot13_precall_key_enabled &&
+	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
+	J->s390x_root_resumekeyvalid &&
+	s == 13) {
+      tr = J->s390x_root_resumekey;
+      ref = tref_ref(tr);
+    }
+	    if (s390x_loopdesc_bridge_slot13_precall_key_enabled &&
+		J->cur.root == 1 &&
+		J->parent >= 3 &&
+		J->exitno == 0 &&
+		bc_op(J->cur.startins) == BC_JMP &&
+	J->cur.linktype == LJ_TRLINK_ROOT &&
+	J->cur.link != 0 &&
+	J->s390x_root_resumekeyvalid &&
+	s == 13) {
+	      tr = J->s390x_root_resumekey;
+	      ref = tref_ref(tr);
+	    }
+#endif
 #if LJ_FR2
     if (s == 1) {  /* Ignore slot 1 in LJ_FR2 mode, except if tailcalled. */
       if ((tr & TREF_FRAME))
@@ -459,6 +522,34 @@ static int snap_s390x_restore_log_enabled(void)
   return enabled;
 }
 
+static int snap_s390x_restore_focus_parent(void)
+{
+  static int parent = -2;
+  if (parent == -2) {
+    const char *s = getenv("LUAJIT_S390X_RESTORE_FOCUS_PARENT");
+    parent = s ? atoi(s) : 1;
+  }
+  return parent;
+}
+
+static int snap_s390x_restore_focus_exit(void)
+{
+  static int exitno = -2;
+  if (exitno == -2) {
+    const char *s = getenv("LUAJIT_S390X_RESTORE_FOCUS_EXIT");
+    exitno = s ? atoi(s) : -1;
+  }
+  return exitno;
+}
+
+static int snap_s390x_restore_focus_match(jit_State *J)
+{
+  int parent = snap_s390x_restore_focus_parent();
+  int exitno = snap_s390x_restore_focus_exit();
+  return (parent < 0 || J->parent == (TraceNo)parent) &&
+	 (exitno < 0 || J->exitno == (ExitNo)exitno);
+}
+
 static int snap_s390x_restore_pref_reg_enabled(void)
 {
   static int enabled = -1;
@@ -477,6 +568,30 @@ static int snap_s390x_unsink_log_enabled(void)
   return enabled;
 }
 
+static int snap_s390x_bridge_restore_slot13_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_BRIDGE_RESTORE_SLOT13_LOG") != NULL);
+  return enabled;
+}
+
+static int snap_s390x_bridge_restore_slot13_focus(jit_State *J)
+{
+  static int parent = -2;
+  static int exitno = -2;
+  if (parent == -2) {
+    const char *s = getenv("LUAJIT_S390X_BRIDGE_RESTORE_PARENT");
+    parent = s ? atoi(s) : -1;
+  }
+  if (exitno == -2) {
+    const char *s = getenv("LUAJIT_S390X_BRIDGE_RESTORE_EXIT");
+    exitno = s ? atoi(s) : -1;
+  }
+  return (parent < 0 || J->parent == (TraceNo)parent) &&
+	 (exitno < 0 || J->exitno == (ExitNo)exitno);
+}
+
 static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRIns *ir,
 				   IRRef ref, RegSP orig_rs, RegSP renamed_rs,
 				   RegSP used_rs, int pref_applied, TValue *o)
@@ -484,10 +599,7 @@ static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRIns *ir,
 #if LJ_TARGET_S390X
   if (!snap_s390x_restore_log_enabled())
     return;
-  if (J->parent != 1 ||
-      (J->exitno != 5 && J->exitno != 4 && J->exitno != 3 &&
-       J->exitno != 1 &&
-       J->exitno != 2 && J->exitno != 0))
+  if (!snap_s390x_restore_focus_match(J))
     return;
   fprintf(stderr,
 	  "S390X_RESTORE trace=%u exit=%u snap=%u ref=%u op=%u type=%d pref=%d orig_rs=%u renamed_rs=%u used_rs=%u reg=%d spill=%d itype=%d u64=0x%016llx n=%g\n",
@@ -1182,6 +1294,26 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 #endif
   for (n = 0; n < nent; n++) {
     SnapEntry sn = map[n];
+    if (LJ_TARGET_S390X &&
+	snap_s390x_bridge_restore_slot13_log_enabled() &&
+	snap_s390x_bridge_restore_slot13_focus(J) &&
+	snap_slot(sn) >= 9 && snap_slot(sn) <= 13) {
+      IRRef ref = snap_ref(sn);
+      IRIns *ir = &T->ir[ref];
+      TValue *o = &frame[snap_slot(sn)];
+      fprintf(stderr,
+	      "S390X_BRIDGE_RESTORE phase=scan trace=%u exit=%u pc=%p op=%u slot=%u ref=%u norestore=%u key=%u cont=%u frame=%u ir_o=%u ir_t=%u ir_prev=%u pre_itype=%d pre_u64=0x%016llx\n",
+	      (unsigned int)J->parent, (unsigned int)J->exitno,
+	      (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
+	      (unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
+	      (unsigned int)((sn & SNAP_NORESTORE) != 0),
+	      (unsigned int)((sn & SNAP_KEYINDEX) != 0),
+	      (unsigned int)((sn & SNAP_CONT) != 0),
+	      (unsigned int)((sn & SNAP_FRAME) != 0),
+	      (unsigned int)ir->o, (unsigned int)irt_type(ir->t),
+	      (unsigned int)ir->prev, (int)itype(o),
+	      (unsigned long long)o->u64);
+    }
     if (!(sn & SNAP_NORESTORE)) {
       TValue *o = &frame[snap_slot(sn)];
       IRRef ref = snap_ref(sn);
@@ -1223,7 +1355,7 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
       }
       snap_restoreval(J, T, ex, snapno, rfilt, ref, o);
 #if LJ_TARGET_S390X
-      if (snap_s390x_restore_log_enabled()) {
+      if (snap_s390x_restore_log_enabled() && snap_s390x_restore_focus_match(J)) {
 	RegSP rs = ir->prev;
 	if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
 	  rs = snap_renameref(T, snapno, ref, rs);
@@ -1251,6 +1383,16 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	o->u32.lo = (uint32_t)(LJ_DUALNUM ? intV(o) : lj_num2int(numV(o)));
 	o->u32.hi = LJ_KEYINDEX;
       }
+      if (LJ_TARGET_S390X &&
+	  snap_s390x_bridge_restore_slot13_log_enabled() &&
+	  snap_s390x_bridge_restore_slot13_focus(J) &&
+	  snap_slot(sn) >= 9 && snap_slot(sn) <= 13) {
+	fprintf(stderr,
+		"S390X_BRIDGE_RESTORE phase=post trace=%u exit=%u slot=%u itype=%d u64=0x%016llx n=%g\n",
+		(unsigned int)J->parent, (unsigned int)J->exitno,
+		(unsigned int)snap_slot(sn), (int)itype(o),
+		(unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
+      }
     }
   }
 #if LJ_FR2
@@ -1269,6 +1411,19 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
   case BC_CALLM: case BC_CALLMT: case BC_RETM: case BC_TSETM:
     L->top = frame + snap->nslots;
     break;
+  }
+  if (LJ_TARGET_S390X &&
+      snap_s390x_bridge_restore_slot13_log_enabled() &&
+      snap_s390x_bridge_restore_slot13_focus(J)) {
+    int s;
+    for (s = 9; s <= 13; s++) {
+      TValue *o = &L->base[s];
+      fprintf(stderr,
+	      "S390X_BRIDGE_RESTORE phase=final trace=%u exit=%u slot=%d itype=%d u64=0x%016llx n=%g\n",
+	      (unsigned int)J->parent, (unsigned int)J->exitno,
+	      s, (int)itype(o), (unsigned long long)o->u64,
+	      tvisnum(o) ? numV(o) : 0.0);
+    }
   }
   return pc;
 }

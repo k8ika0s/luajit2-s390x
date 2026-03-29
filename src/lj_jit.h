@@ -264,6 +264,8 @@ typedef struct GCtrace {
   GCRef startpt;	/* Starting prototype. */
   MRef startpc;		/* Bytecode PC of starting instruction. */
   BCIns startins;	/* Original bytecode of starting instruction. */
+  MRef resumepc;	/* Scratch linked-resume bytecode PC. */
+  BCIns resumeins;	/* Scratch linked-resume bytecode instruction. */
   MSize szmcode;	/* Size of machine code. */
   MCode *mcode;		/* Start of machine code. */
 #if LJ_ABI_PAUTH
@@ -277,10 +279,12 @@ typedef struct GCtrace {
   TraceNo1 root;	/* Root trace of side trace (or 0 for root traces). */
   TraceNo1 nextroot;	/* Next root trace for same prototype. */
   TraceNo1 nextside;	/* Next side trace of same root trace. */
+  TraceNo1 resumechild;	/* Scratch continuation child for root resume. */
   uint8_t sinktags;	/* Trace has SINK tags. */
   uint8_t topslot;	/* Top stack slot already checked to be allocated. */
   uint8_t linktype;	/* Type of link. */
   uint8_t unused1;
+  uint8_t resumevalid;	/* Scratch linked-resume contract valid. */
 #ifdef LUAJIT_USE_GDBJIT
   void *gdbjit_entry;	/* GDB JIT entry. */
 #endif
@@ -499,12 +503,15 @@ typedef struct jit_State {
   ScEvEntry scev;	/* Scalar evolution analysis cache slots. */
 
   const BCIns *startpc;	/* Bytecode PC of starting instruction. */
-  const BCIns *s390x_root_itern_savedpc;  /* Scratch preserved post-ITERN root owner. */
+  const BCIns *s390x_root_resumepc;  /* Scratch preserved post-ITERN root resume pc. */
+  TRef s390x_root_resumekey;  /* Scratch preserved pre-call root keyindex tref. */
   TraceNo parent;	/* Parent of current side trace (0 for root traces). */
   ExitNo exitno;	/* Exit number in parent of current side trace. */
   int exitcode;		/* Exit code from unwound trace. */
-  BCIns s390x_root_itern_savedins;  /* Scratch preserved post-ITERN root ins. */
-  uint8_t s390x_root_itern_savedvalid;  /* Scratch preserved post-ITERN root owner valid. */
+  BCIns s390x_root_resumeins;  /* Scratch preserved post-ITERN root resume ins. */
+  BCReg s390x_root_resumekeyslot;  /* Scratch preserved pre-call root keyindex slot. */
+  uint8_t s390x_root_resumevalid;  /* Scratch preserved post-ITERN root resume valid. */
+  uint8_t s390x_root_resumekeyvalid;  /* Scratch preserved pre-call root keyindex valid. */
 
   BCIns *patchpc;	/* PC for pending re-patch. */
   BCIns patchins;	/* Instruction for pending re-patch. */

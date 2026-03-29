@@ -2327,7 +2327,50 @@ static void build_subroutines(BuildCtx *ctx)
 |  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
 |  sllg RD, RD, 3
   |  lg TRACE:RD, 0(RD, TMPR1)
-  |  llgf TMPR1, TRACE:RD->startins
+  |  llgf TMPR0, TRACE:RD->startins
+  |  sllg TMPR0, TMPR0, 56
+  |  srlg TMPR0, TMPR0, 56
+  |  cghi TMPR0, BC_JMP
+  |  jne >4
+  |  llgh TMPR0, TRACE:RD->root
+  |  cghi TMPR0, 1
+  |  jne >4
+  |  llgc TMPR0, TRACE:RD->linktype
+  |  cghi TMPR0, LJ_TRLINK_ROOT
+  |  jne >4
+  |  llgh RC, TRACE:RD->link
+  |  cghi RC, 0
+  |  je >4
+  |  llgc TMPR0, TRACE:RD->resumevalid
+  |  clgfi TMPR0, 0
+  |  je >4
+  |  llgf TMPR0, TRACE:RD->resumeins
+  |  sllg TMPR0, TMPR0, 56
+  |  srlg TMPR0, TMPR0, 56
+  |  cghi TMPR0, BC_ITERL
+  |  jne >4
+  |  llgh TMPR0, TRACE:RD->resumechild
+  |  cghi TMPR0, 0
+  |  jne >4
+  |  llgf TMPR0, TRACE:RD->nins
+  |  clgfi TMPR0, 32770
+  |  jne >4
+  |  llgf TMPR0, TRACE:RD->mcloop
+  |  clgfi TMPR0, 0
+  |  jne >4
+  |  lg RA, TRACE:RD->resumepc
+  |  llgf TMPR0, TRACE:RD->resumeins
+  |  sllg RC, RC, 3
+  |  lg TRACE:RD, 0(RC, TMPR1)
+  |  lgr RB, RA
+  |  lgr ITYPE, TMPR0
+  |  lgr CARG1, RD
+  |  lgr CARG2, RA
+  |  lgr CARG3, TMPR0
+  |  brasl r14, extern lj_trace_s390x_vm_bridge_dispatch_log
+  |  lgr PC, RB
+  |  lgr TMPR1, ITYPE
+  |  la PC, 4(PC)
   |  lgr OP, TMPR1
   |  sllg OP, OP, 56
   |  srlg OP, OP, 56
@@ -2336,6 +2379,114 @@ static void build_subroutines(BuildCtx *ctx)
   |  srlg RA, RA, 56
   |  llgfr RD, TMPR1
   |  srl RD, 16
+  |  cghi OP, BC_ITERL
+  |  jne >7
+  |  // Bridge-resumed ITERL must skip the hotloop prologue. Otherwise the
+  |  // interpreter patches the iterator backedge into BC_JITERL, whose D
+  |  // field is still a bytecode target, not a trace number.
+  |  lghi OP, BC_IITERL
+  |  j >8
+  |7:
+  |  cghi OP, BC_JMP
+  |  jne >8
+  |  branchPC RD
+  |  llgc OP, 3(PC)
+  |  llgh RD, 0(PC)
+  |  llgc RA, 2(PC)
+  |  la PC, 4(PC)
+  |8:
+  |  sllg TMPR1, OP, 3
+  |  lg TMPR1, GG_DISP2STATIC(TMPR1, DISPATCH)
+  |  br TMPR1
+|4:
+  |  xgr RC, RC
+  |  llgh TMPR0, TRACE:RD->resumechild
+  |  cghi RC, 0
+  |  jne >7
+  |  cghi TMPR0, 0
+  |  je >7
+  |  lgr RC, TMPR0
+  |  sllg RC, RC, 3
+  |  lg TRACE:RD, 0(RC, TMPR1)
+  |  xgr RC, RC
+  |  llgf TMPR0, TRACE:RD->startins
+  |  sllg TMPR0, TMPR0, 56
+  |  srlg TMPR0, TMPR0, 56
+  |  cghi TMPR0, BC_JMP
+  |  jne >6
+  |  llgh TMPR0, TRACE:RD->root
+  |  cghi TMPR0, 0
+  |  je >6
+  |  llgc TMPR0, TRACE:RD->unused1
+  |  clgfi TMPR0, 0
+  |  jne >6
+  |  llgc TMPR0, TRACE:RD->resumevalid
+  |  clgfi TMPR0, 0
+  |  jne >7
+|6:
+  |  lghi RC, 1
+  |7:
+  |  clgfi RC, 0
+  |  je >8
+  |  stg BASE, DISPATCH_GL(jit_base)(DISPATCH)
+  |  lg L:RB, SAVE_L
+  |  stg L:RB, DISPATCH_GL(tmpbuf.L)(DISPATCH)
+  |  xgr TMPR0, TMPR0
+  |  sty TMPR0, DISPATCH_GL(vmstate)(DISPATCH)
+  |  lgr CARG1, RD
+  |  brasl r14, extern lj_trace_s390x_vm_child_entry_log
+  |  lgr CARG1, RD
+  |  brasl r14, extern lj_trace_s390x_vm_child_skip_mcloop
+  |  lg RA, TRACE:RD->mcode
+  |  clgfi r2, 0
+  |  jne >9
+  |  llgc TMPR0, TRACE:RD->unused1
+  |  clgfi TMPR0, 0
+  |  je >9
+  |  llgf TMPR0, TRACE:RD->mcloop
+  |  clgfi TMPR0, 0
+  |  je >9
+  |  algr RA, TMPR0
+  |9:
+  |  br RA
+  |8:
+  |  lg PC, TRACE:RD->startpc
+  |  llgf TMPR1, TRACE:RD->startins
+  |  llgc TMPR0, TRACE:RD->resumevalid
+  |  clgfi TMPR0, 0
+  |  je >6
+  |  lgr TMPR0, TMPR1
+  |  sllg TMPR0, TMPR0, 56
+  |  srlg TMPR0, TMPR0, 56
+  |  cghi TMPR0, BC_JMP
+  |  je >9
+  |  llgh TMPR0, TRACE:RD->root
+  |  cghi TMPR0, 0
+  |  jne >6
+  |  // Root-owned ITERN restart through resumepc/resumeins was a rejected
+  |  // experiment. Keep the static path on startpc/startins here.
+  |  j >6
+|9:
+  |  lg PC, TRACE:RD->resumepc
+  |  llgf TMPR1, TRACE:RD->resumeins
+  |6:
+  |  la PC, 4(PC)
+  |  lgr OP, TMPR1
+  |  sllg OP, OP, 56
+  |  srlg OP, OP, 56
+  |  lgr RA, TMPR1
+  |  sllg RA, RA, 48
+  |  srlg RA, RA, 56
+  |  llgfr RD, TMPR1
+  |  srl RD, 16
+  |  cghi OP, BC_JMP
+  |  jne >8
+  |  branchPC RD
+  |  llgc OP, 3(PC)
+  |  llgh RD, 0(PC)
+  |  llgc RA, 2(PC)
+  |  la PC, 4(PC)
+  |8:
   |  sllg TMPR1, OP, 3
   |  lg TMPR1, GG_DISP2STATIC(TMPR1, DISPATCH)
   |  br TMPR1
@@ -4361,6 +4512,14 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  stg L:RB, DISPATCH_GL(tmpbuf.L)(DISPATCH)
     |  sty TMPR1, DISPATCH_GL(vmstate)(DISPATCH)
     |  lg RA, TRACE:RD->mcode
+    |  llgc TMPR1, TRACE:RD->unused1
+    |  clgfi TMPR1, 0
+    |  je >1
+    |  llgf TMPR1, TRACE:RD->mcloop
+    |  clgfi TMPR1, 0
+    |  je >1
+    |  algr RA, TMPR1
+    |1:
     |  br RA
     |.endif
     break;
