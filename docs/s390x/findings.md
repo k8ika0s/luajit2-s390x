@@ -6797,3 +6797,42 @@ one missing clean-build dependency and a still-red iterator perf surface
   stability. It is back to the steady-state hot owners:
   - array post-call key-lane owner `0x427`
   - hash pre-call KEYINDEX owner `0x509`
+
+2026-03-30: low-noise post-validation owner checks still point at the same
+array/hash payer split
+
+- The first attempt to reuse the generic
+  [tools/s390x/iterator_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/iterator_probe.py)
+  wrapper on the current dirty scratch tree was too invasive for this seam:
+  - even a single-host `pairs_array_sum:20` run with only the backend-side
+    key-lane guard requested still inherited the wrapper's broader
+    `CALL`/`ADD`/`EXIT`/`RECSTOP` logging bundle
+  - that build completed, but the probe run segfaulted after trace-snap dumps
+  - so the wrapper result is not trustworthy as an owner classifier on the
+    current scratch tree
+- A manual low-noise rerun against the already-built `kdz` scratch repo did
+  give a clean semantic split again:
+  - `pairs_array_sum:20` with
+    `LUAJIT_S390X_VLOAD_NEXT_KEY_NIL_GUARD=1`,
+    `LUAJIT_S390X_GUARD_LOG=1`,
+    `LUAJIT_S390X_GUARD_MARK_LOG=1`,
+    `LUAJIT_S390X_EMPTY_LOOP_FALLTHROUGH=1`
+    returned the correct `RESULT actual=500 expected=500`
+  - the repeated live guard cluster is still the post-call array key-lane
+    family:
+    - `vload_next_key_int`
+    - `vload_next_key_nil`
+    - `gencall_sload_type` on the table slot
+    - then the carried-total `addov_rr_int_eq`
+  - `pairs_sum:20` with the same low-noise setup minus the array-only nil guard
+    returned the correct `RESULT actual=300 expected=300`
+  - the repeated live hash guard cluster is still the pre-call/restart family:
+    - `vload_addr`
+    - duplicate `gencall_sload_type`
+    - `sload_keyindex`
+    - then the carried-total `addov_rr_int_eq`
+- So the post-errno-fix pivot is now restamped locally:
+  - array side is still paying in the post-call numeric key-lane cluster
+  - hash side is still paying in the pre-call KEYINDEX/address-lane cluster
+  - the bridge/continuation crash work is no longer the primary iterator
+    target
