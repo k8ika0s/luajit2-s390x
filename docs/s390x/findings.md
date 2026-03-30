@@ -6352,3 +6352,373 @@ bridge-era `ADDVV` recurrence, not before JIT takeover
   - treat the first bridge-dispatch `ADDVV` LHS seed as the live bug
   - inspect where that accumulator slot should be materialized or restored
     before the bridge-fed local tail runs
+
+2026-03-30: the first post-bridge `ADDVV` write proves the accumulator slot is
+already stale before the local arithmetic tail runs
+
+- I took the narrower debugger route on `kdz`:
+  - keep the stable producer-body bridge baseline
+  - use the smallest failing classifier: `/tmp/oneshot_iter.lua 20`
+  - break on the first
+    `lj_trace_s390x_vm_bridge_dispatch_log()` call
+  - set a hardware watchpoint on the bridge-fed `ADDVV` LHS slot:
+    - `slot1 = &base[1].u64`
+- That produced the first decisive provenance result for the stale total seed:
+  - first bridge entry:
+    - `base = 0x3fff7fd2cc0`
+    - `pc = 0x3fff7fd3730`
+    - `ins = 0x7ffd0a52`
+    - `slot1 = 0x3fff7fd2cc8`
+    - `val = 0xfff90000f7fdcf48`
+  - first watchpoint hit:
+    - old value: `0xfff90000f7fdcf48`
+    - new value: `0xfff90000f7fdcf49`
+    - current PC: `lj_BC_ADDVV`
+- That is the key narrowing:
+  - the bridge is **not** writing the first bad accumulator seed immediately
+    before the local tail
+  - the first observed write is simply `lj_BC_ADDVV` adding the produced
+    `1` onto an already-stale carried total
+  - so the live bug is now strictly before the local `ADDVV` execution
+- Combined with the earlier `n=20` bridge dump, the picture is now coherent:
+  - the bridge producer is alive
+  - the produced value lane is correct
+  - outer `FORL` state is correct
+  - the first bridge-fed `ADDVV` just consumes a stale boxed total
+- So the next exact target is no longer “find the writer of the bad value.”
+- It is:
+  - determine why the carried total slot is not restored or materialized before
+    the first bridge-fed local arithmetic tail runs
+  - most likely in bridge-era carried-state selection / restore-source
+    canonicalization, not in the local `ADDVV` tail itself
+
+2026-03-30: the exact `trace 4` bridge stop is built with no normal stack-slot
+snapshot entries
+
+- I switched from runtime-side dump attempts to a non-invasive `gdb` stop on
+  `trace_stop()` for the exact bridge-stop shape:
+  - `J->parent == 3`
+  - `J->exitno == 0`
+  - `J->cur.root == 1`
+  - `bc_op(J->cur.startins) == BC_JMP`
+  - `J->cur.link != 0`
+- Dumping the live temp trace buffers (`J->cur.snap` / `J->cur.snapmap`) at
+  that stop finally answered the accumulator-liveness question without
+  perturbing the runtime seam:
+  - `traceno = 4`
+  - `link = 3`
+  - `linktype = 1`
+  - `nsnap = 2`
+  - `nsnapmap = 4`
+  - `nins = 32770`
+  - `startins = 0x58`
+- Raw snapshot header words for the two live snapshots are:
+  - snap0:
+    - `mapofs = 0`
+    - `ref = 0x8001`
+    - `mcofs = 0`
+    - header word `0x0c0e0000`
+  - snap1:
+    - `mapofs = 2`
+    - `ref = 0x8002`
+    - `mcofs = 0x0016`
+    - header word `0x0c0e00ff`
+- Interpreted with the `SnapShot` layout on s390x big-endian, both snapshots
+  have:
+  - `nslots = 12`
+  - `topslot = 14`
+  - `nent = 0`
+- That is the decisive new finding:
+  - the exact `trace 4` bridge stop is being built with **no normal stack-slot
+    snapshot entries at all**
+  - so the carried total consumed by the bridge-fed local `BC_ADDVV` is not in
+    `trace 4`’s saved/live snapshot map in the first place
+- This matches the previous watchpoint result perfectly:
+  - first bridge-fed `ADDVV` writes `old + 1`
+  - because the accumulator slot was already stale before the local arithmetic
+    tail ran
+  - and now we know why: the bridge trace did not capture that slot
+- This moves the target again, in a useful way:
+  - not outer restart
+  - not producer refresh
+  - not local `ADDVV`
+  - specifically snapshot completeness / carried-state liveness for the exact
+    `trace 4` bridge stop
+- The next exact move should be to inspect why this bridge-stop family reaches
+  `nent=0` and whether the live accumulator slot can be made part of the bridge
+  trace’s carried state without reopening the earlier saved-contract failures
+
+2026-03-30: the carried total is not merely omitted from the bridge snapshot;
+it has no TRef in the bridge trace at all
+
+- I followed the empty-snapshot result by stopping again at the exact
+  `trace_stop()` entry for the live `trace 4` bridge shape and inspecting the
+  recorder-side slot map directly.
+- For the local arithmetic tail:
+  - `prev2 = BC_ADDVV`
+  - `prev2a = 1`
+  - current `baseslot = 2`
+  - so the carried total consumed by the local `ADDVV` corresponds to
+    `J->slot[baseslot + 1] = J->slot[3]`
+- At that exact bridge stop, `gdb` shows:
+  - `TRACE4_SLOT3 s=3 tr=0x0 ref=0x0 baseslot=2 maxslot=10`
+- That is stronger than the earlier empty-snapshot result:
+  - the carried total is not being dropped only by snapshot compression
+  - it is not an inherited `SLOAD` that later gets elided as “unchanged”
+  - the bridge trace has **no TRef at all** for the accumulator slot by the
+    time `trace_stop()` runs
+- Combined with the first bridge-dispatch watchpoint:
+  - runtime `ADDVV` later reads a stale boxed total from the Lua stack slot
+  - because the bridge trace never materialized or carried that total in its
+    recorder-side slot map
+- So the live target tightens again:
+  - not restore-source selection
+  - not snapshot-entry compression alone
+  - specifically why the exact `trace 4` bridge recorder state leaves the
+    carried total slot dead (`J->slot[3] == 0`) even though the local tail
+    immediately uses it after bridge activation
+
+2026-03-30: `lj_snap_replay()` leaves the exact `trace 4` recorder slot window
+completely dead
+
+- I moved one phase earlier than `trace_stop()` and stopped immediately after
+  `lj_snap_replay(J, T)` in side-trace setup (`lj_record.c:3962`) for the exact
+  `parent=3 exit=0 root=1` bridge family.
+- Result on `kdz`:
+  - `AFTER_REPLAY traceno=4 parent=3 exit=0 root=1 baseslot=2 maxslot=10`
+  - `pc=0x...372c op=BC_JLOOP startop=BC_JMP`
+  - `slot3=0x0 ref3=0x0 tr3=0x0`
+  - parent trace `T` still has `snap0.nent=0`, `snap1.nent=0`
+  - dumped `J->slot[0..10]` is all zero
+- So the carried total is not being lost late during `trace_stop()`
+  compaction. On the exact bridge family, side-trace setup zeros the slot
+  window and `lj_snap_replay()` repopulates none of it because the parent
+  snapshots are empty.
+
+2026-03-30: first bridge-frame slot dump shows no nearby correct carried total
+
+- I extended `S390X_VM_BRIDGE_DISPATCH` to dump the nearby live frame slots
+  `raw_base0..raw_base5` on the stable producer-body bridge baseline.
+- `kdz`, `/tmp/oneshot_iter.lua 20`, first bridge dispatch:
+  - `raw_base0=20`
+  - `raw_base1=0xfff90000b33dcf18`
+  - `raw_base2=<tab ptr>`
+  - `raw_base3=10`
+  - `raw_base4=20`
+  - `raw_base5=1`
+  - while the local tail still sees:
+    - `raw_add_a/raw_add_b = raw_base1`
+    - `raw_add_c = 1,3,5,7,9`
+    - `raw_for_idx/raw_for_ext = 10,11,...`
+- So there is no obvious correct carried total hiding in nearby bridge frame
+  slots. The live arithmetic tail is reading slot `1`, and slot `1` is already
+  a stale boxed integer-like word before the first bridge-fed `ADDVV`.
+
+2026-03-30: no write repairs the stale total between exact `trace 4` stop and
+the first bridge-fed `ADDVV`
+
+- `kdz`, `/tmp/oneshot_iter.lua 20`
+- I broke at exact `trace4` `trace_stop()` and set a hardware watchpoint on
+  `&J->L->base[1].u64`.
+- Stop-time value:
+  - `TRACE4_STOP_WATCH addr=0x...2cc8 val=0xfff90000f7fdcf48`
+- First write after continuing:
+  - watchpoint hits in `lj_BC_ADDVV`
+  - old `0xfff90000f7fdcf48`
+  - new `0xfff90000f7fdcf49`
+- So nothing between exact `trace4` stop and the first bridge-fed local tail
+  materializes or repairs the carried total slot. The first observed write is
+  just `ADDVV` consuming the stale seed.
+
+2026-03-30: the stale carried-total seed already exists at exact `trace 3` stop
+
+- I moved the same slot watchpoint earlier, to `trace_stop()` for
+  `trace=3 parent=1 exit=1`.
+- On `kdz`, the same live interpreter slot already contains the stale value:
+  - `TRACE3_STOP_WATCH addr=0x...2cc8 val=0xfff90000f7fdcf48`
+- I also dumped the recorder-side slot map at that same exact `trace3` stop:
+  - `baseslot=2 maxslot=10 nsnap=2 nins=32772`
+  - `slot3=0x0 ref3=0x0 tr3=0x0`
+  - `J->slot[0..10]` is all zero
+- That is the same boxed integer later seen:
+  - at exact `trace4` stop
+  - and on the first bridge-fed `ADDVV`
+- This moves the seam earlier again:
+  - the bridge does not create the bad accumulator seed
+  - `trace4` does not create it either
+  - the carried total is already absent from the recorder-side slot map by
+    exact `trace3` stop
+  - the bridge is only the first place that consumes a stack slot which was
+    never materialized with the carried total
+- Next exact target:
+  - inspect where the running total lives on the `trace3` path if it is not in
+    `J->slot[3]`
+  - determine why the `trace3 -> trace4` path never materializes that carried
+    total back to a live interpreter stack TValue in slot `1`
+
+2026-03-30: the `trace3` accumulator live-in replay idea is a reject, and the
+long-run recovery from the probe build was non-causal
+
+- I implemented the exact recorder-side experiment in
+  [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c):
+  - env gate: `LUAJIT_S390X_TRACE3_ACC_LIVEIN=1`
+  - replay-time injection:
+    `J->slot[3] = emitir_raw(IRT(IR_SLOAD, IRT_INT), 3, IRSLOAD_INHERIT|IRSLOAD_PARENT)`
+  - intended scope: the `parent=1 exit=1 root=1 startop=BC_JMP` continuation
+    family that later feeds the `trace3 -> trace4` bridge
+- Initial structural checks looked promising:
+  - exact `trace3`/`trace4` replay and stop probes showed `slot3` nonzero with
+    the gate enabled
+  - short one-shot cases such as `n=20 -> RESULT 500` also passed
+- But the next runtime classifier disproved the causal story:
+  - with the gate enabled, `n=50` regressed from the correct `1250` to
+    `RESULT 0`
+  - a focused replay log showed why:
+    - the injection fired on an earlier continuation stub, not the intended
+      bridge family:
+      - `curlink=0`
+      - `curlinktype=0`
+      - `maxslot=0`
+      - `pc=...372c`
+      - `ins=BC_JLOOP 1`
+- I tightened the gate with `J->maxslot >= 10`, which removed that bad early
+  hit and restored the small one-shot results:
+  - `n=20 -> 500`
+  - `n=50 -> 1250`
+  - `n=500 -> 12500`
+  - `n=2000 -> 50000`
+- But the crucial control result rejected the whole live-in theory:
+  - on the probe build, `n=2000` and even `n=200000 -> 5000000` recovered with
+    `LUAJIT_S390X_TRACE3_ACC_LIVEIN` **off**
+  - a remote-only control replacing `src/lj_snap.c` with `HEAD` still produced
+    `n=2000 -> 50000`
+  - after syncing the cleaned local `src/lj_snap.c` back to `kdz` and
+    rebuilding, the long run regressed again:
+    - `n=2000 -> 50000`
+    - `n=200000` segfaulted
+- So the recorder-side live-in injection is not the landing fix:
+  - the broad form is wrong and corrupts an earlier continuation stub
+  - the narrowed form is effectively dormant
+  - the apparent long-run recovery on the probe build was a layout/timing
+    effect in `lj_snap.c`, not a semantic proof that `slot3` rebinding solved
+    the bridge-era accumulator problem
+- Current conclusion:
+  - keep the accumulator-live-in hypothesis rejected for now
+  - do not land `LUAJIT_S390X_TRACE3_ACC_LIVEIN`
+  - treat the `lj_snap.c` probe build as a Heisenbug classifier, not a fix
+
+2026-03-30: the long-run flip is reproducibly `lj_snap_replay()` code-shape
+sensitive
+
+- I backed the accumulator-live-in path out of the active source again and
+  reran the clean branch on `kdz`.
+- Clean `src/lj_snap.c` result:
+  - `n=2000 -> RESULT 50000`
+  - `n=200000` segfaults again
+- Then I added one deliberately non-semantic probe in
+  [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c):
+  - new env gate: `LUAJIT_S390X_SNAP_LAYOUT_PROBE`
+  - new helper `snap_s390x_layout_probe()`
+  - a single disabled branch at the top of `lj_snap_replay()`
+  - with the env **unset**, so the probe never actually runs
+- That alone flips the long run back:
+  - `n=200000 -> RESULT 5000000`
+- So the active seam is now much clearer:
+  - not the rejected accumulator-live-in semantics
+  - not a bridge-side writeback
+  - specifically the generated code shape of `lj_snap_replay()` on this s390x
+    build
+- I then compared `lj_snap_replay` object code for the clean and probe builds
+  on `kdz`:
+  - clean object:
+    - `lj_snap_replay` size `0x0c50`
+    - frame allocation `lay %r15,-288(%r15)`
+  - probe object:
+    - `lj_snap_replay` size `0x0cba`
+    - frame allocation `lay %r15,-296(%r15)`
+  - the disassembly also diverges throughout the function after the new helper
+    is introduced
+- This is the first reproducible, minimal Heisenbug classifier on the current
+  branch:
+  - an inert `lj_snap_replay()` layout perturbation is enough to move the
+    long-run result from `SIGSEGV` to the correct `5000000`
+- Current conclusion:
+  - the branch is now sensitive to `lj_snap_replay()` code generation / stack
+    layout on s390x
+  - treat the no-op probe as a diagnostic reproducer, not a promotable fix
+  - the next target is compiler/code-shape isolation inside
+    `lj_snap_replay()`, not more accumulator slot rebinding
+
+2026-03-30: the late `200000` crash is an `ERRNO_RESTORE` register-clobber bug
+in `lj_dispatch_ins`, and forcing stack-backed errno saves fixes it
+
+- After the `lj_snap_replay()` layout digression, I checked repeatability on the
+  current `kdz` binary instead of source edits:
+  - same binary, same env, same input:
+    - run 1: `SIGSEGV`
+    - run 2: `RESULT 5000000`
+    - run 3: `RESULT 5000000`
+- I then looped the same binary until failure and captured the persisted core
+  from `systemd-coredump`.
+- The stable failing crash site is:
+  - `lj_dispatch_ins`
+  - `pc = 0x100bd24`
+  - instruction:
+    - `ste %f10,0(%r10)`
+- Core state from the failing run:
+  - `L = 0x3ffad351380`
+  - bytecode `pc = 0x...3730`
+  - live local bytecode neighborhood:
+    - `... BC_JLOOP 1 ; BC_ITERL ; BC_FORL ; BC_IFORL`
+  - `%r10 = 0x8002ad3716b8`
+- Disassembly of the old `lj_dispatch_ins` made the bug explicit:
+  - after `__errno_location@plt`, the function cached the errno pointer in
+    caller-saved `%r10`
+  - it also cached the saved errno value in `%f10`
+  - then it called helpers like:
+    - `cur_topslot`
+    - `lj_trace_ins`
+    - `callhook`
+    - `lj_debug_line`
+  - and finally restored errno with:
+    - `ste %f10,0(%r10)`
+- That is not a bridge or snapshot bug. It is an ABI bug:
+  - `%r10` is caller-saved on s390x
+  - `lj_dispatch_ins` was assuming the saved errno pointer would survive those
+    helper calls
+  - when `%r10` was clobbered, `ERRNO_RESTORE` wrote through a bad pointer and
+    crashed nondeterministically late in the run
+- I fixed this at the macro layer in
+  [src/lj_dispatch.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_dispatch.h):
+  - non-Windows:
+    - `ERRNO_SAVE` changed from `int olderr = errno;` to
+      `volatile int olderr = errno;`
+  - Windows:
+    - both `olderr` and `oldwerr` are now `volatile`
+- On `kdz`, the new generated `lj_dispatch_ins` no longer uses `%f10` to carry
+  the saved errno value across helper calls:
+  - old shape:
+    - `lde %f10,0(%r10)` ... helper calls ... `ste %f10,0(%r10)`
+  - new shape:
+    - `l %r5,0(%r10)`
+    - `st %r5,172(%r15)`
+    - ... helper calls ...
+    - `l %r1,172(%r15)`
+    - `st %r1,0(%r10)`
+- That is the right fix surface: force stack-backed errno state instead of a
+  caller-saved register/TLS-pointer pair.
+- Validation on the clean source (with the inert `lj_snap.c` layout probe
+  removed again):
+  - `oneshot_iter.lua 200000`:
+    - run 1: `RESULT 5000000`
+    - run 2: `RESULT 5000000`
+    - run 3: `RESULT 5000000`
+  - `./luajit -joff /tmp/oneshot_iter.lua 200000`:
+    - `RESULT 5000000`
+  - full [iter-chain-handoff.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/iter-chain-handoff.lua):
+    - `RESULT 5000000`
+- Current conclusion:
+  - the late `200000` crash was not a lingering bridge replay bug
+  - it was an s390x ABI bug in `ERRNO_RESTORE` codegen for dispatch/helper paths
+  - forcing stack-backed errno saves appears to resolve the long-run crash on
+    the clean branch
