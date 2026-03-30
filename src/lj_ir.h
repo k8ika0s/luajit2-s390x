@@ -239,6 +239,7 @@ IRFLDEF(FLENUM)
 #define IRSLOAD_READONLY	0x10	/* Read-only, omit slot store. */
 #define IRSLOAD_INHERIT		0x20	/* Inherited by exits/side traces. */
 #define IRSLOAD_KEYINDEX	0x40	/* Table traversal key index. */
+#define IRSLOAD_KIDX_NUMKEY	0x80	/* KEYINDEX expected to produce numeric keys. */
 
 /* XLOAD mode bits, stored in op2. */
 #define IRXLOAD_READONLY	0x01	/* Load from read-only data. */

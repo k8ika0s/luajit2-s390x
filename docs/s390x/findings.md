@@ -6722,3 +6722,78 @@ in `lj_dispatch_ins`, and forcing stack-backed errno saves fixes it
   - it was an s390x ABI bug in `ERRNO_RESTORE` codegen for dispatch/helper paths
   - forcing stack-backed errno saves appears to resolve the long-run crash on
     the clean branch
+
+2026-03-30: clean post-fix validation confirms the errno fix, but also exposed
+one missing clean-build dependency and a still-red iterator perf surface
+
+- A clean source rooted at `0a76ac86` did **not** build by itself on either
+  host until one additional committed dependency was restored:
+  - `lj_record.c` and `lj_asm_s390x.h` already reference
+    `IRSLOAD_KIDX_NUMKEY`
+  - clean `lj_ir.h` did not define it
+  - adding
+    `#define IRSLOAD_KIDX_NUMKEY 0x80 /* KEYINDEX expected to produce numeric keys. */`
+    was required to make the clean validation source self-consistent
+- With that one-line dependency present and no `lj_snap.c`/bridge probe noise,
+  the `ERRNO_SAVE` fix validates as a real ABI/codegen fix:
+  - `kdz`, release `gcc`:
+    - `oneshot_iter.lua 20 -> RESULT 500`
+    - `oneshot_iter.lua 2000 -> RESULT 50000`
+    - `oneshot_iter.lua 200000`:
+      - run 1: `RESULT 5000000`
+      - run 2: `RESULT 5000000`
+      - run 3: `RESULT 5000000`
+    - `./luajit -joff /tmp/oneshot_iter.lua 200000 -> RESULT 5000000`
+    - `iter-chain-handoff.lua -> RESULT 5000000`
+    - `lj_dispatch_ins` shows stack-backed errno state again:
+      - `st %r5,172(%r15)`
+      - later `l %r1,172(%r15)` / `st %r1,0(%r10)`
+      - no old `%f10` restore path
+  - `kdz`, debug `gcc`:
+    - `oneshot_iter.lua 200000 -> RESULT 5000000`
+    - `lj_dispatch_ins` still spills saved errno to the stack
+      (`st %r1,180(%r15)` in this build)
+  - `kdz`, release `clang`:
+    - `oneshot_iter.lua 200000 -> RESULT 5000000`
+    - `lj_dispatch_ins` still spills saved errno to the stack
+      (`st %r0,284(%r15)` in this build)
+  - `kdz`, debug `clang`:
+    - reject as a matrix blocker, but not because of errno restore
+    - build fails later in `lj_opt_fold_dyn.o` with undeclared
+      `fold_hashkey` / `fold_hash` / `fold_func`
+    - so this quadrant currently points at an unrelated debug+clang build
+      surface, not a regression of the errno fix
+  - `zkd0`, release `gcc`:
+    - `oneshot_iter.lua 200000 -> RESULT 5000000`
+    - `./luajit -joff /tmp/oneshot_iter.lua 200000 -> RESULT 5000000`
+    - `iter-chain-handoff.lua -> RESULT 5000000`
+    - `lj_dispatch_ins` matches the stack-backed release `gcc` shape from `kdz`
+  - `zkd0`, release `clang`:
+    - `oneshot_iter.lua 200000 -> RESULT 5000000`
+    - `lj_dispatch_ins` again uses a stack spill instead of the old floating
+      restore shape
+- So the late long-run blocker is now cleanly split from the remaining iterator
+  work:
+  - the `ERRNO_RESTORE` crash is fixed at the right layer
+  - the clean successful quadrants agree on the result
+  - inert `lj_snap.c` probe layout changes are no longer needed to keep the run
+    green
+- The clean perf gate on `kdz` remains decisively red even after the crash fix:
+  - JIT on:
+    - `pairs_sum/small median=0.003633`
+    - `pairs_array_sum/small median=0.003640`
+    - `pairs_sum/medium median=0.018218`
+    - `pairs_array_sum/medium median=0.018210`
+    - `pairs_sum/hot median=0.072996`
+    - `pairs_array_sum/hot median=0.083461`
+  - `-joff`:
+    - `pairs_sum/small median=0.000218`
+    - `pairs_array_sum/small median=0.000184`
+    - `pairs_sum/medium median=0.001089`
+    - `pairs_array_sum/medium median=0.000919`
+    - `pairs_sum/hot median=0.004353`
+    - `pairs_array_sum/hot median=0.003692`
+- That means the post-fix go-forward target is no longer bridge crash
+  stability. It is back to the steady-state hot owners:
+  - array post-call key-lane owner `0x427`
+  - hash pre-call KEYINDEX owner `0x509`
