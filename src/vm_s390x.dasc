@@ -2367,6 +2367,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  lgr CARG1, RD
   |  lgr CARG2, RA
   |  lgr CARG3, TMPR0
+  |  lgr CARG4, BASE
   |  brasl r14, extern lj_trace_s390x_vm_bridge_dispatch_log
   |  lgr PC, RB
   |  lgr TMPR1, ITYPE
@@ -2381,11 +2382,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  srl RD, 16
   |  cghi OP, BC_ITERL
   |  jne >7
-  |  // Bridge-resumed ITERL must skip the hotloop prologue. Otherwise the
-  |  // interpreter patches the iterator backedge into BC_JITERL, whose D
-  |  // field is still a bytecode target, not a trace number.
-  |  lghi OP, BC_IITERL
-  |  j >8
+  |  aghi PC, -4
+  |  j ->vm_IITERN_bridge
   |7:
   |  cghi OP, BC_JMP
   |  jne >8
@@ -4060,6 +4058,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |.endif
     |->vm_IITERN:
     |  ins_A	// RA = base, (RB = nresults+1, RC = nargs+1 (2+1))
+    |->vm_IITERN_bridge:
     |  sllg RA, RA, 3
     |  lg TAB:RB, -16(RA, BASE)
     |  cleartp TAB:RB
