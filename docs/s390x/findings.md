@@ -27,6 +27,288 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 ## Native Runs
 
+- `iter-chain-handoff-root-itern-precall-tab-layout-fix-20260330g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: enabling fix
+  - Notes: the first raw-`TValue` pre-call table preserve attempt added new
+    scratch fields to `jit_State` in
+    [src/lj_jit.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_jit.h).
+    That immediately made the remote rebuild fail at `BUILDVM lj_vm.S` with
+    `DASM error 11001e7f`.
+  - This turned out not to be host skew. The remote tree matched the local
+    source, and manual DynASM preprocessing still succeeded. The failure was
+    later, inside `host/buildvm`, when encoding
+    `la DISPATCH, GG_G2DISP(RB)` in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc).
+    Growing `jit_State` also grows `GG_G2DISP`, and on s390x that offset is
+    still consumed through a 12-bit `la` displacement.
+  - Fix: keep the raw-table preserve experiment, but do not grow `jit_State`.
+    The scratch table `TValue` is now preserved through the existing
+    `J->errinfo` slot, and the table slot is derived from the already-saved
+    root key slot (`slot = rootslot-1`). The corresponding restore-time
+    override in
+    [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c)
+    now copies from `errinfo` only when that exact root/bridge match holds.
+  - Consequence:
+    - the branch is buildable again on `kdz`
+    - the raw-table preserve experiment can now be classified at runtime
+      without reopening the VM offset/range issue
+
+- `iter-chain-handoff-root-itern-precall-tab-iitern-entry-20260330g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: promising classifier
+  - Notes: with the repaired raw-table preserve branch enabled:
+    - `LUAJIT_S390X_ROOT_ITERN_SETUP_ITERN=1`
+    - `LUAJIT_S390X_ROOT_RESUME_PRECALL_TAB=1`
+    - `LUAJIT_S390X_LOOPDESC_BRIDGE_PRECALL_TAB=1`
+    - plus the current safe continuation bundle
+    the tiny reproducer no longer falls over immediately. It times out
+    cleanly instead of reproducing the earlier `lj_vm_IITERN+24` segfault.
+  - A focused `gdb` stop on `lj_vm_IITERN` now shows the resumed producer entry
+    with the correct local `A` field:
+    - `r4 = 9`
+    - `r13 = 0x...2ce8`
+    - `x/12gx $r13+32` includes:
+      - `0xfffb83fff7fd4e80`
+      - `0xfffa03fff7fd3c38`
+      - `0xfffe7fff00000000`
+      - followed by `nil`
+  - This is materially different from the earlier reject. Previously the slot
+    that should have held the iterator table arrived at `lj_vm_IITERN` as an
+    int-like raw value (`0xfff90000ffff95b0`); now it is a tagged GC pointer
+    again, and the control-var lane is also present.
+  - Consequence:
+    - the raw-table preserve is restoring the producer-side table lane
+      correctly enough to reach `lj_vm_IITERN`
+    - the live seam is now later than “wrong table lane at `IITERN` entry”
+    - the next question is whether this branch now loops with a valid producer
+      contract or still stalls before a real iterator-state update becomes
+      visible
+
+- `iter-chain-handoff-root-itern-precall-tab-iitern-hit2-20260330g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the next exact question on the repaired raw-table branch was
+    whether the producer body (`lj_vm_IITERN`) was still the hot tight replay
+    loop. It is not.
+  - A focused `gdb` run with `ignore 1 1` reaches the second `lj_vm_IITERN`
+    hit and shows the same producer-side entry state as hit `1`:
+    - `r4 = 9`
+    - `r6 = 0x303`
+    - `r11 = -14`
+    - `BASE+0x20 .. +0x48` still holds:
+      - two numeric lanes at `1`
+      - two tagged GC pointers
+      - a control/result bundle headed by `0xfffe7fff00000002`
+      - followed by numeric `1`, numeric `1`, and `nil`
+  - But the producer is no longer the tight hot loop. A matching `gdb` run
+    with `ignore 1 49` did not reach hit `50` within a 40 second timeout.
+  - Consequence:
+    - the repaired branch does re-enter `lj_vm_IITERN`
+    - but `lj_vm_IITERN` is no longer the dominant infinite replay surface
+    - the hot stall has moved later or lower-frequency, so the next seam is
+      not “bad table lane at producer entry” anymore
+
+- `iter-chain-handoff-root-itern-precall-tab-parent3-loop-20260330g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the next structural question was whether the repaired raw-table
+    branch still reached the familiar post-`trace 4` bridge seam. It does not.
+  - A focused `JLOOP_EXIT` run on `parent=3 exit=0` shows a stable earlier
+    loop:
+    - `trace=3`
+    - `target=1`
+    - `target_exec=2`
+    - `target_startop=BC_ITERN` (`70`)
+    - `exec_startop=BC_JMP` (`88`)
+    - `exec_resumepc=0x...6b0`
+    - `exec_resumeop=BC_ITERL` (`82`)
+    - `retop=BC_LOOP` (`85`)
+    - repeated `phase=resume-linked`
+  - There are no `loopdesc-child-query`, `loopdesc-bridge-child-reenter`, or
+    `trace 4` bridge logs on this branch under the same focused run. The
+    repaired producer/table path has therefore changed the structural regime,
+    not just the entry payload.
+  - Consequence:
+    - this branch is no longer sitting on the old `trace 4` bridge seam
+    - the current behavior is an earlier `parent=3 exit=0 -> BC_LOOP`
+      resume-linked spin
+    - so the raw-table branch is a real classifier, but not yet a landing fix
+
+- `iter-chain-handoff-root-itern-ab-and-lownoise-20260330g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the next question was whether the earlier `parent=3 exit=0` focused
+    loop was the real structural fork, or just the first hot surface before
+    the later bridge still forms.
+  - The A/B split showed:
+    - `LUAJIT_S390X_ROOT_ITERN_SETUP_ITERN=1` by itself is enough to produce
+      the earlier repeated
+      `target=1 target_exec=2 retop=BC_LOOP phase=resume-linked`
+      surface under focused `JLOOP_EXIT` logging
+    - the raw-table preserve envs by themselves are not safe on this branch
+      (`RC=139`)
+  - But that focused result was not the real fork. A clean low-noise rerun
+    with only `RECSTOP` and `TRACE_META` after gating the raw-table save in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    shows that both variants still reach the same later bridge stop within
+    20 seconds:
+    - stable baseline, new knobs off:
+      - `S390X_RECSTOP trace=4 parent=3 exit=0`
+      - `S390X_TRACE_META phase=stop trace=4 ... startop=88 link=3 linktype=1 nins=32770 mcloop=0`
+    - combined producer branch:
+      - `S390X_RECSTOP trace=4 parent=3 exit=0`
+      - `S390X_TRACE_META phase=stop trace=4 ... startop=88 link=3 linktype=1 nins=32770 mcloop=0`
+  - Consequence:
+    - the earlier `parent=3 exit=0 -> BC_LOOP` loop is a transient hot
+      surface, not the decisive structural split
+    - the real seam remains later, at the same `trace 4` bridge stop
+    - the raw-table / producer work must now prove value on the post-`trace 4`
+      bridge path, not by merely changing the first focused `JLOOP_EXIT`
+      pattern
+  - A follow-up `gdb` run on the combined producer branch with a breakpoint on
+    `lj_vm_IITERN` and `ignore 1 5` did not reach the sixth hit within a 40
+    second timeout. That matches the earlier “hit 2 exists, hit 50 does not”
+    classification: even on the repaired producer branch, `lj_vm_IITERN` is
+    not the dominant hot replay loop.
+
+- `iter-chain-handoff-post-trace4-no-dispatch-yet-20260330g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`, `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the next exact question was whether the repaired producer branch
+    changes anything on the real post-`trace 4` seam. It does not, at least
+    not within the first bridge-latency window.
+  - Paired low-noise runs on `iter-tiny`, with only:
+    - `LUAJIT_S390X_RECSTOP_LOG=1`
+    - `LUAJIT_S390X_TRACE_META_LOG=1`
+    - `LUAJIT_S390X_VM_BRIDGE_DISPATCH_LOG=1`
+    - `LUAJIT_S390X_VM_ITERL_LOG=1`
+    show the same result for both the stable baseline and the combined
+    producer branch:
+    - `S390X_RECSTOP trace=4 parent=3 exit=0`
+    - `S390X_TRACE_META phase=stop trace=4 ... startop=88 link=3 linktype=1 nins=32770 mcloop=0`
+    - but no `S390X_VM_BRIDGE_DISPATCH`
+    - and no `S390X_VM_ITERL`
+    within 60 seconds.
+  - Repeating the same narrow probe on the full authoritative
+    `iter-chain-handoff.lua` surface gives the same answer:
+    - the run reaches `trace 4`
+    - but still shows no logged bridge-consumed interpreter dispatch within
+      60 seconds
+  - Consequence:
+    - the live seam is now even narrower than “post-bridge consumption”
+    - the active gap is between `trace 4` stop formation and the first actual
+      bridge-consumed interpreter dispatch
+    - the next exact target is a debugger or trace-exit stop on that gap,
+      not more producer-lane work and not more broad bridge logging
+
+- `iter-chain-handoff-post-trace4-debug-window-20260330g`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`, `iter-chain-handoff`
+  - Host: `kdz`
+  - Result: classifier rejects
+  - Notes: the next attempt was to observe the gap directly under `gdb`.
+  - Two later breakpoints in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    were tested on the safe baseline:
+    - the exact `loopdesc-bridge-child-reenter` return
+    - the earlier fully-classified `JLOOP_EXIT` site where `target`,
+      `execno`, and `retop` are already computed
+  - Under `gdb`, neither breakpoint was reached in a reasonable window:
+    - `iter-tiny` still did not hit `loopdesc-bridge-child-reenter`
+      within 120 seconds
+    - it also did not reach the earlier classified `JLOOP_EXIT` site
+      within 60 seconds
+    - the full `iter-chain-handoff.lua` surface likewise did not reach the
+      later bridge-child breakpoint within 40 seconds
+  - A more aggressive debugger-only micro repro with:
+    - `hotloop=1`
+    - `hotexit=1`
+    - `run(1)`, `run(2)`, `run(3)`
+    was also tested as a faster seam trigger. That is not a valid reproducer:
+    it segfaults early (`RC=139`) before it can be used as a bridge classifier.
+  - One VM-side static-dispatch probe was also tried and rejected. Injecting a
+    helper call at the static-dispatch entry in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    was too invasive for this path: even a metadata-only call perturbed the
+    root path and crashed before the real seam.
+  - Consequence:
+    - the active branch must stay on the safe runtime baseline
+    - the next debugger target needs an earlier, cheaper stop than the
+      bridge-child return itself
+    - `hotloop=1/hotexit=1` is not a trustworthy debug-time substitute for the
+      current tiny reproducer
+
+- `iter-chain-handoff-bridge-prev-jloop-reject-20260330f`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: reject
+  - Notes: the next exact bridge-target experiment was to dispatch the live
+    bytecode carrier immediately before the replayed `ITERL` seam instead of
+    replaying `IITERL` again. The strengthened bridge log in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    proves the repeated post-bridge neighborhood is:
+    - `prev2 = 0x010a0120` (`BC_ADDVV`)
+    - `prev1 = 0x00040b57` (`BC_JLOOP 4`)
+    - `pc = 0x7ffd0952` (`BC_ITERL`, `A=9`, `D=32765`)
+    - `next1 = 0x7ff8024f` (`BC_FORL`)
+    So the bridge is definitely resuming in the local `ADDVV ; JLOOP ; ITERL ;
+    FORL` tail, and the replayed `ITERL` itself is not carrying the wrong
+    A-field anymore.
+  - In
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc),
+    the exact bridge-resumed `BC_ITERL` path was patched to dispatch the
+    preceding live `BC_JLOOP` carrier instead of forcing `BC_IITERL`.
+  - On `kdz`, that is also a reject. The tiny reproducer fails early with
+    `RUN_EXIT=132` / `SIGILL` before the replay seam advances.
+  - Consequence:
+    - the active bridge bug is not simply “resume at `JLOOP` instead of
+      `ITERL`”
+    - the missing refresh target is now narrower:
+      - not the replayed `ITERL` tail
+      - not the raw local `JLOOP` carrier
+    - the next seam is the preserved pre-tail refresh contract that should run
+      before this local `ADDVV ; JLOOP ; ITERL ; FORL` tail, not either of the
+      two live bytecodes currently sitting in front of us
+
+- `iter-chain-handoff-bridge-dispatch-neighborhood-20260330f`
+  - Stage: focused native iterator probe
+  - Surface: `iter-tiny`
+  - Host: `kdz`
+  - Result: classification only
+  - Notes: the strengthened `S390X_VM_BRIDGE_DISPATCH` log in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    now captures the exact bytecode neighborhood around the repeated
+    bridge-resumed seam. On the stable branch:
+    - `trace=3`
+    - `startpc = 0x...6ac`
+    - `resumepc = 0x...6ac`
+    - bridge `pc = 0x...6b0`
+    - `op = BC_ITERL`
+    - `ra = 9`
+    - `rd = 32765`
+    - `prev2op = BC_ADDVV`
+    - `prev1op = BC_JLOOP`
+    - `next1op = BC_FORL`
+  - This closes the earlier ambiguity about stale decode-state. The bridge is
+    not replaying `ITERL` with the wrong local `A` field anymore. It is
+    re-entering the tail at the right `ITERL` register contract, but after the
+    state-refreshing producer body has already been replaced by the local
+    `BC_JLOOP` carrier.
+
 - `iter-chain-handoff-bridge-iitern-refresh-reject-20260330f`
   - Stage: focused native iterator probe
   - Surface: `iter-tiny`
@@ -5255,3 +5537,818 @@ tail region, not next to `ISNEXT/ITERN`
   - next work should focus on how the bridge/root continuation hands control
     back into this tail-only region, and what exact pre-tail refresh step is
     missing
+
+2026-03-30: the exact `trace 4` bridge is born with a consumer-side `ITERL`
+contract, while the linked trace saves a different producer-side `JLOOP`
+contract
+
+- A safe `S390X_BRIDGE_META` dump at `trace 4` formation on the authoritative
+  `kdz` tiny repro now gives the exact contract split:
+  - `trace=4 parent=3 exit=0 root=1 link=3 linktype=LJ_TRLINK_ROOT`
+  - `resumepc = startpc + 4`
+  - `resumeins = 0x7ffd0952`
+  - `resumeop = BC_ITERL`
+  - local resumed neighborhood:
+    - `prev2 = 0x010a0120` (`BC_ADDVV`)
+    - `prev1 = 0x00010b57` (`BC_JLOOP`, target `1`)
+    - `next1 = 0x7ff8024f` (`BC_FORL`)
+  - linked trace `3` saves a different contract:
+    - `link_resumepc = link_startpc`
+    - `link_resumeins = 0x00030057`
+    - `link_resumeop = BC_JLOOP`
+- So the bridge has three distinct candidate contracts in play:
+  - the bridge's own saved consumer contract: `BC_ITERL`
+  - the live local preceding carrier: `BC_JLOOP` to trace `1`
+  - the linked trace's saved producer contract: `BC_JLOOP` to trace `3`
+- This is the clearest proof yet that the missing step is between those
+  contracts, not identical to any one of them:
+  - bridge `ITERL` is too late
+  - live local `JLOOP 1` is the wrong carrier
+  - linked saved `JLOOP 3` is a different, more plausible producer-side
+    contract
+
+2026-03-30: exact VM bridge dispatch through the linked trace's saved
+`JLOOP 3` contract rewinds too far and suppresses `trace 4`
+
+- I tested one exact VM-side experiment in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - for the exact `trace 4` bridge family only
+  - after selecting the bridge stub
+  - consume the linked trace's saved `resumepc/resumeins`
+    (`0x00030057`, `BC_JLOOP`) instead of the bridge's saved
+    `BC_ITERL` contract
+- This is a reject.
+- On `kdz`, the tiny repro no longer converges on the later `trace 4`
+  bridge seam. The focused `parent=3 exit=0` run rewinds to the earlier loop:
+  - `trace=3`
+  - `target=1`
+  - `target_exec=2`
+  - `retop=BC_LOOP`
+  - repeated `phase=resume-linked`
+- A low-noise 20s follow-up also shows no `S390X_RECSTOP trace=4` at all.
+- So the linked trace's saved `JLOOP 3` contract is too early. It rewinds the
+  continuation before the actual bridge seam instead of materializing the
+  missing refresh step immediately before the tail.
+- Consequence:
+  - the correct post-bridge fix is not “use bridge `ITERL` as-is”
+  - and not “use the linked trace's saved `JLOOP 3` contract verbatim”
+  - the remaining missing step lies between those two contracts
+  - the next target should stay narrow:
+    - identify the exact producer-side refresh step between
+      `link_resumeins = BC_JLOOP 3`
+      and
+      `trace4.resumeins = BC_ITERL`
+    - likely an explicit producer refresh or a later producer-owned resume
+      contract, not a full rewind to the linked trace's saved `JLOOP`
+
+2026-03-30: the live `exec=2` continuation stub is also consumer-side, so the
+missing refresh step is not present in any saved trace resume contract seen so
+far
+
+- On the restored stable branch, a focused `parent=3 exit=0` run on `kdz`
+  shows the earlier live handoff again before `trace 4` forms:
+  - `target=1`
+  - `target_exec=2`
+  - `retop=BC_LOOP`
+  - repeated `phase=resume-linked`
+- The same run also prints the active exec-trace contract:
+  - `trace=3 exec=2`
+  - `exec_startop=BC_JMP`
+  - `exec_resumepc = startpc + 4`
+  - `exec_resumeop = BC_ITERL`
+  - `exec_resumechild = 3`
+- So trace `2` is not a hidden producer-side resume target. It is another
+  continuation stub whose saved contract is also consumer-side `BC_ITERL`.
+- Combined with the earlier bridge dump:
+  - `trace4.resumeins = BC_ITERL` is too late
+  - live local `prev1 = BC_JLOOP 1` is the wrong carrier
+  - linked `trace3.resumeins = BC_JLOOP 3` is too early
+  - exec `trace2.resumeins = BC_ITERL` is also too late
+- Consequence:
+  - the missing pre-tail refresh step is not currently materialized as any of
+    the saved trace resume contracts in the live `1 -> 2 -> 3 -> 4` family
+  - the next target should therefore shift from “pick the right saved
+    resumepc/resumeins pair” to “identify or synthesize the producer-side
+    refresh step immediately before the `ITERL` tail”
+
+2026-03-30: exact VM bridge dispatch through root trace `1`'s original
+`BC_ITERN` start contract also rewinds too far
+
+- After the bridge-meta dump proved the local preceding carrier had become
+  `BC_JLOOP 1`, I tested one narrower producer-side cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - only for the exact `trace 4` bridge family
+  - if `trace4.resumepc - 4` is local `BC_JLOOP 1`
+  - dispatch root trace `1`'s original `startpc/startins`
+    (`BC_ITERN`) instead of the bridge's saved `BC_ITERL` tail
+- This is also a reject.
+- On `kdz`, the tiny repro stays stable but the focused `parent=3 exit=0` seam
+  rewinds to the same earlier loop as the other “too early” producer cuts:
+  - `target=1`
+  - `target_exec=2`
+  - `retop=BC_LOOP`
+  - repeated `phase=resume-linked`
+  - `exec=2` still advertising its own consumer-side
+    `exec_resumeop=BC_ITERL`
+- So root trace `1`'s original `BC_ITERN` contract is still too early when
+  consumed verbatim from the bridge path. It does not bridge into the missing
+  refresh step; it simply collapses the run back into the earlier
+  `1/2/3` continuation regime.
+- Combined with the earlier rejects:
+  - bridge `trace4.resumeins = BC_ITERL` is too late
+  - local `prev1 = BC_JLOOP 1` carrier is not itself a safe landing target
+  - linked `trace3.resumeins = BC_JLOOP 3` is too early
+  - root `trace1.startins = BC_ITERN` is also too early when consumed
+    directly from the bridge
+- Consequence:
+  - the missing producer-side refresh step is still not represented by any
+    existing saved or live contract in the family
+  - the next target should be narrower than “pick another saved trace
+    contract”:
+    - inspect or synthesize the exact refresh state that `BC_ITERN` needs
+      immediately before the tail, without rewinding all the way back to the
+      root-owner continuation loop
+
+2026-03-30: even a synthetic current-frame `BC_ITERN` immediately before the
+bridge tail rewinds into the earlier `BC_LOOP` regime
+
+- I tested one narrower VM-side cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - only for the exact `trace 4` bridge family
+  - keep the current bridge frame
+  - replace the bridge's saved `BC_ITERL` decode with a synthetic `BC_ITERN`
+    instruction that reuses the live `A=9` field
+  - and place `PC` one slot earlier so the synthetic producer runs
+    immediately before the existing `ITERL` tail
+- This is also a reject.
+- On the stable safe bundle, the tiny repro remains stable but rewinds into
+  the earlier continuation regime instead of landing the bridge seam:
+  - repeated `parent=3 exit=0`
+  - `target=1`
+  - `target_exec=2`
+  - `retop=BC_LOOP`
+  - `phase=resume-linked`
+- Re-running the same synthetic producer cut with the repaired producer/table
+  envs:
+  - `LUAJIT_S390X_ROOT_ITERN_SETUP_ITERN=1`
+  - `LUAJIT_S390X_ROOT_RESUME_PRECALL_TAB=1`
+  - `LUAJIT_S390X_LOOPDESC_BRIDGE_PRECALL_TAB=1`
+  still does not land. It shows the same earlier `BC_LOOP` replay surface,
+  while `trace 4` can still form later as a separate classifier.
+- Consequence:
+  - the missing producer-side refresh step is not fixed by swapping in any
+    existing or synthetic `BC_ITERN` contract wholesale
+  - the remaining seam is now below “which producer instruction to resume”
+    and closer to “which exact producer inputs or frame lanes must be
+    materialized before the tail”
+
+2026-03-30: direct bridge-local `vm_IITERN` body entry with the original
+producer `A` field is also too coarse
+
+- I tested a narrower VM-only cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the exact `trace 4` bridge-local `PC`
+  - keep the bridge-selected runtime context
+  - do not consume any saved `resumepc/resumeins` contract verbatim
+  - instead, jump directly into `->vm_IITERN`
+  - with `RA` taken from root trace `1`'s original `BC_ITERN` instruction,
+    so the producer body uses the original iterator base operand rather than
+    the live patched `BC_JLOOP` carrier
+- This is also a reject.
+- On `kdz`, the tiny repro stays stable, but the focused seam still collapses
+  into the earlier loop:
+  - repeated `parent=3 exit=0`
+  - `target=1`
+  - `target_exec=2`
+  - `retop=BC_LOOP`
+  - `phase=resume-linked`
+- `trace 4` can still form later as a separate classifier, but the direct
+  `vm_IITERN` body entry does not reach a new post-bridge producer-refresh
+  surface.
+- Consequence:
+ - the missing step is not any saved carrier contract
+  - and it is not the whole reusable `vm_IITERN` body either
+  - the remaining seam is narrower still: some producer-owned state or
+    fallthrough contract that sits below full `vm_IITERN` entry and above the
+    replayed `ITERL` tail
+
+2026-03-30: strengthened `loopdesc-bridge-child-reenter` handoff logging shows
+the earlier `resume-linked` loop is still unpatched
+
+- I extended the exact `loopdesc-bridge-child-reenter` log in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  to dump the concrete handoff state:
+  - live `pc`
+  - current `ins`
+  - `prev1` / `next1`
+  - `patchpc` / `patchins`
+  - `resume_bcpc`
+  - `target_resumeins`
+- A focused `parent=3 exit=0` run on `kdz` with that broader `JLOOP_EXIT`
+  logging still does not reach `loopdesc-bridge-child-reenter`. It remains in
+  the earlier loop:
+  - repeated `target=1`
+  - `target_exec=2`
+  - `retop=BC_LOOP`
+  - `phase=resume-linked`
+- The important new constraint is that every one of those repeated earlier
+  passes still shows:
+  - `patchpc=(nil)`
+  - `retpc=0x...b960`
+  - live `pc=0x...cc74`
+  - `op=BC_JLOOP`
+- Consequence:
+ - when the run is still sitting in the earlier `1/2/3` continuation regime,
+    it is not inheriting a stale bytecode patch from the C side
+  - so the missing post-`trace 4` handoff is not being masked by a leftover
+    `patchpc/patchins` pair during the earlier loop
+  - the next useful cut should stay low-noise and isolate the exact
+    `loopdesc-bridge-child-reenter` branch without turning on the full
+    per-exit `parent=3 exit=0` logger
+
+2026-03-30: low-noise bridge query/reenter gates prove the gap is still before
+any bridge-family child selection
+
+- I added two low-noise scratch gates in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - `LUAJIT_S390X_BRIDGE_CHILD_QUERY_LOG=1`
+  - `LUAJIT_S390X_BRIDGE_CHILD_REENTER_LOG=1`
+- On `kdz`, with the safe baseline plus only:
+  - `RECSTOP`
+  - `TRACE_META`
+  - `VM_BRIDGE_DISPATCH`
+  - `BRIDGE_CHILD_QUERY`
+  - `BRIDGE_CHILD_REENTER`
+  the authoritative `iter-chain-handoff.lua` run still reaches:
+  - `S390X_RECSTOP trace=4 parent=3 exit=0`
+  - `S390X_TRACE_META phase=stop trace=4 ... startop=88 link=3 linktype=1 nins=32770 mcloop=0`
+- But within the same 60 second window it shows:
+  - no `loopdesc-child-query`
+  - no `loopdesc-bridge-child-reenter`
+  - no `S390X_VM_BRIDGE_DISPATCH`
+- Consequence:
+  - the live gap is now even earlier than the bridge-family child selection
+  - after `trace 4` is formed, control still disappears before the exact
+    bridge `JLOOP_EXIT` child-query path is reached
+  - the next useful target should therefore move earlier than
+    `loopdesc-child-query`, not later than it
+
+2026-03-30: exact `target=4` `JLOOP_EXIT` logging is too invasive for this seam
+
+- I tried one narrower scratch probe in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  log only `BC_JLOOP` exits whose computed `targetT->traceno == 4`, without
+  enabling the broad focused `parent=3 exit=0` stream.
+- That probe is not trustworthy. On `kdz`, the run regressed immediately:
+  - it segfaulted during the first 60 second window
+  - the resulting log never progressed beyond `trace 1`
+  - there were still no `target=4`, `loopdesc-child-query`,
+    `loopdesc-bridge-child-reenter`, or `VM_BRIDGE_DISPATCH` lines
+- Consequence:
+ - even very narrow additional `lj_trace_exit()` logging is now perturbing
+    the seam enough to become self-invalidating
+  - the correct next move is debugger-level observation from an earlier
+    stable point, not more logging added to the target-4 `JLOOP_EXIT` path
+
+2026-03-30: debugger proves the first post-`trace 4` exit is still the local
+`JLOOP 1` carrier
+
+- A focused `gdb` pass on `kdz` now breaks correctly on:
+  - `trace_stop()` for `trace 4`
+  - then the first `lj_trace_exit()` site after that stop
+- The key result is:
+  - `TRACE4_STOP parent=3 exit=0 startins=0x00000058 link=3 linktype=1 root=1`
+  - `FIRST_EXIT_AFTER4 parent=3 exit=0 pc=0x...cca4 ins=0x00010d57 prev=0x030c0320 next=0x7ffd0b52`
+- Interpreting the live bytecode words:
+  - `prev = 0x030c0320` is the local `ADDVV`
+  - `ins = 0x00010d57` is still `BC_JLOOP 1`
+  - `next = 0x7ffd0b52` is the local `BC_ITERL`
+- Consequence:
+  - after `trace 4` is born, the first real post-stop exit still comes
+    straight back to the same local `ADDVV ; JLOOP 1 ; ITERL` carrier
+  - bridge-family child selection is not even being attempted yet
+  - this explains why the low-noise bridge runs showed:
+    - `trace 4` stop formation
+    - but no `loopdesc-child-query`
+    - no `loopdesc-bridge-child-reenter`
+    - and no `VM_BRIDGE_DISPATCH`
+
+2026-03-30: exact stop-time retarget of the live carrier to `trace 4` unlocks
+the bridge family again
+
+- I tested one exact scratch rule in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  behind `LUAJIT_S390X_STOP_RETARGET_LOOPDESC=1`:
+  - only for the exact `trace 4` bridge stop shape that already matches
+    `SKIP_PATCHEXIT_BCJMP_LOOPDESC`
+  - if the live site is still `BC_JLOOP`, rewrite that live carrier from its
+    old target to the just-formed bridge trace number at `trace_stop()`
+- On `kdz`, this immediately changes the low-noise runtime shape:
+  - `S390X_STOP_RETARGET trace=4 ... oldins=0x00010d57 newins=0x00040d57`
+  - then repeated:
+    - `phase=loopdesc-child-query ... target=4 exec=3 child=4`
+    - `phase=loopdesc-bridge-child-reenter ... ins=0x00040d57`
+    - `S390X_VM_BRIDGE_DISPATCH ... pc=trace4.resumepc op=82`
+- This is the first proof on the stable low-noise baseline that the missing
+  gap really was the live carrier, not bridge discovery:
+  - once the live `JLOOP` is retargeted from `1` to `4`
+  - the exact bridge child-query and bridge dispatch paths light up again
+- The first dispatch payloads are also informative:
+  - `raw_tab` is a tagged GC pointer
+  - `raw_key = 2`
+  - `raw_val = 3`
+  - `raw_ctl` is initially odd on the first dispatch
+    (`0xfffe7fff00000057`)
+    but quickly stabilizes to numeric `2`
+- Consequence:
+  - the post-`trace 4` gap was not “VM bridge code never reachable”
+  - it was “the live bytecode carrier never retargeted to the bridge”
+  - with stop-time retarget enabled, the live seam moves back to the repeated
+    bridge-dispatch / `BC_ITERL` replay surface, now on a structurally correct
+    carrier path
+
+2026-03-30: bridge-resumed `IITERL` re-enters with normal-looking tail decode
+state; the remaining seam is below bridge decode setup
+
+- On `kdz`, with the stable bridge baseline plus
+  `LUAJIT_S390X_STOP_RETARGET_LOOPDESC=1`, I stopped in `gdb` at
+  `lj_BC_IITERL` on hit `1` and hit `50`.
+- Both hits land with the same bridge-resumed interpreter state:
+  - `r4/RA = 9`
+  - `r6/RD = 0x7ffd`
+  - `r8/KBASE = 0x...36e8`
+  - `r9/PC = 0x...36b4`
+  - `r13/BASE = 0x...2ce8`
+  - `SAVE_PC = 0x...36ac`
+  - `SAVE_L = 0x...1380`
+- The live bytecode neighborhood at both hits is:
+  - `0x...36a4 = 0x80010948`
+  - `0x...36a8 = 0x010a0120` (`ADDVV`)
+  - `0x...36ac = 0x00040b57` (`BC_JLOOP 4`)
+  - `0x...36b0 = 0x7ffd0952` (`BC_ITERL A=9 D=32765`)
+  - `0x...36b4 = 0x7ff8024f` (`BC_FORL`)
+  - so `PC` is already advanced past the resumed `ITERL`, exactly like normal
+    `ins_NEXT` entry into the static opcode handler
+- The bridge-resumed operand bundle at `BASE+56` is:
+  - hit `1`:
+    - tagged GC table at slot `A-2`
+    - odd control lane at slot `A-1`
+      (`0xfffe7fff00000057`)
+    - numeric key `2`
+    - numeric value `3`
+  - hit `50`:
+    - same tagged GC table
+    - control lane stabilized to numeric `2`
+    - same key `2`
+    - same value `3`
+- Source-side comparison with
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  now matters more than the old contract search:
+  - the bridge path decodes `OP/RA/RD` from `resumeins`
+  - advances `PC` by `4`
+  - and then dispatches through the static table
+  - `BC_IITERL` itself only consumes the already-produced bundle; it does not
+    refresh iterator state
+- Consequence:
+  - on the corrected `JLOOP 4` carrier path, the bridge is no longer obviously
+    mis-decoding `ITERL` or entering with a bad `PC/RA/RD/KBASE/BASE`
+    contract
+  - the remaining replay seam is now narrower:
+    - the bridge resumes into a structurally normal consumer tail
+    - but the producer-owned iterator lanes are still frozen
+  - the next useful target is no longer “pick another saved trace contract”
+    or “fix bridge decode”
+  - it is the producer-side materialization step that should have refreshed the
+    table/control/key/value bundle before this `JLOOP 4 ; ITERL ; FORL` tail
+
+2026-03-30: first two bridge-resumed `IITERL` hits are back-to-back with the
+same tail state; only the control lane normalizes once
+
+- After cleaning `kdz`, I reran a short `gdb` cycle probe on the stable bridge
+  baseline plus `LUAJIT_S390X_STOP_RETARGET_LOOPDESC=1`, stopping on:
+  - `lj_BC_IITERL` hit `1`
+  - `lj_BC_FORL` hit `1`
+  - `lj_BC_IITERL` hit `2`
+- The useful result is that the first two `IITERL` hits do arrive cleanly, but
+  there is still no visible `FORL` stop between them in this short cycle.
+- Both `IITERL` hits are effectively the same replay:
+  - `RA = 9`
+  - `RD = 0x7ffd`
+  - `PC = 0x...36b4`
+  - `BASE = 0x...2ce8`
+  - `SAVE_PC = 0x...36ac`
+  - bytecode neighborhood:
+    - `ADDVV`
+    - `BC_JLOOP 4`
+    - `BC_ITERL`
+    - `BC_FORL`
+- The operand lanes at `BASE + 56` change only once:
+  - hit `1`:
+    - tagged table
+    - odd control lane `0xfffe7fff00000057`
+    - key `2`
+    - value `3`
+  - hit `2`:
+    - same tagged table
+    - control lane normalized to numeric `2`
+    - same key `2`
+    - same value `3`
+- Consequence:
+  - the replay loop is now even tighter than “tail region repeats”
+  - at least across the first two bridge-resumed consumer hits:
+    - key/value do not advance
+    - `PC` does not move
+    - only the control-var lane normalizes once
+  - the missing next question is whether the replay path is actually:
+    - `IITERL -> JLOOP 4 -> bridge dispatch -> IITERL`
+    - rather than a normal `IITERL -> FORL -> ...` progression
+
+2026-03-30: repeated bridge-resumed `IITERL` hits do not show an intervening
+local `FORL` or post-retarget interpreter `JLOOP`
+
+- I ran one more short `gdb` cycle probe on `kdz` with breakpoints on:
+  - `lj_BC_JLOOP` (first three hits)
+  - `lj_BC_IITERL` (first two hits)
+- The three visible `JLOOP` hits are all still the old pre-bridge carrier:
+  - `RA = 0xb`
+  - `RD = 0x1`
+  - live bytecode word `0x00010b57` (`BC_JLOOP 1`)
+  - this happens before `trace 4` is formed and before the
+    `S390X_STOP_RETARGET ... newins=0x00040b57` log
+- After `trace 4` forms and the stop-time retarget fires, the probe then sees:
+  - `IITERL_HIT 1 RA=0x9 RD=0x7ffd PC=0x...36b4 SAVE_PC=0x...36ac`
+  - `IITERL_HIT 2 RA=0x9 RD=0x7ffd PC=0x...36b4 SAVE_PC=0x...36ac`
+- There is still no visible post-retarget local `FORL` stop or post-retarget
+  interpreter `JLOOP` stop between those first two bridge-resumed consumer
+  hits.
+- Consequence:
+  - the repeated `IITERL` replay is not behaving like a simple in-interpreter
+    `ITERL -> FORL -> JLOOP` tail cycle
+  - at least on this seam, the repeated consumer hits look more like
+    bridge/static re-entry into the same `IITERL` state than ordinary local
+    bytecode fallthrough
+  - the next useful target should therefore treat the replay as a
+    bridge-dispatch re-entry loop, not as a plain local tail-progression bug
+
+2026-03-30: the bridge-resumed `ITERL` contract can only loop through
+`ADDVV ; JLOOP 4`; it cannot reach a producer refresh by itself
+
+- The current
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  `branchPC` macro is:
+  - `PC = PC + 4*RD - 4*BCBIAS_J`
+  - and `BCBIAS_J = 0x8000`
+- On the live bridge-resumed consumer hit:
+  - `PC = 0x...36b4`
+  - `RD = 0x7ffd`
+  - therefore `branchPC RD` rewrites `PC` to:
+    - `0x...36b4 + 4*0x7ffd - 4*0x8000 = 0x...36a8`
+- `0x...36a8` is exactly the local `ADDVV` word in the live neighborhood:
+  - `0x...36a8 = ADDVV`
+  - `0x...36ac = BC_JLOOP 4`
+  - `0x...36b0 = BC_ITERL`
+  - `0x...36b4 = BC_FORL`
+- That explains the replay loop mechanically:
+  - bridge dispatch resumes at `BC_ITERL`
+  - `BC_IITERL` consumes the already-produced bundle
+  - `branchPC RD` jumps back to local `ADDVV`
+  - `ADDVV` runs
+  - local `BC_JLOOP 4` re-enters the bridge path
+  - and the same bridge dispatch resumes `BC_ITERL` again
+- Consequence:
+  - the current bridge resume site is now proven to be intrinsically
+    consumer-only
+  - even on the corrected `JLOOP 4` carrier path, `trace4.resumepc =
+    BC_ITERL` can never reach a producer refresh by itself
+  - this is stronger than the earlier “frozen bundle” observation:
+    - the bridge is not merely missing progress accidentally
+    - its saved consumer contract structurally loops on
+      `IITERL -> ADDVV -> JLOOP 4 -> bridge dispatch -> IITERL`
+  - the next fix surface is therefore not bridge decode invariants anymore
+  - it is a producer-side refresh contract or explicit producer-state
+    rematerialization before the bridge is allowed to resume at this local tail
+
+2026-03-30: the only intact local producer anchor left in the bytecode is
+`BC_ISNEXT`
+
+- I decoded the local opcode numbers directly from
+  [src/lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h):
+  - `BC_ADDVV = 32`
+  - `BC_ITERN = 70`
+  - `BC_ISNEXT = 72`
+  - `BC_ITERL = 82`
+  - `BC_JLOOP = 87`
+  - `BC_JMP = 88`
+- That identifies the live neighborhood around the bridge seam precisely:
+  - `0x...36a4 = 0x80010948 = BC_ISNEXT`
+  - `0x...36a8 = 0x010a0120 = BC_ADDVV`
+  - `0x...36ac = 0x00010b57 / 0x00040b57 = patched BC_JLOOP`
+  - `0x...36b0 = 0x7ffd0952 = BC_ITERL`
+  - `0x...36b4 = 0x7ff8024f = BC_FORL`
+- Parser-side generic `for` layout in
+  [src/lj_parse.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_parse.c)
+  also matches this family:
+  - carrier at loop head: `BC_ISNEXT` or `BC_JMP`
+  - body
+  - producer call: `BC_ITERN` or `BC_ITERC`
+  - consumer tail: `BC_ITERL`
+- VM-side `BC_ISNEXT` in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  is the only intact local opcode here that still performs producer-side setup:
+  - checks `next`
+  - initializes the hidden control var to `0xfffe7fff00000057`
+  - branches to the iterator producer path
+- Consequence:
+  - the bridge replay currently resumes too late at `BC_ITERL`
+  - the patched `JLOOP` site at `0x...36ac` is a trap, not a surviving
+    producer contract
+  - but the local `BC_ISNEXT` at `0x...36a4` is still a real producer-side
+    semantic anchor in the bytecode stream
+ - the next coherent experiment is therefore bridge-local and exact-family:
+    - use the local `BC_ISNEXT` anchor or its producer-side effect
+    - not another saved `trace1/2/3/4` resume contract
+
+2026-03-30: bridge-local entry below full `vm_IITERN` is the first cut that
+restores real producer motion
+
+- I changed the exact bridge `BC_ITERL` path in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  again, but this time below full `vm_IITERN` entry:
+  - add a local `->vm_IITERN_bridge` label immediately after `vm_IITERN`'s
+    `ins_A` decode
+  - on the exact bridge-resumed `BC_ITERL` path:
+    - keep the already-decoded bridge `A` field
+    - back `PC` up by 4 to the patched predecessor slot
+    - jump directly into `->vm_IITERN_bridge`
+- This matters because the earlier direct `vm_IITERN` experiment was still
+  decoding the patched `BC_JLOOP` word at the producer slot and therefore
+  entered with the wrong base operand.
+- On `kdz`, with the corrected carrier path still enabled via
+  `LUAJIT_S390X_STOP_RETARGET_LOOPDESC=1`, this is the first bridge cut that
+  no longer freezes the bridge payload.
+- The bridge-dispatch payload sequence now moves as follows:
+  - `n=0`: `raw_ctl = 0xfffe7fff00000057`, `raw_key = 2`, `raw_val = 3`
+  - `n=1`: `raw_ctl = 0`, `raw_key = 2`, `raw_val = 3`
+  - `n=2`: `raw_ctl = 2`, `raw_key = 1`, `raw_val = 1`
+  - `n=3`: `raw_ctl = 3`, `raw_key = 2`, `raw_val = 3`
+  - `n=4`: `raw_ctl = 4`, `raw_key = 3`, `raw_val = 5`
+  - `n=5`: `raw_ctl = 5`, `raw_key = 4`, `raw_val = 7`
+  - `n=6`: `raw_ctl = 6`, `raw_key = 5`, `raw_val = 9`
+- After that, the bridge payload restarts a new cycle with the same table and
+  a reset control lane, then the same `1,1 -> 2,3 -> 3,5 -> 4,7 -> 5,9`
+  progression repeats again.
+- Structural result:
+  - the missing step really was below full saved-contract selection and below
+    full `vm_IITERN` entry
+  - the bridge-local producer body is now alive
+  - the replay is no longer a frozen consumer-only `IITERL` loop
+
+2026-03-30: the bridge-local producer-body cut crosses the old replay wall, but
+the recurrence is still wrong
+
+- A clean `kdz` control run on the same branch, with the bridge logs disabled
+  but `LUAJIT_S390X_STOP_RETARGET_LOOPDESC=1` still enabled, no longer times
+  out at the old replay seam.
+- It now prints a real final line:
+  - `RESULT -1679162313`
+- That is still wrong for this harness. The expected total for:
+  - `for i = 1, 200000 do`
+  - `for _, v in pairs({1,3,5,7,9}) do`
+  - `total = total + v`
+  is:
+  - `5000000`
+- So this is not the landing fix yet.
+- But the seam has moved in a useful way:
+  - before: no producer progress, only repeated bridge replay
+  - now: real producer-side key/value motion exists, and the branch reaches a
+    final `RESULT`
+  - the remaining bug is therefore a wrong recurrence / restart / termination
+    contract, not the earlier “missing producer refresh” wall
+- The bridge payload also suggests where that next bug lives:
+  - after the correct `1..5 / 1,3,5,7,9` array progression, the cycle restarts
+  - so the next exact target is the bridge-local cycle boundary
+  - specifically the `BC_ISNEXT`-style restart/setup semantics for the next
+    outer trip, not another saved trace resume contract and not another frozen
+    consumer-tail diagnosis
+
+2026-03-30: the new bridge cut probably revives the producer body without the
+normal `IITERL` consumer writeback
+
+- The moving bridge payload now has a sharper shape than the old frozen replay:
+  - control lane: `2, 3, 4, 5, 6`
+  - key/value lanes: `1,1 -> 2,3 -> 3,5 -> 4,7 -> 5,9`
+- That is strong evidence the exact bridge-local producer body is running.
+- It also suggests the current bridge-local cut is now *too* low-level:
+  - the producer side is alive
+  - but the normal local `BC_IITERL` consumer-side writeback is probably not
+    happening on this path anymore
+  - otherwise the observed control lane would be expected to track the returned
+    key more closely instead of staying on the producer-side `index+1`
+    progression
+- So the next fix should not go back to saved trace contracts.
+- It should fuse two exact local pieces on the bridge path:
+  - just enough producer work to refresh key/value
+  - then just enough local `ITERL/IITERL` consumer semantics to rejoin the tail
+    correctly
+- That would preserve the real producer motion now visible on `kdz` while
+  avoiding the wrong recurrence now showing up as the bad final `RESULT`
+
+2026-03-30: naïvely fusing local `IITERL` writeback back into the bridge body is
+too strong; it re-freezes the seam
+
+- I tested one narrower follow-up in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the bridge-local `vm_IITERN_bridge` producer body
+  - but tag bridge entry and force the success path to perform the local
+    `IITERL`-style control-var writeback before `ins_next`
+- That is a reject.
+- On `kdz`, the first bridge payloads collapse immediately to:
+  - `raw_ctl = 1`
+  - `raw_key = 1`
+  - `raw_val = 1`
+  - repeating
+- So that fused cut is too strong or ordered incorrectly:
+  - it destroys the newly restored producer progression
+  - and re-freezes the seam almost immediately
+- I backed that experiment out locally and rebuilt `kdz` back to the previous
+  producer-body-only bridge baseline.
+- Current best branch is therefore still:
+  - exact `trace 4` stop-time carrier retarget
+  - exact bridge-local jump below full `vm_IITERN` entry
+  - real producer-side key/value motion
+  - wrong final recurrence / result
+- The next exact target is no longer “just add `IITERL` writeback back in”.
+- It has to be a narrower producer/consumer handoff than that.
+
+2026-03-30: backing `PC` up to the patched predecessor slot is also too
+strong as a direct bridge change
+
+- I tested the minimal `PC`-context correction on the producer-body branch in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - change the exact bridge path from `aghi PC, -4` to `aghi PC, -8`
+  - keep the rest of the bridge-local `vm_IITERN_bridge` producer-body cut the
+    same
+- This was meant to anchor the bridge micro-step at the patched predecessor
+  slot so the producer body's built-in `PC+4` would land on the local
+  `BC_ITERL` slot instead of the following `BC_FORL`.
+- That is also a reject.
+- On `kdz`, the branch now segfaults before any `S390X_VM_BRIDGE_DISPATCH` log
+  appears:
+  - bridge dispatch count stays `0`
+  - the run dies before the corrected bridge payload can even be observed
+- I backed that change out immediately and rebuilt `kdz` back to the previous
+  producer-body-only bridge baseline.
+- So the next fix still has to stay narrower than:
+  - full local `IITERN` + `IITERL` fusion
+  - and narrower than simply moving the bridge `PC` anchor one slot earlier
+
+2026-03-30: even the narrower slot-based key commit is too strong as a direct
+bridge add-on
+
+- I tested the exact cut suggested by the new payload shape:
+  - keep the producer-body-only `vm_IITERN_bridge` path
+  - on the array-success path only, copy the produced key TValue from
+    `0(RA, BASE)` back to the hidden control-var slot `-8(RA, BASE)`
+  - leave the existing control flow alone
+- This was meant to preserve the revived producer motion while committing only
+  the visible key for the next producer trip.
+- That is also a reject.
+- On `kdz`, the branch now segfaults before any `S390X_VM_BRIDGE_DISPATCH`
+  entry appears:
+  - bridge dispatch count stays `0`
+  - so this cut destabilizes the seam before the bridge payload can even be
+    classified
+- I backed it out immediately and rebuilt `kdz` back to the previous
+  producer-body-only bridge baseline.
+- So the remaining bridge-local fix must be narrower still than:
+  - full `IITERN + IITERL` fusion
+  - simple `PC` rewind to the patched predecessor slot
+  - direct slot-based key commit inserted into the producer array-success path
+
+2026-03-30: duplicating the key-commit path as a bridge-only producer variant
+still re-freezes the seam
+
+- I tested a safer variant of the slot-based key commit in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the normal `vm_IITERN` and `vm_IITERN_bridge` body untouched
+  - add a separate `vm_IITERN_bridge_commit` entry used only by the exact
+    bridge-resumed `BC_ITERL` path
+  - on that bridge-only variant, perform the key-slot commit after
+    `branchPC RD` and before `ins_next`
+- That is also a reject.
+- It does not segfault early, but it immediately collapses the bridge payload
+  back to the same frozen shape as the earlier over-strong fusion:
+  - `raw_ctl = 1`
+  - `raw_key = 1`
+  - `raw_val = 1`
+  - repeating
+- I backed that out immediately and rebuilt `kdz` back to the previous
+  producer-body-only bridge baseline.
+- So the remaining good state is still:
+  - exact carrier retarget at `trace_stop()`
+  - exact bridge-local jump below full `vm_IITERN` entry
+  - real producer-side key/value progression
+  - wrong final recurrence / result
+- And the remaining bridge-local fix is now proven narrower than:
+  - direct writeback fusion in the producer body
+  - direct slot-based key commit in the producer body
+  - and a bridge-only duplicate that performs that commit after `branchPC`
+
+2026-03-30: the revived bridge producer now clearly feeds the local `ADDVV`
+tail, but the bug only starts once the bridge family is active
+
+- I extended the exact bridge log in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  again so `S390X_VM_BRIDGE_DISPATCH` also dumps the local `prev2=BC_ADDVV`
+  operands and slots:
+  - `prev2a`, `prev2b`, `prev2c`
+  - `raw_add_a`, `raw_add_b`, `raw_add_c`
+- On `kdz`, the first bridge-resumed payloads on the stable
+  producer-body-only branch now show:
+  - `prev2 = 0x030c0320`
+  - `prev2op = BC_ADDVV`
+  - `prev2a = 3`, `prev2b = 3`, `prev2c = 12`
+  - `raw_add_c` matches the produced value lane exactly:
+    - `1, 3, 5, 7, 9`
+  - `raw_add_a` and `raw_add_b` are the same slot and their low-word delta
+    walks by those same odd values across the bridge cycle
+- That proves the revived bridge producer is no longer isolated from the local
+  arithmetic tail:
+  - the bridge now feeds the local `ADDVV`
+  - the local `ADDVV` is consuming the produced value lane
+  - so the remaining bug is not “producer never reaches the sum tail” anymore
+- But the one-shot classifier matters just as much:
+  - with the same stable producer-body bridge branch plus
+    `LUAJIT_S390X_STOP_RETARGET_LOOPDESC=1`
+  - `/tmp/oneshot_iter.lua` now returns correct totals for small counts:
+    - `n=1 -> RESULT 25`
+    - `n=5 -> RESULT 125`
+  - the branch only fails once the bridge family becomes active:
+    - `n=20` reaches `trace=4` retarget and then segfaults
+    - `n=500 -> RESULT -1439826190`
+    - `n=2000 -> RESULT -1252093586`
+- So the new `ADDVV` evidence does **not** support a generic pre-JIT
+  accumulator-initialization bug.
+- The current failure is still bridge-era and post-`trace4`:
+  - before the bridge family forms, results are correct
+  - after `trace4` becomes active, the revived producer feeds the local sum
+    tail, but the recurrence is still wrong and eventually corrupts the result
+    or crashes
+- That narrows the next target again:
+  - keep the current producer-body bridge baseline
+  - use the smallest `n` that first reaches `trace4` as the classifier
+  - debug the first post-`trace4` bridge-fed `ADDVV`/cycle boundary, not the
+    pre-JIT accumulator setup
+
+2026-03-30: the smallest failing classifier confirms the live bug is in the
+bridge-era `ADDVV` recurrence, not before JIT takeover
+
+- I reran the current stable producer-body bridge branch on `kdz` with a tiny
+  one-shot harness:
+  - `for _ = 1, n do`
+  - `for _, v in pairs({1,3,5,7,9}) do`
+  - `total = total + v`
+- Current results on that exact branch are:
+  - `n=1 -> RESULT 25`
+  - `n=5 -> RESULT 125`
+  - `n=20 -> RESULT -1496461294` when the bridge logs are enabled
+  - `n=500 -> RESULT -1439826190`
+  - `n=2000 -> RESULT -1252093586`
+- So this branch is still correct before the bridge family is active, and the
+  wrong total only appears once the `trace4` bridge path is live.
+- The `n=20` bridge dump is the cleanest classifier so far:
+  - `prev2 = BC_ADDVV`
+  - `prev2a = 1`, `prev2b = 1`, `prev2c = 11`
+  - `next1 = BC_FORL`, with `next1a = 3`
+  - `raw_for_idx/raw_for_ext` advance cleanly:
+    - first bridge cycle starts with outer index `10`
+    - later cycles show `11`, `12`, `13`, `14`
+  - but the `ADDVV` left-hand slot is already wrong on the very first bridge
+    dispatch:
+    - `raw_add_a = raw_add_b = 0xfff90000a6cdcf18`
+    - then it walks by the produced odd values:
+      - `...cf19`, `...cf1c`, `...cf21`, `...cf28`, `...cf31`, ...
+    - while `raw_add_c` matches the produced value lane exactly:
+      - `1, 3, 5, 7, 9`
+- That means the revived bridge producer is feeding the local `ADDVV` tail
+  correctly, and the outer `FORL` state is advancing correctly too.
+- The remaining corruption is now narrower:
+  - the bridge-local accumulator/LHS slot consumed by `ADDVV` is already bad
+    by the first bridge dispatch
+  - the local tail then adds the correct odd values on top of that bad seed
+  - so the wrong total is no longer explained by outer restart or by a missing
+    producer refresh
+- I also tried one more exact probe at this seam:
+  - extend `loopdesc-bridge-child-reenter` in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    to read and print the live `ADDVV` slots from `J->L->base` before
+    returning `-17`
+- That probe is a reject:
+  - on `kdz`, the smallest `n=20` classifier regresses to an early segfault
+    before any bridge payload log appears
+  - so this seam is still too probe-sensitive for extra C-side base-slot reads
+- The next exact target is therefore:
+  - keep the stable producer-body bridge baseline
+  - treat the first bridge-dispatch `ADDVV` LHS seed as the live bug
+  - inspect where that accumulator slot should be materialized or restored
+    before the bridge-fed local tail runs
