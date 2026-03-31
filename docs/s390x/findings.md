@@ -9,6 +9,19 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 10:14:33 PDT`
+- Source cleanup only:
+  - removed the parked root-resume and pre-call-key scaffolding from
+    [src/lj_jit.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_jit.h),
+    [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c),
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+    and [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - intended effect: make the active source match the documented Lane A/Lane B
+    freeze point more closely by removing dormant Lane C root-resume hooks
+  - local host build still succeeds after the cleanup
+  - no new s390x perf claim is attached to this change
+  - native `kdz` / `zkd0` validation is still pending for this slice
+
 - Timestamp: `2026-03-31 09:12:31 PDT`
 - The branch is now being operated from a frozen implementation baseline:
   - Lane A is the shipping build and stability floor

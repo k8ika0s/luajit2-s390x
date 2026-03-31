@@ -249,22 +249,6 @@ static int lj_trace_s390x_jloop_exit_focus_match(jit_State *J)
 	 (exitno < 0 || J->exitno == (ExitNo)exitno);
 }
 
-static int lj_trace_s390x_root_resume_log_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_RESUME_LOG") != NULL);
-  return enabled;
-}
-
-static int lj_trace_s390x_root_resume_record_orig_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_RESUME_RECORD_ORIG") != NULL);
-  return enabled;
-}
-
 static int lj_trace_s390x_root_jloop_child_enabled(void)
 {
   static int enabled = -1;
@@ -635,46 +619,6 @@ static TraceNo lj_trace_s390x_runtime_owner_trace(GCtrace *T)
   if (T->resumechild != 0)
     return T->resumechild;
   return T->traceno;
-}
-
-static void lj_trace_s390x_root_resume_log(lua_State *L, jit_State *J,
-					   GCtrace *T, GCtrace *targetT,
-					   const BCIns *pc, const BCIns *retpc,
-					   BCOp retop)
-{
-  static const int slots[] = {0, 3, 6, 9, 10, 11, 18};
-  static int dump_count = 0;
-  size_t i;
-  if (!lj_trace_s390x_root_resume_log_enabled() || !L || !L->base ||
-      !J || !T || !targetT || dump_count >= 128)
-    return;
-  if (J->parent != 1 || J->exitno != 1 || targetT->traceno != 1 ||
-      targetT->root != 0 || bc_op(targetT->startins) != BC_ITERN ||
-      !targetT->resumevalid)
-    return;
-  fprintf(stderr,
-	  "S390X_ROOT_RESUME n=%d parent=%u exit=%u pc=%p op=%u trace=%u link=%u linktype=%u target=%u target_startpc=%p target_startop=%u target_resumepc=%p target_resumeop=%u target_resumevalid=%u target_mcloop=%u ownerop=%u retpc=%p retop=%u state=%u",
-	  dump_count,
-	  (unsigned int)J->parent, (unsigned int)J->exitno,
-	  (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
-	  (unsigned int)T->traceno, (unsigned int)T->link,
-	  (unsigned int)T->linktype, (unsigned int)targetT->traceno,
-	  (const void *)mref(targetT->startpc, BCIns),
-	  (unsigned int)bc_op(targetT->startins),
-	  (const void *)mref(targetT->resumepc, BCIns),
-	  (unsigned int)bc_op(targetT->resumeins),
-	  (unsigned int)targetT->resumevalid,
-	  (unsigned int)targetT->mcloop,
-	  (unsigned int)targetT->unused1,
-	  (const void *)retpc, (unsigned int)retop,
-	  (unsigned int)J->state);
-  for (i = 0; i < sizeof(slots)/sizeof(slots[0]); i++) {
-    int idx = slots[i];
-    TValue *o = &L->base[idx];
-    fprintf(stderr, " s%d=0x%016llx", idx, (unsigned long long)o->u64);
-  }
-  fputc('\n', stderr);
-  dump_count++;
 }
 
 static int lj_trace_s390x_bridge_meta_log_enabled(void)
@@ -1072,18 +1016,15 @@ static void lj_trace_s390x_root_freeze_log(jit_State *J, const char *site)
   if (!lj_trace_s390x_root_freeze_log_enabled())
     return;
   fprintf(stderr,
-	  "S390X_ROOT_FREEZE site=%s trace=%u parent=%u exit=%u pc=%p startpc=%p cur_startpc=%p startins=%u resumepc=%p cur_resumepc=%p resumeins=%u resumevalid=%u scratch_resumepc=%p scratch_resumeins=%u scratch_resumevalid=%u\n",
+	  "S390X_ROOT_FREEZE site=%s trace=%u parent=%u exit=%u pc=%p startpc=%p cur_startpc=%p startins=%u resumepc=%p cur_resumepc=%p resumeins=%u resumevalid=%u\n",
 	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
 	  (unsigned int)J->exitno, (const void *)J->pc,
 	  (const void *)J->startpc, (const void *)mref(J->cur.startpc, BCIns),
 	  (unsigned int)bc_op(J->cur.startins),
-	  (const void *)J->s390x_root_resumepc,
+	  (const void *)mref(J->cur.resumepc, BCIns),
 	  (const void *)mref(J->cur.resumepc, BCIns),
 	  (unsigned int)bc_op(J->cur.resumeins),
-	  (unsigned int)J->cur.resumevalid,
-	  (const void *)J->s390x_root_resumepc,
-	  (unsigned int)bc_op(J->s390x_root_resumeins),
-	  (unsigned int)J->s390x_root_resumevalid);
+	  (unsigned int)J->cur.resumevalid);
 }
 
 static int lj_trace_s390x_varg_bias_override(void)
@@ -1845,15 +1786,9 @@ static void trace_save(jit_State *J, GCtrace *T)
   size_t szins = (J->cur.nins-J->cur.nk)*sizeof(IRIns);
   char *p = (char *)T + sztr;
   if (J->parent == 0) {
-    if (J->s390x_root_resumevalid) {
-      setmref(J->cur.resumepc, J->s390x_root_resumepc);
-      J->cur.resumeins = J->s390x_root_resumeins;
-      J->cur.resumevalid = 1;
-    } else {
-      setmref(J->cur.resumepc, NULL);
-      J->cur.resumeins = 0;
-      J->cur.resumevalid = 0;
-    }
+    setmref(J->cur.resumepc, NULL);
+    J->cur.resumeins = 0;
+    J->cur.resumevalid = 0;
   } else if (J->cur.root == 1 && J->parent == 1 &&
 	     bc_op(J->cur.startins) == BC_JMP &&
 	     !J->cur.resumevalid) {
@@ -2454,22 +2389,6 @@ static void trace_stop(jit_State *J)
 #endif
 
   lj_trace_s390x_dump_trace_snaps(J, T);
-  if (J->parent == 0) {
-    lj_trace_s390x_root_freeze_log(J, "trace_stop_pre_rootpatch");
-    if (lj_trace_s390x_root_freeze_log_enabled()) {
-      fprintf(stderr,
-              "S390X_ROOT_FREEZE site=trace_stop_gate trace=%u parent=%u exit=%u pc=%p op=%u pc1=%p op1=%u resumevalid=%u\n",
-              (unsigned int)J->cur.traceno,
-              (unsigned int)J->parent,
-              (unsigned int)J->exitno,
-              (const void *)pc,
-              (unsigned int)op,
-              (const void *)(pc ? pc + 1 : NULL),
-              (unsigned int)(pc ? bc_op(pc[1]) : 0),
-              (unsigned int)J->cur.resumevalid);
-    }
-  }
-
   switch (op) {
   case BC_FORL:
     setbc_op(pc+bc_j(J->cur.startins), BC_JFORI);  /* Patch FORI, too. */
@@ -3456,24 +3375,6 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
       }
     }
     if (use_resume_contract &&
-	lj_trace_s390x_root_resume_record_orig_enabled() &&
-	J->state != LJ_TRACE_IDLE && resume_bcpc != NULL) {
-      if (lj_trace_s390x_jloop_exit_log_enabled() &&
-	  lj_trace_s390x_jloop_exit_focus_match(J)) {
-	fprintf(stderr,
-		"S390X_JLOOP_EXIT phase=dispatch-resume-bc parent=%u exit=%u trace=%u retop=%u resumepc=%p state=%u\n",
-		(unsigned int)J->parent, (unsigned int)J->exitno,
-		(unsigned int)T->traceno, (unsigned int)retop,
-		(const void *)resume_bcpc, (unsigned int)J->state);
-      }
-      if (J->state != LJ_TRACE_RECORD) return -17;
-      J->patchins = *pc;
-      J->patchpc = (BCIns *)pc;
-      *J->patchpc = *resume_bcpc;
-      J->bcskip = 1;
-      return -17;
-    }
-    if (use_resume_contract &&
 	lj_trace_s390x_jloop_owner_static_reenter_enabled() &&
 	J->state == LJ_TRACE_IDLE &&
 	targetT->root == 1 &&
@@ -3571,7 +3472,6 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
 	      (const void *)retpc, (const void *)J->patchpc,
 	      (unsigned int)J->state);
     }
-    lj_trace_s390x_root_resume_log(L, J, T, targetT, pc, retpc, retop);
     return 0;
     }
   default:

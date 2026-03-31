@@ -503,15 +503,9 @@ typedef struct jit_State {
   ScEvEntry scev;	/* Scalar evolution analysis cache slots. */
 
   const BCIns *startpc;	/* Bytecode PC of starting instruction. */
-  const BCIns *s390x_root_resumepc;  /* Scratch preserved post-ITERN root resume pc. */
-  TRef s390x_root_resumekey;  /* Scratch preserved pre-call root keyindex tref. */
   TraceNo parent;	/* Parent of current side trace (0 for root traces). */
   ExitNo exitno;	/* Exit number in parent of current side trace. */
   int exitcode;		/* Exit code from unwound trace. */
-  BCIns s390x_root_resumeins;  /* Scratch preserved post-ITERN root resume ins. */
-  BCReg s390x_root_resumekeyslot;  /* Scratch preserved pre-call root keyindex slot. */
-  uint8_t s390x_root_resumevalid;  /* Scratch preserved post-ITERN root resume valid. */
-  uint8_t s390x_root_resumekeyvalid;  /* Scratch preserved pre-call root keyindex valid. */
 
   BCIns *patchpc;	/* PC for pending re-patch. */
   BCIns patchins;	/* Instruction for pending re-patch. */
