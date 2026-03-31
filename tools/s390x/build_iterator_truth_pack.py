@@ -21,6 +21,21 @@ import restamp_iterator_perf as restamp
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
 MICRO_NAMES = ("hash_value", "hash_key", "array_value")
+OWNER_SELECTION_ENV = {
+    "LUAJIT_S390X_ITERN_FOCUS": "1",
+    "LUAJIT_S390X_ITERN_FOCUS_PARENT": "1",
+    "LUAJIT_S390X_ITERN_FOCUS_EXIT": "1",
+    "LUAJIT_S390X_SIDE_FOCUS": "1",
+    "LUAJIT_S390X_SIDE_FOCUS_PARENT": "1",
+    "LUAJIT_S390X_SIDE_FOCUS_EXIT": "1",
+    "LUAJIT_S390X_RECSTOP_LOG": "1",
+    "LUAJIT_S390X_TRACE_META_LOG": "1",
+    "LUAJIT_S390X_TRACE_START_LOG": "1",
+    "LUAJIT_S390X_TRACE_ABORT_LOG": "1",
+    "LUAJIT_S390X_JLOOP_EXIT_LOG": "1",
+    "LUAJIT_S390X_JLOOP_EXIT_PARENT": "1",
+    "LUAJIT_S390X_JLOOP_EXIT_EXIT": "1",
+}
 
 FOCUSED_BENCH_SCRIPT = """\
 local bench = dofile("tests/s390x/perf/benchlib.lua")
@@ -355,6 +370,87 @@ print("RESULT", run(80000))
 """,
 }
 
+OWNER_SELECTION_SCRIPTS = {
+    "hash_value": """\
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local t = { a = 10, b = 20, c = 30, d = 40, e = 50 }
+local function run(n)
+  local total = 0
+  for _ = 1, n do
+    for _, value in pairs(t) do
+      total = total + value
+    end
+  end
+  return total
+end
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_capture()
+local texit_cap = testlib.texit_capture()
+print("RESULT", run(250))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))
+print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))
+print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
+print("TEXIT_COUNT", #texit_cap.events)
+""",
+    "hash_key": """\
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local t = { aa = 10, bb = 20, cc = 30 }
+local function run(n)
+  local total = 0
+  for _ = 1, n do
+    for key, value in pairs(t) do
+      total = total + value + #key
+    end
+  end
+  return total
+end
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_capture()
+local texit_cap = testlib.texit_capture()
+print("RESULT", run(250))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))
+print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))
+print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
+print("TEXIT_COUNT", #texit_cap.events)
+""",
+    "array_value": """\
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local t = { 10, 20, 30, 40, 50 }
+local function run(n)
+  local total = 0
+  for _ = 1, n do
+    for _, value in pairs(t) do
+      total = total + value
+    end
+  end
+  return total
+end
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_capture()
+local texit_cap = testlib.texit_capture()
+print("RESULT", run(250))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))
+print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))
+print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
+print("TEXIT_COUNT", #texit_cap.events)
+""",
+}
+
 
 class TruthPackError(restamp.RestampError):
     """Truth pack helper failure."""
@@ -407,6 +503,14 @@ def prepare_truth_scripts(host: str, remote_tmp: str) -> None:
         lines.extend(
             [
                 f'cat >"{remote_tmp}/{name}_perf.lua" <<\'EOF\'',
+                content.rstrip(),
+                "EOF",
+            ]
+        )
+    for name, content in OWNER_SELECTION_SCRIPTS.items():
+        lines.extend(
+            [
+                f'cat >"{remote_tmp}/{name}_owner.lua" <<\'EOF\'',
                 content.rstrip(),
                 "EOF",
             ]
@@ -512,6 +616,25 @@ perf stat -x, -e cycles,instructions,branches,branch-misses -- {taskset}./src/lu
         else:
             counters[event] = value
     return {"status": "ok", "counters": counters}
+
+
+def run_owner_selection_log(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> None:
+    env_prefix = "env " + " ".join(
+        f"{key}={shlex.quote(value)}" for key, value in OWNER_SELECTION_ENV.items()
+    )
+    script = f"""
+set -euo pipefail
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+{env_prefix} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}_owner.lua")}
+"""
+    restamp.run_remote_command(
+        host,
+        script,
+        stdout_path=raw_dir / f"{name}.stdout.log",
+        stderr_path=raw_dir / f"{name}.stderr.log",
+        label=f"{host} owner-selection log {name}",
+    )
 
 
 def summarize_trace_decision(trace_counts: dict[str, dict[str, int | str]]) -> tuple[str, list[str]]:
@@ -636,6 +759,7 @@ def render_summary(
             f"- Focused medians JSONL: `{output_dir / 'focused-jit-on.jsonl'}`",
             f"- Trace counts: `{output_dir / 'raw' / 'trace-counts'}`",
             f"- Owner logs: `{output_dir / 'raw' / 'owner'}`",
+            f"- Owner-selection logs: `{output_dir / 'raw' / 'owner-selection'}`",
             f"- IR + mcode dumps: `{output_dir / 'raw' / 'dump'}`",
             f"- perf stat logs: `{output_dir / 'raw' / 'perf-stat'}`",
         ]
@@ -664,11 +788,13 @@ def main() -> int:
     output_dir = pathlib.Path(args.output_dir).expanduser().resolve() if args.output_dir else (DEFAULT_OUTPUT_ROOT / f"{timestamp}-{host}-frozen-baseline").resolve()
     raw_dir = output_dir / "raw"
     owner_dir = raw_dir / "owner"
+    owner_selection_dir = raw_dir / "owner-selection"
     dump_dir = raw_dir / "dump"
     trace_dir = raw_dir / "trace-counts"
     perf_dir = raw_dir / "perf-stat"
     output_dir.mkdir(parents=True, exist_ok=True)
     owner_dir.mkdir(parents=True, exist_ok=True)
+    owner_selection_dir.mkdir(parents=True, exist_ok=True)
     dump_dir.mkdir(parents=True, exist_ok=True)
     trace_dir.mkdir(parents=True, exist_ok=True)
     perf_dir.mkdir(parents=True, exist_ok=True)
@@ -736,6 +862,7 @@ def main() -> int:
         perf_stats: dict[str, dict[str, object]] = {}
         for name in MICRO_NAMES:
             restamp.run_owner_logs(host, repo, remote_tmp, owner_dir, name)
+            run_owner_selection_log(host, repo, remote_tmp, owner_selection_dir, name)
             run_mcode_dump(host, repo, remote_tmp, dump_dir, name)
             trace_counts[name] = run_trace_count(host, repo, remote_tmp, trace_dir, name)
             perf_stats[name] = run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core)
@@ -758,6 +885,7 @@ def main() -> int:
             "jit_status": jit_status,
             "focused_micros": list(MICRO_NAMES),
             "trace_exit_decision": summarize_trace_decision(trace_counts)[0],
+            "owner_selection_env": OWNER_SELECTION_ENV,
         }
         write_json(output_dir / "metadata.json", metadata)
         summary = render_summary(
