@@ -263,6 +263,23 @@ seam is now understood well enough to state the next constraint clearly:
 - any surviving target has to remove additional steady-state cost beyond just
   turning `TRACE 2` into a loop
 
+The newest follow-up narrows that again:
+
+- under the same seam-local classifier, steady-state hash texits still do not
+  transfer away from the root trace
+- value-only hash on `kdz` still shows:
+  - `TRACE_HIST abort:3=9,start:2=1,start:3=9,stop:2=1`
+  - `TEXIT_HIST 1:1=960000`
+- key-using hash shows the same ownership result:
+  - `TRACE_HIST abort:3=9,start:3=9`
+  - `TEXIT_HIST 1:1=640000`
+
+So the active question is no longer just “can hash form the first side loop?”
+It is now:
+
+- why does steady-state ownership stay on root `1:1` even when the first side
+  loop can be recorded?
+
 One more focused classifier made that split more concrete:
 
 - the hash or array difference is not purely accidental runtime shape
