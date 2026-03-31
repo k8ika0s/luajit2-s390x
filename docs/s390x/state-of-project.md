@@ -307,28 +307,30 @@ has no resume contract:
 - `retop` remains the root `ITERN`
 - so `JLOOP_EXIT` still takes `phase=dispatch-original` even after promotion
 
-That gap is now mechanically explained, not just observed:
+One deliberate root-`ITERN` contract attempt is now also closed:
 
-- the runtime only consumes iterator resume contracts in two supported shapes
-  in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
-  - side traces with `targetT->root == 0` and `retop == BC_ITERN`
-  - root-owned traces with `targetT->root != 0` and
-    `bc_op(targetT->startins) == BC_JMP`
-- raw iterator roots do not match either shape:
-  - iterator roots are born with `startins == BC_ITERN`
-  - `rec_setup_root()` also puts them on the special `LJ_TRACE_RECORD_1ST`
-    path in [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
-  - `rec_itern()` then drives its own first-ins loop detection and `pc`
-    handoff
-- so “arm `resumevalid` on the root” would not be a small missing-field fix
-- it would be a new end-to-end root-iterator resume contract spanning the
-  recorder and `JLOOP_EXIT` runtime logic
+- the env-gated experiment armed the root successfully:
+  - `S390X_ROOT_ITERN_RESUME_ARM trace=1 ... resumevalid=1`
+- but `trace 1 exit 1` still stayed in `phase=dispatch-original` long enough
+  to promote `trace 2`
+- after that, execution did not reach a stable child handoff
+- instead it fell into a growing `exit 1` ladder of `BC_JMP` descendants
+  (`trace 3`, `trace 4`, ...), then crashed on `kdz`
+
+That corrected an earlier overclaim:
+
+- the runtime already did have a dormant root iterator resume consumer in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - `retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid`
+- so the problem was not “no consumer exists”
+- the problem is that the end-to-end root contract still does not produce a
+  safe owner handoff on the frozen surface
 
 That makes the next exact target:
 
-- decide whether root `ITERN` ownership should get a real supported resume
-  contract at all, or whether this seam should move back to non-resume owner
-  selection
+- treat the root-`ITERN` contract family as structurally interesting but
+  currently rejected, and move back to non-resume owner selection unless a new
+  contract design changes the ladder outcome itself
 
 One more focused classifier made that split more concrete:
 
