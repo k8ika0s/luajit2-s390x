@@ -276,6 +276,11 @@ side trace earlier:
   - `S390X_ITERN_FOCUS site=after_next ... nextt=4 ... key_nil=1`
   - `S390X_ITERN_FOCUS site=nil ...`
   - `TRACE 2 abort ... leaving loop in root trace`
+- key-using hash does not escape this seam either:
+  - the body later uses the visible key
+  - but the first side trace still reaches `after_next ... key_nil=1`
+  - then `site=nil`
+  - then aborts
 
 So the current live seam is now explicit:
 

@@ -218,6 +218,13 @@ The latest focused `kdz` probe narrows that one seam earlier:
   - `S390X_ITERN_FOCUS site=after_next ... nextt=4 ... key_nil=1`
   - then immediately `site=nil`
   - then `TRACE 2 abort ... leaving loop in root trace`
+- key-using hash behaves the same way on that first side seam:
+  - even though the body later needs the visible key, `trace 2` still reaches
+    `after_next ... key_nil=1`
+  - then `site=nil`
+  - then aborts
+  - so the first-side decision happens before body demand can force visible-key
+    materialization
 
 That means the current live seam is now concrete:
 

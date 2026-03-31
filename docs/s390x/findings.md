@@ -26,12 +26,20 @@ This file remains the append-only technical notebook.
     - `site=after_next ... nextt=4 ... key_nil=1`
     - `site=nil ...`
     - `TRACE 2 abort ... leaving loop in root trace`
+  - key-using hash:
+    - same first-side outcome as value-only hash
+    - `TRACE 2 start 1/1`
+    - `site=after_next ... nextt=4 ... key_nil=1`
+    - `site=nil ...`
+    - `TRACE 2 abort ... leaving loop in root trace`
 - Meaning:
   - on the first side seam, hash is still deciding payload vs nil from visible
     key state, not purely from helper-result non-nil status
   - array escapes because its numeric visible key is already present
   - hash falls into the nil-descendant path because the lazy visible-key
     policy leaves `ix.key` unloaded there even when `nextt` is non-nil
+  - key-using hash confirms the decision happens before loop-body key demand can
+    force visible-key materialization
 - Decision:
   - the next exact target is now:
     - determine whether there is any semantic-preserving first-side ownership
