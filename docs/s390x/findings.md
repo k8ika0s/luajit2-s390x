@@ -5,477 +5,8 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 
 For the current project state in plain language, use
 [state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md).
-This file remains the append-only technical notebook.
-
-## Latest Freeze-Point Note
-
-- Timestamp: `2026-03-31 16:41:00 PDT`
-- Corrected finite owner-selection rerun on `kdz` after the helper fix:
-  - purpose:
-    - verify that the checked-in smaller owner-selection probe is capturing the
-      intended recorder/runtime seam rather than the old smoke outputs
-  - fresh corrected artifacts:
-    - value-only hash:
-      - [hash_value.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_value.stdout.log)
-      - [hash_value.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_value.stderr.log)
-    - key-using hash:
-      - [hash_key.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_key.stdout.log)
-      - [hash_key.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_key.stderr.log)
-  - focused results:
-    - value-only hash:
-      - `RESULT 37500`
-      - `TRACE_START 3`
-      - `TRACE_STOP 1`
-      - `TRACE_ABORT 2`
-      - `TEXIT_COUNT 3000`
-    - key-using hash:
-      - `RESULT 16500`
-      - `TRACE_START 3`
-      - `TRACE_STOP 1`
-      - `TRACE_ABORT 2`
-      - `TEXIT_COUNT 2000`
-  - exact seam read from the corrected rerun:
-    - both hash loops share the same first-side mechanism
-    - root `trace 1` still starts at `ITERN` (`startop=70`) and stops as a
-      loop
-    - hot steady-state still spends `trace 1 exit 1` in
-      `S390X_JLOOP_EXIT phase=dispatch-original`
-    - the first fresh root candidate is still:
-      - `trace 2 startop=79`
-      - `S390X_LINNER site=rec_loop_jit_root`
-      - `S390X_TRACE_ABORT ... err=9`
-    - the separate side attempts still show:
-      - `TRACE 2 start 1/1`
-      - `abort ... leaving loop in root trace`
-  - decision:
-    - this corrected rerun does not expose a new non-resume owner family
-    - it re-shows the same first-side nil-descendant / unloaded-visible-key
-      seam already found by the earlier focused `ITERN_FOCUS` probes
-    - therefore the next valid cut, if any, must be demonstrably different
-      from the already rejected first-side lazy-key classifiers
-    - otherwise this family should be closed again
-- Timestamp: `2026-03-31 16:00:38 PDT`
-- Non-resume owner-selection truth-pack pass on the frozen baseline:
-  - validation surfaces:
-    - `kdz` truth pack:
-      - `pairs_sum/hot median=0.066259`
-      - `pairs_array_sum/hot median=0.069155`
-      - `TRACE_START/TRACE_ABORT/TEXIT_COUNT`
-        - hash value: `10 / 9 / 960000`
-        - hash key: `10 / 9 / 640000`
-        - array value: `11 / 10 / 960000`
-    - `zkd0` minimal screen:
-      - `pairs_sum/hot median=0.104839`
-      - `pairs_array_sum/hot median=0.097884`
-  - helper update:
-    - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
-      now has a checked-in smaller owner-selection probe path
-    - reason:
-      - the first owner-selection logging attempt used the full `80000`
-        trace-count scripts and produced gigabyte-scale logs
-      - the helper now uses short finite probe scripts for this surface
-  - exact non-resume owner-selection read on `kdz`:
-    - value-only hash:
-      - root `trace 1`:
-        - `link=1`
-        - `linktype=2`
-        - `startop=70`
-      - hot seam:
-        - repeated `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
-      - first materially different candidate:
-        - `trace 2` starts as root with `startop=79`
-        - dies immediately at `S390X_LINNER site=rec_loop_jit_root`
-        - aborts with `err=9`
-    - key-using hash:
-      - same owner-selection outcome as value-only hash
-      - first candidate dies in `rec_loop_jit_root` before child-link/runtime
-        ownership matters
-    - array value-only control:
-      - root `trace 1` also spends the early seam in `dispatch-original`
-      - first side trace:
-        - `trace 2 parent=1 exit=1 root=1 startop=88`
-        - repeated nil-path aborts with `err=8`
-        - eventual stop:
-          - `linktype=6`
-          - `link=0`
-          - `root=1`
-      - later descendants:
-        - `trace 3`, `trace 4`, `trace 6` stop as:
-          - `linktype=1`
-          - `link=1`
-          - `root=1`
-  - decision:
-    - close the root-`ITERN` contract family again on the current mechanism
-    - the next open seam is non-resume owner selection only
-    - hash dies too early, in
-      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
-      inside `rec_loop_jit()`
-    - array survives farther, but still first lands in interpreter/root-linked
-      ownership rather than a stable non-root owner
-    - next valid target:
-      - one narrow non-resume owner-selection cut only if it can move hash
-        past `rec_loop_jit_root` into a materially different owner shape
-      - otherwise stop reopening this family
-
-- Timestamp: `2026-03-31 14:26:00 PDT`
-- First-side-only real hash key materialization classifier:
-  - implementation shape:
-    - keep the root-path hash lazy-key policy unchanged
-    - only on non-array `parent == root`, `exit == 1`, materialize the real
-      visible key in `lj_record_next()` instead of leaving `ix.key = 0`
-    - intended scope: the first `TRACE 2 start 1/1` hash seam only
-- Structural result on `kdz`:
-  - value-only hash:
-    - `site=after_next ... key_nil=0`
-    - `site=payload`
-    - `TRACE 2 stop -> loop`
-  - key-using hash:
-    - same first-side result
-    - `site=after_next ... key_nil=0`
-    - `site=payload`
-    - `TRACE 2 stop -> loop`
-  - this proves the seam-local cut is genuinely narrower than the earlier
-    rejected global payload-vs-nil overrides
-- Pinned `kdz` perf result:
-  - `pairs_sum/hot median=0.068724`
-  - `pairs_array_sum/hot median=0.071057`
-- Steady-state ownership follow-up on the same classifier:
-  - value-only hash:
-    - `TRACE_HIST abort:3=9,start:2=1,start:3=9,stop:2=1`
-    - `TEXIT_HIST 1:1=960000`
-  - key-using hash:
-    - `TRACE_HIST abort:3=9,start:3=9`
-    - `TEXIT_HIST 1:1=640000`
-- Decision:
-  - reject
-  - the structural fix is real, but it is not promotable because it loses
-    badly against the frozen `kdz` baseline
-  - implication:
-    - first-side hash ownership is part of the mechanism
-    - but fixing it alone is still not enough to recover native JIT-on
-      iterator performance
-    - more specifically, steady-state ownership still stays on root `1:1`
-      even after the first side loop can be recorded
-    - and the ownership transfer path is narrower than it first looked:
-      - the child-owner machinery is still opt-in
-      - but on the real frozen `hotexit=200` surface, array `trace=2` does
-        reach `LJ_TRLINK_LOOP` and `S390X_ROOT_PROMOTE_CHILD`
-      - the remaining blocker is later:
-        - root owner selection knows `target_exec=2`
-        - but the root iterator trace still has `target_resumevalid=0`
-        - so `JLOOP_EXIT` falls back to `dispatch-original` and the promoted
-          child is not used as a direct execution owner
-
-- Timestamp: `2026-03-31 16:05:00 PDT`
-- Env-gated root-`ITERN` resume contract attempt:
-  - tested under:
-    - `LUAJIT_S390X_ROOT_ITERN_RESUME_CONTRACT=1`
-    - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP=1`
-    - `LUAJIT_S390X_ROOT_JLOOP_CHILD=1`
-  - structural facts on clean `kdz`:
-    - root `trace 1` does arm:
-      - `S390X_ROOT_ITERN_RESUME_ARM trace=1 ... resumevalid=1`
-    - `trace 1 exit 1` still spends a long stretch in:
-      - `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
-    - child promotion still happens later:
-      - `S390X_ROOT_PROMOTE_CHILD trace=2 root=1 ... newtarget=2`
-    - after promotion, execution does not settle into a direct child handoff
-    - it falls into a growing `exit 1` ladder of `BC_JMP` descendants:
-      - `trace 3`, `trace 4`, ... `trace 103+`
-    - the finite array probe then crashes on `kdz`
-  - decision:
-    - reject at the structural gate
-    - the contract is real enough to arm the root, but it does not create a
-      safe stable owner handoff
-    - this family is still not promotable
-  - correction to the prior read:
-    - the runtime did already have a dormant root iterator resume consumer:
-      - `retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid`
-    - so the failure is not “missing consumer”
-    - the failure is the end-to-end contract shape itself
-
-- Timestamp: `2026-03-31 15:05:00 PDT`
-- Root iterator resume-contract classification:
-  - corrected later by the 16:05 PDT contract attempt above
-  - keep only the narrower lasting point from this pass:
-    - root iterator traces are still special at the recorder boundary via
-      `LJ_TRACE_RECORD_1ST` and `rec_itern()` ownership of the first-ins loop
-      handoff
-    - so any future contract work here is still an end-to-end design problem,
-      not a tiny local field fill-in
-
-- Timestamp: `2026-03-31 14:02:00 PDT`
-- Focused `kdz` first-side ownership classifier:
-  - the earlier “array vs hash diverges at `parent=2 exit=1`” read was too
-    late
-  - the first concrete divergence is already at `trace 1 exit 1`, i.e. the
-    first `TRACE 2 start 1/1`
-- Direct `ITERN_FOCUS` proof on the same binary:
-  - array value-only control:
-    - `TRACE 2 start 1/1`
-    - `site=after_next ... nextt=19 ... key_nil=0`
-    - `site=payload ...`
-    - `TRACE 2 stop -> loop`
-  - value-only hash:
-    - `TRACE 2 start 1/1`
-    - `site=after_next ... nextt=4 ... key_nil=1`
-    - `site=nil ...`
-    - `TRACE 2 abort ... leaving loop in root trace`
-  - key-using hash:
-    - same first-side outcome as value-only hash
-    - `TRACE 2 start 1/1`
-    - `site=after_next ... nextt=4 ... key_nil=1`
-    - `site=nil ...`
-    - `TRACE 2 abort ... leaving loop in root trace`
-- Meaning:
-  - on the first side seam, hash is still deciding payload vs nil from visible
-    key state, not purely from helper-result non-nil status
-  - array escapes because its numeric visible key is already present
-  - hash falls into the nil-descendant path because the lazy visible-key
-    policy leaves `ix.key` unloaded there even when `nextt` is non-nil
-  - key-using hash confirms the decision happens before loop-body key demand can
-    force visible-key materialization
-- Decision:
-  - the next exact target is now:
-    - determine whether there is any semantic-preserving first-side ownership
-      cut at `trace 1 exit 1` that does not just re-open the already rejected
-      lazy-key override family
-  - do not treat this as permission to revive the earlier global
-    `rec_itern()` payload-vs-nil overrides; those were already tested and
-    rejected against pinned `kdz`
-
-- Timestamp: `2026-03-31 13:05:00 PDT`
-- Source diagnosis for the owner-link seam:
-  - the first stop target for iterator descendants is chosen in
-    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
-    by `rec_loop_jit()`, before the later child-link promotion logic in
-    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-    runs
-  - specifically:
-    - `rec_loop_jit(J, rc, ...)` receives the compiled-loop target as `lnk`
-    - it then decides between:
-      - `lj_record_stop(..., LJ_TRLINK_LOOP, J->cur.traceno)` for a self-loop
-      - `lj_record_stop(..., LJ_TRLINK_ROOT, lnk)` for a root-linked child
-  - that means the observed `link=1` vs `link=2` split is not created by the
-    later `S390X_ROOT_PROMOTE_CHILD_*` machinery alone; it is already present
-    in the initial stop decision
-- Focused classifier with `LUAJIT_S390X_ALLOW_ITER_DESC=1`:
-  - on a stripped direct probe, both hash and array collapse to the same shape:
-    - `trace 1`: loop
-    - `trace 2`: loop
-    - later descendants: `link=1`, `linktype=root`
-  - so descendant permission alone is not enough to reproduce the earlier
-    array promoted-owner behavior
-- Decision:
-  - the next target is now even narrower:
-    - explain why the default array path reaches a different `rec_loop_jit()`
-      stop target / trace family than hash, rather than treating child-link
-      promotion as the first cause
-
-- Timestamp: `2026-03-31 12:38:00 PDT`
-- Focused `kdz` classifier against the frozen baseline:
-  - hash `trace 2` body can now be captured directly under `jit.dump`
-  - without any descendant widening, the key shape is:
-    - `trace 1`: loop root with hidden `KEYINDEX`, `CALLL lj_vm_next(tab, frame_keyindex)`,
-      helper `VLOAD #0`, carried-total `SLOAD #3`, `ADDOV`
-    - `trace 2`: loop trace on the same body
-    - `trace 3`: repeated `2/1` aborts as `leaving loop in root trace`
-  - array captured in the same style differs immediately:
-    - its loop trace already carries the helper-result successor index in the
-      second `lj_vm_next()` argument
-    - later `exit 1` children do record and stop successfully
-- Recorder-policy classifier:
-  - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
-    explicitly widens iterator payload descendants for numeric-key iterators,
-    but not for hash iterators
-  - with `LUAJIT_S390X_ALLOW_ITER_DESC=1` on `kdz`, hash immediately stops
-    failing the old `2/1` seam on `LJ_TRERR_LLEAVE`
-  - resulting trace family:
-    - `trace 1`: loop
-    - `trace 2`: loop
-    - `trace 3`, `4`, `5`, `7`, `8`, ...: `linktype=root`, tiny clones that
-      all stop back to `1`
-    - `trace 6`, `10`, ...: nil-path roots that also stop back to `1`
-  - contrast against the array capture in the same style:
-    - array child roots stop back to `2`, its loop owner
-    - hash child roots stop back to `1`, the original root owner
-- Decision:
-  - the current hash/array ownership split is partly recorder policy, not
-    purely accidental runtime behavior
-  - but simply lifting descendant suppression is not a win mechanism:
-    - it creates a root-ladder of the same expensive body
-    - it does not produce a materially different steady-state owner or owner
-      link
-  - next target stays narrow:
-    - explain why hash cannot promote into a materially different owner body
-      and owner link on `exit 1`, instead of reopening generic descendant
-      widening
-
-- Timestamp: `2026-03-31 12:02:00 PDT`
-- Truth-pack helper now records per-trace and per-exit histograms in the
-  focused warmup-after capture:
-  - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
-- Refreshed histogram run on `kdz`:
-  - value-only hash:
-    - `trace histogram abort:3=9,start:2=1,start:3=9,stop:2=1`
-    - `texit histogram 1:1=960000`
-  - key-using hash:
-    - `trace histogram abort:3=9,start:2=1,start:3=9,stop:2=1`
-    - `texit histogram 1:1=640000`
-  - array value-only control:
-    - `trace histogram abort:6=10,start:5=1,start:6=10,stop:5=1`
-    - `texit histogram 4:1=87,5:1=959913`
-- Focused follow-up classification on `kdz`:
-  - value-only hash `trace 2` exists, but `traceinfo(2)` reports:
-    - `linktype=stitch`
-    - `nins=9`
-    - `nexit=2`
-  - after that stitch trace exists, a dump started in the measured phase shows:
-    - repeated `TRACE 1 exit 1`
-    - then `TRACE 3 start ...`
-    - then `TRACE 3 abort ... -- inner loop in root trace`
-- Decision:
-  - the next target is not generic “exit 1 is hot”
-  - the next target is why hash `exit 1` remains root-owned while array
-    `exit 1` promotes to a live side trace
-
-- Timestamp: `2026-03-31 11:48:00 PDT`
-- Focused follow-up on the frozen `kdz` baseline after the truth pack:
-  - a post-warmup `jit.dump` `texit` probe on value-only hash shows repeated
-    `TRACE 1 exit 1`
-  - the matching `jit.dump=is` root trace still records:
-    - hidden `KEYINDEX SLOAD #10`
-    - helper `CALLL lj_vm_next (0002 0003)`
-    - helper `VLOAD #0`
-    - carried-total `SLOAD #3`
-    - `ADDOV`
-  - snapshot ordering on that same root trace is:
-    - `SNAP #0`
-    - `SNAP #1`
-    - hidden `KEYINDEX` / helper-call path
-    - `SNAP #2`
-    - carried-total `SLOAD`
-    - `ADDOV`
-  - inference:
-    - the repeated `TRACE 1 exit 1` seam is in the early root snapshot region,
-      ahead of the visible value-lane add path
-    - the next justified target is therefore early hidden-control /
-      root-ownership around `KEYINDEX` / `lj_vm_next`, not the visible value
-      lane and not late backend lowering
-
-- Timestamp: `2026-03-31 11:35:00 PDT`
-- A frozen-baseline checkpoint branch now exists:
-  - `k8ika0s/s390x-jit-on-freeze-20260331`
-- A checked-in truth-pack helper now exists:
-  - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
-  - it reuses the tracked-files-only sync and direct `src/` rebuild path from
-    the restamp helper, then adds focused hot medians, `-jdump=im` IR+mcode,
-    low-noise owner logs, `jit.attach("trace")` / `jit.attach("texit")`
-    counts after warmup, and `perf stat` capture when available
-- Fresh frozen-baseline truth pack on `kdz`:
-  - machine type `8561` (`z15`)
-  - `pairs_sum/hot median=0.060779`
-  - `pairs_array_sum/hot median=0.066737`
-  - `-joff pairs_sum/hot median=0.005574`
-  - `-joff pairs_array_sum/hot median=0.004126`
-- Fresh frozen-baseline minimum screen on `zkd0`:
-  - machine type `3906` (`z14`)
-  - `pairs_sum/hot median=0.132097`
-  - `pairs_array_sum/hot median=0.124149`
-- The new decisive result is runtime shape, not the exact median twitch:
-  - value-only hash after warmup:
-    - `TRACE_START 10`
-    - `TRACE_ABORT 9`
-    - `TEXIT_COUNT 960000`
-  - key-using hash after warmup:
-    - `TRACE_START 10`
-    - `TRACE_ABORT 9`
-    - `TEXIT_COUNT 640000`
-  - array value-only control after warmup:
-    - `TRACE_START 12`
-    - `TRACE_ABORT 10`
-    - `TEXIT_COUNT 960000`
-- Decision:
-  - steady-state exits are still materially nonzero on the frozen baseline
-  - the next justified target is not “compiled throughput only”
-  - the next justified target is the exact steady-state exit / side-trace
-    ownership site, starting with value-only hash
-  - do not reopen bridge work, no-guard ideas, hidden-control carry, or late
-    backend micro-surgery from this result
-
-- Timestamp: `2026-03-31 10:44:29 PDT`
-- A checked-in iterator restamp helper now exists:
-  - [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
-  - it syncs tracked files only into the clean native repo, rebuilds in
-    `src/`, runs both `jit.on` and `-joff` on
-    [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua),
-    and captures raw micro, owner-log, and IR artifacts
-- The first helper-driven post-cleanup restamp forced one real branch-tip fix:
-  - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
-    still referenced `oldpc` in the payload-path stop log after the cleanup
-    removed the now-unused bridge-only branch around it
-  - restoring the local `oldpc` and dropping the dead `entrypc` local made the
-    clean native rebuild work again on `kdz`
-- Fresh post-cleanup restamp from the current branch tip:
-  - `kdz` machine type `8561` (`z15`)
-    - `pairs_sum/hot median=0.061851`
-    - `pairs_array_sum/hot median=0.063845`
-  - `zkd0` machine type `3906` (`z14`)
-    - `pairs_sum/hot median=0.156370`
-    - `pairs_array_sum/hot median=0.154843`
-- Relative to the earlier freeze-point reference:
-  - `kdz` is `+3.40%` slower on hash and `+3.61%` slower on array
-  - `zkd0` is `+66.56%` slower on hash and `+76.07%` slower on array
-- The refreshed owner map did not expose a new target:
-  - value-only hash still shows hidden `KEYINDEX`, carried-total `SLOAD`, and
-    helper `VLOAD #0`
-  - key-using hash still adds visible key/type `SLOAD`
-  - array still carries numeric-key control loads
-  - shared `addov_rr_int_eq` remains dominant
-- Immediate operating rule:
-  - do not open a new perf patch family from this restamp alone
-  - either explain the post-cleanup drift first or identify a genuinely new
-    root-trace storage/control materialization target outside the reject pile
-
-- Timestamp: `2026-03-31 10:14:33 PDT`
-- Source cleanup only:
-  - removed the parked root-resume and pre-call-key scaffolding from
-    [src/lj_jit.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_jit.h),
-    [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c),
-    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
-    and [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-  - intended effect: make the active source match the documented Lane A/Lane B
-    freeze point more closely by removing dormant Lane C root-resume hooks
-  - local host build still succeeds after the cleanup
-  - no new s390x perf claim is attached to this change
-  - native `kdz` / `zkd0` validation is still pending for this slice
-
-- Timestamp: `2026-03-31 09:12:31 PDT`
-- The branch is now being operated from a frozen implementation baseline:
-  - Lane A is the shipping build and stability floor
-  - Lane B is the shipping four-piece recorder-side iterator baseline
-  - Lane C remains parked
-- Fresh freeze-point restamp:
-  - `kdz` machine type `8561` (`z15`)
-    - `pairs_sum/hot median=0.059818`
-    - `pairs_array_sum/hot median=0.061622`
-  - `zkd0` machine type `3906` (`z14`)
-    - `pairs_sum/hot median=0.093881`
-    - `pairs_array_sum/hot median=0.087945`
-- Current owner map on the frozen baseline:
-  - shared `addov_rr_int_eq` remains the dominant cross-family payer
-  - value-only hash still pays hidden `KEYINDEX` plus carried-total `SLOAD`
-  - key-using hash adds visible key/type `SLOAD`
-  - array still pays numeric-key control loads
-  - hash does not frame-source the visible value lane
-- Closure result:
-  - the last allowed accumulator-family pass failed its structural gate
-  - the one allowed narrow backend classifier was also negative
-  - no justified follow-up is open from those two families
-- Operating rule from here:
-  - do not reopen perf work unless a genuinely new root-trace
-    storage/control materialization target is identified and can be proven
-    against the frozen `kdz` baseline
+This file is the append-only technical notebook. New entries should be
+added at the end in chronological order.
 
 ## Harness Status
 
@@ -8610,3 +8141,474 @@ Next hash target
     mechanism
   - only reopen if a future cut can prove the original carried slot becomes
     `num` before `loop_unroll()` sees it, not merely later in the trace
+
+## Timestamped Notes
+
+- Timestamp: `2026-03-31 09:12:31 PDT`
+- The branch is now being operated from a frozen implementation baseline:
+  - Lane A is the shipping build and stability floor
+  - Lane B is the shipping four-piece recorder-side iterator baseline
+  - Lane C remains parked
+- Fresh freeze-point restamp:
+  - `kdz` machine type `8561` (`z15`)
+    - `pairs_sum/hot median=0.059818`
+    - `pairs_array_sum/hot median=0.061622`
+  - `zkd0` machine type `3906` (`z14`)
+    - `pairs_sum/hot median=0.093881`
+    - `pairs_array_sum/hot median=0.087945`
+- Current owner map on the frozen baseline:
+  - shared `addov_rr_int_eq` remains the dominant cross-family payer
+  - value-only hash still pays hidden `KEYINDEX` plus carried-total `SLOAD`
+  - key-using hash adds visible key/type `SLOAD`
+  - array still pays numeric-key control loads
+  - hash does not frame-source the visible value lane
+- Closure result:
+  - the last allowed accumulator-family pass failed its structural gate
+  - the one allowed narrow backend classifier was also negative
+  - no justified follow-up is open from those two families
+- Operating rule from here:
+  - do not reopen perf work unless a genuinely new root-trace
+    storage/control materialization target is identified and can be proven
+    against the frozen `kdz` baseline
+
+- Timestamp: `2026-03-31 10:14:33 PDT`
+- Source cleanup only:
+  - removed the parked root-resume and pre-call-key scaffolding from
+    [src/lj_jit.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_jit.h),
+    [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c),
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+    and [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - intended effect: make the active source match the documented Lane A/Lane B
+    freeze point more closely by removing dormant Lane C root-resume hooks
+  - local host build still succeeds after the cleanup
+  - no new s390x perf claim is attached to this change
+  - native `kdz` / `zkd0` validation is still pending for this slice
+
+- Timestamp: `2026-03-31 10:44:29 PDT`
+- A checked-in iterator restamp helper now exists:
+  - [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+  - it syncs tracked files only into the clean native repo, rebuilds in
+    `src/`, runs both `jit.on` and `-joff` on
+    [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua),
+    and captures raw micro, owner-log, and IR artifacts
+- The first helper-driven post-cleanup restamp forced one real branch-tip fix:
+  - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    still referenced `oldpc` in the payload-path stop log after the cleanup
+    removed the now-unused bridge-only branch around it
+  - restoring the local `oldpc` and dropping the dead `entrypc` local made the
+    clean native rebuild work again on `kdz`
+- Fresh post-cleanup restamp from the current branch tip:
+  - `kdz` machine type `8561` (`z15`)
+    - `pairs_sum/hot median=0.061851`
+    - `pairs_array_sum/hot median=0.063845`
+  - `zkd0` machine type `3906` (`z14`)
+    - `pairs_sum/hot median=0.156370`
+    - `pairs_array_sum/hot median=0.154843`
+- Relative to the earlier freeze-point reference:
+  - `kdz` is `+3.40%` slower on hash and `+3.61%` slower on array
+  - `zkd0` is `+66.56%` slower on hash and `+76.07%` slower on array
+- The refreshed owner map did not expose a new target:
+  - value-only hash still shows hidden `KEYINDEX`, carried-total `SLOAD`, and
+    helper `VLOAD #0`
+  - key-using hash still adds visible key/type `SLOAD`
+  - array still carries numeric-key control loads
+  - shared `addov_rr_int_eq` remains dominant
+- Immediate operating rule:
+  - do not open a new perf patch family from this restamp alone
+  - either explain the post-cleanup drift first or identify a genuinely new
+    root-trace storage/control materialization target outside the reject pile
+
+- Timestamp: `2026-03-31 11:35:00 PDT`
+- A frozen-baseline checkpoint branch now exists:
+  - `k8ika0s/s390x-jit-on-freeze-20260331`
+- A checked-in truth-pack helper now exists:
+  - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+  - it reuses the tracked-files-only sync and direct `src/` rebuild path from
+    the restamp helper, then adds focused hot medians, `-jdump=im` IR+mcode,
+    low-noise owner logs, `jit.attach("trace")` / `jit.attach("texit")`
+    counts after warmup, and `perf stat` capture when available
+- Fresh frozen-baseline truth pack on `kdz`:
+  - machine type `8561` (`z15`)
+  - `pairs_sum/hot median=0.060779`
+  - `pairs_array_sum/hot median=0.066737`
+  - `-joff pairs_sum/hot median=0.005574`
+  - `-joff pairs_array_sum/hot median=0.004126`
+- Fresh frozen-baseline minimum screen on `zkd0`:
+  - machine type `3906` (`z14`)
+  - `pairs_sum/hot median=0.132097`
+  - `pairs_array_sum/hot median=0.124149`
+- The new decisive result is runtime shape, not the exact median twitch:
+  - value-only hash after warmup:
+    - `TRACE_START 10`
+    - `TRACE_ABORT 9`
+    - `TEXIT_COUNT 960000`
+  - key-using hash after warmup:
+    - `TRACE_START 10`
+    - `TRACE_ABORT 9`
+    - `TEXIT_COUNT 640000`
+  - array value-only control after warmup:
+    - `TRACE_START 12`
+    - `TRACE_ABORT 10`
+    - `TEXIT_COUNT 960000`
+- Decision:
+  - steady-state exits are still materially nonzero on the frozen baseline
+  - the next justified target is not “compiled throughput only”
+  - the next justified target is the exact steady-state exit / side-trace
+    ownership site, starting with value-only hash
+  - do not reopen bridge work, no-guard ideas, hidden-control carry, or late
+    backend micro-surgery from this result
+
+- Timestamp: `2026-03-31 11:48:00 PDT`
+- Focused follow-up on the frozen `kdz` baseline after the truth pack:
+  - a post-warmup `jit.dump` `texit` probe on value-only hash shows repeated
+    `TRACE 1 exit 1`
+  - the matching `jit.dump=is` root trace still records:
+    - hidden `KEYINDEX SLOAD #10`
+    - helper `CALLL lj_vm_next (0002 0003)`
+    - helper `VLOAD #0`
+    - carried-total `SLOAD #3`
+    - `ADDOV`
+  - snapshot ordering on that same root trace is:
+    - `SNAP #0`
+    - `SNAP #1`
+    - hidden `KEYINDEX` / helper-call path
+    - `SNAP #2`
+    - carried-total `SLOAD`
+    - `ADDOV`
+  - inference:
+    - the repeated `TRACE 1 exit 1` seam is in the early root snapshot region,
+      ahead of the visible value-lane add path
+    - the next justified target is therefore early hidden-control /
+      root-ownership around `KEYINDEX` / `lj_vm_next`, not the visible value
+      lane and not late backend lowering
+
+- Timestamp: `2026-03-31 12:02:00 PDT`
+- Truth-pack helper now records per-trace and per-exit histograms in the
+  focused warmup-after capture:
+  - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+- Refreshed histogram run on `kdz`:
+  - value-only hash:
+    - `trace histogram abort:3=9,start:2=1,start:3=9,stop:2=1`
+    - `texit histogram 1:1=960000`
+  - key-using hash:
+    - `trace histogram abort:3=9,start:2=1,start:3=9,stop:2=1`
+    - `texit histogram 1:1=640000`
+  - array value-only control:
+    - `trace histogram abort:6=10,start:5=1,start:6=10,stop:5=1`
+    - `texit histogram 4:1=87,5:1=959913`
+- Focused follow-up classification on `kdz`:
+  - value-only hash `trace 2` exists, but `traceinfo(2)` reports:
+    - `linktype=stitch`
+    - `nins=9`
+    - `nexit=2`
+  - after that stitch trace exists, a dump started in the measured phase shows:
+    - repeated `TRACE 1 exit 1`
+    - then `TRACE 3 start ...`
+    - then `TRACE 3 abort ... -- inner loop in root trace`
+- Decision:
+  - the next target is not generic “exit 1 is hot”
+  - the next target is why hash `exit 1` remains root-owned while array
+    `exit 1` promotes to a live side trace
+
+- Timestamp: `2026-03-31 12:38:00 PDT`
+- Focused `kdz` classifier against the frozen baseline:
+  - hash `trace 2` body can now be captured directly under `jit.dump`
+  - without any descendant widening, the key shape is:
+    - `trace 1`: loop root with hidden `KEYINDEX`, `CALLL lj_vm_next(tab, frame_keyindex)`,
+      helper `VLOAD #0`, carried-total `SLOAD #3`, `ADDOV`
+    - `trace 2`: loop trace on the same body
+    - `trace 3`: repeated `2/1` aborts as `leaving loop in root trace`
+  - array captured in the same style differs immediately:
+    - its loop trace already carries the helper-result successor index in the
+      second `lj_vm_next()` argument
+    - later `exit 1` children do record and stop successfully
+- Recorder-policy classifier:
+  - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    explicitly widens iterator payload descendants for numeric-key iterators,
+    but not for hash iterators
+  - with `LUAJIT_S390X_ALLOW_ITER_DESC=1` on `kdz`, hash immediately stops
+    failing the old `2/1` seam on `LJ_TRERR_LLEAVE`
+  - resulting trace family:
+    - `trace 1`: loop
+    - `trace 2`: loop
+    - `trace 3`, `4`, `5`, `7`, `8`, ...: `linktype=root`, tiny clones that
+      all stop back to `1`
+    - `trace 6`, `10`, ...: nil-path roots that also stop back to `1`
+  - contrast against the array capture in the same style:
+    - array child roots stop back to `2`, its loop owner
+    - hash child roots stop back to `1`, the original root owner
+- Decision:
+  - the current hash/array ownership split is partly recorder policy, not
+    purely accidental runtime behavior
+  - but simply lifting descendant suppression is not a win mechanism:
+    - it creates a root-ladder of the same expensive body
+    - it does not produce a materially different steady-state owner or owner
+      link
+  - next target stays narrow:
+    - explain why hash cannot promote into a materially different owner body
+      and owner link on `exit 1`, instead of reopening generic descendant
+      widening
+
+- Timestamp: `2026-03-31 13:05:00 PDT`
+- Source diagnosis for the owner-link seam:
+  - the first stop target for iterator descendants is chosen in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    by `rec_loop_jit()`, before the later child-link promotion logic in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    runs
+  - specifically:
+    - `rec_loop_jit(J, rc, ...)` receives the compiled-loop target as `lnk`
+    - it then decides between:
+      - `lj_record_stop(..., LJ_TRLINK_LOOP, J->cur.traceno)` for a self-loop
+      - `lj_record_stop(..., LJ_TRLINK_ROOT, lnk)` for a root-linked child
+  - that means the observed `link=1` vs `link=2` split is not created by the
+    later `S390X_ROOT_PROMOTE_CHILD_*` machinery alone; it is already present
+    in the initial stop decision
+- Focused classifier with `LUAJIT_S390X_ALLOW_ITER_DESC=1`:
+  - on a stripped direct probe, both hash and array collapse to the same shape:
+    - `trace 1`: loop
+    - `trace 2`: loop
+    - later descendants: `link=1`, `linktype=root`
+  - so descendant permission alone is not enough to reproduce the earlier
+    array promoted-owner behavior
+- Decision:
+  - the next target is now even narrower:
+    - explain why the default array path reaches a different `rec_loop_jit()`
+      stop target / trace family than hash, rather than treating child-link
+      promotion as the first cause
+
+- Timestamp: `2026-03-31 14:02:00 PDT`
+- Focused `kdz` first-side ownership classifier:
+  - the earlier “array vs hash diverges at `parent=2 exit=1`” read was too
+    late
+  - the first concrete divergence is already at `trace 1 exit 1`, i.e. the
+    first `TRACE 2 start 1/1`
+- Direct `ITERN_FOCUS` proof on the same binary:
+  - array value-only control:
+    - `TRACE 2 start 1/1`
+    - `site=after_next ... nextt=19 ... key_nil=0`
+    - `site=payload ...`
+    - `TRACE 2 stop -> loop`
+  - value-only hash:
+    - `TRACE 2 start 1/1`
+    - `site=after_next ... nextt=4 ... key_nil=1`
+    - `site=nil ...`
+    - `TRACE 2 abort ... leaving loop in root trace`
+  - key-using hash:
+    - same first-side outcome as value-only hash
+    - `TRACE 2 start 1/1`
+    - `site=after_next ... nextt=4 ... key_nil=1`
+    - `site=nil ...`
+    - `TRACE 2 abort ... leaving loop in root trace`
+- Meaning:
+  - on the first side seam, hash is still deciding payload vs nil from visible
+    key state, not purely from helper-result non-nil status
+  - array escapes because its numeric visible key is already present
+  - hash falls into the nil-descendant path because the lazy visible-key
+    policy leaves `ix.key` unloaded there even when `nextt` is non-nil
+  - key-using hash confirms the decision happens before loop-body key demand can
+    force visible-key materialization
+- Decision:
+  - the next exact target is now:
+    - determine whether there is any semantic-preserving first-side ownership
+      cut at `trace 1 exit 1` that does not just re-open the already rejected
+      lazy-key override family
+  - do not treat this as permission to revive the earlier global
+    `rec_itern()` payload-vs-nil overrides; those were already tested and
+    rejected against pinned `kdz`
+
+- Timestamp: `2026-03-31 14:26:00 PDT`
+- First-side-only real hash key materialization classifier:
+  - implementation shape:
+    - keep the root-path hash lazy-key policy unchanged
+    - only on non-array `parent == root`, `exit == 1`, materialize the real
+      visible key in `lj_record_next()` instead of leaving `ix.key = 0`
+    - intended scope: the first `TRACE 2 start 1/1` hash seam only
+- Structural result on `kdz`:
+  - value-only hash:
+    - `site=after_next ... key_nil=0`
+    - `site=payload`
+    - `TRACE 2 stop -> loop`
+  - key-using hash:
+    - same first-side result
+    - `site=after_next ... key_nil=0`
+    - `site=payload`
+    - `TRACE 2 stop -> loop`
+  - this proves the seam-local cut is genuinely narrower than the earlier
+    rejected global payload-vs-nil overrides
+- Pinned `kdz` perf result:
+  - `pairs_sum/hot median=0.068724`
+  - `pairs_array_sum/hot median=0.071057`
+- Steady-state ownership follow-up on the same classifier:
+  - value-only hash:
+    - `TRACE_HIST abort:3=9,start:2=1,start:3=9,stop:2=1`
+    - `TEXIT_HIST 1:1=960000`
+  - key-using hash:
+    - `TRACE_HIST abort:3=9,start:3=9`
+    - `TEXIT_HIST 1:1=640000`
+- Decision:
+  - reject
+  - the structural fix is real, but it is not promotable because it loses
+    badly against the frozen `kdz` baseline
+  - implication:
+    - first-side hash ownership is part of the mechanism
+    - but fixing it alone is still not enough to recover native JIT-on
+      iterator performance
+    - more specifically, steady-state ownership still stays on root `1:1`
+      even after the first side loop can be recorded
+    - and the ownership transfer path is narrower than it first looked:
+      - the child-owner machinery is still opt-in
+      - but on the real frozen `hotexit=200` surface, array `trace=2` does
+        reach `LJ_TRLINK_LOOP` and `S390X_ROOT_PROMOTE_CHILD`
+      - the remaining blocker is later:
+        - root owner selection knows `target_exec=2`
+        - but the root iterator trace still has `target_resumevalid=0`
+        - so `JLOOP_EXIT` falls back to `dispatch-original` and the promoted
+          child is not used as a direct execution owner
+
+- Timestamp: `2026-03-31 15:05:00 PDT`
+- Root iterator resume-contract classification:
+  - corrected later by the 16:05 PDT contract attempt above
+  - keep only the narrower lasting point from this pass:
+    - root iterator traces are still special at the recorder boundary via
+      `LJ_TRACE_RECORD_1ST` and `rec_itern()` ownership of the first-ins loop
+      handoff
+    - so any future contract work here is still an end-to-end design problem,
+      not a tiny local field fill-in
+
+- Timestamp: `2026-03-31 16:00:38 PDT`
+- Non-resume owner-selection truth-pack pass on the frozen baseline:
+  - validation surfaces:
+    - `kdz` truth pack:
+      - `pairs_sum/hot median=0.066259`
+      - `pairs_array_sum/hot median=0.069155`
+      - `TRACE_START/TRACE_ABORT/TEXIT_COUNT`
+        - hash value: `10 / 9 / 960000`
+        - hash key: `10 / 9 / 640000`
+        - array value: `11 / 10 / 960000`
+    - `zkd0` minimal screen:
+      - `pairs_sum/hot median=0.104839`
+      - `pairs_array_sum/hot median=0.097884`
+  - helper update:
+    - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+      now has a checked-in smaller owner-selection probe path
+    - reason:
+      - the first owner-selection logging attempt used the full `80000`
+        trace-count scripts and produced gigabyte-scale logs
+      - the helper now uses short finite probe scripts for this surface
+  - exact non-resume owner-selection read on `kdz`:
+    - value-only hash:
+      - root `trace 1`:
+        - `link=1`
+        - `linktype=2`
+        - `startop=70`
+      - hot seam:
+        - repeated `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
+      - first materially different candidate:
+        - `trace 2` starts as root with `startop=79`
+        - dies immediately at `S390X_LINNER site=rec_loop_jit_root`
+        - aborts with `err=9`
+    - key-using hash:
+      - same owner-selection outcome as value-only hash
+      - first candidate dies in `rec_loop_jit_root` before child-link/runtime
+        ownership matters
+    - array value-only control:
+      - root `trace 1` also spends the early seam in `dispatch-original`
+      - first side trace:
+        - `trace 2 parent=1 exit=1 root=1 startop=88`
+        - repeated nil-path aborts with `err=8`
+        - eventual stop:
+          - `linktype=6`
+          - `link=0`
+          - `root=1`
+      - later descendants:
+        - `trace 3`, `trace 4`, `trace 6` stop as:
+          - `linktype=1`
+          - `link=1`
+          - `root=1`
+  - decision:
+    - close the root-`ITERN` contract family again on the current mechanism
+    - the next open seam is non-resume owner selection only
+    - hash dies too early, in
+      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      inside `rec_loop_jit()`
+    - array survives farther, but still first lands in interpreter/root-linked
+      ownership rather than a stable non-root owner
+    - next valid target:
+      - one narrow non-resume owner-selection cut only if it can move hash
+        past `rec_loop_jit_root` into a materially different owner shape
+      - otherwise stop reopening this family
+
+- Timestamp: `2026-03-31 16:05:00 PDT`
+- Env-gated root-`ITERN` resume contract attempt:
+  - tested under:
+    - `LUAJIT_S390X_ROOT_ITERN_RESUME_CONTRACT=1`
+    - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP=1`
+    - `LUAJIT_S390X_ROOT_JLOOP_CHILD=1`
+  - structural facts on clean `kdz`:
+    - root `trace 1` does arm:
+      - `S390X_ROOT_ITERN_RESUME_ARM trace=1 ... resumevalid=1`
+    - `trace 1 exit 1` still spends a long stretch in:
+      - `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
+    - child promotion still happens later:
+      - `S390X_ROOT_PROMOTE_CHILD trace=2 root=1 ... newtarget=2`
+    - after promotion, execution does not settle into a direct child handoff
+    - it falls into a growing `exit 1` ladder of `BC_JMP` descendants:
+      - `trace 3`, `trace 4`, ... `trace 103+`
+    - the finite array probe then crashes on `kdz`
+  - decision:
+    - reject at the structural gate
+    - the contract is real enough to arm the root, but it does not create a
+      safe stable owner handoff
+    - this family is still not promotable
+  - correction to the prior read:
+    - the runtime did already have a dormant root iterator resume consumer:
+      - `retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid`
+    - so the failure is not “missing consumer”
+    - the failure is the end-to-end contract shape itself
+
+- Timestamp: `2026-03-31 16:41:00 PDT`
+- Corrected finite owner-selection rerun on `kdz` after the helper fix:
+  - purpose:
+    - verify that the checked-in smaller owner-selection probe is capturing the
+      intended recorder/runtime seam rather than the old smoke outputs
+  - fresh corrected artifacts:
+    - value-only hash:
+      - [hash_value.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_value.stdout.log)
+      - [hash_value.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_value.stderr.log)
+    - key-using hash:
+      - [hash_key.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_key.stdout.log)
+      - [hash_key.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_key.stderr.log)
+  - focused results:
+    - value-only hash:
+      - `RESULT 37500`
+      - `TRACE_START 3`
+      - `TRACE_STOP 1`
+      - `TRACE_ABORT 2`
+      - `TEXIT_COUNT 3000`
+    - key-using hash:
+      - `RESULT 16500`
+      - `TRACE_START 3`
+      - `TRACE_STOP 1`
+      - `TRACE_ABORT 2`
+      - `TEXIT_COUNT 2000`
+  - exact seam read from the corrected rerun:
+    - both hash loops share the same first-side mechanism
+    - root `trace 1` still starts at `ITERN` (`startop=70`) and stops as a
+      loop
+    - hot steady-state still spends `trace 1 exit 1` in
+      `S390X_JLOOP_EXIT phase=dispatch-original`
+    - the first fresh root candidate is still:
+      - `trace 2 startop=79`
+      - `S390X_LINNER site=rec_loop_jit_root`
+      - `S390X_TRACE_ABORT ... err=9`
+    - the separate side attempts still show:
+      - `TRACE 2 start 1/1`
+      - `abort ... leaving loop in root trace`
+  - decision:
+    - this corrected rerun does not expose a new non-resume owner family
+    - it re-shows the same first-side nil-descendant / unloaded-visible-key
+      seam already found by the earlier focused `ITERN_FOCUS` probes
+    - therefore the next valid cut, if any, must be demonstrably different
+      from the already rejected first-side lazy-key classifiers
+    - otherwise this family should be closed again
