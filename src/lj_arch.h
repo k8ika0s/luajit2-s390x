@@ -506,9 +506,6 @@
 #define LJ_TARGET_UNALIGNED	1
 #define LJ_ARCH_NUMMODE		LJ_NUMMODE_DUAL
 #define LJ_TARGET_GC64		1
-#if !defined(LUAJIT_ENABLE_S390X_JIT)
-#define LJ_ARCH_NOJIT		1	/* NYI */
-#endif
 
 #else
 #error "No target architecture defined"

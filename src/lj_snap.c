@@ -1294,8 +1294,8 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 #endif
   for (n = 0; n < nent; n++) {
     SnapEntry sn = map[n];
-    if (LJ_TARGET_S390X &&
-	snap_s390x_bridge_restore_slot13_log_enabled() &&
+#if LJ_TARGET_S390X
+    if (snap_s390x_bridge_restore_slot13_log_enabled() &&
 	snap_s390x_bridge_restore_slot13_focus(J) &&
 	snap_slot(sn) >= 9 && snap_slot(sn) <= 13) {
       IRRef ref = snap_ref(sn);
@@ -1314,6 +1314,7 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	      (unsigned int)ir->prev, (int)itype(o),
 	      (unsigned long long)o->u64);
     }
+#endif
     if (!(sn & SNAP_NORESTORE)) {
       TValue *o = &frame[snap_slot(sn)];
       IRRef ref = snap_ref(sn);
@@ -1383,8 +1384,8 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	o->u32.lo = (uint32_t)(LJ_DUALNUM ? intV(o) : lj_num2int(numV(o)));
 	o->u32.hi = LJ_KEYINDEX;
       }
-      if (LJ_TARGET_S390X &&
-	  snap_s390x_bridge_restore_slot13_log_enabled() &&
+#if LJ_TARGET_S390X
+      if (snap_s390x_bridge_restore_slot13_log_enabled() &&
 	  snap_s390x_bridge_restore_slot13_focus(J) &&
 	  snap_slot(sn) >= 9 && snap_slot(sn) <= 13) {
 	fprintf(stderr,
@@ -1393,6 +1394,7 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 		(unsigned int)snap_slot(sn), (int)itype(o),
 		(unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
       }
+#endif
     }
   }
 #if LJ_FR2
@@ -1412,8 +1414,8 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
     L->top = frame + snap->nslots;
     break;
   }
-  if (LJ_TARGET_S390X &&
-      snap_s390x_bridge_restore_slot13_log_enabled() &&
+#if LJ_TARGET_S390X
+  if (snap_s390x_bridge_restore_slot13_log_enabled() &&
       snap_s390x_bridge_restore_slot13_focus(J)) {
     int s;
     for (s = 9; s <= 13; s++) {
@@ -1425,6 +1427,7 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	      tvisnum(o) ? numV(o) : 0.0);
     }
   }
+#endif
   return pc;
 }
 
