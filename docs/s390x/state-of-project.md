@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 11:35:00 PDT
+Last updated: 2026-03-31 11:48:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -180,6 +180,15 @@ abstract” and not “one more backend micro-optimization.” The next justifie
 target is the exact steady-state exit / side-trace ownership on the frozen
 baseline, starting with value-only hash.
 
+A fresh focused follow-up on `kdz` narrowed that one step further:
+
+- steady-state value-only hash repeatedly takes `TRACE 1 exit 1`
+- the matching `jit.dump=is` root trace shows that seam is in the early root
+  snapshot region ahead of the visible value-lane add path
+- this is an inference from snapshot ordering, but it points the next work at
+  hidden control / root ownership around the `KEYINDEX` / `lj_vm_next` seam,
+  not at the visible value lane and not at late backend lowering
+
 ## What The Freeze Point Means
 
 The current branch should be operated as a shipping baseline, not as an open
@@ -242,9 +251,10 @@ The immediate next steps are operational, not exploratory:
    - same-host pinned `kdz` A/B as the policy signal
 4. Keep the remaining perf discussion on root-trace and side-trace ownership,
    not bridge work, no-guard ideas, or late backend rewrites.
-5. Use the truth pack to answer the next exact question before any new code:
-   - what is the exact steady-state exit site for value-only hash on the
-     frozen baseline?
+5. Use the truth pack and focused follow-up probes to answer the next exact
+   question before any new code:
+   - why is value-only hash repeatedly taking `TRACE 1 exit 1` on the frozen
+     baseline?
 6. Do not open a new perf patch family until either:
    - the current post-cleanup drift is explained, or
    - a genuinely new root-trace or side-trace storage/control materialization

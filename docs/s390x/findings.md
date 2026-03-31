@@ -9,6 +9,30 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 11:48:00 PDT`
+- Focused follow-up on the frozen `kdz` baseline after the truth pack:
+  - a post-warmup `jit.dump` `texit` probe on value-only hash shows repeated
+    `TRACE 1 exit 1`
+  - the matching `jit.dump=is` root trace still records:
+    - hidden `KEYINDEX SLOAD #10`
+    - helper `CALLL lj_vm_next (0002 0003)`
+    - helper `VLOAD #0`
+    - carried-total `SLOAD #3`
+    - `ADDOV`
+  - snapshot ordering on that same root trace is:
+    - `SNAP #0`
+    - `SNAP #1`
+    - hidden `KEYINDEX` / helper-call path
+    - `SNAP #2`
+    - carried-total `SLOAD`
+    - `ADDOV`
+  - inference:
+    - the repeated `TRACE 1 exit 1` seam is in the early root snapshot region,
+      ahead of the visible value-lane add path
+    - the next justified target is therefore early hidden-control /
+      root-ownership around `KEYINDEX` / `lj_vm_next`, not the visible value
+      lane and not late backend lowering
+
 - Timestamp: `2026-03-31 11:35:00 PDT`
 - A frozen-baseline checkpoint branch now exists:
   - `k8ika0s/s390x-jit-on-freeze-20260331`

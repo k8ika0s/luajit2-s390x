@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 11:35:00 PDT
+Last updated: 2026-03-31 11:48:00 PDT
 
 ## Scope
 
@@ -192,6 +192,16 @@ baseline, starting from the exact steady-state exit site for value-only hash.
 This is not permission to reopen bridge work, no-guard families, or backend
 micro-surgery.
 
+Focused follow-up on `kdz` narrowed that site further:
+
+- a post-warmup `jit.dump` `texit` probe on value-only hash shows repeated
+  `TRACE 1 exit 1`
+- the matching `jit.dump=is` root trace places that seam in the early root
+  snapshot region ahead of the visible value-lane add path
+- this is an inference from snapshot ordering, but it means the next target is
+  the early hidden-control/root-ownership seam, not the visible value lane and
+  not a late backend add/compare rewrite
+
 Fresh proof artifacts from the checked-in helpers:
 
 - `kdz` truth-pack bundle:
@@ -283,8 +293,8 @@ Current status against that gate:
 - the minimal checkpoint regression screen is complete on `zkd0`
 - the owner map is refreshed
 - the next open question is now narrower:
-  - what exact steady-state exit site is driving the nonzero `texit` counts
-    on value-only hash?
+  - why is value-only hash repeatedly taking `TRACE 1 exit 1` on the frozen
+    baseline?
 - there is still no justified new code-level perf patch until that site is
   identified cleanly
 
