@@ -1,6 +1,6 @@
 # s390x Validation Runbook
 
-Last updated: 2026-03-31 08:25:08 PDT
+Last updated: 2026-03-31 09:12:31 PDT
 
 ## Purpose
 
@@ -91,8 +91,8 @@ taskset -c 0 ./src/luajit tests/s390x/perf/iterator_table.lua
 
 Current frozen baseline:
 
-- `pairs_sum/hot median=0.056362`
-- `pairs_array_sum/hot median=0.061370`
+- `pairs_sum/hot median=0.059818`
+- `pairs_array_sum/hot median=0.061622`
 
 `zkd0` regression screen uses the same benchmark plus focused micros and should
 stay within the current green band:
@@ -100,8 +100,8 @@ stay within the current green band:
 - `HASH_VALUE 3000`
 - `HASH_KEY 1320`
 - `ARRAY_VALUE 3000`
-- `pairs_sum/hot median=0.098189`
-- `pairs_array_sum/hot median=0.097454`
+- `pairs_sum/hot median=0.093881`
+- `pairs_array_sum/hot median=0.087945`
 
 ## Focused Micros
 
@@ -164,9 +164,21 @@ Current owner map on the frozen baseline:
 
 - shared `addov_rr_int_eq` is the dominant cross-family payer
 - value-only hash still carries the hidden `KEYINDEX` load cluster
+- value-only hash still carries the carried-total `SLOAD`
 - key-using hash adds a visible key/type `SLOAD`
 - array still carries numeric-key control loads
 - hash root no longer frame-sources the visible value lane
+
+## Entry Gate For New Perf Work
+
+Before writing another iterator perf patch, require all of:
+
+- a named remaining payer
+- a concrete structural proof target
+- an explanation of why the idea is not already in the reject pile
+
+If any of those are missing, stop and restamp the frozen baseline instead of
+starting a new patch family.
 
 ## Reset Rules
 
@@ -186,6 +198,8 @@ Do not reopen these during routine perf work:
 - `KEYINDEX` no-guard variants
 - full-lazy collapse
 - accumulator-to-`num` variants that still keep the back-edge `int.num` check
+- exact accumulator preloads that still leave `int SLOAD #3` plus `ADDOV`
+- backend `AR/SR` and `AGFR/CGFR` rewrite ideas
 
 ## Related Docs
 

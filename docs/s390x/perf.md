@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 09:06:37 PDT
+Last updated: 2026-03-31 09:12:31 PDT
 
 ## Scope
 
@@ -79,12 +79,13 @@ These are the numbers new iterator perf work must beat.
 
 ## Current Owner Map
 
-Low-noise manual logging on the frozen baseline shows:
+Low-noise manual logging and raw IR on the frozen baseline show:
 
 - Value-only hash:
   - dominant shared payer is still `addov_rr_int_eq`
   - main non-value cluster is still the hidden `KEYINDEX` load
   - only other frame `SLOAD` is the carried total slot
+  - helper `VLOAD #0` feeds the visible value lane directly
 - Key-using hash:
   - still pays shared `addov_rr_int_eq`
   - still pays the hidden `KEYINDEX` load
@@ -155,6 +156,39 @@ The one allowed backend classifier also came back negative:
   is a load + tag-extract shift + compare + branch sequence
 - there is no narrow semantic-preserving load/test or compare/branch fusion
   candidate visible from the current lowering
+
+## Future Entry Gate
+
+Do not start another iterator perf patch unless all of these are true first:
+
+- a named remaining payer exists
+- there is a direct structural proof target in raw IR or low-noise logs
+- the idea is not already in the reject pile
+- the candidate can be tested against this exact frozen `kdz` baseline with
+  `zkd0` used only as a regression screen
+
+Acceptable future target shapes:
+
+- one new recorder/live-in idea that removes a remaining root-trace
+  storage/control read
+- one new semantic-preserving lowering idea only if it targets an actually
+  fuseable sequence, not a hoped-for micro-op win
+
+Unacceptable future target shapes:
+
+- anything whose main claim is “fewer backend instructions”
+- anything whose proof is only “the IR looks cleaner”
+- anything that depends on bridge or continuation policy
+
+## Promotable Patch Gate
+
+A future iterator patch is promotable only if it:
+
+- keeps value-only hash, key-using hash, and array control micros green
+- beats the frozen pinned `kdz` baseline
+- does not regress `zkd0`
+- removes a real steady-state payer in IR or low-noise logs
+- does not rely on branch-shape churn or late backend micro-surgery
 
 ## Benchmark And Logging Commands
 

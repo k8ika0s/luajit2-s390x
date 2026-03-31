@@ -7,6 +7,35 @@ For the current project state in plain language, use
 [state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md).
 This file remains the append-only technical notebook.
 
+## Latest Freeze-Point Note
+
+- Timestamp: `2026-03-31 09:12:31 PDT`
+- The branch is now being operated from a frozen implementation baseline:
+  - Lane A is the shipping build and stability floor
+  - Lane B is the shipping four-piece recorder-side iterator baseline
+  - Lane C remains parked
+- Fresh freeze-point restamp:
+  - `kdz` machine type `8561` (`z15`)
+    - `pairs_sum/hot median=0.059818`
+    - `pairs_array_sum/hot median=0.061622`
+  - `zkd0` machine type `3906` (`z14`)
+    - `pairs_sum/hot median=0.093881`
+    - `pairs_array_sum/hot median=0.087945`
+- Current owner map on the frozen baseline:
+  - shared `addov_rr_int_eq` remains the dominant cross-family payer
+  - value-only hash still pays hidden `KEYINDEX` plus carried-total `SLOAD`
+  - key-using hash adds visible key/type `SLOAD`
+  - array still pays numeric-key control loads
+  - hash does not frame-source the visible value lane
+- Closure result:
+  - the last allowed accumulator-family pass failed its structural gate
+  - the one allowed narrow backend classifier was also negative
+  - no justified follow-up is open from those two families
+- Operating rule from here:
+  - do not reopen perf work unless a genuinely new root-trace
+    storage/control materialization target is identified and can be proven
+    against the frozen `kdz` baseline
+
 ## Harness Status
 
 - The native bring-up harness is implemented under `tools/s390x/`.

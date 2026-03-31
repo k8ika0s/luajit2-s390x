@@ -3,6 +3,12 @@
 This directory now has one canonical current-status page and three supporting
 technical references.
 
+The branch should now be treated as having a frozen implementation baseline:
+
+- Lane A is the shipping build and stability floor
+- Lane B is the shipping recorder-side iterator baseline
+- Lane C is parked research and should not leak back into perf work
+
 ## Read This First
 
 - Current project state:
@@ -53,6 +59,17 @@ technical references.
   - four-piece split in
     [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
 - Lane C: parked bridge and continuation research only
+
+## Current Default
+
+The default from here is to ship the frozen Lane A plus Lane B stack unless a
+genuinely new root-trace storage/control materialization target appears.
+
+Any future perf idea must clear three gates before code starts:
+
+1. name the remaining payer
+2. define the structural proof target
+3. explain why the idea is not already in the reject pile
 
 ## Documentation Maintenance Rule
 
