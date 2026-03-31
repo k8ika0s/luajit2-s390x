@@ -362,10 +362,27 @@ The remaining break is later:
 - this means the promoted child is known to runtime owner selection but still
   not used for direct execution handoff
 
+That is not just a missing assignment:
+
+- the active runtime in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  only consumes resume contracts for:
+  - side traces with `targetT->root == 0` and `retop == BC_ITERN`
+  - root-owned traces with `targetT->root != 0` and
+    `bc_op(targetT->startins) == BC_JMP`
+- frozen iterator roots do not satisfy either branch because they start at
+  `BC_ITERN`, not `BC_JMP`
+- `rec_setup_root()` and `rec_itern()` in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  also treat iterator roots specially via `LJ_TRACE_RECORD_1ST` and a custom
+  first-ins loop handoff
+- so a root iterator resume path would be a new supported contract, not a
+  one-line `resumevalid` fill-in
+
 So the next valid question is narrower again:
 
-- why does the root iterator owner never arm a usable resume contract for the
-  promoted child path?
+- should the perf branch create a real root-`ITERN` resume contract, or is the
+  better target still non-resume owner/steady-state control selection?
 
 Fresh proof artifacts from the checked-in helpers:
 

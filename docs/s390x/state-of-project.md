@@ -307,10 +307,28 @@ has no resume contract:
 - `retop` remains the root `ITERN`
 - so `JLOOP_EXIT` still takes `phase=dispatch-original` even after promotion
 
+That gap is now mechanically explained, not just observed:
+
+- the runtime only consumes iterator resume contracts in two supported shapes
+  in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - side traces with `targetT->root == 0` and `retop == BC_ITERN`
+  - root-owned traces with `targetT->root != 0` and
+    `bc_op(targetT->startins) == BC_JMP`
+- raw iterator roots do not match either shape:
+  - iterator roots are born with `startins == BC_ITERN`
+  - `rec_setup_root()` also puts them on the special `LJ_TRACE_RECORD_1ST`
+    path in [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  - `rec_itern()` then drives its own first-ins loop detection and `pc`
+    handoff
+- so “arm `resumevalid` on the root” would not be a small missing-field fix
+- it would be a new end-to-end root-iterator resume contract spanning the
+  recorder and `JLOOP_EXIT` runtime logic
+
 That makes the next exact target:
 
-- explain why root iterator owners never arm `resumevalid`/`resumeins`
-  for this promoted-child path, leaving `target_exec` known but unused
+- decide whether root `ITERN` ownership should get a real supported resume
+  contract at all, or whether this seam should move back to non-resume owner
+  selection
 
 One more focused classifier made that split more concrete:
 
