@@ -571,68 +571,11 @@ static int lj_record_s390x_recloop_focus_enabled(void)
   return enabled;
 }
 
-static int lj_record_s390x_root_freeze_log_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_FREEZE_LOG") != NULL);
-  return enabled;
-}
-
-static int lj_record_s390x_root_itern_setup_iterl_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_ITERN_SETUP_ITERL") != NULL);
-  return enabled;
-}
-
-static int lj_record_s390x_root_itern_owner_loop_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_ITERN_OWNER_LOOP") != NULL);
-  return enabled;
-}
-
 static int lj_record_s390x_is_itern_follow_op(BCOp op)
 {
   return op == BC_ITERL || op == BC_IITERL || op == BC_JITERL ||
 	 op == BC_LOOP || op == BC_ILOOP || op == BC_JLOOP ||
 	 op == BC_JMP;
-}
-
-static const BCIns *lj_record_s390x_itern_resume_pc(const BCIns *pc)
-{
-  if (lj_record_s390x_is_itern_follow_op(bc_op(pc[1])))
-    return pc + 1;
-  return NULL;
-}
-
-static int lj_record_s390x_root_resume_saved_match(jit_State *J,
-						   const BCIns *pc)
-{
-  return lj_record_s390x_root_itern_setup_iterl_enabled() &&
-	 J->parent == 0 &&
-	 J->cur.traceno == 1 &&
-	 bc_op(pc[0]) == BC_ITERN &&
-	 J->s390x_root_resumevalid &&
-	 J->s390x_root_resumepc == pc + 1;
-}
-
-static int lj_record_s390x_root_itern_setup_iterl_match(jit_State *J,
-							const BCIns *pc)
-{
-  /* Scratch-only classifier for the recovered array root family. Keep this
-  ** narrow so we don't perturb unrelated root traces while proving where the
-  ** ownership change must be born.
-  */
-  return lj_record_s390x_root_itern_setup_iterl_enabled() &&
-	 J->parent == 0 &&
-	 J->cur.traceno == 1 &&
-	 bc_op(pc[0]) == BC_ITERN &&
-	 lj_record_s390x_itern_resume_pc(pc) != NULL &&
-	 bc_j(pc[1]) < 0;
 }
 
 static int lj_record_s390x_no_extra_loop_cont_stub_enabled(void)
@@ -641,25 +584,6 @@ static int lj_record_s390x_no_extra_loop_cont_stub_enabled(void)
   if (enabled == -1)
     enabled = (getenv("LUAJIT_S390X_NO_EXTRA_LOOP_CONT_STUB") != NULL);
   return enabled;
-}
-
-static void lj_record_s390x_root_freeze_log(jit_State *J, const char *site)
-{
-  if (!lj_record_s390x_root_freeze_log_enabled())
-    return;
-  fprintf(stderr,
-	  "S390X_ROOT_FREEZE site=%s trace=%u parent=%u exit=%u pc=%p startpc=%p cur_startpc=%p startins=%u resumepc=%p cur_resumepc=%p resumeins=%u resumevalid=%u saved_resumepc=%p saved_resumeins=%u saved_resumevalid=%u\n",
-	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-	  (unsigned int)J->exitno, (const void *)J->pc,
-	  (const void *)J->startpc, (const void *)mref(J->cur.startpc, BCIns),
-	  (unsigned int)bc_op(J->cur.startins),
-	  (const void *)J->s390x_root_resumepc,
-	  (const void *)mref(J->cur.resumepc, BCIns),
-	  (unsigned int)bc_op(J->cur.resumeins),
-	  (unsigned int)J->cur.resumevalid,
-	  (const void *)J->s390x_root_resumepc,
-	  (unsigned int)bc_op(J->s390x_root_resumeins),
-	  (unsigned int)J->s390x_root_resumevalid);
 }
 
 static int lj_record_s390x_ir_log_enabled(void)
@@ -766,22 +690,6 @@ static int lj_record_s390x_retry_first_array_exit_limit(void)
     limit = s ? atoi(s) : 5;
   }
   return limit;
-}
-
-static int lj_record_s390x_restore_payload_startpc_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RESTORE_PAYLOAD_STARTPC") != NULL);
-  return enabled;
-}
-
-static int lj_record_s390x_restore_side_jloop_startpc_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RESTORE_SIDE_JLOOP_STARTPC") != NULL);
-  return enabled;
 }
 
 static int lj_record_s390x_looplink_payload_desc_enabled(void)
@@ -1492,7 +1400,6 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     J->base[ra+1] = ix.val;
   lj_record_s390x_itern_focus_log(J, "after_next", ra, &ix, nextt, keyflags);
   if (!tref_isnil(ix.key)) {  /* Looping back? */
-    const BCIns *oldpc = J->pc;
     if (lj_record_s390x_retry_first_array_exit_enabled() &&
 	J->parent == 4 && J->exitno == 1 &&
 	(keyflags & IRSLOAD_KIDX_NUMKEY)) {
@@ -1507,13 +1414,6 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
       }
     }
     lj_record_s390x_itern_focus_log(J, "payload", ra, &ix, nextt, keyflags);
-#if LJ_TARGET_S390X
-    if (!J->parent && bc_op(J->cur.startins) == BC_ITERN && J->base[ra-1]) {
-      J->s390x_root_resumekey = J->base[ra-1];
-      J->s390x_root_resumekeyslot = ra-1;
-      J->s390x_root_resumekeyvalid = 1;
-    }
-#endif
     J->base[ra-1] = ix.mobj | TREF_KEYINDEX;  /* Control var has next index. */
     J->base[ra] = ix.key;
     J->base[ra+1] = ix.val;
@@ -1538,21 +1438,6 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 		allow_payload_desc = 1;
 	      }
 	    }
-    if (lj_record_s390x_restore_payload_startpc_enabled() &&
-	(keyflags & IRSLOAD_KIDX_NUMKEY) &&
-	J->parent != 0 && J->exitno == 1 &&
-	J->startpc == NULL &&
-	entrypc != NULL && bc_op(*entrypc) == BC_JLOOP &&
-	root != 0 && traceref(J, J->parent)->root == root) {
-      J->startpc = entrypc;
-      if (lj_record_s390x_stop_log_enabled()) {
-	fprintf(stderr,
-		"S390X_RECITERN trace=%u parent=%u exit=%u restored_startpc=%p startop=%u\n",
-		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		(unsigned int)J->exitno, (const void *)J->startpc,
-		(unsigned int)bc_op(*J->startpc));
-      }
-    }
 	    if (lj_record_s390x_stop_log_enabled()) {
 	      fprintf(stderr,
 		      "S390X_RECITERN trace=%u parent=%u exit=%u oldpc=%p oldop=%u newpc=%p newop=%u startpc=%p key_nil=0\n",
@@ -3766,69 +3651,11 @@ static const BCIns *rec_setup_root(jit_State *J)
     J->bc_min = pc;
     break;
   case BC_ITERN:
-    if (lj_record_s390x_root_freeze_log_enabled() &&
-	!lj_record_s390x_is_itern_follow_op(bc_op(pc[1]))) {
-      fprintf(stderr,
-	      "S390X_ROOT_FREEZE site=rec_setup_root_bad_itern trace=%u parent=%u exit=%u pc=%p op0=%u pc1=%p op1=%u iterl=%u iiterl=%u jiterl=%u loop=%u iloop=%u jloop=%u jmp=%u match=%u startpc=%p cur_startpc=%p startins=%u\n",
-	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-	      (unsigned int)J->exitno, (const void *)pc,
-	      (unsigned int)bc_op(pc[0]), (const void *)(pc + 1),
-	      (unsigned int)bc_op(pc[1]),
-	      (unsigned int)BC_ITERL, (unsigned int)BC_IITERL,
-	      (unsigned int)BC_JITERL, (unsigned int)BC_LOOP,
-	      (unsigned int)BC_ILOOP, (unsigned int)BC_JLOOP,
-	      (unsigned int)BC_JMP,
-	      (unsigned int)lj_record_s390x_is_itern_follow_op(bc_op(pc[1])),
-	      (const void *)J->startpc,
-	      (const void *)mref(J->cur.startpc, BCIns),
-	      (unsigned int)bc_op(J->cur.startins));
-    }
     lj_assertJ(lj_record_s390x_is_itern_follow_op(bc_op(pc[1])),
 	       "no resumable loop op after ITERN");
     J->maxslot = ra;
     J->bc_extent = (MSize)(-bc_j(pc[1]))*sizeof(BCIns);
     J->bc_min = pc+2 + bc_j(pc[1]);
-    if (lj_record_s390x_root_itern_setup_iterl_match(J, pc) ||
-	lj_record_s390x_root_resume_saved_match(J, pc)) {
-      const BCIns *newpc;
-      BCIns newins;
-      if (lj_record_s390x_root_itern_setup_iterl_match(J, pc)) {
-	newpc = lj_record_s390x_itern_resume_pc(pc);
-	newins = *newpc;
-	if (!J->s390x_root_resumevalid) {
-	  J->s390x_root_resumepc = newpc;
-	  J->s390x_root_resumeins = newins;
-	  J->s390x_root_resumevalid = 1;
-	}
-      } else {
-	newpc = J->s390x_root_resumepc;
-	newins = J->s390x_root_resumeins;
-      }
-      if (lj_record_s390x_root_freeze_log_enabled()) {
-        fprintf(stderr,
-                "S390X_ROOT_CANON phase=%s trace=%u parent=%u exit=%u oldpc=%p newpc=%p oldop=%u newop=%u savedvalid=%u\n",
-                lj_record_s390x_root_itern_setup_iterl_match(J, pc) ?
-                "rec_setup_root" : "rec_setup_root_saved",
-                (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-                (unsigned int)J->exitno, (const void *)pc, (const void *)newpc,
-                (unsigned int)bc_op(pc[0]),
-                (unsigned int)bc_op(newins),
-                (unsigned int)J->s390x_root_resumevalid);
-      }
-      setmref(J->cur.resumepc, newpc);
-      J->cur.resumeins = newins;
-      J->cur.resumevalid = 1;
-    }
-    if (lj_record_s390x_root_itern_owner_loop_enabled() &&
-	J->parent == 0 && J->cur.traceno == 1) {
-      J->cur.unused1 = (uint8_t)BC_LOOP;
-      if (lj_record_s390x_root_freeze_log_enabled()) {
-	fprintf(stderr,
-		"S390X_ROOT_CANON phase=rec_setup_root_owner trace=%u parent=%u exit=%u ownerop=%u\n",
-		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		(unsigned int)J->exitno, (unsigned int)J->cur.unused1);
-      }
-    }
     J->state = LJ_TRACE_RECORD_1ST;  /* Record the first ITERN, too. */
     break;
   case BC_LOOP:
@@ -3912,14 +3739,6 @@ void lj_record_setup(jit_State *J)
   J->cur.resumeins = 0;
   J->cur.resumevalid = 0;
   J->cur.unused1 = 0;
-  if (J->parent != 0 || J->cur.traceno != 1 || bc_op(*J->pc) != BC_ITERN) {
-    J->s390x_root_resumepc = NULL;
-    J->s390x_root_resumeins = 0;
-    J->s390x_root_resumevalid = 0;
-    J->s390x_root_resumekey = 0;
-    J->s390x_root_resumekeyslot = 0;
-    J->s390x_root_resumekeyvalid = 0;
-  }
   if (J->parent) {  /* Side trace. */
     GCtrace *T = traceref(J, J->parent);
     TraceNo root = T->root ? T->root : J->parent;
@@ -3961,22 +3780,6 @@ void lj_record_setup(jit_State *J)
   sidecheck:
     lj_record_s390x_side_replay_log(J, "after_sidecheck", T);
     lj_record_s390x_side_focus_log(J, "after_sidecheck", T);
-    if (lj_record_s390x_restore_side_jloop_startpc_enabled() &&
-	J->startpc == NULL &&
-	J->exitno == 1 &&
-	T->root != 0 &&
-	bc_op(T->startins) == BC_JLOOP &&
-	bc_op(*J->pc) == BC_JLOOP) {
-      J->startpc = J->pc;
-      if (lj_record_s390x_stop_log_enabled()) {
-	fprintf(stderr,
-		"S390X_RECSETUP trace=%u parent=%u exit=%u restored_side_startpc=%p startop=%u parent_startop=%u\n",
-		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		(unsigned int)J->exitno, (const void *)J->startpc,
-		(unsigned int)bc_op(*J->startpc),
-		(unsigned int)bc_op(T->startins));
-      }
-    }
     lj_record_s390x_setup_log(J, "side_ready");
     {
       int root_limit = (traceref(J, J->cur.root)->nchild >= J->param[JIT_P_maxside]);
@@ -4014,9 +3817,7 @@ void lj_record_setup(jit_State *J)
   } else {  /* Root trace. */
     J->cur.root = 0;
     J->cur.startins = *J->pc;
-    lj_record_s390x_root_freeze_log(J, "root_before_rec_setup_root");
     J->pc = rec_setup_root(J);
-    lj_record_s390x_root_freeze_log(J, "root_after_rec_setup_root");
     /* Note: the loop instruction itself is recorded at the end and not
     ** at the start! So snapshot #0 needs to point to the *next* instruction.
     ** The one exception is BC_ITERN, which sets LJ_TRACE_RECORD_1ST.

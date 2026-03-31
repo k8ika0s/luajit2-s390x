@@ -103,72 +103,9 @@ static MSize snapshot_slots(jit_State *J, SnapEntry *map, BCReg nslots)
   IRRef retf = J->chain[IR_RETF];  /* Limits SLOAD restore elimination. */
   BCReg s;
   MSize n = 0;
-  static int s390x_root_resume_precall_key_enabled = -1;
-  static int s390x_root_resume_slot10_precall_key_enabled = -1;
-  static int s390x_root_resume_slot9_precall_key_enabled = -1;
-  static int s390x_root_resume_slot13_precall_key_enabled = -1;
-  static int s390x_loopdesc_bridge_slot13_precall_key_enabled = -1;
-  if (s390x_root_resume_precall_key_enabled == -1)
-    s390x_root_resume_precall_key_enabled =
-      (getenv("LUAJIT_S390X_ROOT_RESUME_PRECALL_KEY") != NULL);
-  if (s390x_root_resume_slot10_precall_key_enabled == -1)
-    s390x_root_resume_slot10_precall_key_enabled =
-      (getenv("LUAJIT_S390X_ROOT_RESUME_SLOT10_PRECALL_KEY") != NULL);
-  if (s390x_root_resume_slot9_precall_key_enabled == -1)
-    s390x_root_resume_slot9_precall_key_enabled =
-      (getenv("LUAJIT_S390X_ROOT_RESUME_SLOT9_PRECALL_KEY") != NULL);
-  if (s390x_root_resume_slot13_precall_key_enabled == -1)
-    s390x_root_resume_slot13_precall_key_enabled =
-      (getenv("LUAJIT_S390X_ROOT_RESUME_SLOT13_PRECALL_KEY") != NULL);
-  if (s390x_loopdesc_bridge_slot13_precall_key_enabled == -1)
-    s390x_loopdesc_bridge_slot13_precall_key_enabled =
-      (getenv("LUAJIT_S390X_LOOPDESC_BRIDGE_SLOT13_PRECALL_KEY") != NULL);
   for (s = 0; s < nslots; s++) {
     TRef tr = J->slot[s];
     IRRef ref = tref_ref(tr);
-#if LJ_TARGET_S390X
-    if (s390x_root_resume_precall_key_enabled &&
-	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
-	J->s390x_root_resumekeyvalid &&
-	s == J->s390x_root_resumekeyslot &&
-	(tr & TREF_KEYINDEX)) {
-      tr = J->s390x_root_resumekey;
-      ref = tref_ref(tr);
-    }
-    if (s390x_root_resume_slot10_precall_key_enabled &&
-	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
-	J->s390x_root_resumekeyvalid &&
-	s == 10) {
-      tr = J->s390x_root_resumekey;
-      ref = tref_ref(tr);
-    }
-    if (s390x_root_resume_slot9_precall_key_enabled &&
-	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
-	J->s390x_root_resumekeyvalid &&
-	s == 9) {
-      tr = J->s390x_root_resumekey;
-      ref = tref_ref(tr);
-    }
-    if (s390x_root_resume_slot13_precall_key_enabled &&
-	!J->parent && bc_op(J->cur.startins) == BC_ITERN &&
-	J->s390x_root_resumekeyvalid &&
-	s == 13) {
-      tr = J->s390x_root_resumekey;
-      ref = tref_ref(tr);
-    }
-	    if (s390x_loopdesc_bridge_slot13_precall_key_enabled &&
-		J->cur.root == 1 &&
-		J->parent >= 3 &&
-		J->exitno == 0 &&
-		bc_op(J->cur.startins) == BC_JMP &&
-	J->cur.linktype == LJ_TRLINK_ROOT &&
-	J->cur.link != 0 &&
-	J->s390x_root_resumekeyvalid &&
-	s == 13) {
-	      tr = J->s390x_root_resumekey;
-	      ref = tref_ref(tr);
-	    }
-#endif
 #if LJ_FR2
     if (s == 1) {  /* Ignore slot 1 in LJ_FR2 mode, except if tailcalled. */
       if ((tr & TREF_FRAME))

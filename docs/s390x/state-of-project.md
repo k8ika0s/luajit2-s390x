@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 09:12:31 PDT
+Last updated: 2026-03-31 10:14:33 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -26,6 +26,8 @@ non-causal probe effects. The current state is cleaner:
 - the current iterator wins are recorder-side and measurable
 - the older bridge and continuation work remains useful research, but it is no
   longer the main performance frontier
+- the old root-resume and pre-call-key bridge scaffolding has now been pruned
+  out of the active source baseline
 - the default branch posture from here is to ship Lane A plus Lane B unless a
   genuinely new root-trace storage/control materialization target appears
 
@@ -80,6 +82,19 @@ Current pinned `kdz` hot medians on the frozen baseline are:
 That is still much slower than the `-joff` baseline, but it is materially
 better than the older iterator baselines that were dominated by avoidable
 recorder-side payers.
+
+### Freeze-point cleanup
+
+The source now also matches the freeze-point docs more closely:
+
+- the parked root-resume and pre-call-key scaffolding was removed from
+  [src/lj_jit.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_jit.h),
+  [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c),
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+  and [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+- that cleanup is not a new performance claim
+- local host build still succeeds after the cleanup
+- native `kdz` and `zkd0` restamp is still pending from this machine
 
 ## What Has Not Been Proven Yet
 
