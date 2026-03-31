@@ -58,30 +58,43 @@ This file remains the append-only technical notebook.
         - so `JLOOP_EXIT` falls back to `dispatch-original` and the promoted
           child is not used as a direct execution owner
 
+- Timestamp: `2026-03-31 16:05:00 PDT`
+- Env-gated root-`ITERN` resume contract attempt:
+  - tested under:
+    - `LUAJIT_S390X_ROOT_ITERN_RESUME_CONTRACT=1`
+    - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP=1`
+    - `LUAJIT_S390X_ROOT_JLOOP_CHILD=1`
+  - structural facts on clean `kdz`:
+    - root `trace 1` does arm:
+      - `S390X_ROOT_ITERN_RESUME_ARM trace=1 ... resumevalid=1`
+    - `trace 1 exit 1` still spends a long stretch in:
+      - `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
+    - child promotion still happens later:
+      - `S390X_ROOT_PROMOTE_CHILD trace=2 root=1 ... newtarget=2`
+    - after promotion, execution does not settle into a direct child handoff
+    - it falls into a growing `exit 1` ladder of `BC_JMP` descendants:
+      - `trace 3`, `trace 4`, ... `trace 103+`
+    - the finite array probe then crashes on `kdz`
+  - decision:
+    - reject at the structural gate
+    - the contract is real enough to arm the root, but it does not create a
+      safe stable owner handoff
+    - this family is still not promotable
+  - correction to the prior read:
+    - the runtime did already have a dormant root iterator resume consumer:
+      - `retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid`
+    - so the failure is not “missing consumer”
+    - the failure is the end-to-end contract shape itself
+
 - Timestamp: `2026-03-31 15:05:00 PDT`
 - Root iterator resume-contract classification:
-  - the current tree does not have a supported runtime consumer for a trace
-    that is both:
-    - a root-owned iterator trace
-    - and starts at `BC_ITERN`
-    - and carries a resume contract
-  - in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
-    the live `JLOOP_EXIT` resume branches only accept:
-    - `retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid`
-    - or `targetT->root != 0 && bc_op(targetT->startins) == BC_JMP &&
-      targetT->resumevalid`
-  - frozen iterator roots are outside both shapes:
-    - `rec_setup_root()` leaves them with `startins == BC_ITERN`
-    - `LJ_TRACE_RECORD_1ST`
-    - and `rec_itern()` owns the first-ins loop detection / `pc` handoff in
-      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
-  - implication:
-    - the earlier “root iterator owner has no resume contract” symptom is real
-    - but filling `resumevalid` on the raw root would be a new end-to-end
-      contract, not a small missing-field fix
-    - the next decision is therefore architectural:
-      - either design a supported root-`ITERN` resume path deliberately
-      - or move back to non-resume owner selection as the perf frontier
+  - corrected later by the 16:05 PDT contract attempt above
+  - keep only the narrower lasting point from this pass:
+    - root iterator traces are still special at the recorder boundary via
+      `LJ_TRACE_RECORD_1ST` and `rec_itern()` ownership of the first-ins loop
+      handoff
+    - so any future contract work here is still an end-to-end design problem,
+      not a tiny local field fill-in
 
 - Timestamp: `2026-03-31 14:02:00 PDT`
 - Focused `kdz` first-side ownership classifier:
