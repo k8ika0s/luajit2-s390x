@@ -336,6 +336,38 @@ So the next target is no longer merely first-side formation. It is:
 - explain why steady-state ownership still remains on root `1:1` even when the
   first-side hash loop trace exists
 
+That ownership question is now mechanically constrained:
+
+- the child-owner path is not on by default
+- the relevant hooks in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  are env-gated:
+  - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP`
+  - `LUAJIT_S390X_ROOT_JLOOP_CHILD`
+- on the frozen default baseline, both array and hash still spend the early hot
+  region in:
+  - `parent=1 exit=1`
+  - `target=1`
+  - `phase=dispatch-original`
+
+The forced-owner classifier on array proves something stronger:
+
+- even when the dormant owner path is enabled, the first side trace is only a
+  candidate, not a promoted owner
+- `trace=2` is logged as:
+  - `S390X_ROOT_PROMOTE_CHILD_CAND`
+  - `startop=88`
+  - `link=0`
+  - `linktype=6` (`LJ_TRLINK_INTERP`)
+- because it is not `LJ_TRLINK_LOOP`, the promotion rule does not fire
+- steady-state then degrades into a ladder of root-owned side traces rather than
+  a child-owned loop
+
+So the next valid question is narrower again:
+
+- why does the first side iterator trace stop as `LJ_TRLINK_INTERP` instead of
+  a promotable loop-owner shape?
+
 Fresh proof artifacts from the checked-in helpers:
 
 - `kdz` truth-pack bundle:
