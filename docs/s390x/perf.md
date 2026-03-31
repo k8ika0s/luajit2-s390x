@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 13:05:00 PDT
+Last updated: 2026-03-31 14:02:00 PDT
 
 ## Scope
 
@@ -260,6 +260,37 @@ So the next target is now:
 
 - explain why the default array path reaches a different `rec_loop_jit()`
   stop target and trace family than hash
+
+The latest focused `kdz` classifier narrows that again and moves the split one
+side trace earlier:
+
+- default array and hash do not first diverge at `parent=2 exit=1`
+- they already diverge at the first side trace from `trace 1 exit 1`
+- array:
+  - `TRACE 2 start 1/1`
+  - `S390X_ITERN_FOCUS site=after_next ... nextt=19 ... key_nil=0`
+  - `S390X_ITERN_FOCUS site=payload ...`
+  - `TRACE 2 stop -> loop`
+- hash:
+  - `TRACE 2 start 1/1`
+  - `S390X_ITERN_FOCUS site=after_next ... nextt=4 ... key_nil=1`
+  - `S390X_ITERN_FOCUS site=nil ...`
+  - `TRACE 2 abort ... leaving loop in root trace`
+
+So the current live seam is now explicit:
+
+- array can commit the first side loop because its visible numeric key is
+  already present and the side trace stays on the payload path
+- hash sees a non-nil helper result, but the lazy visible-key policy still
+  leaves `ix.key` unloaded on that first side seam, so the descendant falls
+  into the nil path and aborts before it can become the loop owner
+
+This does not reopen the previously rejected global lazy-key control
+overrides. It only changes the diagnosis:
+
+- the active question is no longer “why does hash fail later child promotion?”
+- it is now “is there any semantic-preserving first-side ownership cut at
+  `trace 1 exit 1` that is not just another rejected lazy-key override?”
 
 Fresh proof artifacts from the checked-in helpers:
 

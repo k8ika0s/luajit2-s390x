@@ -9,6 +9,38 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 14:02:00 PDT`
+- Focused `kdz` first-side ownership classifier:
+  - the earlier “array vs hash diverges at `parent=2 exit=1`” read was too
+    late
+  - the first concrete divergence is already at `trace 1 exit 1`, i.e. the
+    first `TRACE 2 start 1/1`
+- Direct `ITERN_FOCUS` proof on the same binary:
+  - array value-only control:
+    - `TRACE 2 start 1/1`
+    - `site=after_next ... nextt=19 ... key_nil=0`
+    - `site=payload ...`
+    - `TRACE 2 stop -> loop`
+  - value-only hash:
+    - `TRACE 2 start 1/1`
+    - `site=after_next ... nextt=4 ... key_nil=1`
+    - `site=nil ...`
+    - `TRACE 2 abort ... leaving loop in root trace`
+- Meaning:
+  - on the first side seam, hash is still deciding payload vs nil from visible
+    key state, not purely from helper-result non-nil status
+  - array escapes because its numeric visible key is already present
+  - hash falls into the nil-descendant path because the lazy visible-key
+    policy leaves `ix.key` unloaded there even when `nextt` is non-nil
+- Decision:
+  - the next exact target is now:
+    - determine whether there is any semantic-preserving first-side ownership
+      cut at `trace 1 exit 1` that does not just re-open the already rejected
+      lazy-key override family
+  - do not treat this as permission to revive the earlier global
+    `rec_itern()` payload-vs-nil overrides; those were already tested and
+    rejected against pinned `kdz`
+
 - Timestamp: `2026-03-31 13:05:00 PDT`
 - Source diagnosis for the owner-link seam:
   - the first stop target for iterator descendants is chosen in

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 13:05:00 PDT
+Last updated: 2026-03-31 14:02:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -204,6 +204,35 @@ So the next exact target is no longer “what exit is hot?” It is:
 
 - why does hash `exit 1` stay root-owned while array `exit 1` promotes to a
   live side trace?
+
+The latest focused `kdz` probe narrows that one seam earlier:
+
+- array and hash do not first diverge at `parent=2 exit=1`
+- they already diverge at the first side trace from `trace 1 exit 1`
+- array `trace 2` commits immediately on the payload path:
+  - `S390X_ITERN_FOCUS site=after_next ... key_nil=0`
+  - then `site=payload`
+  - then `TRACE 2 stop -> loop`
+- hash `trace 2` never commits that same first side loop, even when
+  `rec_next_types()` reports a non-nil successor:
+  - `S390X_ITERN_FOCUS site=after_next ... nextt=4 ... key_nil=1`
+  - then immediately `site=nil`
+  - then `TRACE 2 abort ... leaving loop in root trace`
+
+That means the current live seam is now concrete:
+
+- the hash first-side descendant is still using visible-key state to decide
+  payload vs nil on a path where the helper result itself is often non-nil
+- array escapes because its numeric visible key is already present
+- hash falls into the nil-descendant path because the lazy visible-key policy
+  leaves `ix.key` unloaded there
+
+This is a diagnosis, not a new landing direction by itself. Earlier global
+attempts to override that payload-vs-nil decision were already tested and
+rejected on pinned `kdz`, so the next valid question is narrower:
+
+- is there any semantic-preserving way to change first-side ownership at
+  `trace 1 exit 1` without reopening the rejected lazy-key override families?
 
 One more focused classifier made that split more concrete:
 
