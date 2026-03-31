@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 09:12:31 PDT
+Last updated: 2026-03-31 10:44:29 PDT
 
 ## Scope
 
@@ -33,6 +33,18 @@ Validation rules:
 - low-noise manual logs or debugger only
 - no dirty-tree `iterator_probe.py` runs for perf decisions
 
+Checked-in restamp helper:
+
+- [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+  now owns the authoritative iterator restamp path
+- it syncs tracked files only, rebuilds directly in `src/`, captures both
+  `jit.on` and `-joff`, runs the three focused micros, and writes:
+  - `metadata.json`
+  - `jit-on.jsonl`
+  - `joff.jsonl`
+  - `summary.md`
+  - raw build, micro, owner-log, and IR-dump logs
+
 ## Frozen Iterator Baseline
 
 The current promotable iterator perf baseline is the four-piece recorder split
@@ -49,20 +61,57 @@ This is a split policy, not a full-lazy collapse.
 
 ## Current Pinned Baseline
 
-Pinned `kdz` baseline on the frozen four-piece split:
+Fresh post-cleanup restamp on the current branch tip:
 
-- `pairs_sum/hot median=0.059818`
-- `pairs_array_sum/hot median=0.061622`
+- `kdz`:
+  - `pairs_sum/hot median=0.061851`
+  - `pairs_array_sum/hot median=0.063845`
+- `zkd0`:
+  - `pairs_sum/hot median=0.156370`
+  - `pairs_array_sum/hot median=0.154843`
 
-`zkd0` regression screen on the same baseline:
+Current same-harness `-joff` comparator on `kdz`:
 
-- `HASH_VALUE 3000`
-- `HASH_KEY 1320`
-- `ARRAY_VALUE 3000`
-- `pairs_sum/hot median=0.093881`
-- `pairs_array_sum/hot median=0.087945`
+- `pairs_sum/hot median=0.004289`
+- `pairs_array_sum/hot median=0.003695`
 
 These are the numbers new iterator perf work must beat.
+
+The earlier freeze-point reference is still useful as a historical anchor:
+
+- `kdz`: `0.059818 / 0.061622`
+- `zkd0`: `0.093881 / 0.087945`
+
+But the measured branch-tip contract is now the post-cleanup restamp above,
+not the older reference.
+
+## Distance To Expectation
+
+Current `kdz` JIT-on distance to same-harness `-joff`:
+
+- `pairs_sum/hot`
+  - JIT-on `0.061851`
+  - `-joff` `0.004289`
+  - gap `+0.057562s`
+  - ratio `14.42x`
+- `pairs_array_sum/hot`
+  - JIT-on `0.063845`
+  - `-joff` `0.003695`
+  - gap `+0.060150s`
+  - ratio `17.28x`
+
+Delivery ladder from the current `kdz` restamp:
+
+- Restamp bar:
+  - failed
+  - hash `+3.40%` slower than the earlier freeze-point reference
+  - array `+3.61%` slower than the earlier freeze-point reference
+- Recovery bar:
+  - hash target `<= 0.056341`, current gap `+0.005510s`
+  - array target `<= 0.059806`, current gap `+0.004039s`
+- First real-results bar:
+  - hash target `<= 0.050000`, current gap `+0.011851s`
+  - array target `<= 0.055000`, current gap `+0.008845s`
 
 ## What The Current Baseline Proved
 
@@ -79,7 +128,7 @@ These are the numbers new iterator perf work must beat.
 
 ## Current Owner Map
 
-Low-noise manual logging and raw IR on the frozen baseline show:
+Low-noise manual logging and raw IR on the post-cleanup branch tip show:
 
 - Value-only hash:
   - dominant shared payer is still `addov_rr_int_eq`
@@ -99,6 +148,21 @@ Current read:
 - shared `addov_rr_int_eq` is now the dominant cross-family payer
 - hash still carries the hidden `KEYINDEX` load cluster
 - array still carries numeric-key control loads
+- the refreshed owner map did not expose a new target outside the reject pile
+
+Fresh proof artifacts from the checked-in helper:
+
+- `kdz` restamp bundle:
+  - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2/summary.md)
+- `zkd0` restamp bundle:
+  - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-zkd0-post-cleanup-restamp/summary.md)
+- value-only hash IR proof on `kdz`:
+  - [hash_value.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2/raw/ir/hash_value.stdout.log)
+  - still shows:
+    - `int VLOAD 0005 #0`
+    - `int SLOAD #3 T`
+    - `int ADDOV`
+  - and no extra visible value-lane frame `SLOAD`
 
 ## What Is Rejected
 
@@ -164,8 +228,15 @@ Do not start another iterator perf patch unless all of these are true first:
 - a named remaining payer exists
 - there is a direct structural proof target in raw IR or low-noise logs
 - the idea is not already in the reject pile
-- the candidate can be tested against this exact frozen `kdz` baseline with
+- the candidate can be tested against this exact measured branch-tip `kdz` baseline with
   `zkd0` used only as a regression screen
+
+Current status against that gate:
+
+- the post-cleanup restamp is complete
+- the owner map is refreshed
+- no new named payer outside the reject pile has appeared yet
+- so there is no justified new code-level perf patch from this restamp alone
 
 Acceptable future target shapes:
 
@@ -185,14 +256,35 @@ Unacceptable future target shapes:
 A future iterator patch is promotable only if it:
 
 - keeps value-only hash, key-using hash, and array control micros green
-- beats the frozen pinned `kdz` baseline
+- beats the measured branch-tip `kdz` baseline
 - does not regress `zkd0`
 - removes a real steady-state payer in IR or low-noise logs
 - does not rely on branch-shape churn or late backend micro-surgery
 
 ## Benchmark And Logging Commands
 
-From the clean remote repo:
+From the clean local repo, drive the authoritative host restamp with:
+
+```sh
+python3 tools/s390x/restamp_iterator_perf.py \
+  --host kdz \
+  --output-dir artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2
+
+python3 tools/s390x/restamp_iterator_perf.py \
+  --host zkd0 \
+  --output-dir artifacts/s390x/restamps/20260331-zkd0-post-cleanup-restamp
+```
+
+The helper enforces:
+
+- tracked-file sync only
+- direct `src/` rebuild only
+- `S390X_PERF_SAMPLES=9`
+- `S390X_PERF_WARMUP=2`
+- pinned `taskset -c 0` benchmark runs
+- both `jit.on` and `-joff` in the same restamp
+
+Equivalent manual `kdz` benchmark command from the clean remote repo:
 
 ```sh
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"

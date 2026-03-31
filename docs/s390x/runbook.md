@@ -1,6 +1,6 @@
 # s390x Validation Runbook
 
-Last updated: 2026-03-31 09:12:31 PDT
+Last updated: 2026-03-31 10:44:29 PDT
 
 ## Purpose
 
@@ -32,6 +32,38 @@ Use them for:
 
 Do not keep additional long-lived manual perf trees unless the current pair is
 discarded and replaced.
+
+## Authoritative Restamp Entry Point
+
+Use the checked-in helper from the clean local repo:
+
+```sh
+python3 tools/s390x/restamp_iterator_perf.py \
+  --host kdz \
+  --output-dir artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2
+
+python3 tools/s390x/restamp_iterator_perf.py \
+  --host zkd0 \
+  --output-dir artifacts/s390x/restamps/20260331-zkd0-post-cleanup-restamp
+```
+
+That helper is now the default measurement path because it locks the contract:
+
+- tracked-file sync only
+- direct `src/` rebuild only
+- `S390X_PERF_SAMPLES=9`
+- `S390X_PERF_WARMUP=2`
+- pinned `taskset -c 0` benchmark runs
+- same benchmark file for `jit.on` and `-joff`
+- raw owner logs and IR dumps retained beside the benchmark JSONL
+
+Required output bundle:
+
+- `metadata.json`
+- `jit-on.jsonl`
+- `joff.jsonl`
+- `summary.md`
+- `raw/`
 
 ## Non-Negotiable Validation Rules
 
@@ -82,26 +114,47 @@ Current expected outputs:
 
 ## Iterator Perf Restamp
 
-Pinned `kdz` policy run:
+Pinned `kdz` policy run from the helper now comes back as:
 
-```sh
-export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-taskset -c 0 ./src/luajit tests/s390x/perf/iterator_table.lua
-```
+- `pairs_sum/hot median=0.061851`
+- `pairs_array_sum/hot median=0.063845`
 
-Current frozen baseline:
-
-- `pairs_sum/hot median=0.059818`
-- `pairs_array_sum/hot median=0.061622`
-
-`zkd0` regression screen uses the same benchmark plus focused micros and should
-stay within the current green band:
+`zkd0` regression screen uses the same benchmark plus focused micros and
+currently comes back as:
 
 - `HASH_VALUE 3000`
 - `HASH_KEY 1320`
 - `ARRAY_VALUE 3000`
-- `pairs_sum/hot median=0.093881`
-- `pairs_array_sum/hot median=0.087945`
+- `pairs_sum/hot median=0.156370`
+- `pairs_array_sum/hot median=0.154843`
+
+Same-harness `-joff` comparator on `kdz`:
+
+- `pairs_sum/hot median=0.004289`
+- `pairs_array_sum/hot median=0.003695`
+
+Current `kdz` distance to that comparator:
+
+- hash hot:
+  - gap `+0.057562s`
+  - ratio `14.42x`
+- array hot:
+  - gap `+0.060150s`
+  - ratio `17.28x`
+
+Current `kdz` delivery ladder:
+
+- restamp bar:
+  - failed vs the earlier `0.059818 / 0.061622` freeze-point reference
+- recovery bar:
+  - hash current gap `+0.005510s`
+  - array current gap `+0.004039s`
+- first real-results bar:
+  - hash current gap `+0.011851s`
+  - array current gap `+0.008845s`
+
+If the helper restamp bar fails again, stop and explain the drift before
+opening another perf patch family.
 
 ## Focused Micros
 
@@ -160,7 +213,7 @@ LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/hash_key.lua
 LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/array_value.lua
 ```
 
-Current owner map on the frozen baseline:
+Current owner map on the measured branch-tip baseline:
 
 - shared `addov_rr_int_eq` is the dominant cross-family payer
 - value-only hash still carries the hidden `KEYINDEX` load cluster
@@ -168,6 +221,11 @@ Current owner map on the frozen baseline:
 - key-using hash adds a visible key/type `SLOAD`
 - array still carries numeric-key control loads
 - hash root no longer frame-sources the visible value lane
+
+Fresh `kdz` proof bundle:
+
+- [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2/summary.md)
+- [hash_value.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2/raw/ir/hash_value.stdout.log)
 
 ## Entry Gate For New Perf Work
 
@@ -177,8 +235,13 @@ Before writing another iterator perf patch, require all of:
 - a concrete structural proof target
 - an explanation of why the idea is not already in the reject pile
 
-If any of those are missing, stop and restamp the frozen baseline instead of
+If any of those are missing, stop and restamp the measured branch-tip baseline instead of
 starting a new patch family.
+
+After the new helper landed, that rule tightens further:
+
+- if the helper restamp does not reproduce a stable measured branch-tip
+  baseline, do not trust older manual numbers for patch decisions
 
 ## Reset Rules
 

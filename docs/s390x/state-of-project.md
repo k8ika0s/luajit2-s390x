@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 10:14:33 PDT
+Last updated: 2026-03-31 10:44:29 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -28,6 +28,9 @@ non-causal probe effects. The current state is cleaner:
   longer the main performance frontier
 - the old root-resume and pre-call-key bridge scaffolding has now been pruned
   out of the active source baseline
+- the branch now has a checked-in restamp helper at
+  [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+  so post-cleanup iterator numbers are captured under one fixed JIT-on contract
 - the default branch posture from here is to ship Lane A plus Lane B unless a
   genuinely new root-trace storage/control materialization target appears
 
@@ -94,7 +97,22 @@ The source now also matches the freeze-point docs more closely:
   and [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
 - that cleanup is not a new performance claim
 - local host build still succeeds after the cleanup
-- native `kdz` and `zkd0` restamp is still pending from this machine
+- the new checked-in restamp helper caught and forced one native build-floor
+  fix first:
+  - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    needed the old payload-path `oldpc` local restored after the cleanup
+    removed bridge-only branches around it
+- post-cleanup native restamp is now complete on both hosts:
+  - `kdz`:
+    - `pairs_sum/hot median=0.061851`
+    - `pairs_array_sum/hot median=0.063845`
+  - `zkd0`:
+    - `pairs_sum/hot median=0.156370`
+    - `pairs_array_sum/hot median=0.154843`
+- that means the cleanup is source-correct but not performance-neutral against
+  the older freeze-point reference:
+  - `kdz` moved from `0.059818 / 0.061622` to `0.061851 / 0.063845`
+  - `zkd0` moved from `0.093881 / 0.087945` to `0.156370 / 0.154843`
 
 ## What Has Not Been Proven Yet
 
@@ -116,6 +134,20 @@ change the root trace shape: the carried total still came through as
 negative. So there is no justified accumulator-family or simple late-backend
 follow-up left from the current mechanism.
 
+The refreshed post-cleanup owner map also did not expose a new target:
+
+- value-only hash still shows:
+  - hidden `KEYINDEX` load
+  - carried-total `SLOAD`
+  - helper `VLOAD #0` feeding the visible value lane directly
+- key-using hash still adds visible key/type `SLOAD`
+- array still carries numeric-key control loads
+- shared `addov_rr_int_eq` is still the dominant cross-family payer
+
+So the branch is now in a stricter state than before: the measurement contract
+is better, but the refreshed owner map did not justify opening a new perf
+family on its own.
+
 ## What The Freeze Point Means
 
 The current branch should be operated as a shipping baseline, not as an open
@@ -131,8 +163,11 @@ From here, new iterator work only reopens if all of these are true:
 - a named remaining payer exists
 - there is a direct structural proof target in raw IR or low-noise logs
 - the idea is not already in the reject pile
-- the candidate can be tested against the frozen pinned `kdz` baseline with
+- the candidate can be tested against the measured branch-tip `kdz` baseline with
   `zkd0` used only as a regression screen
+
+The current measured branch-tip baseline is therefore the new operational
+contract, even though it is worse than the older freeze-point reference.
 
 ## What Is Parked
 
@@ -161,10 +196,13 @@ without producing a promotable win.
 
 The immediate next steps are operational, not exploratory:
 
-1. Keep the documentation and frozen baseline aligned.
+1. Keep the documentation and measured branch-tip baseline aligned.
 2. Treat Lane A as landed floor work and Lane B as the current promotable
-   iterator baseline.
-3. Restamp the owner map from the frozen baseline when needed, using:
+   iterator baseline in source, while measuring against the new post-cleanup
+   host restamp.
+3. Use
+   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+   for any future authoritative iterator restamp, using:
    - one clean `kdz` perf repo
    - one clean `zkd0` regression repo
    - tracked-file sync only
@@ -172,8 +210,10 @@ The immediate next steps are operational, not exploratory:
    - same-host pinned `kdz` A/B as the policy signal
 4. Keep the remaining perf discussion on root-trace storage/control ownership,
    not bridge work, no-guard ideas, or late backend rewrites.
-5. Only reopen perf work if a genuinely new root-trace storage/control
-   materialization target is identified.
+5. Do not open a new perf patch family until either:
+   - the current post-cleanup drift is explained, or
+   - a genuinely new root-trace storage/control materialization target is
+     identified outside the reject pile
 
 ## Current Baseline Contract
 
@@ -181,11 +221,38 @@ Any future iterator experiment must beat these numbers and preserve their
 interpretation.
 
 - `kdz` machine type `8561` (`z15`)
-  - `pairs_sum/hot median=0.059818`
-  - `pairs_array_sum/hot median=0.061622`
+  - `pairs_sum/hot median=0.061851`
+  - `pairs_array_sum/hot median=0.063845`
 - `zkd0` machine type `3906` (`z14`)
-  - `pairs_sum/hot median=0.093881`
-  - `pairs_array_sum/hot median=0.087945`
+  - `pairs_sum/hot median=0.156370`
+  - `pairs_array_sum/hot median=0.154843`
+
+Same-harness `-joff` comparator on `kdz`:
+
+- `pairs_sum/hot median=0.004289`
+- `pairs_array_sum/hot median=0.003695`
+
+Current distance to that comparator on `kdz`:
+
+- hash hot: `0.061851` vs `0.004289`
+  - `14.42x` slower
+  - `+0.057562s`
+- array hot: `0.063845` vs `0.003695`
+  - `17.28x` slower
+  - `+0.060150s`
+
+Current delivery ladder on `kdz`:
+
+- Restamp bar:
+  - failed
+  - current branch tip is `+3.40%` slower on hash and `+3.61%` slower on
+    array than the older freeze-point reference
+- Recovery bar:
+  - hash target `<= 0.056341`, current gap `+0.005510s`
+  - array target `<= 0.059806`, current gap `+0.004039s`
+- First real-results bar:
+  - hash target `<= 0.050000`, current gap `+0.011851s`
+  - array target `<= 0.055000`, current gap `+0.008845s`
 
 Current owner map contract:
 
@@ -202,13 +269,18 @@ Current owner map contract:
 - Lane A is proven and should be treated as stable floor work.
 - Lane B has a promotable four-piece recorder baseline.
 - Lane C is parked research.
+- the branch now has a reproducible post-cleanup JIT-on measurement path, and
+  that path says the current tip is slower than the older freeze-point
+  reference
 
 ### Next 1-3 work sessions
 
-- keep the docs in sync with the frozen branch state
+- keep the docs in sync with the measured branch-tip state
 - preserve the clean `kdz` and `zkd0` validation surfaces
 - treat the current Lane A plus Lane B freeze point as the branch shipping
-  position unless a genuinely new root-trace ownership idea appears
+  position in source unless a genuinely new root-trace ownership idea appears
+- decide whether the post-cleanup drift is real branch cost or a measurement
+  artifact before opening another perf family
 - avoid reopening any family already closed by the reject pile
 
 ### After that
@@ -216,7 +288,7 @@ Current owner map contract:
 There are only two realistic outcomes:
 
 - a genuinely new root-trace storage/control ownership idea appears and beats
-  the frozen baseline, or
+  the measured branch-tip baseline, or
 - no such idea appears, and the branch moves forward with the proven Lane A
   plus Lane B stack as the current freeze point
 

@@ -29,6 +29,8 @@ The branch should now be treated as having a frozen implementation baseline:
   [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
   - authoritative worktrees
   - rebuild and restamp rules
+  - checked-in helper:
+    [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   - low-noise validation discipline
 
 ## Current Reading Order

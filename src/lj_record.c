@@ -1400,6 +1400,7 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     J->base[ra+1] = ix.val;
   lj_record_s390x_itern_focus_log(J, "after_next", ra, &ix, nextt, keyflags);
   if (!tref_isnil(ix.key)) {  /* Looping back? */
+    const BCIns *oldpc = J->pc;
     if (lj_record_s390x_retry_first_array_exit_enabled() &&
 	J->parent == 4 && J->exitno == 1 &&
 	(keyflags & IRSLOAD_KIDX_NUMKEY)) {
@@ -1420,7 +1421,6 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     J->pc += bc_j(J->pc[1])+2;
 #if LJ_TARGET_S390X
     TraceNo root = J->cur.root;
-    const BCIns *entrypc = mref(J->cur.startpc, const BCIns);
     int allow_payload_desc = 0;
 	    if (root != 0 &&
 		J->exitno == 1 &&
