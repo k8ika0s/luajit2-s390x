@@ -320,6 +320,22 @@ important:
 - turning the first-side hash seam into a real loop is not enough by itself
 - the remaining red is still larger than that ownership cut alone
 
+The next focused follow-up makes the remaining gap more specific:
+
+- even with that seam-local fix enabled, steady-state hash ownership still does
+  not move off the root trace
+- value-only hash on `kdz`:
+  - `TRACE_HIST abort:3=9,start:2=1,start:3=9,stop:2=1`
+  - `TEXIT_HIST 1:1=960000`
+- key-using hash on `kdz`:
+  - `TRACE_HIST abort:3=9,start:3=9`
+  - `TEXIT_HIST 1:1=640000`
+
+So the next target is no longer merely first-side formation. It is:
+
+- explain why steady-state ownership still remains on root `1:1` even when the
+  first-side hash loop trace exists
+
 Fresh proof artifacts from the checked-in helpers:
 
 - `kdz` truth-pack bundle:

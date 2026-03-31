@@ -31,6 +31,13 @@ This file remains the append-only technical notebook.
 - Pinned `kdz` perf result:
   - `pairs_sum/hot median=0.068724`
   - `pairs_array_sum/hot median=0.071057`
+- Steady-state ownership follow-up on the same classifier:
+  - value-only hash:
+    - `TRACE_HIST abort:3=9,start:2=1,start:3=9,stop:2=1`
+    - `TEXIT_HIST 1:1=960000`
+  - key-using hash:
+    - `TRACE_HIST abort:3=9,start:3=9`
+    - `TEXIT_HIST 1:1=640000`
 - Decision:
   - reject
   - the structural fix is real, but it is not promotable because it loses
@@ -39,6 +46,8 @@ This file remains the append-only technical notebook.
     - first-side hash ownership is part of the mechanism
     - but fixing it alone is still not enough to recover native JIT-on
       iterator performance
+    - more specifically, steady-state ownership still stays on root `1:1`
+      even after the first side loop can be recorded
 
 - Timestamp: `2026-03-31 14:02:00 PDT`
 - Focused `kdz` first-side ownership classifier:
