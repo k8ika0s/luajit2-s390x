@@ -58,6 +58,31 @@ This file remains the append-only technical notebook.
         - so `JLOOP_EXIT` falls back to `dispatch-original` and the promoted
           child is not used as a direct execution owner
 
+- Timestamp: `2026-03-31 15:05:00 PDT`
+- Root iterator resume-contract classification:
+  - the current tree does not have a supported runtime consumer for a trace
+    that is both:
+    - a root-owned iterator trace
+    - and starts at `BC_ITERN`
+    - and carries a resume contract
+  - in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+    the live `JLOOP_EXIT` resume branches only accept:
+    - `retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid`
+    - or `targetT->root != 0 && bc_op(targetT->startins) == BC_JMP &&
+      targetT->resumevalid`
+  - frozen iterator roots are outside both shapes:
+    - `rec_setup_root()` leaves them with `startins == BC_ITERN`
+    - `LJ_TRACE_RECORD_1ST`
+    - and `rec_itern()` owns the first-ins loop detection / `pc` handoff in
+      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  - implication:
+    - the earlier “root iterator owner has no resume contract” symptom is real
+    - but filling `resumevalid` on the raw root would be a new end-to-end
+      contract, not a small missing-field fix
+    - the next decision is therefore architectural:
+      - either design a supported root-`ITERN` resume path deliberately
+      - or move back to non-resume owner selection as the perf frontier
+
 - Timestamp: `2026-03-31 14:02:00 PDT`
 - Focused `kdz` first-side ownership classifier:
   - the earlier “array vs hash diverges at `parent=2 exit=1`” read was too
