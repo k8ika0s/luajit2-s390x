@@ -7481,3 +7481,50 @@ Next hash target
   - map root-trace `SLOAD #12 T` on the clean split baseline for value-only
     hash, key-using hash, and array control loops
   - only then decide the next root-trace steady-state patch
+
+2026-03-30: hash root trace was still frame-sourcing the value lane
+
+- Clean `kdz` root-trace mapping on the split baseline showed:
+  - value-only hash: extra frame `int SLOAD #13 T`
+  - key-using hash: `str SLOAD #12 T` is the visible key and `int SLOAD #13 T`
+    is still the value lane
+  - array value-only: no extra frame value `SLOAD`; it uses helper `VLOAD #0`
+    directly
+- That narrowed the remaining hash payer again:
+  - the current hash root trace was not just carrying a stale control input
+  - it was also failing to seed the current value slot from the helper result
+    on the lazy-key non-array path
+- Recorder-side candidate:
+  - keep lazy non-array key behavior unchanged
+  - keep the hidden `KEYINDEX` guard unchanged
+  - but seed `J->base[ra+1]` from `ix.val` on the non-array, non-nil,
+    lazy-key path before the loop/leave decision
+- Structural result on clean `kdz`:
+  - value-only hash root trace changed from
+    - frame `SLOAD #13 T` plus unused helper `VLOAD #0`
+  - to
+    - direct helper `VLOAD #0` feeding the add
+    - no extra frame value `SLOAD`
+- Validation:
+  - `kdz` correctness stayed green:
+    - value-only hash `300`
+    - key-using hash `460`
+    - array control `500`
+  - same-host pinned `kdz` A/B:
+    - candidate:
+      - `pairs_sum/hot median=0.061129`
+      - `pairs_array_sum/hot median=0.061913`
+    - restored split baseline:
+      - `pairs_sum/hot median=0.064761`
+      - `pairs_array_sum/hot median=0.063512`
+  - `zkd0` regression screen stayed green:
+    - value-only hash `300`
+    - key-using hash `460`
+    - array control `500`
+    - `pairs_sum/hot median=0.133049`
+    - `pairs_array_sum/hot median=0.124357`
+- So this is the first post-split hash root-trace steady-state win that:
+  - removes a real frame-materialization payer
+  - keeps key-using hash semantics intact
+  - improves the authoritative `kdz` hot loop
+  - and passes the `zkd0` regression screen
