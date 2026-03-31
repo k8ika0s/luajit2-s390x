@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 10:44:29 PDT
+Last updated: 2026-03-31 11:35:00 PDT
 
 ## Scope
 
@@ -45,6 +45,19 @@ Checked-in restamp helper:
   - `summary.md`
   - raw build, micro, owner-log, and IR-dump logs
 
+Checked-in truth-pack helper:
+
+- [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+  now owns the focused frozen-baseline evidence pack
+- it reuses the same tracked-file sync and direct `src/` rebuild path, then
+  adds:
+  - focused hot medians for value-only hash, key-using hash, and array
+    value-only control
+  - `-jdump=im` IR+mcode for the same three loops
+  - low-noise owner logs
+  - `jit.attach("trace")` and `jit.attach("texit")` counts after warmup
+  - `perf stat` capture when the host supports those events
+
 ## Frozen Iterator Baseline
 
 The current promotable iterator perf baseline is the four-piece recorder split
@@ -59,21 +72,25 @@ in [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/sr
 
 This is a split policy, not a full-lazy collapse.
 
-## Current Pinned Baseline
+## Current Checkpoint Baseline
 
-Fresh post-cleanup restamp on the current branch tip:
+Frozen checkpoint branch:
 
-- `kdz`:
-  - `pairs_sum/hot median=0.061851`
-  - `pairs_array_sum/hot median=0.063845`
+- `k8ika0s/s390x-jit-on-freeze-20260331`
+
+Latest checkpoint evidence:
+
+- `kdz` truth pack:
+  - `pairs_sum/hot median=0.060779`
+  - `pairs_array_sum/hot median=0.066737`
 - `zkd0`:
-  - `pairs_sum/hot median=0.156370`
-  - `pairs_array_sum/hot median=0.154843`
+  - `pairs_sum/hot median=0.132097`
+  - `pairs_array_sum/hot median=0.124149`
 
 Current same-harness `-joff` comparator on `kdz`:
 
-- `pairs_sum/hot median=0.004289`
-- `pairs_array_sum/hot median=0.003695`
+- `pairs_sum/hot median=0.005574`
+- `pairs_array_sum/hot median=0.004126`
 
 These are the numbers new iterator perf work must beat.
 
@@ -90,28 +107,28 @@ not the older reference.
 Current `kdz` JIT-on distance to same-harness `-joff`:
 
 - `pairs_sum/hot`
-  - JIT-on `0.061851`
-  - `-joff` `0.004289`
-  - gap `+0.057562s`
-  - ratio `14.42x`
+  - JIT-on `0.060779`
+  - `-joff` `0.005574`
+  - gap `+0.055205s`
+  - ratio `10.90x`
 - `pairs_array_sum/hot`
-  - JIT-on `0.063845`
-  - `-joff` `0.003695`
-  - gap `+0.060150s`
-  - ratio `17.28x`
+  - JIT-on `0.066737`
+  - `-joff` `0.004126`
+  - gap `+0.062611s`
+  - ratio `16.17x`
 
 Delivery ladder from the current `kdz` restamp:
 
 - Restamp bar:
-  - failed
-  - hash `+3.40%` slower than the earlier freeze-point reference
-  - array `+3.61%` slower than the earlier freeze-point reference
+  - still failed
+  - hash `+1.61%` slower than the earlier freeze-point reference
+  - array `+8.30%` slower than the earlier freeze-point reference
 - Recovery bar:
-  - hash target `<= 0.056341`, current gap `+0.005510s`
-  - array target `<= 0.059806`, current gap `+0.004039s`
+  - hash target `<= 0.056341`, current gap `+0.004438s`
+  - array target `<= 0.059806`, current gap `+0.006931s`
 - First real-results bar:
-  - hash target `<= 0.050000`, current gap `+0.011851s`
-  - array target `<= 0.055000`, current gap `+0.008845s`
+  - hash target `<= 0.050000`, current gap `+0.010779s`
+  - array target `<= 0.055000`, current gap `+0.011737s`
 
 ## What The Current Baseline Proved
 
@@ -150,14 +167,43 @@ Current read:
 - array still carries numeric-key control loads
 - the refreshed owner map did not expose a new target outside the reject pile
 
-Fresh proof artifacts from the checked-in helper:
+## Freeze-Point Truth-Pack Decision
 
+The newest focused truth pack answered the next gating question directly:
+
+- steady-state trace and exit activity is still materially nonzero after
+  warmup
+- value-only hash:
+  - `TRACE_START 10`
+  - `TRACE_ABORT 9`
+  - `TEXIT_COUNT 960000`
+- key-using hash:
+  - `TRACE_START 10`
+  - `TRACE_ABORT 9`
+  - `TEXIT_COUNT 640000`
+- array value-only control:
+  - `TRACE_START 12`
+  - `TRACE_ABORT 10`
+  - `TEXIT_COUNT 960000`
+
+So the remaining red is not yet just compiled-loop throughput. The next
+justified target is still root-trace or side-trace ownership on the frozen
+baseline, starting from the exact steady-state exit site for value-only hash.
+This is not permission to reopen bridge work, no-guard families, or backend
+micro-surgery.
+
+Fresh proof artifacts from the checked-in helpers:
+
+- `kdz` truth-pack bundle:
+  - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-frozen-baseline-truth-pack/summary.md)
 - `kdz` restamp bundle:
   - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2/summary.md)
 - `zkd0` restamp bundle:
   - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-zkd0-post-cleanup-restamp/summary.md)
+- `zkd0` checkpoint screen:
+  - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-zkd0-freeze-branch-screen/summary.md)
 - value-only hash IR proof on `kdz`:
-  - [hash_value.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-kdz-post-cleanup-restamp2/raw/ir/hash_value.stdout.log)
+  - [hash_value.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-frozen-baseline-truth-pack/raw/dump/hash_value.stdout.log)
   - still shows:
     - `int VLOAD 0005 #0`
     - `int SLOAD #3 T`
@@ -233,10 +279,14 @@ Do not start another iterator perf patch unless all of these are true first:
 
 Current status against that gate:
 
-- the post-cleanup restamp is complete
+- the checkpoint truth pack is complete on `kdz`
+- the minimal checkpoint regression screen is complete on `zkd0`
 - the owner map is refreshed
-- no new named payer outside the reject pile has appeared yet
-- so there is no justified new code-level perf patch from this restamp alone
+- the next open question is now narrower:
+  - what exact steady-state exit site is driving the nonzero `texit` counts
+    on value-only hash?
+- there is still no justified new code-level perf patch until that site is
+  identified cleanly
 
 Acceptable future target shapes:
 
@@ -275,7 +325,15 @@ python3 tools/s390x/restamp_iterator_perf.py \
   --output-dir artifacts/s390x/restamps/20260331-zkd0-post-cleanup-restamp
 ```
 
-The helper enforces:
+From the clean local repo, drive the frozen-baseline truth pack with:
+
+```sh
+python3 tools/s390x/build_iterator_truth_pack.py \
+  --host kdz \
+  --output-dir artifacts/s390x/truth-packs/20260331-kdz-frozen-baseline-truth-pack
+```
+
+The helpers enforce:
 
 - tracked-file sync only
 - direct `src/` rebuild only

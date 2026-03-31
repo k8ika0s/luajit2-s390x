@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 10:44:29 PDT
+Last updated: 2026-03-31 11:35:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -31,6 +31,12 @@ non-causal probe effects. The current state is cleaner:
 - the branch now has a checked-in restamp helper at
   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   so post-cleanup iterator numbers are captured under one fixed JIT-on contract
+- the branch now also has a checked-in truth-pack helper at
+  [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+  so the frozen baseline can be examined with the same clean rebuild path plus
+  trace/exit counts, IR+mcode dumps, and counter availability checks
+- a checkpoint branch now exists for the frozen implementation baseline:
+  - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
   genuinely new root-trace storage/control materialization target appears
 
@@ -86,9 +92,10 @@ That is still much slower than the `-joff` baseline, but it is materially
 better than the older iterator baselines that were dominated by avoidable
 recorder-side payers.
 
-### Freeze-point cleanup
+### Freeze-point checkpoint and truth pack
 
-The source now also matches the freeze-point docs more closely:
+The source now also matches the freeze-point docs more closely, and the branch
+has one explicit measurement checkpoint:
 
 - the parked root-resume and pre-call-key scaffolding was removed from
   [src/lj_jit.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_jit.h),
@@ -102,22 +109,40 @@ The source now also matches the freeze-point docs more closely:
   - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
     needed the old payload-path `oldpc` local restored after the cleanup
     removed bridge-only branches around it
-- post-cleanup native restamp is now complete on both hosts:
-  - `kdz`:
-    - `pairs_sum/hot median=0.061851`
-    - `pairs_array_sum/hot median=0.063845`
-  - `zkd0`:
-    - `pairs_sum/hot median=0.156370`
-    - `pairs_array_sum/hot median=0.154843`
-- that means the cleanup is source-correct but not performance-neutral against
-  the older freeze-point reference:
-  - `kdz` moved from `0.059818 / 0.061622` to `0.061851 / 0.063845`
-  - `zkd0` moved from `0.093881 / 0.087945` to `0.156370 / 0.154843`
+- the frozen checkpoint branch is:
+  - `k8ika0s/s390x-jit-on-freeze-20260331`
+- fresh truth-pack and regression-screen numbers on that checkpoint are now:
+  - `kdz` truth pack:
+    - `pairs_sum/hot median=0.060779`
+    - `pairs_array_sum/hot median=0.066737`
+    - `-joff pairs_sum/hot median=0.005574`
+    - `-joff pairs_array_sum/hot median=0.004126`
+  - `zkd0` minimal screen:
+    - `pairs_sum/hot median=0.132097`
+    - `pairs_array_sum/hot median=0.124149`
+- the new important decision from the truth pack is not the exact median twitch;
+  it is the runtime shape:
+  - steady-state trace and exit activity is still materially nonzero after
+    warmup on all three focused loops
+  - value-only hash:
+    - `TRACE_START 10`
+    - `TRACE_ABORT 9`
+    - `TEXIT_COUNT 960000`
+  - key-using hash:
+    - `TRACE_START 10`
+    - `TRACE_ABORT 9`
+    - `TEXIT_COUNT 640000`
+  - array value-only control:
+    - `TRACE_START 12`
+    - `TRACE_ABORT 10`
+    - `TEXIT_COUNT 960000`
+- that means the remaining iterator red is not yet just “expensive compiled
+  loops”; residual exit behavior is still part of the active frontier
 
 ## What Has Not Been Proven Yet
 
 The branch is not done with iterator performance, but the open space is now
-very small.
+both smaller and clearer.
 
 The current remaining performance red is:
 
@@ -144,9 +169,16 @@ The refreshed post-cleanup owner map also did not expose a new target:
 - array still carries numeric-key control loads
 - shared `addov_rr_int_eq` is still the dominant cross-family payer
 
-So the branch is now in a stricter state than before: the measurement contract
-is better, but the refreshed owner map did not justify opening a new perf
-family on its own.
+So the branch is now in a stricter state than before:
+
+- the measurement contract is better
+- the owner map is stable
+- and the truth pack says steady-state exit behavior still exists
+
+That means the next justified perf target is not “compiled throughput in the
+abstract” and not “one more backend micro-optimization.” The next justified
+target is the exact steady-state exit / side-trace ownership on the frozen
+baseline, starting with value-only hash.
 
 ## What The Freeze Point Means
 
@@ -208,12 +240,15 @@ The immediate next steps are operational, not exploratory:
    - tracked-file sync only
    - direct `src/` rebuild only
    - same-host pinned `kdz` A/B as the policy signal
-4. Keep the remaining perf discussion on root-trace storage/control ownership,
+4. Keep the remaining perf discussion on root-trace and side-trace ownership,
    not bridge work, no-guard ideas, or late backend rewrites.
-5. Do not open a new perf patch family until either:
+5. Use the truth pack to answer the next exact question before any new code:
+   - what is the exact steady-state exit site for value-only hash on the
+     frozen baseline?
+6. Do not open a new perf patch family until either:
    - the current post-cleanup drift is explained, or
-   - a genuinely new root-trace storage/control materialization target is
-     identified outside the reject pile
+   - a genuinely new root-trace or side-trace storage/control materialization
+     target is identified outside the reject pile
 
 ## Current Baseline Contract
 
@@ -221,38 +256,38 @@ Any future iterator experiment must beat these numbers and preserve their
 interpretation.
 
 - `kdz` machine type `8561` (`z15`)
-  - `pairs_sum/hot median=0.061851`
-  - `pairs_array_sum/hot median=0.063845`
+  - checkpoint truth-pack `pairs_sum/hot median=0.060779`
+  - checkpoint truth-pack `pairs_array_sum/hot median=0.066737`
 - `zkd0` machine type `3906` (`z14`)
-  - `pairs_sum/hot median=0.156370`
-  - `pairs_array_sum/hot median=0.154843`
+  - checkpoint screen `pairs_sum/hot median=0.132097`
+  - checkpoint screen `pairs_array_sum/hot median=0.124149`
 
 Same-harness `-joff` comparator on `kdz`:
 
-- `pairs_sum/hot median=0.004289`
-- `pairs_array_sum/hot median=0.003695`
+- `pairs_sum/hot median=0.005574`
+- `pairs_array_sum/hot median=0.004126`
 
 Current distance to that comparator on `kdz`:
 
-- hash hot: `0.061851` vs `0.004289`
-  - `14.42x` slower
-  - `+0.057562s`
-- array hot: `0.063845` vs `0.003695`
-  - `17.28x` slower
-  - `+0.060150s`
+- hash hot: `0.060779` vs `0.005574`
+  - `10.90x` slower
+  - `+0.055205s`
+- array hot: `0.066737` vs `0.004126`
+  - `16.17x` slower
+  - `+0.062611s`
 
 Current delivery ladder on `kdz`:
 
 - Restamp bar:
-  - failed
-  - current branch tip is `+3.40%` slower on hash and `+3.61%` slower on
-    array than the older freeze-point reference
+  - checkpoint still does not beat the older freeze-point reference
+  - hash is `+1.61%` slower than `0.059818`
+  - array is `+8.30%` slower than `0.061622`
 - Recovery bar:
-  - hash target `<= 0.056341`, current gap `+0.005510s`
-  - array target `<= 0.059806`, current gap `+0.004039s`
+  - hash target `<= 0.056341`, current gap `+0.004438s`
+  - array target `<= 0.059806`, current gap `+0.006931s`
 - First real-results bar:
-  - hash target `<= 0.050000`, current gap `+0.011851s`
-  - array target `<= 0.055000`, current gap `+0.008845s`
+  - hash target `<= 0.050000`, current gap `+0.010779s`
+  - array target `<= 0.055000`, current gap `+0.011737s`
 
 Current owner map contract:
 

@@ -9,6 +9,46 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 11:35:00 PDT`
+- A frozen-baseline checkpoint branch now exists:
+  - `k8ika0s/s390x-jit-on-freeze-20260331`
+- A checked-in truth-pack helper now exists:
+  - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+  - it reuses the tracked-files-only sync and direct `src/` rebuild path from
+    the restamp helper, then adds focused hot medians, `-jdump=im` IR+mcode,
+    low-noise owner logs, `jit.attach("trace")` / `jit.attach("texit")`
+    counts after warmup, and `perf stat` capture when available
+- Fresh frozen-baseline truth pack on `kdz`:
+  - machine type `8561` (`z15`)
+  - `pairs_sum/hot median=0.060779`
+  - `pairs_array_sum/hot median=0.066737`
+  - `-joff pairs_sum/hot median=0.005574`
+  - `-joff pairs_array_sum/hot median=0.004126`
+- Fresh frozen-baseline minimum screen on `zkd0`:
+  - machine type `3906` (`z14`)
+  - `pairs_sum/hot median=0.132097`
+  - `pairs_array_sum/hot median=0.124149`
+- The new decisive result is runtime shape, not the exact median twitch:
+  - value-only hash after warmup:
+    - `TRACE_START 10`
+    - `TRACE_ABORT 9`
+    - `TEXIT_COUNT 960000`
+  - key-using hash after warmup:
+    - `TRACE_START 10`
+    - `TRACE_ABORT 9`
+    - `TEXIT_COUNT 640000`
+  - array value-only control after warmup:
+    - `TRACE_START 12`
+    - `TRACE_ABORT 10`
+    - `TEXIT_COUNT 960000`
+- Decision:
+  - steady-state exits are still materially nonzero on the frozen baseline
+  - the next justified target is not “compiled throughput only”
+  - the next justified target is the exact steady-state exit / side-trace
+    ownership site, starting with value-only hash
+  - do not reopen bridge work, no-guard ideas, hidden-control carry, or late
+    backend micro-surgery from this result
+
 - Timestamp: `2026-03-31 10:44:29 PDT`
 - A checked-in iterator restamp helper now exists:
   - [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
