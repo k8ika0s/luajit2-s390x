@@ -7528,3 +7528,72 @@ Next hash target
   - keeps key-using hash semantics intact
   - improves the authoritative `kdz` hot loop
   - and passes the `zkd0` regression screen
+
+2026-03-30: pre-seeding the hidden hash control slot from `ix.mobj` is a reject
+
+- On the current baseline after the value-lane fix, clean `kdz` root focus logs
+  show:
+  - array root goes `site=after_next -> site=payload`
+  - hash root still goes `site=after_next -> site=nil`
+- Narrow experiment:
+  - after `lj_record_next()`, but before the `payload` / `nil` split in
+    `rec_itern()`, pre-seed `J->base[ra-1] = ix.mobj | TREF_KEYINDEX` for
+    non-array successful `next()` results
+  - keep lazy visible-key behavior unchanged
+  - keep the semantic hidden `KEYINDEX` guard unchanged
+- Structural result on clean `kdz`:
+  - value-only hash root trace changed from loop
+    - `CALLL lj_vm_next (0002 0003)`
+  - to loop
+    - `CALLL lj_vm_next (0002 0006)`
+    - plus carried `HIOP` / `PHI` for the second helper arg
+- Validation:
+  - `kdz` correctness stayed green:
+    - `HASH_VALUE 300`
+    - `HASH_KEY 460`
+    - `ARRAY_VALUE 500`
+  - same-host pinned `kdz` A/B/A was mixed:
+    - candidate 1:
+      - `pairs_sum/hot median=0.055925`
+      - `pairs_array_sum/hot median=0.060627`
+    - restored baseline:
+      - `pairs_sum/hot median=0.056608`
+      - `pairs_array_sum/hot median=0.058633`
+    - candidate 2:
+      - `pairs_sum/hot median=0.055678`
+      - `pairs_array_sum/hot median=0.058943`
+  - `zkd0` regression screen failed:
+    - candidate:
+      - `pairs_sum/hot median=0.120925`
+      - `pairs_array_sum/hot median=0.121979`
+    - restored baseline:
+      - `pairs_sum/hot median=0.116330`
+      - `pairs_array_sum/hot median=0.108804`
+- Conclusion:
+  - the structural carry is real
+  - but this is not promotable because it does not beat the synced split
+    baseline cleanly on `kdz` and it regresses both hot cases on `zkd0`
+
+2026-03-30: value-only-only hidden-control carry is also a reject
+
+- Narrow follow-up:
+  - keep key-using hash on the old root path
+  - only pre-seed the hidden `KEYINDEX` control slot from `ix.mobj` when a
+    conservative bytecode body scan shows the visible key slot is not read in
+    the loop body
+- Structural result:
+  - value-only hash still flips to loop
+    - `CALLL lj_vm_next (0002 0006)`
+  - key-using hash stays on
+    - `CALLL lj_vm_next (0002 0003)`
+- Validation on pinned `kdz`:
+  - candidate:
+    - `pairs_sum/hot median=0.057171`
+    - `pairs_array_sum/hot median=0.058124`
+  - restored baseline:
+    - `pairs_sum/hot median=0.056608`
+    - `pairs_array_sum/hot median=0.058633`
+- Conclusion:
+  - narrowing the carry to value-only hash is still not enough
+  - the hidden-control carry family should be considered exhausted for the
+    current branch
