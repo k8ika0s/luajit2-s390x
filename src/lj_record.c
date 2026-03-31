@@ -1066,7 +1066,15 @@ static void lj_record_s390x_recbc_log(jit_State *J, const BCIns *pc,
 	  (unsigned long long)base[4].u64, (unsigned long long)base[5].u64);
 }
 
-static IRType rec_next_types(GCtab *t, uint32_t idx);
+static IRType rec_next_types(GCtab *t, uint32_t idx, int *isarray);
+
+static TRef lj_record_s390x_pairs_tab_ref(jit_State *J, int32_t slot, GCtab *t)
+{
+  if ((rec_next_types(t, 0, NULL) & 0xff) != IRT_INT)
+    return J->base[slot] ? J->base[slot] :
+	   sloadt(J, slot, IRT_TAB, IRSLOAD_READONLY);
+  return getslot(J, slot);
+}
 
 /* Simulate the runtime behavior of the FOR loop iterator. */
 static LoopEvent rec_for_iter(IROp *op, cTValue *o, int isforl)
@@ -1449,6 +1457,7 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
   RecordIndex ix;
   IRType nextt;
   uint32_t keyflags;
+  int nextisarray = 0;
   /* Since ITERN is recorded at the start, we need our own loop detection. */
   if (J->pc == J->startpc &&
       J->framedepth + J->retdepth == 0 && J->parent == 0 && J->exitno == 0) {
@@ -1465,10 +1474,10 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
   }
   J->maxslot = ra;
   lj_snap_add(J);  /* Required to make JLOOP the first ins in a side-trace. */
-  ix.tab = getslot(J, ra-2);
   copyTV(J->L, &ix.tabv, &J->L->base[ra-2]);
   copyTV(J->L, &ix.keyv, &J->L->base[ra-1]);
-  nextt = rec_next_types(tabV(&ix.tabv), ix.keyv.u32.lo);
+  nextt = rec_next_types(tabV(&ix.tabv), ix.keyv.u32.lo, &nextisarray);
+  ix.tab = lj_record_s390x_pairs_tab_ref(J, (int32_t)(ra-2), tabV(&ix.tabv));
   keyflags = IRSLOAD_TYPECHECK|IRSLOAD_KEYINDEX;
   if ((nextt & 0xff) == IRT_INT)
     keyflags |= IRSLOAD_KIDX_NUMKEY;
@@ -1650,7 +1659,7 @@ static void rec_isnext(jit_State *J, BCReg ra)
     TRef func = getslot(J, ra-3);
     TRef trid = emitir(IRT(IR_FLOAD, IRT_U8), func, IRFL_FUNC_FFID);
     emitir(IRTGI(IR_EQ), trid, lj_ir_kint(J, FF_next));
-    (void)getslot(J, ra-2); /* Type check for table. */
+    (void)lj_record_s390x_pairs_tab_ref(J, (int32_t)(ra-2), tabV(b+1));
     (void)getslot(J, ra-1); /* Type check for nil key. */
     J->base[ra-1] = lj_ir_kint(J, 0) | TREF_KEYINDEX;
     J->maxslot = ra;
@@ -2632,12 +2641,17 @@ TRef lj_record_idx(jit_State *J, RecordIndex *ix)
 }
 
 /* Determine result type of table traversal. */
-static IRType rec_next_types(GCtab *t, uint32_t idx)
+static IRType rec_next_types(GCtab *t, uint32_t idx, int *isarray)
 {
+  if (isarray)
+    *isarray = 0;
   for (; idx < t->asize; idx++) {
     cTValue *a = arrayslot(t, idx);
-    if (LJ_LIKELY(!tvisnil(a)))
+    if (LJ_LIKELY(!tvisnil(a))) {
+      if (isarray)
+        *isarray = 1;
       return (LJ_DUALNUM ? IRT_INT : IRT_NUM) + (itype2irt(a) << 8);
+    }
   }
   idx -= t->asize;
   for (; idx <= t->hmask; idx++) {
@@ -2653,7 +2667,8 @@ int lj_record_next(jit_State *J, RecordIndex *ix)
 {
   IRType t, tkey, tval;
   TRef trvk;
-  t = rec_next_types(tabV(&ix->tabv), ix->keyv.u32.lo);
+  int nextisarray = 0;
+  t = rec_next_types(tabV(&ix->tabv), ix->keyv.u32.lo, &nextisarray);
   tkey = (t & 0xff); tval = (t >> 8);
   trvk = lj_ir_call(J, IRCALL_lj_vm_next, ix->tab, ix->key);
   if (ix->mobj || tkey == IRT_NIL) {
@@ -2662,7 +2677,21 @@ int lj_record_next(jit_State *J, RecordIndex *ix)
     if (!ix->mobj) emitir(IRTGI(IR_NE), idx, lj_ir_kint(J, -1));
     ix->mobj = idx;
   }
-  ix->key = lj_record_vload(J, trvk, 1, tkey);
+  if (!nextisarray && tkey != IRT_NIL) {
+    /* Hash traversal already leaves the visible key TValue in the frame.
+    ** Keep the key slot unloaded and let the loop body SLOAD it on demand.
+    ** This avoids the eager helper-tuple key VLOAD on the hot hash path.
+    */
+    ix->key = 0;
+  } else if (nextisarray && tkey == IRT_INT && ix->mobj) {
+    /* Array iteration already returns the next traversal index in HIOP form.
+    ** Derive the visible numeric key directly from that index instead of
+    ** reloading the boxed key lane from the helper tuple.
+    */
+    ix->key = emitir(IRTI(IR_ADD), ix->mobj, lj_ir_kint(J, -1));
+  } else {
+    ix->key = lj_record_vload(J, trvk, 1, tkey);
+  }
   if (tkey == IRT_NIL || ix->idxchain) {  /* Omit value type check. */
     ix->val = TREF_NIL;
     return 1;
