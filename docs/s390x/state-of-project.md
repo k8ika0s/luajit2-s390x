@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 14:02:00 PDT
+Last updated: 2026-03-31 14:26:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -240,6 +240,28 @@ rejected on pinned `kdz`, so the next valid question is narrower:
 
 - is there any semantic-preserving way to change first-side ownership at
   `trace 1 exit 1` without reopening the rejected lazy-key override families?
+
+That question now has one concrete classifier result:
+
+- first-side-only real key materialization on hash is a genuine new seam-local
+  cut
+- it keeps the root-path lazy-key policy unchanged
+- on `kdz`, it turns both:
+  - value-only hash `TRACE 2`
+  - key-using hash `TRACE 2`
+  into real `after_next -> payload -> stop -> loop` side traces
+
+But it still fails the pinned `kdz` perf gate:
+
+- `pairs_sum/hot median=0.068724`
+- `pairs_array_sum/hot median=0.071057`
+
+So the cut is structurally real but not promotable. That means the first-side
+seam is now understood well enough to state the next constraint clearly:
+
+- even fixing first-side hash ownership honestly is not enough by itself
+- any surviving target has to remove additional steady-state cost beyond just
+  turning `TRACE 2` into a loop
 
 One more focused classifier made that split more concrete:
 
