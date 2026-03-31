@@ -9,6 +9,45 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 12:38:00 PDT`
+- Focused `kdz` classifier against the frozen baseline:
+  - hash `trace 2` body can now be captured directly under `jit.dump`
+  - without any descendant widening, the key shape is:
+    - `trace 1`: loop root with hidden `KEYINDEX`, `CALLL lj_vm_next(tab, frame_keyindex)`,
+      helper `VLOAD #0`, carried-total `SLOAD #3`, `ADDOV`
+    - `trace 2`: loop trace on the same body
+    - `trace 3`: repeated `2/1` aborts as `leaving loop in root trace`
+  - array captured in the same style differs immediately:
+    - its loop trace already carries the helper-result successor index in the
+      second `lj_vm_next()` argument
+    - later `exit 1` children do record and stop successfully
+- Recorder-policy classifier:
+  - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    explicitly widens iterator payload descendants for numeric-key iterators,
+    but not for hash iterators
+  - with `LUAJIT_S390X_ALLOW_ITER_DESC=1` on `kdz`, hash immediately stops
+    failing the old `2/1` seam on `LJ_TRERR_LLEAVE`
+  - resulting trace family:
+    - `trace 1`: loop
+    - `trace 2`: loop
+    - `trace 3`, `4`, `5`, `7`, `8`, ...: `linktype=root`, tiny clones that
+      all stop back to `1`
+    - `trace 6`, `10`, ...: nil-path roots that also stop back to `1`
+  - contrast against the array capture in the same style:
+    - array child roots stop back to `2`, its loop owner
+    - hash child roots stop back to `1`, the original root owner
+- Decision:
+  - the current hash/array ownership split is partly recorder policy, not
+    purely accidental runtime behavior
+  - but simply lifting descendant suppression is not a win mechanism:
+    - it creates a root-ladder of the same expensive body
+    - it does not produce a materially different steady-state owner or owner
+      link
+  - next target stays narrow:
+    - explain why hash cannot promote into a materially different owner body
+      and owner link on `exit 1`, instead of reopening generic descendant
+      widening
+
 - Timestamp: `2026-03-31 12:02:00 PDT`
 - Truth-pack helper now records per-trace and per-exit histograms in the
   focused warmup-after capture:

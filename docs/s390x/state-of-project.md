@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 12:02:00 PDT
+Last updated: 2026-03-31 12:38:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -204,6 +204,35 @@ So the next exact target is no longer “what exit is hot?” It is:
 
 - why does hash `exit 1` stay root-owned while array `exit 1` promotes to a
   live side trace?
+
+One more focused classifier made that split more concrete:
+
+- the hash or array difference is not purely accidental runtime shape
+- in [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+  payload descendants behind iterator `exit 1` are only widened automatically
+  for numeric-key iterators
+- that means array gets an explicit recorder-side exception that hash does not
+- with `LUAJIT_S390X_ALLOW_ITER_DESC=1` on the frozen `kdz` baseline, hash does
+  stop aborting the `2/1` descendant on `LJ_TRERR_LLEAVE`
+- but the result is not a win shape:
+  - hash starts producing a ladder of tiny root traces that all stop back into
+    the same owner path
+  - those new hash roots still link back to `trace 1`, not to the hash loop
+    owner
+  - array’s promoted roots, by contrast, link back to its loop owner
+  - those traces still reload hidden `KEYINDEX`
+  - they still call `lj_vm_next(tab, frame_keyindex)`
+  - they still feed the carried total through `SLOAD #3` and `ADDOV`
+
+So the current split is now clearer:
+
+- yes, part of the hash/array ownership difference is enforced by recorder
+  policy
+- no, simply lifting that policy does not solve the steady-state cost
+- the next justified target is therefore narrower still:
+  - explain what prevents hash from promoting into a materially different owner
+    body and owner link, rather than just cloning the same root work into a
+    descendant ladder
 
 ## What The Freeze Point Means
 

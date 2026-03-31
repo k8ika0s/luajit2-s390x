@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 12:02:00 PDT
+Last updated: 2026-03-31 12:38:00 PDT
 
 ## Scope
 
@@ -219,6 +219,30 @@ So the next justified target is:
 
 - explain why hash `exit 1` remains root-owned while array `exit 1` promotes to
   a live side trace
+
+The newest focused classifier makes that statement more specific:
+
+- the current hash/array split is partly enforced by recorder policy in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+  payload descendants behind iterator `exit 1` are widened automatically only
+  for numeric-key iterators
+- enabling `LUAJIT_S390X_ALLOW_ITER_DESC=1` on the frozen `kdz` baseline proves
+  that this policy is one real cause of the hash `2/1` abort loop
+- but it is still not a landing direction:
+  - hash then forms a ladder of tiny root traces
+  - those traces still stop back into the same owner path
+  - those new hash roots still link back to `trace 1`, not to the loop owner
+  - array’s promoted roots link back to the loop owner instead
+  - and they still execute the same expensive hidden-control plus `ADDOV`
+    body
+
+So the current live seam is not “make hash descendants legal again” in the
+abstract. It is:
+
+- find out what keeps hash from promoting into a materially different owner
+  body and owner link once descendants are allowed
+- or conclude that there is no remaining promotable root/side ownership cut on
+  the current mechanism
 
 Fresh proof artifacts from the checked-in helpers:
 
