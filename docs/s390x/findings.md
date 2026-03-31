@@ -8027,3 +8027,116 @@ Next hash target
   - if one more accumulator-family pass is attempted at all, it must target
     the original carried-total type before `loop_unroll()` sees it, and it
     must be rejected immediately if the back-edge `int.num` check survives
+
+2026-03-31: fresh freeze-point restamp holds, backend classifier is negative, and the final exact accumulator preload is a reject
+
+- Fresh host capture on the authoritative clean repos:
+  - `kdz:/root/luajit2-s390x/perf-clean-20260330/repo`
+    - machine type `8561` (`z15`)
+  - `zkd0:/root/luajit2-s390x/perf-clean-20260330/repo`
+    - machine type `3906` (`z14`)
+  - that host model capture now travels with the frozen baseline so future
+    32-bit vs 64-bit accumulator experiments are not read without hardware
+    context
+
+- Fresh baseline restamp:
+  - `kdz` clean default rebuild stayed green:
+    - `jit.status() => true fold cse`
+    - `/tmp/oneshot_iter.lua 20 => RESULT 500`
+    - `/tmp/oneshot_iter.lua 2000 => RESULT 50000`
+    - `/tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+    - `-joff /tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+    - pinned `iterator_table.lua`:
+      - `pairs_sum/hot median=0.059818`
+      - `pairs_array_sum/hot median=0.061622`
+  - `zkd0` clean default rebuild stayed green:
+    - `jit.status() => true fold cse`
+    - `/tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+    - `-joff /tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+    - pinned `iterator_table.lua`:
+      - `pairs_sum/hot median=0.093881`
+      - `pairs_array_sum/hot median=0.087945`
+
+- Fresh low-noise owner restamp on `kdz`:
+  - value-only hash is still:
+    - shared `addov_rr_int_eq`
+    - carried-total `SLOAD #3`
+    - hidden `KEYINDEX SLOAD #10 TK`
+    - no extra visible value-lane `SLOAD`
+  - key-using hash is still:
+    - shared `addov_rr_int_eq`
+    - carried-total `SLOAD #3`
+    - hidden `KEYINDEX SLOAD #10 TK`
+    - visible key/type `SLOAD #11`
+  - array value-only control is still:
+    - shared `addov_rr_int_eq`
+    - carried-total `SLOAD #3`
+    - numeric-key control loads `#10` and `#9`
+
+- Minimal proof that hash root still does not frame-source the visible value:
+  - raw `-jdump` on `/tmp/hash_value.lua` still shows:
+    - `int SLOAD #10 TK`
+    - `int VLOAD #0`
+    - `int SLOAD #3 T`
+    - `int ADDOV`
+  - there is no third frame `SLOAD` for the helper-returned visible value lane
+
+- Narrow backend classifier result:
+  - the surviving hot hash non-value cluster is not a plain load +
+    compare + branch triplet
+  - in `asm_sload()` the current `sload_keyindex` / `sload_type` lowering is:
+    - load tag word
+    - shift to extract tag bits
+    - compare against expected tag or type
+    - branch on the resulting condition code
+  - that means there is no obvious semantic-preserving load-test or
+    compare-and-branch fusion target left at the current lowering seam
+  - conclusion:
+    - stop backend exploration here
+    - keep the remaining work on root-trace storage/control ownership only
+
+- Final exact accumulator preload experiment:
+  - Goal:
+    - satisfy the last allowed accumulator-family condition by making the
+      original carried total slot be born as `num` before `loop_unroll()`
+      sees it
+  - Exact cut:
+    - in `rec_itern()`, when the payload is the exact
+      `total = total + iterator_value` form, preload the accumulator slot as a
+      `num` `SLOAD`
+    - add the minimal `IRSLOAD_CONVERT` support in `asm_sload()` for that
+      `num-from-int` slot load
+  - Correctness:
+    - stayed green on `kdz` for:
+      - `RESULT 5000000`
+      - `HASH_VALUE 3000`
+      - `HASH_KEY 1320`
+      - `ARRAY_VALUE 3000`
+  - First perf passes:
+    - looked promising:
+      - `pairs_sum/hot median=0.055187`
+      - `pairs_array_sum/hot median=0.060284`
+    - rerun:
+      - `pairs_sum/hot median=0.056218`
+      - `pairs_array_sum/hot median=0.062896`
+  - But the stop-rule structural proof failed immediately:
+    - raw `-jdump` still showed the old root trace:
+      - `int SLOAD #3`
+      - `int ADDOV`
+    - low-noise `SLOAD`/`ADD` logs were also unchanged:
+      - `S390X_SLOAD curins=8 ref=8 op1=3 ... type=19 op2=0x4`
+      - `S390X_ADD kind=addov_rr_int_eq`
+    - there was no real pre-unroll `num` carried slot, so the intended
+      `int.num` back-edge removal never even became live
+  - Conclusion:
+    - reject immediately
+    - the small perf movement is non-causal because the structural gate failed
+    - the accumulator-to-`num` family is exhausted again on the current tree
+
+- Updated freeze-point decision:
+  - Lane A plus the four-piece Lane B recorder baseline remains the branch
+    freeze point
+  - there is no remaining justified accumulator-family pass from the current
+    mechanism
+  - only reopen if a future cut can prove the original carried slot becomes
+    `num` before `loop_unroll()` sees it, not merely later in the trace

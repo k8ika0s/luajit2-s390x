@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 08:25:08 PDT
+Last updated: 2026-03-31 09:06:37 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -42,7 +42,9 @@ The current clean s390x floor is real and validated:
 That floor was revalidated on both current native hosts:
 
 - `kdz:/root/luajit2-s390x/perf-clean-20260330/repo`
+  - machine type `8561` (`z15`)
 - `zkd0:/root/luajit2-s390x/perf-clean-20260330/repo`
+  - machine type `3906` (`z14`)
 
 Both hosts now come back with `jit.status() == true` on a clean default build,
 and the current long-run iterator smoke cases remain green.
@@ -69,8 +71,8 @@ Those changes matter because they removed real steady-state work:
 
 Current pinned `kdz` hot medians on the frozen baseline are:
 
-- `pairs_sum/hot median=0.056362`
-- `pairs_array_sum/hot median=0.061370`
+- `pairs_sum/hot median=0.059818`
+- `pairs_array_sum/hot median=0.061622`
 
 That is still much slower than the `-joff` baseline, but it is materially
 better than the older iterator baselines that were dominated by avoidable
@@ -87,12 +89,11 @@ The current remaining performance red is now much narrower:
 - key-using hash adds a visible key/type `SLOAD`
 - array still carries numeric-key control loads
 
-What is not yet known is whether one more small, promotable improvement exists
-for the carried total before loop unroll. Recent experiments showed that simply
-making the accumulator numeric later in the trace is not enough. Those changes
-can remove the old root `ADDOV` structurally, but they still keep the loop
-back-edge `int.num` check and do not beat the frozen baseline cleanly enough
-to land.
+What is now known is that the one remaining accumulator-family idea was tried
+and rejected again. A final exact pre-unroll preload attempt did not actually
+change the root trace shape: the carried total still came through as
+`int SLOAD #3` feeding `ADDOV`. So there is no justified accumulator-family
+experiment left from the current mechanism.
 
 ## What Is Parked
 
@@ -108,6 +109,8 @@ semantically:
 - backend guard dedup experiments
 - accumulator-to-`num` variants that still keep the loop-unroll `int.num`
   check
+- exact accumulator preloads that still leave the root trace on `int SLOAD`
+  plus `ADDOV`
 
 Those ideas are not merely “unexplored.” They were tried and either broke
 semantics, regressed authoritative host performance, or changed trace shape
@@ -126,10 +129,10 @@ The immediate next steps are straightforward:
    - tracked-file sync only
    - direct `src/` rebuild only
    - same-host pinned `kdz` A/B as the policy signal
-4. Only consider one more accumulator-family pass if it targets the original
-   carried-total type before `loop_unroll()` sees it.
-5. Stop immediately if that pass still leaves the back-edge `int.num` check or
-   fails to beat the frozen `kdz` baseline.
+4. Keep the remaining perf discussion on root-trace storage/control ownership,
+   not bridge work, no-guard ideas, or late backend rewrites.
+5. Do not reopen the accumulator-family path unless a future idea can prove
+   that the original carried slot becomes `num` before `loop_unroll()` sees it.
 
 ## Updated Timeline
 
@@ -143,17 +146,17 @@ The immediate next steps are straightforward:
 
 - keep the docs in sync with the frozen branch state
 - preserve the clean `kdz` and `zkd0` validation surfaces
-- decide whether a single pre-unroll carried-total typing experiment is
-  justified
+- treat the current Lane A plus Lane B freeze point as the branch shipping
+  position unless a genuinely new root-trace ownership idea appears
 
 ### After that
 
 There are only two realistic outcomes:
 
-- a final small iterator perf cut clears the promotable bar against the frozen
+- a genuinely new root-trace ownership idea appears and beats the frozen
   baseline, or
-- no such cut exists right now, and the branch should move forward with the
-  proven Lane A plus Lane B stack as the current freeze point
+- no such idea appears, and the branch moves forward with the proven Lane A
+  plus Lane B stack as the current freeze point
 
 ## Where To Look Next
 

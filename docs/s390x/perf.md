@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 08:25:08 PDT
+Last updated: 2026-03-31 09:06:37 PDT
 
 ## Scope
 
@@ -19,8 +19,10 @@ semantically again.
 
 - Primary perf host:
   - `kdz:/root/luajit2-s390x/perf-clean-20260330/repo`
+  - machine type `8561` (`z15`)
 - Regression screen host:
   - `zkd0:/root/luajit2-s390x/perf-clean-20260330/repo`
+  - machine type `3906` (`z14`)
 
 Validation rules:
 
@@ -49,16 +51,16 @@ This is a split policy, not a full-lazy collapse.
 
 Pinned `kdz` baseline on the frozen four-piece split:
 
-- `pairs_sum/hot median=0.056362`
-- `pairs_array_sum/hot median=0.061370`
+- `pairs_sum/hot median=0.059818`
+- `pairs_array_sum/hot median=0.061622`
 
 `zkd0` regression screen on the same baseline:
 
 - `HASH_VALUE 3000`
 - `HASH_KEY 1320`
 - `ARRAY_VALUE 3000`
-- `pairs_sum/hot median=0.098189`
-- `pairs_array_sum/hot median=0.097454`
+- `pairs_sum/hot median=0.093881`
+- `pairs_array_sum/hot median=0.087945`
 
 These are the numbers new iterator perf work must beat.
 
@@ -109,6 +111,8 @@ These are not active perf candidates anymore:
 - body-scan loopback overrides as landing policy
 - `TRACE 2` churn elimination as a perf proxy
 - bridge-local producer and consumer fusion
+- exact `rec_itern()` accumulator preloads that still leave the root trace on
+  `int SLOAD #3` plus `ADDOV`
 - accumulator-to-`num` cuts that still keep the loop-unroll `int.num` check
 - backend `AR/SR` overflow rewrites
 - backend `AGFR/CGFR` equality-guard rewrites
@@ -120,23 +124,37 @@ The common failure modes were:
 - same-host pinned `kdz` regression
 - or real structural change with no promotable hot-loop win
 
-## One Remaining Perf Gate
+## Current Gate Result
 
-Only one accumulator-family pass is still worth consideration, and only after
-restamping from the frozen baseline:
+The one remaining accumulator-family pass was tried and rejected.
 
-- instrument iterator roots around
-  [src/lj_opt_loop.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_loop.c)
-- prove whether the original carried total is still born as `int` before
-  `loop_unroll()` sees it
-- only continue if a new cut can make the original carried slot `num` before
-  loop unroll, so the back-edge `IR_CONV int.num check` never materializes
+- Exact experiment:
+  - preload the exact iterator accumulator slot from `rec_itern()` as a real
+    `num` `SLOAD`
+  - add the minimal s390x `num-from-int` `IRSLOAD_CONVERT` path needed to
+    support that slot load
+- Structural result:
+  - rejected immediately
+  - raw IR on `kdz` still showed:
+    - `int SLOAD #3`
+    - `int ADDOV`
+  - the carried slot was not actually born as `num`
+  - the back-edge `int.num` problem therefore was not removed
+- Decision:
+  - there is no remaining justified accumulator-family pass from the current
+    mechanism
+  - do not reopen that family unless a future cut can prove the original
+    carried slot becomes `num` before `loop_unroll()` sees it
 
-Immediate stop rule:
+The one allowed backend classifier also came back negative:
 
-- if the back-edge `int.num` check survives, reject that whole family again
-- if the check disappears but pinned `kdz` does not beat this frozen baseline,
-  reject it and stop
+- the surviving hash `sload_keyindex` / `sload_type` cluster does not lower as
+  a plain load + compare + branch sequence
+- current lowering in
+  [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  is a load + tag-extract shift + compare + branch sequence
+- there is no narrow semantic-preserving load/test or compare/branch fusion
+  candidate visible from the current lowering
 
 ## Benchmark And Logging Commands
 
