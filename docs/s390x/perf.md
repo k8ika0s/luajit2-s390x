@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 16:00:38 PDT
+Last updated: 2026-03-31 16:41:00 PDT
 
 ## Scope
 
@@ -253,6 +253,31 @@ Fresh proof artifacts from the checked-in helpers:
     - `int SLOAD #3 T`
     - `int ADDOV`
   - and no extra visible value-lane frame `SLOAD`
+
+Corrected finite owner-selection rerun on `kdz`:
+
+- the first rerun target was a fresh truth-pack directory using the fixed
+  finite owner-selection probe path:
+  - [hash_value.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_value.stderr.log)
+  - [hash_key.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_key.stderr.log)
+- that corrected rerun tightens the mechanism:
+  - value-only hash and key-using hash share the same first-side failure
+  - on both loops, the hot path stays in:
+    - `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
+  - the first fresh root candidate is still:
+    - `trace 2 startop=79`
+    - `S390X_LINNER site=rec_loop_jit_root`
+    - `err=9`
+  - and the side attempts still show:
+    - `TRACE 2 start 1/1`
+    - `abort ... leaving loop in root trace`
+- current read after the corrected rerun:
+  - the hash owner-selection seam is not a distinct later runtime-owner
+    problem
+  - it is the same first-side nil-descendant / unloaded-visible-key family
+    already exposed by the earlier focused hash seam probes
+  - so any next cut must be genuinely different from those rejected
+    first-side lazy-key classifiers
 
 ## What Is Rejected
 

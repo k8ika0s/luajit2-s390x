@@ -9,6 +9,51 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 16:41:00 PDT`
+- Corrected finite owner-selection rerun on `kdz` after the helper fix:
+  - purpose:
+    - verify that the checked-in smaller owner-selection probe is capturing the
+      intended recorder/runtime seam rather than the old smoke outputs
+  - fresh corrected artifacts:
+    - value-only hash:
+      - [hash_value.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_value.stdout.log)
+      - [hash_value.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_value.stderr.log)
+    - key-using hash:
+      - [hash_key.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_key.stdout.log)
+      - [hash_key.stderr.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-nonresume-owner-selection-v3/raw/owner-selection/hash_key.stderr.log)
+  - focused results:
+    - value-only hash:
+      - `RESULT 37500`
+      - `TRACE_START 3`
+      - `TRACE_STOP 1`
+      - `TRACE_ABORT 2`
+      - `TEXIT_COUNT 3000`
+    - key-using hash:
+      - `RESULT 16500`
+      - `TRACE_START 3`
+      - `TRACE_STOP 1`
+      - `TRACE_ABORT 2`
+      - `TEXIT_COUNT 2000`
+  - exact seam read from the corrected rerun:
+    - both hash loops share the same first-side mechanism
+    - root `trace 1` still starts at `ITERN` (`startop=70`) and stops as a
+      loop
+    - hot steady-state still spends `trace 1 exit 1` in
+      `S390X_JLOOP_EXIT phase=dispatch-original`
+    - the first fresh root candidate is still:
+      - `trace 2 startop=79`
+      - `S390X_LINNER site=rec_loop_jit_root`
+      - `S390X_TRACE_ABORT ... err=9`
+    - the separate side attempts still show:
+      - `TRACE 2 start 1/1`
+      - `abort ... leaving loop in root trace`
+  - decision:
+    - this corrected rerun does not expose a new non-resume owner family
+    - it re-shows the same first-side nil-descendant / unloaded-visible-key
+      seam already found by the earlier focused `ITERN_FOCUS` probes
+    - therefore the next valid cut, if any, must be demonstrably different
+      from the already rejected first-side lazy-key classifiers
+    - otherwise this family should be closed again
 - Timestamp: `2026-03-31 16:00:38 PDT`
 - Non-resume owner-selection truth-pack pass on the frozen baseline:
   - validation surfaces:

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 16:00:38 PDT
+Last updated: 2026-03-31 16:41:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -184,6 +184,31 @@ That means the current answer is:
   ladder rather than a stable non-root owner
 - the next valid cut, if any, is one narrow non-resume owner-selection change
   that changes that exact outcome
+
+One more corrected `kdz` rerun tightened that read:
+
+- the checked-in finite owner-selection probe now does capture the intended
+  recorder/runtime seam for hash
+- value-only hash and key-using hash come back with the same first-side
+  mechanism
+- on both hash loops:
+  - root `trace 1` still stops as `ITERN -> loop`
+  - hot steady-state still spends `trace 1 exit 1` in `dispatch-original`
+  - the first fresh root candidate is still `FORL` (`startop=79`) and still
+    dies immediately in `rec_loop_jit_root`
+  - the separate `trace 2 start 1/1` attempts still abort as
+    `leaving loop in root trace`
+- that makes the current hash seam more specific than “non-resume owner
+  selection in general”:
+  - it is the same first-side nil-descendant / unloaded-visible-key family
+    already exposed by the earlier focused `ITERN_FOCUS` probes
+  - not a distinct later child-link or runtime-owner family
+
+So the next honest decision point is narrower:
+
+- only reopen this owner-selection line if there is a cut that is genuinely
+  different from the already rejected first-side lazy-key classifiers
+- otherwise stop reopening this family and move to a different mechanism
 
 ## What Has Not Been Proven Yet
 
