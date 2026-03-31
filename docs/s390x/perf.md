@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 14:02:00 PDT
+Last updated: 2026-03-31 14:26:00 PDT
 
 ## Scope
 
@@ -296,6 +296,29 @@ overrides. It only changes the diagnosis:
 - the active question is no longer “why does hash fail later child promotion?”
 - it is now “is there any semantic-preserving first-side ownership cut at
   `trace 1 exit 1` that is not just another rejected lazy-key override?”
+
+One exact classifier answered that question:
+
+- env-gated first-side-only real key materialization on hash
+  (`LUAJIT_S390X_FIRST_SIDE_HASH_KEY=1`)
+- scope:
+  - non-array only
+  - first side trace only (`parent == root`, `exit == 1`)
+  - root-path lazy visible-key policy unchanged
+- structural result on `kdz`:
+  - value-only hash `TRACE 2` flips to `after_next -> payload -> stop -> loop`
+  - key-using hash `TRACE 2` flips the same way
+
+But the pinned `kdz` perf gate still rejects it:
+
+- `pairs_sum/hot median=0.068724`
+- `pairs_array_sum/hot median=0.071057`
+
+So this seam-local fix is real but still not promotable. The implication is
+important:
+
+- turning the first-side hash seam into a real loop is not enough by itself
+- the remaining red is still larger than that ownership cut alone
 
 Fresh proof artifacts from the checked-in helpers:
 

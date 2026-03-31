@@ -9,6 +9,37 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 14:26:00 PDT`
+- First-side-only real hash key materialization classifier:
+  - implementation shape:
+    - keep the root-path hash lazy-key policy unchanged
+    - only on non-array `parent == root`, `exit == 1`, materialize the real
+      visible key in `lj_record_next()` instead of leaving `ix.key = 0`
+    - intended scope: the first `TRACE 2 start 1/1` hash seam only
+- Structural result on `kdz`:
+  - value-only hash:
+    - `site=after_next ... key_nil=0`
+    - `site=payload`
+    - `TRACE 2 stop -> loop`
+  - key-using hash:
+    - same first-side result
+    - `site=after_next ... key_nil=0`
+    - `site=payload`
+    - `TRACE 2 stop -> loop`
+  - this proves the seam-local cut is genuinely narrower than the earlier
+    rejected global payload-vs-nil overrides
+- Pinned `kdz` perf result:
+  - `pairs_sum/hot median=0.068724`
+  - `pairs_array_sum/hot median=0.071057`
+- Decision:
+  - reject
+  - the structural fix is real, but it is not promotable because it loses
+    badly against the frozen `kdz` baseline
+  - implication:
+    - first-side hash ownership is part of the mechanism
+    - but fixing it alone is still not enough to recover native JIT-on
+      iterator performance
+
 - Timestamp: `2026-03-31 14:02:00 PDT`
 - Focused `kdz` first-side ownership classifier:
   - the earlier “array vs hash diverges at `parent=2 exit=1`” read was too
