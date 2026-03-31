@@ -280,35 +280,37 @@ It is now:
 - why does steady-state ownership stay on root `1:1` even when the first side
   loop can be recorded?
 
-That question is now mechanically narrower:
+That question is now mechanically narrower, with one correction:
 
-- the root-child adoption path is not active by default on this tree
+- the root-child adoption path is still dormant by default on this tree
 - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-  only enables the relevant owner-transfer paths behind:
+  only enables the owner-transfer experiments behind:
   - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP`
   - `LUAJIT_S390X_ROOT_JLOOP_CHILD`
-- on the frozen default baseline, both value-only hash and array still show the
-  same early root behavior on `kdz`:
-  - `parent=1 exit=1`
-  - `target=1`
-  - `phase=dispatch-original`
-  - `resumechild=0`
-  - `nchild=0` before the first side trace forms
+- but the earlier “forced owner path still stops `trace=2` as
+  `LJ_TRLINK_INTERP`” read was from an accelerated `hotexit=10` classifier and
+  is not the frozen-baseline surface
 
-Even with those dormant owner knobs forced on for a focused classifier, the
-first side trace still does not satisfy the actual promotion rule:
+On the real frozen `hotexit=200` surface:
 
-- array `trace=2` is seen by `S390X_ROOT_PROMOTE_CHILD_CAND`
-- but it stops as:
-  - `startop=88`
-  - `link=0`
-  - `linktype=6` (`LJ_TRLINK_INTERP`)
-- the promotion path only promotes `exit=1` children that stop with
-  `LJ_TRLINK_LOOP`, so the candidate is observed but skipped
-- the resulting execution shape is still a root ladder:
-  - `trace=2` stops as interpreter fallback
-  - later traces `3+` link back to `trace 1`
-  - `resumechild` stays `0`
+- array `trace=2` does stop as a loop child:
+  - `link=2`
+  - `linktype=2` (`LJ_TRLINK_LOOP`)
+- `S390X_ROOT_PROMOTE_CHILD` fires and patches the root target from `1` to `2`
+- the root now advertises `target_exec=2` and `target_resumechild=2`
+
+But execution still does not hand off cleanly, because the root iterator owner
+has no resume contract:
+
+- `target_resumevalid=0`
+- `target_resumepc=(nil)`
+- `retop` remains the root `ITERN`
+- so `JLOOP_EXIT` still takes `phase=dispatch-original` even after promotion
+
+That makes the next exact target:
+
+- explain why root iterator owners never arm `resumevalid`/`resumeins`
+  for this promoted-child path, leaving `target_exec` known but unused
 
 One more focused classifier made that split more concrete:
 

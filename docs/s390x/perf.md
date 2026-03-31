@@ -336,37 +336,36 @@ So the next target is no longer merely first-side formation. It is:
 - explain why steady-state ownership still remains on root `1:1` even when the
   first-side hash loop trace exists
 
-That ownership question is now mechanically constrained:
+That ownership question is now mechanically constrained, with one correction:
 
-- the child-owner path is not on by default
-- the relevant hooks in
-  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-  are env-gated:
+- the child-owner path is still opt-in on this tree:
   - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP`
   - `LUAJIT_S390X_ROOT_JLOOP_CHILD`
-- on the frozen default baseline, both array and hash still spend the early hot
-  region in:
-  - `parent=1 exit=1`
-  - `target=1`
-  - `phase=dispatch-original`
+- but the earlier “forced owner path still leaves `trace=2` as
+  `LJ_TRLINK_INTERP`” read came from an accelerated `hotexit=10` surface and is
+  not the frozen-baseline result
 
-The forced-owner classifier on array proves something stronger:
+On the real frozen `hotexit=200` surface:
 
-- even when the dormant owner path is enabled, the first side trace is only a
-  candidate, not a promoted owner
-- `trace=2` is logged as:
-  - `S390X_ROOT_PROMOTE_CHILD_CAND`
-  - `startop=88`
-  - `link=0`
-  - `linktype=6` (`LJ_TRLINK_INTERP`)
-- because it is not `LJ_TRLINK_LOOP`, the promotion rule does not fire
-- steady-state then degrades into a ladder of root-owned side traces rather than
-  a child-owned loop
+- array `trace=2` really does stop as `LJ_TRLINK_LOOP`
+- `S390X_ROOT_PROMOTE_CHILD` fires
+- the root advertises:
+  - `target_exec=2`
+  - `target_resumechild=2`
+
+The remaining break is later:
+
+- the root iterator owner still has:
+  - `target_resumevalid=0`
+  - `target_resumepc=(nil)`
+- so `JLOOP_EXIT` still falls into `phase=dispatch-original`
+- this means the promoted child is known to runtime owner selection but still
+  not used for direct execution handoff
 
 So the next valid question is narrower again:
 
-- why does the first side iterator trace stop as `LJ_TRLINK_INTERP` instead of
-  a promotable loop-owner shape?
+- why does the root iterator owner never arm a usable resume contract for the
+  promoted child path?
 
 Fresh proof artifacts from the checked-in helpers:
 
