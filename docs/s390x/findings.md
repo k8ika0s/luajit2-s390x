@@ -9,6 +9,40 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 10:44:29 PDT`
+- A checked-in iterator restamp helper now exists:
+  - [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+  - it syncs tracked files only into the clean native repo, rebuilds in
+    `src/`, runs both `jit.on` and `-joff` on
+    [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua),
+    and captures raw micro, owner-log, and IR artifacts
+- The first helper-driven post-cleanup restamp forced one real branch-tip fix:
+  - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    still referenced `oldpc` in the payload-path stop log after the cleanup
+    removed the now-unused bridge-only branch around it
+  - restoring the local `oldpc` and dropping the dead `entrypc` local made the
+    clean native rebuild work again on `kdz`
+- Fresh post-cleanup restamp from the current branch tip:
+  - `kdz` machine type `8561` (`z15`)
+    - `pairs_sum/hot median=0.061851`
+    - `pairs_array_sum/hot median=0.063845`
+  - `zkd0` machine type `3906` (`z14`)
+    - `pairs_sum/hot median=0.156370`
+    - `pairs_array_sum/hot median=0.154843`
+- Relative to the earlier freeze-point reference:
+  - `kdz` is `+3.40%` slower on hash and `+3.61%` slower on array
+  - `zkd0` is `+66.56%` slower on hash and `+76.07%` slower on array
+- The refreshed owner map did not expose a new target:
+  - value-only hash still shows hidden `KEYINDEX`, carried-total `SLOAD`, and
+    helper `VLOAD #0`
+  - key-using hash still adds visible key/type `SLOAD`
+  - array still carries numeric-key control loads
+  - shared `addov_rr_int_eq` remains dominant
+- Immediate operating rule:
+  - do not open a new perf patch family from this restamp alone
+  - either explain the post-cleanup drift first or identify a genuinely new
+    root-trace storage/control materialization target outside the reject pile
+
 - Timestamp: `2026-03-31 10:14:33 PDT`
 - Source cleanup only:
   - removed the parked root-resume and pre-call-key scaffolding from
