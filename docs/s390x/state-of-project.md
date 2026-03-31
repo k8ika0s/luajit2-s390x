@@ -280,6 +280,36 @@ It is now:
 - why does steady-state ownership stay on root `1:1` even when the first side
   loop can be recorded?
 
+That question is now mechanically narrower:
+
+- the root-child adoption path is not active by default on this tree
+- [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  only enables the relevant owner-transfer paths behind:
+  - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP`
+  - `LUAJIT_S390X_ROOT_JLOOP_CHILD`
+- on the frozen default baseline, both value-only hash and array still show the
+  same early root behavior on `kdz`:
+  - `parent=1 exit=1`
+  - `target=1`
+  - `phase=dispatch-original`
+  - `resumechild=0`
+  - `nchild=0` before the first side trace forms
+
+Even with those dormant owner knobs forced on for a focused classifier, the
+first side trace still does not satisfy the actual promotion rule:
+
+- array `trace=2` is seen by `S390X_ROOT_PROMOTE_CHILD_CAND`
+- but it stops as:
+  - `startop=88`
+  - `link=0`
+  - `linktype=6` (`LJ_TRLINK_INTERP`)
+- the promotion path only promotes `exit=1` children that stop with
+  `LJ_TRLINK_LOOP`, so the candidate is observed but skipped
+- the resulting execution shape is still a root ladder:
+  - `trace=2` stops as interpreter fallback
+  - later traces `3+` link back to `trace 1`
+  - `resumechild` stays `0`
+
 One more focused classifier made that split more concrete:
 
 - the hash or array difference is not purely accidental runtime shape

@@ -48,6 +48,11 @@ This file remains the append-only technical notebook.
       iterator performance
     - more specifically, steady-state ownership still stays on root `1:1`
       even after the first side loop can be recorded
+    - and the ownership transfer path is narrower than it first looked:
+      - on the default tree, the child-owner machinery is not active
+      - when forced on for classification, the first side trace is only a
+        candidate and still stops as `LJ_TRLINK_INTERP`, so it cannot be
+        promoted into an owner child
 
 - Timestamp: `2026-03-31 14:02:00 PDT`
 - Focused `kdz` first-side ownership classifier:
