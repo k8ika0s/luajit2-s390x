@@ -49,10 +49,14 @@ This file remains the append-only technical notebook.
     - more specifically, steady-state ownership still stays on root `1:1`
       even after the first side loop can be recorded
     - and the ownership transfer path is narrower than it first looked:
-      - on the default tree, the child-owner machinery is not active
-      - when forced on for classification, the first side trace is only a
-        candidate and still stops as `LJ_TRLINK_INTERP`, so it cannot be
-        promoted into an owner child
+      - the child-owner machinery is still opt-in
+      - but on the real frozen `hotexit=200` surface, array `trace=2` does
+        reach `LJ_TRLINK_LOOP` and `S390X_ROOT_PROMOTE_CHILD`
+      - the remaining blocker is later:
+        - root owner selection knows `target_exec=2`
+        - but the root iterator trace still has `target_resumevalid=0`
+        - so `JLOOP_EXIT` falls back to `dispatch-original` and the promoted
+          child is not used as a direct execution owner
 
 - Timestamp: `2026-03-31 14:02:00 PDT`
 - Focused `kdz` first-side ownership classifier:
