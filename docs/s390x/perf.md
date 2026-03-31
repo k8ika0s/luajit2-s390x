@@ -1,439 +1,166 @@
-# s390x Performance Validation
+# s390x Performance Status
 
-## Purpose
+Last updated: 2026-03-31 08:25:08 PDT
 
-This stage turns the s390x bring-up harness into a reproducible native
-performance lab. The goal is to measure native IBM Z behavior only after the
-matching correctness surface is already green.
+## Scope
 
-The performance loop is split into two tiers:
+This page tracks the current native s390x performance state after the branch
+was frozen into three lanes:
 
-- Tier 1:
-  - build and compiler tuning
-  - helper-friendly codegen cleanups
-  - low-risk improvements that do not change JIT semantics
-- Tier 2:
-  - hotspot-driven s390x-specific optimization only after the workload family
-    is already correctness-green and measured as a top bottleneck
+- Lane A: build and stability only
+- Lane B: promotable recorder-side iterator perf only
+- Lane C: parked bridge and continuation research only
 
-## Workload Families
+The current performance frontier is Lane B only. The bridge and continuation
+line is parked unless the clean no-probe iterator baseline regresses
+semantically again.
 
-The repo-local structured benchmarks live in
-[tests/s390x/perf](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf):
+## Authoritative Validation Surfaces
 
-The current default `perf_bench` lane is intentionally narrower than the full
-catalog below. Right now it runs only:
-- `dispatch_trace.lua`
+- Primary perf host:
+  - `kdz:/root/luajit2-s390x/perf-clean-20260330/repo`
+- Regression screen host:
+  - `zkd0:/root/luajit2-s390x/perf-clean-20260330/repo`
 
-The remaining microbenchmarks stay in-tree as follow-up probes for known
-release-mode crash or wrong-result shapes.
-- `dispatch_trace.lua`
-  - simple numeric trace
-  - side-exit-heavy loop
-  - hotexit-heavy loop
-  - current `%` boundary:
-    - root and simple side-exit modulo traces are green enough for Stream B
-      optimization work
-    - the aggressive modulo hotexit/stitch stress shape is now correctness-green
-      on both native hosts as `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-    - that closes the old Stream A blocker and leaves `%` as a pure Stream B
-      optimization target again
-- `bitops_mix.lua`
-  - `bit.*`
-  - `tobit`
-  - mixed overflow-sensitive integer paths
-  - currently kept in-tree as a focused follow-up benchmark and temporarily
-    excluded from the default `perf_bench` lane until the native s390x
-    release-mode crash on this shape is resolved
-- `vararg_paths.lua`
-  - dynamic `select(i, ...)`
-  - vararg reduction
-  - return-split path
-- `iterator_table.lua`
-  - `pairs()`
-  - explicit `next()`
-  - custom Lua iterator
-  - table build and update loop
-- `ffi_calls.lua`
-  - direct traced `ffi.C.*`
-  - stored function-value FFI call
-- `ffi_cdata.lua`
-  - cdata field load/store loop
-  - mixed-width FFI field path
-- `be_helpers.lua`
-  - number helpers
-  - BE-sensitive pack and unpack path
-- `mixed_noffi.lua`
-  - JIT-heavy mixed workload without FFI
-- `mixed_ffi.lua`
-  - mixed Lua + FFI workload
+Validation rules:
 
-Every benchmark validates its final result before and after the measured
-section. A fast wrong answer is a failed benchmark, not a performance win.
+- tracked-file sync only
+- direct `src/` rebuild only
+- same-host pinned `kdz` A/B is the policy signal
+- `zkd0` is regression-only
+- low-noise manual logs or debugger only
+- no dirty-tree `iterator_probe.py` runs for perf decisions
 
-## Metrics
+## Frozen Iterator Baseline
 
-Each benchmark emits structured JSON records with:
+The current promotable iterator perf baseline is the four-piece recorder split
+in [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
 
-- commit
-- host
-- compiler
-- mode
-- jit
-- ffi
-- build style
-- tuning
-- family
-- workload
-- scale
-- iterations
-- warmup iterations
-- median runtime
-- p95 runtime
-- raw samples
-- optional `perf stat` counters for the highest-value release workloads
+- array visible numeric key comes from successor index:
+  - `HIOP(trvk) - 1`
+- non-array visible key stays lazy
+- hash table live-in is trusted and read-only in `rec_isnext()` / `rec_itern()`
+- non-array value lane is seeded from `ix.val` so the hash root trace no longer
+  frame-source the visible value slot
 
-The primary local artifacts are:
+This is a split policy, not a full-lazy collapse.
 
-- `artifacts/s390x/<run-id>/perf/benchmarks.json`
-- `artifacts/s390x/<run-id>/perf/comparisons.json`
-- `artifacts/s390x/<run-id>/perf/family-status.json`
-- `artifacts/s390x/<run-id>/perf/hotspots.json`
-- `artifacts/s390x/<run-id>/perf/perf-summary.md`
+## Current Pinned Baseline
 
-Raw per-benchmark stdout, stderr, and optional `perf stat` outputs stay under
-the normal step artifact tree in `remote/steps/perf_bench/...`.
+Pinned `kdz` baseline on the frozen four-piece split:
 
-## Closure Gate Rule
+- `pairs_sum/hot median=0.056362`
+- `pairs_array_sum/hot median=0.061370`
 
-Performance is still non-blocking for the branch-level `s390x` support claim,
-except where a perf benchmark exposes a correctness problem.
+`zkd0` regression screen on the same baseline:
 
-Current closure-stage rule:
+- `HASH_VALUE 3000`
+- `HASH_KEY 1320`
+- `ARRAY_VALUE 3000`
+- `pairs_sum/hot median=0.098189`
+- `pairs_array_sum/hot median=0.097454`
 
-- required perf regression check:
-  - `dispatch_trace.lua`
-  - host `kdz`
-  - compiler `gcc`
-  - mode `release`
-  - `jit=on`
-  - tuning `baseline`
+These are the numbers new iterator perf work must beat.
 
-The rest of the perf catalog stays in-tree as follow-up probes until each file
-is release-stable on native `s390x`.
+## What The Current Baseline Proved
 
-## Current Stamped Baseline
+- The branch is no longer blocked on the old late crash in dispatch helper
+  errno handling.
+- Array and hash do not pay the same owners.
+- Array-side post-call numeric key-lane waste was reduced by deriving the
+  visible numeric key from the successor index instead of rereading the helper
+  tuple key lane.
+- Hash-side eager visible-key and table-slot costs were both removed.
+- Hash root traces no longer frame-source the visible value lane.
+  - helper `VLOAD #0` now feeds the hash add path directly
+  - the old extra frame value `SLOAD` is gone
 
-The first native performance baseline is now stamped for the release-stable
-dispatch family on `kdz`.
+## Current Owner Map
 
-Authoritative structured runs:
+Low-noise manual logging on the frozen baseline shows:
 
-- JIT-on baseline and z13:
-  [artifacts/s390x/20260324T022735.280630Z-p89021](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021)
-  - summary:
-    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/summary.md)
-- JIT-off baseline and z13:
-  [artifacts/s390x/20260324T023224.602906Z-p91889](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T023224.602906Z-p91889)
-  - summary:
-    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T023224.602906Z-p91889/summary.md)
-- refreshed dispatch-only restamp:
-  [artifacts/s390x/20260324T022735.280630Z-p89021](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021)
-  - summary:
-    [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/summary.md)
-  - perf summary:
-    [perf-summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/perf-summary.md)
-  - family status:
-    [family-status.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/family-status.json)
-  - hotspots:
-    [hotspots.json](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/20260324T022735.280630Z-p89021/perf/hotspots.json)
+- Value-only hash:
+  - dominant shared payer is still `addov_rr_int_eq`
+  - main non-value cluster is still the hidden `KEYINDEX` load
+  - only other frame `SLOAD` is the carried total slot
+- Key-using hash:
+  - still pays shared `addov_rr_int_eq`
+  - still pays the hidden `KEYINDEX` load
+  - adds a visible key/type `SLOAD`
+- Array value-only control:
+  - still pays shared `addov_rr_int_eq`
+  - still pays numeric-key control loads
 
-Representative median runtimes on `kdz`, `gcc release`, `ffi=on`, `mixed`:
+Current read:
 
-- JIT on, baseline:
-  - `numeric_loop/hot`: `0.032174s`
-  - `side_exit_loop/hot`: `0.017588s`
-  - `hotexit_loop/hot`: `0.009095s`
-- JIT on, z13:
-  - `numeric_loop/hot`: `0.032158s`
-  - `side_exit_loop/hot`: `0.017870s`
-  - `hotexit_loop/hot`: `0.009307s`
-- JIT off, baseline:
-  - `numeric_loop/hot`: `0.002070s`
-  - `side_exit_loop/hot`: `0.003668s`
-  - `hotexit_loop/hot`: `0.005599s`
+- shared `addov_rr_int_eq` is now the dominant cross-family payer
+- hash still carries the hidden `KEYINDEX` load cluster
+- array still carries numeric-key control loads
 
-Headline ratios from those runs:
+## What Is Rejected
 
-- `%` fast path vs pre-fast-path stamped baseline:
-  - `numeric_loop/hot`: about `1.37x` faster
-  - `side_exit_loop/hot`: about `1.57x` faster
-  - `hotexit_loop/hot`: about `1.23x` faster
-- `z13` vs baseline, `jit=on`, `numeric_loop/hot`: about `1.00x`
-- `z13` vs baseline, `jit=on`, `side_exit_loop/hot`: about `0.98x`
-- `jit=on` vs `jit=off`, baseline, `numeric_loop/hot`: about `15.54x` slower
-- `jit=on` vs `jit=off`, baseline, `side_exit_loop/hot`: about `4.80x` slower
-- `jit=on` vs `jit=off`, baseline, `hotexit_loop/hot`: about `1.62x` slower
+These are not active perf candidates anymore:
 
-Current conclusion:
+- full-lazy collapse
+- any `KEYINDEX` no-guard path
+- direct `KEYINDEX` tag-word compare
+- backend dedup of `KEYINDEX` guard generation
+- hidden-control carry through the unused visible-key slot
+- body-scan loopback overrides as landing policy
+- `TRACE 2` churn elimination as a perf proxy
+- bridge-local producer and consumer fusion
+- accumulator-to-`num` cuts that still keep the loop-unroll `int.num` check
+- backend `AR/SR` overflow rewrites
+- backend `AGFR/CGFR` equality-guard rewrites
 
-- the perf harness and native artifact model are working end to end
-- the latest closure soak/runtime remediation is correctness-only and keeps the
-  branch on track for performance work; it does not change the first measured
-  optimization priority
-- the first real `%` optimization slice is now in the branch:
-  - s390x lowers signed int modulo by positive constant divisors through
-    native `dsgr` instead of always calling `lj_vm_modi`
-  - the fast path is restamped correct on both hosts for:
-    - `tests/s390x/jit_core/mod_int_trace.lua`
-    - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-    - `tests/s390x/jit_core/side_exit.lua`
-    - `tests/s390x/soak/mixed_stress.lua`
-  - `mod_int_trace.lua` now also covers negative dividends to keep the
-    signed-remainder correction path pinned down
-- the dispatch and side-exit family is currently a real optimization hotspot,
-  because the present s390x JIT-on path is slower than JIT-off on this family
-- the current perf story is materially better than the pre-fast-path baseline,
-  but the branch is still leaving large gains on the table on `numeric_loop`
-  and `side_exit_loop`
-- `family-status.json` is now the machine-readable promotion queue:
-  - `dispatch_trace`: default perf gate
-  - `iterator_table`: first focused probe family
-  - remaining families: probe-only until release-stable
-- `hotspots.json` is now the machine-readable hotspot backlog for Stream B
-- the `%` queue is now intentionally split:
-  - Stream B optimization entry point:
-    - `tests/s390x/jit_core/mod_int_trace.lua`
-  - former Stream A closure blocker, now green:
-    - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-- `tests/s390x/perf/iterator_table.lua` remains the next focused probe family.
-  The older structured `kdz` restamp `perf-iterator-kdz-20260323a` exposed the
-  iterator cliff:
-  - `jit=on baseline pairs_sum/hot`: `0.528441s`
-  - `jit=on baseline pairs_array_sum/hot`: `0.401933s`
-- The current iterator status is now split cleanly:
-  - structure:
-    - green on both native hosts via
-      [tests/s390x/jit_loops/iterator_trace_shape.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/iterator_trace_shape.lua)
-    - the old unbounded iterator-family explosion is contained
-  - steady-state performance:
-    - still red on `kdz`
-    - the current array-side scratch classifiers do reduce family-formation
-      overhead, but they do not remove the remaining steady-state cost
-    - the current collapsed array branch still scales badly:
-      - `pairs_array_sum n=10`: hot `trace 8 exit 1 = 30`
-      - `pairs_array_sum n=50`: hot `trace 8 exit 1 = 390`
-    - the current live payer is the in-loop `vload_next_key_int` copy marked
-      `0x527`, not the preheader `0x427` copy
-    - direct `kdz` guard-site probing now confirms that hot `0x527` site reads
-      a legitimate end-of-iteration helper result from `tmptv`, so the
-      remaining work is amortization through the recovered steady loop body,
-      not bad data or a broken compare
-    - the newest root-side probes refine that again:
-      - the owner split for root `trace 1` can flip
-        `BC_JLOOP` fallback from `dispatch-original` to `resume-linked`
-      - but the resumed root still stalls with identical state at
-        `parent=1 exit=1`
-      - root birth logging now proves the winning root trace still persists
-        `startins=70` (`BC_ITERN`) by save time, even though early recorder
-        retries can temporarily normalize to post-`ITERN` follow ops
-      - the performance endgame is therefore not another `0x527` guard tweak;
-        it is making the successful array root be born with a stable,
-        resumable post-`ITERN` ownership contract
-    - the safe baseline remains dominated by `trace 2 exit 1`
-    - the hot guard owner on that safe path is still `guardmark=0x508`
-      (`asm_gencall_sload()` pre-call typecheck on the iterator helper path)
-    - suppressing only the KEYINDEX-side gencall guard remains
-      classification-only: it shifts churn to root `exit 2`
-      `guardmark=0x101`, which maps to the standalone post-call `sload_int`
-      right before `ADDOV`
-- The latest scratch-only iterator classifier moves the semantic frontier
-  again:
-  - run: `iterator-keylane-guard-20260326a`
-  - host: `kdz`
-  - status: classification only, not promotable
-  - a narrow post-call key-lane guard on the `lj_vm_next` result tuple keeps
-    the direct iterator repro correct and prevents the bad `BC_ADDVV` resume
-    path that previously let stale value-lane data poison the carried total
-  - the hot owner on that classifier path becomes `guardmark=0x427`
-    (`vload_next_key_int`)
-  - the hot exits now land at `pc op=87`, i.e. `BC_JLOOP`, not the earlier
-    `BC_ADDVV` body-resume path
-  - repeated stop-run probes on that classifier path keep slot `0` sane as a
-    boxed integer across exits, so the live blocker is no longer stale payload
-    math at the first exposed post-call boundary
-  - the remaining red on that path is follow-on trace formation:
-    `TRACE 2 abort otr=9`, i.e. `LJ_TRERR_LINNER`
-  - this guard is classification-only and is not part of the active patch set
-- A later scratch narrowing keeps the deeper descendant policy array-only:
-  - numeric-key iterators keep the deeper payload descendant behind the clean
-    `0x427` key-lane owner
-  - hash iterators fall back to the older `0x509` pre-call owner and no
-    longer crash under the hot50 classifier
-  - this makes the array/hash split stable enough to continue optimization,
-    but it still does not justify a perf restamp because both sides remain
-    slower than the interpreter in the focused family
-- The newest array-side hotcount classifier is the first one to remove a full
-  recovered-family stage without breaking correctness:
-  - the active recovered child `trace 5` is now proven to be an
-    `LJ_TRLINK_INTERP` bridge created after the bounded nil retry exhausts the
-    generic side-trace `hotexit + tryside` budget
-  - a scratch-only `prime-interp` classifier in
-    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-    pre-biases only that bridge's `exit 1` hotcount
-  - direct native `kdz` proof keeps the result correct (`500/500`) and
-    tightens the recovered-family histogram from
-    `5/1=10, 6/1=10, 7/1=1, 8/1=1, 9/1=111`
-    to
-    `5/1=1, 6/1=10, 7/1=1, 8/1=120`
-  - that is still classification-only:
-    - it does not change the surviving owner
-    - it still leaves the hot path on the legitimate `0x427` iterator-end
-      split, now later in the collapsed chain
-- One real helper-side ABI bug is now fixed in
-  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
-  - `lj_vm_next` no longer uses saved register `r6` as `NEXT_ARR`
-  - that fix removes a genuine Linux/s390x callee-save violation and keeps the
-    helper from clobbering a loop-carried integer live range
-  - it improves backend correctness hygiene, but it does not by itself remove
-    the remaining iterator perf hotspot
-- The current clean native probe on `kdz`
-  (`kdz:/root/luajit2-s390x/perf-wave-20260324b`) keeps `HEAD` plus only two
-  local perf changes:
-  - remove the `BC_IITERL` debug helper call from
-    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
-  - stop forcing `hotloop=10,hotexit=10` in
-    [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
-- On that clean native probe, hot medians improved to:
-  - `pairs_sum/hot`: `0.371870s`
-  - `pairs_array_sum/hot`: `0.280803s`
-- Relative to the older structured iterator restamp, that is:
-  - `pairs_sum/hot`: about `1.42x` faster
-  - `pairs_array_sum/hot`: about `1.43x` faster
-- The same clean native probe kept the current `%`/side-exit/soak correctness
-  slice green:
-  - `tests/s390x/jit_core/mod_int_trace.lua`
-  - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-  - `tests/s390x/jit_core/side_exit.lua`
-  - `tests/s390x/soak/mixed_stress.lua`
-- A first `BC_ISNEXT` JLOOP-unpatch port on s390x built cleanly but did not
-  materially change the iterator timings, so it is not part of the active
-  patch set.
-- The next coherent native `kdz` probe keeps that safe iterator patch set and
-  adds one more s390x-only runtime tuning change:
-  - default `JIT_P_hotexit = 200` in
-    [src/lib_jit.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lib_jit.c)
-- On `kdz:/root/luajit2-s390x/perf-wave-20260324b`, that reduces iterator hot
-  medians further to:
-  - `pairs_sum/hot`: `0.045205s`
-  - `pairs_array_sum/hot`: `0.046697s`
-- Relative to the older structured iterator restamp, that is:
-  - `pairs_sum/hot`: about `11.69x` faster
-  - `pairs_array_sum/hot`: about `8.61x` faster
-- Repeated same-process `pairs()` timing on that coherent build is now:
-  - `jit.on`: `0.003175`, `0.006357`, `0.010301`, `0.016793`, `0.024084`,
-    `0.030375`
-  - `jit.off`: about `0.0314`
-- That means the current best iterator path on s390x is now at or below
-  interpreter cost on the same workload, instead of catastrophically above it.
-- The same coherent build kept the current correctness slice green:
-  - `tests/s390x/jit_core/mod_int_trace.lua`
-  - `tests/s390x/jit_loops/mod_hotexit_stress.lua`
-  - `tests/s390x/jit_core/side_exit.lua`
-  - `tests/s390x/soak/mixed_stress.lua`
-- Dispatch remained near the current `%`-fast-path baseline on that same run:
-  - `numeric_loop/hot`: `0.032363s`
-  - `side_exit_loop/hot`: `0.017595s`
-  - `hotexit_loop/hot`: `0.008959s`
+The common failure modes were:
 
-That is a useful result, not a benchmark failure. It identifies the first
-measured Tier 1/Tier 2 optimization target.
+- semantic breakage
+- cross-host regression
+- same-host pinned `kdz` regression
+- or real structural change with no promotable hot-loop win
 
-## Baselines and Comparison Rules
+## One Remaining Perf Gate
 
-Primary s390x baseline:
+Only one accumulator-family pass is still worth consideration, and only after
+restamping from the frozen baseline:
 
-- host: `kdz`
-- compiler: `gcc`
-- mode: `release`
-- jit: `on`
-- ffi: `on`
-- tuning: `baseline`
+- instrument iterator roots around
+  [src/lj_opt_loop.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_loop.c)
+- prove whether the original carried total is still born as `int` before
+  `loop_unroll()` sees it
+- only continue if a new cut can make the original carried slot `num` before
+  loop unroll, so the back-edge `IR_CONV int.num check` never materializes
 
-Required internal comparisons:
+Immediate stop rule:
 
-- `jit=on` vs `jit=off`
-- `baseline` vs `z13`
-- `gcc release` vs `clang release`
+- if the back-edge `int.num` check survives, reject that whole family again
+- if the check disappears but pinned `kdz` does not beat this frozen baseline,
+  reject it and stop
 
-Cross-arch control:
+## Benchmark And Logging Commands
 
-- one local workstation control build from the same commit
-- informative only
-- never a correctness or release gate
-- best-effort only; missing local control data must not invalidate native s390x
-  perf artifacts
-- the local macOS control path now exports `MACOSX_DEPLOYMENT_TARGET`
-  automatically; the next perf restamp should confirm whether this removes the
-  current local-control skip
+From the clean remote repo:
 
-Comparison rules:
+```sh
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+make -C src clean && make -C src -j4
+taskset -c 0 ./src/luajit tests/s390x/perf/iterator_table.lua
+```
 
-- absolute timings are meaningful only within a single host
-- cross-host and cross-arch results are recorded as normalized ratios
-- the headline metric is median runtime
-- p95 is the stability metric
+Focused low-noise owner mapping:
 
-## Measurement Discipline
+```sh
+LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/hash_value.lua
+LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/hash_key.lua
+LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/array_value.lua
+```
 
-- one warmup pass before measurement
-- five measured repetitions by default
-- perf benchmarks use moderate JIT thresholds by default:
-  - `hotloop=10`
-  - `hotexit=10`
-- correctness checks before and after the timed region
-- one benchmark process per measurement command
-- `perf stat` on native s390x release for the top benchmark families:
-  - cycles
-  - instructions
-  - branches
-  - branch-misses
-  - cache-references
-  - cache-misses
+## Relationship To Other Docs
 
-Missing or malformed benchmark metric output is treated as a perf-stage
-failure.
-
-The original perf helper inherited the bring-up stress settings
-`hotloop=1` / `hotexit=2`. That was corrected before treating the dispatch
-family as a real optimization target. A direct native rerun on `kdz` with the
-moderate thresholds matched the earlier dispatch medians within noise, so the
-current dispatch slowdown is considered real enough to guide optimization.
-
-## Execution Order
-
-Run the perf stage in this order:
-
-1. `gcc release`, `jit=on`, `ffi=on`, `baseline` on `kdz`
-2. same build with `jit=off`
-3. `gcc release`, `jit=on`, `ffi=on`, `z13` on `kdz`
-4. `clang release`, `jit=on`, `ffi=on`, `baseline` on `kdz`
-5. second-host spot perf on `zkd0` for the top families
-6. cross-arch local control for the top families
-
-## Acceptance
-
-A benchmark family is considered fully validated when:
-
-- the measured build passes the matching correctness gate
-- median and p95 are stable across repeated runs
-- both `jit=off` and `jit=on` measurements exist
-- at least one tuned-vs-baseline comparison exists on s390x
-- any top regression has an attributed cause or follow-up
-
-A performance optimization iteration is only complete when:
-
-- the targeted workload improves on the primary `kdz` release baseline
-- the matching correctness suite still passes
-- one mixed soak workload still passes
-- `perf-summary.md` and `comparisons.json` are restamped
+- High-level status:
+  [state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md)
+- Detailed findings and reject pile:
+  [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
+- Validation discipline:
+  [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)

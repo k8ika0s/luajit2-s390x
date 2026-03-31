@@ -1,240 +1,197 @@
-# s390x Bring-Up Runbook
+# s390x Validation Runbook
+
+Last updated: 2026-03-31 08:25:08 PDT
 
 ## Purpose
 
-This runbook explains how to drive the staged native s390x bring-up loop and
-how to read the resulting artifacts.
+This runbook describes the current authoritative validation loop for the s390x
+branch. It is intentionally narrower than the older closure-era workflow and
+matches the current lane split:
 
-## Primary Workflow
+- Lane A: build and stability
+- Lane B: recorder-side iterator perf
+- Lane C: parked bridge and continuation research
 
-1. Edit locally.
-2. Run the smallest remote validation first:
-   - `python3 tools/s390x/driver.py --stage <stage> --suite smoke --compiler gcc --mode debug --host auto`
-3. If smoke passes, rerun with the stage default suites:
-   - `python3 tools/s390x/driver.py --stage <stage> --suite all --compiler gcc --mode debug --host auto`
-4. If the stage gate passes, rerun the stage in release mode:
-   - `python3 tools/s390x/driver.py --stage <stage> --suite all --compiler gcc --mode release --host auto`
-5. For matrix or performance work, use the later stages directly.
-6. Keep the current remote worktree disposable. If the tree is contaminated or
-   manually edited, throw it away and restamp from a fresh run-id instead of
-   repairing it in place.
+For current status, read
+[state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md)
+first.
 
-## Closure Workflow
+## Authoritative Worktrees
 
-Use the `closure` stage when the goal is a branch-level native `s390x`
-support claim rather than a narrower matrix slice.
+Keep exactly two authoritative native repos:
 
-Recommended order:
+- `kdz:/root/luajit2-s390x/perf-clean-20260330/repo`
+- `zkd0:/root/luajit2-s390x/perf-clean-20260330/repo`
 
-1. Local coverage audit only:
-   - `python3 tools/s390x/driver.py --stage closure --suite coverage_audit --compiler gcc --mode debug --jit on`
-2. Full closure gate on `kdz`:
-   - `python3 tools/s390x/driver.py --stage closure --suite all --compiler gcc --mode release --jit on --host kdz`
-3. Second-host closure spot check on `zkd0`:
-   - `python3 tools/s390x/driver.py --stage closure --suite all --compiler gcc --mode debug --jit on --host zkd0`
+Use them for:
 
-Keep these direct native reduced probes available while closure is being
-restamped, since they catch the last soak/runtime regressions much faster than
-the full stage:
+- clean rebuilds
+- focused micros
+- pinned `kdz` perf A/B
+- `zkd0` regression screening
 
-- `/tmp/s390x_keep_worker.lua`
-- `/tmp/s390x_mode0_only.lua`
-- `tests/s390x/soak/trace_gc_churn.lua`
+Do not keep additional long-lived manual perf trees unless the current pair is
+discarded and replaced.
 
-The closure stage now includes:
+## Non-Negotiable Validation Rules
 
-- `smoke`
-- `pure_lua`
-- `ffi_abi`
-- `callbacks`
-- `jit_core`
-- `jit_loops`
-- `trace_tools`
-- `jit_be`
-- `soak`
-- `coverage_audit`
-- `downstream`
-- `perf_bench`
+- sync tracked files only
+- rebuild in `src/` only
+- treat `kdz` same-host pinned A/B as the policy signal
+- treat `zkd0` as a regression screen, not a policy chooser
+- use low-noise manual logs or debugger only
+- do not use the dirty-tree
+  [tools/s390x/iterator_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/iterator_probe.py)
+  wrapper for perf decisions
+- do not add helper-call probes in VM fast paths
 
-The `pure_lua` suite in closure mode widens to a full native `prove -v t/*.t`
-lane. `coverage_audit` and `downstream` run locally through the driver, while
-the existing correctness suites still use native remote execution.
+## Clean Rebuild
 
-If you need interactive `-jv` or `-jdump` runs from the repo root, remember to
-add `src/jit/*.lua` to `LUA_PATH`, for example:
+From the clean remote repo:
 
-- `LUA_PATH="./src/?.lua;./src/?/init.lua;;" ./src/luajit -jv <script.lua>`
+```sh
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+make -C src clean
+make -C src -j4
+./src/luajit -e 'local a,b,c=jit.status(); print(a,b,c)'
+```
 
-Without that, repo-root `-jv` or `-jdump` probes can look like “no JIT output”
-even on a correctly JIT-enabled s390x build.
+Current expected result on both hosts:
 
-The dedicated trace-tooling lane now covers this area structurally:
+- `true fold cse`
 
-- `tests/s390x/trace_tools/trace_attach_root.lua`
-- `tests/s390x/trace_tools/texit_observer.lua`
-- `tests/s390x/trace_tools/traceinfo_lifecycle.lua`
-- `tests/s390x/trace_tools/jit_module_loading.lua`
+This should work without `XCFLAGS=-DLUAJIT_ENABLE_S390X_JIT`.
 
-First native restamp:
+## Baseline Correctness Checks
 
-- `trace-tools-kdz-20260323a`
+Keep these green before perf work:
 
-## Gateway And Kong Demo Workflow
+```sh
+./src/luajit /tmp/oneshot_iter.lua 20
+./src/luajit /tmp/oneshot_iter.lua 2000
+./src/luajit /tmp/oneshot_iter.lua 200000
+./src/luajit -joff /tmp/oneshot_iter.lua 200000
+```
 
-Use these when the goal is product-shaped proof instead of harness matrix work.
+Current expected outputs:
 
-1. OpenResty leadership demo:
-   - `demo/openresty/run_demo.sh`
-2. Kong staged runtime demo:
-   - `demo/kong/run_kong_demo.sh`
-3. Kong minimal runtime probe against an existing remote root:
-   - `demo/kong/run_kong_require_probe.sh`
+- `RESULT 500`
+- `RESULT 50000`
+- `RESULT 5000000`
+- `RESULT 5000000`
 
-Important current defaults:
+## Iterator Perf Restamp
 
-- `demo/kong/run_kong_demo.sh` now defaults to the stronger proof path:
-  - `KONG_FORCE_JIT_OFF_IN_NGINX=0`
-  - `KONG_NGINX_RUN_AS_ROOT=1`
-- Current Kong startup bridge option:
-  - `KONG_DELAYED_JIT_ON_IN_NGINX=1`
-  - `KONG_DELAYED_JIT_ON_SECS=3`
-  - this keeps JIT off through `Kong.init()` and `Kong.init_worker()`, then
-    re-enables it from a delayed worker timer after startup settles
-- Kong demo runs now also derive deterministic per-run proxy/admin ports and
-  stop nginx on exit, which avoids cross-run `8000/8001` collisions during
-  closure restamps
-- The old bridge mode is still available as a fallback:
-  - `KONG_FORCE_JIT_OFF_IN_NGINX=1`
-- Use the staged probe before full `kong start` whenever the LuaJIT runtime
-  behavior has changed.
+Pinned `kdz` policy run:
 
-## Host Selection
+```sh
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+taskset -c 0 ./src/luajit tests/s390x/perf/iterator_table.lua
+```
 
-- Primary host: `kdz`
-- Automatic fallback: `zkd0`
-- `--host auto` prefers `kdz` and records any failover in `manifest.json`.
+Current frozen baseline:
 
-## Artifact Layout
+- `pairs_sum/hot median=0.056362`
+- `pairs_array_sum/hot median=0.061370`
 
-- Local run root: `artifacts/s390x/<run-id>/`
-- Latest symlink: `artifacts/s390x/latest`
-- Remote run root: `/root/luajit2-s390x/<run-id>/`
-- Important files:
-  - `manifest.json`
-  - `commands.ndjson`
-  - `summary.md`
-  - `stage-report.md`
-  - `failures.json`
-  - `metadata/git-sha.txt`
-  - `metadata/dirty.patch`
-  - `coverage/*`
-  - `downstream/*`
-  - `remote/bootstrap/*`
-  - `remote/steps/<suite>/<variant>/*`
-  - `binaries/<variant>/`
+`zkd0` regression screen uses the same benchmark plus focused micros and should
+stay within the current green band:
 
-## Current Transport Rules
+- `HASH_VALUE 3000`
+- `HASH_KEY 1320`
+- `ARRAY_VALUE 3000`
+- `pairs_sum/hot median=0.098189`
+- `pairs_array_sum/hot median=0.097454`
 
-- The driver no longer relies on raw `rsync` for normal structured runs.
-- Repo sync now uses a tracked-files-only tar stream over SSH.
-- The tar stream strips macOS metadata and does not include untracked local
-  scratch files.
-- Artifact collection still uses tar-over-ssh.
-- Optional binary collection is best-effort. Missing optional outputs should
-  not be treated as the front-most failure if the step itself passed.
+## Focused Micros
 
-## Failure Triage
+Value-only hash:
 
-- Start with `summary.md` and `stage-report.md`.
-- Open the failing step directory under `remote/steps/...`.
-- Read, in order:
-  - `command.txt`
-  - `stdout.log`
-  - `stderr.log`
-  - `metadata.json`
-  - `current_test.txt`
-  - `diagnostics/*`
-- If a crash occurred, inspect:
-  - `diagnostics/core-files.txt`
-  - `diagnostics/*.gdb.txt`
-  - `diagnostics/readelf.txt`
-  - `diagnostics/nm.txt`
-  - `diagnostics/objdump.txt`
-- If a step timed out, inspect `metadata.json` first. The harness uses a default
-  remote timeout of 1800 seconds unless `S390X_TIMEOUT_SEC` is overridden.
-- For the product demos, also inspect:
-  - `logs/stage-current.txt`
-  - `logs/stage-history.txt`
-  - `logs/require-probe.log`
-  - `logs/require-probe-last-ok.txt`
-  - `logs/kong-prepare.txt`
-  - `logs/kong-nginx-start.txt`
-  - `logs/coredumpctl-info.txt`
+```lua
+jit.opt.start("hotloop=1")
+local t={a=10,b=20,c=30,d=40,e=50}
+local function run(n)
+  local total=0
+  for _=1,n do
+    for _,v in pairs(t) do total = total + v end
+  end
+  return total
+end
+print("HASH_VALUE", run(20))
+```
 
-## Remote Trust Reset
+Key-using hash:
 
-- If the remote validation tree has been touched manually, stop using it as an
-  authority immediately.
-- Recreate a fresh remote worktree from the local source of truth using a new
-  driver run-id whenever possible.
-- Do not patch remote source files interactively inside tmux for substantive
-  edits unless the normal SSH transport is unavailable.
-- The helper
-  [tools/s390x/tmux_patch_sync.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/tmux_patch_sync.py)
-  emits tmux-safe chunked `printf` commands for environments where direct local
-  SSH transport is unavailable.
-- Preferred reset sequence:
-  1. Start a fresh run with a new run-id, or create a fresh disposable remote
-     workdir if you are doing a manual verification pass.
-  2. Sync from the local repo source of truth.
-  3. Rebuild and rerun the smallest focused native reproducer first.
-  4. Only after that passes, widen back to the staged harness gate.
-- Current known-good example:
-  - host: `kdz`
-  - worktree: `/root/luajit2-s390x/clean-loop-20260321`
-  - second host spot-check tree: `/root/luajit2-s390x/spotcheck-20260321`
+```lua
+jit.opt.start("hotloop=1")
+local t={aa=10,bb=20,cc=30}
+local function run(n)
+  local total=0
+  for _=1,n do
+    for k,v in pairs(t) do total = total + v + #k end
+  end
+  return total
+end
+print("HASH_KEY", run(20))
+```
 
-## Stage Rules
+Value-only array control:
 
-- `contract`: the driver checks `docs/s390x/contract.md` before allowing later
-  stages to proceed.
-- `interp`: keep `LJ_ARCH_NOJIT` in place and focus on boring correctness.
-- `ffi-call`: require generated ABI oracle coverage.
-- `callback-unwind`: require callback stability and unwind hygiene.
-- `jit-bringup`: remove `LJ_ARCH_NOJIT` only after the earlier gates are green.
-- `jit-correctness`: expand coverage to the full exercised BE and JIT surface.
-- `matrix`: run the wider compiler and build-style matrix.
-- `perf`: treat tuning as performance-only, never as correctness.
-- `closure`: run the final support-claim gate, including source audit,
-  downstream product demos, the `trace_tools` observer/tooling lane, and the
-  bounded `dispatch_trace` perf regression check.
+```lua
+jit.opt.start("hotloop=1")
+local t={10,20,30,40,50}
+local function run(n)
+  local total=0
+  for _=1,n do
+    for _,v in pairs(t) do total = total + v end
+  end
+  return total
+end
+print("ARRAY_VALUE", run(20))
+```
 
-## Performance Stage
+## Low-Noise Owner Mapping
 
-- The `perf` stage now includes:
-  - `smoke`
-  - `soak`
-  - `perf_bench`
-- `perf_bench` emits structured benchmark JSON plus per-benchmark raw logs.
-- The primary perf artifacts are:
-  - `perf/benchmarks.json`
-  - `perf/comparisons.json`
-  - `perf/perf-summary.md`
-- Structured perf runs use the same native remote build/test flow as the
-  correctness stages.
-- Use the `perf` stage only after the matching matrix slice is already green.
-- Cross-arch control builds are local and informative only. They are not
-  treated as correctness gates.
+Use only focused manual logging:
 
-## Notes
+```sh
+LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/hash_value.lua
+LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/hash_key.lua
+LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/array_value.lua
+```
 
-- The harness never edits the remote tree by hand. It always syncs from the
-  local repo and collects artifacts back.
-- The local worktree may contain untracked scratch files from earlier analysis.
-  The current tracked-files-only sync path intentionally excludes them from
-  structured remote runs.
-- The repo Perl tests now use the local [t/TestLJ.pm](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/t/TestLJ.pm)
-  harness and core Perl modules only. Remote bootstrap no longer depends on
-  CPAN packages for the existing `t/*.t` coverage.
-- If a run is intentionally preserved on the host for manual inspection, use
-  `--keep-remote`.
+Current owner map on the frozen baseline:
+
+- shared `addov_rr_int_eq` is the dominant cross-family payer
+- value-only hash still carries the hidden `KEYINDEX` load cluster
+- key-using hash adds a visible key/type `SLOAD`
+- array still carries numeric-key control loads
+- hash root no longer frame-sources the visible value lane
+
+## Reset Rules
+
+- If a validation repo is contaminated, discard it and resync tracked files.
+- Do not hand-edit remote source trees as part of the normal loop.
+- Do not trust partial syncs or stale detached repos.
+- If a result depends on invasive logging or a dirty tree, treat it as advisory
+  only.
+
+## What Is Parked
+
+Do not reopen these during routine perf work:
+
+- bridge and continuation experiments
+- hidden-control carry family
+- `TRACE 2` churn elimination as a perf proxy
+- `KEYINDEX` no-guard variants
+- full-lazy collapse
+- accumulator-to-`num` variants that still keep the back-edge `int.num` check
+
+## Related Docs
+
+- High-level current status:
+  [state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md)
+- Current perf status:
+  [perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md)
+- Technical notebook:
+  [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)

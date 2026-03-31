@@ -3,6 +3,10 @@
 This document records concrete findings from the staged native bring-up runs.
 It is intentionally focused on observed behavior, run IDs, and next actions.
 
+For the current project state in plain language, use
+[state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md).
+This file remains the append-only technical notebook.
+
 ## Harness Status
 
 - The native bring-up harness is implemented under `tools/s390x/`.
@@ -7597,3 +7601,429 @@ Next hash target
   - narrowing the carry to value-only hash is still not enough
   - the hidden-control carry family should be considered exhausted for the
     current branch
+
+2026-03-30: native `AR` / `SR` overflow lowering is a backend reject
+
+- Hardware check on `kdz` showed:
+  - `AR` / `SR` set the expected overflow condition directly
+  - `LGFR` sign-extends the 32-bit result and preserves that condition code
+  - so a narrower s390x backend cut was viable in principle
+- Backend experiment:
+  - add local `AR` / `SR` opcodes to `src/lj_emit_s390x.h`
+  - replace only the rr guarded integer add/sub paths in
+    `src/lj_asm_s390x.h`
+  - old path:
+    - `LGFR`
+    - `AGR` / `SGR`
+    - `LGFR`
+    - `CGR`
+    - guard on `CC_NE`
+  - candidate path:
+    - `AR` / `SR`
+    - `LGFR`
+    - guard on `CC_OF`
+- Structural result:
+  - low-noise guard mix changed as intended
+  - old `addov_rr_int_eq` disappeared
+  - new `addov_rr_int_of` became the dominant shared add guard
+- Validation:
+  - `kdz` correctness stayed green
+  - same-host pinned `kdz` was mixed:
+    - candidate 1:
+      - `pairs_sum/hot median=0.056099`
+      - `pairs_array_sum/hot median=0.057465`
+    - restored baseline:
+      - `pairs_sum/hot median=0.056091`
+      - `pairs_array_sum/hot median=0.058564`
+    - candidate 2:
+      - `pairs_sum/hot median=0.058984`
+      - `pairs_array_sum/hot median=0.057309`
+  - `zkd0` regression screen failed badly:
+    - candidate:
+      - `pairs_sum/hot median=0.148769`
+      - `pairs_array_sum/hot median=0.200513`
+- Conclusion:
+  - the backend simplification is real and hits the intended payer
+  - but it is not promotable because it does not hold up cross-host and
+    regresses the `zkd0` hot loops sharply
+
+2026-03-30: hash-only numeric accumulator `SLOAD(CONVERT)` is also a reject
+
+- Goal:
+  - replace the local custom `num ADD` override with a real numeric reload of
+    the accumulator slot on the exact tagged value-only hash `ADDVV`
+  - if that held the accumulator slot as `num`, it could remove both the hash
+    root `ADDOV` pair and the loop-back `int.num` check without widening policy
+- Recorder/backend experiment:
+  - add temporary s390x scratch state in `jit_State` to tag the value-only hash
+    payload `ADDVV`
+  - on the tagged `BC_ADDVV`, reload the non-value operand with
+    `sloadt(..., IRT_GUARD|IRT_NUM, IRSLOAD_TYPECHECK|IRSLOAD_CONVERT)`
+    instead of forcing a custom `num ADD`
+  - add a minimal s390x-only `IRSLOAD_CONVERT` path in `asm_sload()` for the
+    `num <- int` case
+- Structural result on clean `kdz`:
+  - hash root trace changed from
+    - `int VLOAD #0`
+    - `int SLOAD #3 T`
+    - `num CONV value`
+    - `num CONV total`
+    - `num ADD`
+    - loop-back `int CONV prev_num int.num check`
+  - to
+    - `int VLOAD #0`
+    - `int SLOAD #3 T`
+    - `num SLOAD #3 TC`
+    - `num CONV value`
+    - `num ADD`
+    - loop-back `int CONV prev_num int.num check`
+  - so the true numeric reload landed, but the loop still paid the back-edge
+    integer conversion
+- Validation:
+  - `kdz` correctness stayed green for the value-only hash micro:
+    - `HASH_VALUE 300`
+  - pinned `kdz` perf was mixed:
+    - candidate:
+      - `pairs_sum/hot median=0.055438`
+      - `pairs_array_sum/hot median=0.062029`
+    - restored baseline:
+      - `pairs_sum/hot median=0.056341`
+      - `pairs_array_sum/hot median=0.059806`
+  - `zkd0` correctness stayed green:
+    - `HASH_VALUE 300`
+    - `HASH_KEY 310`
+    - `ARRAY_VALUE 500`
+    - `RESULT 5000000`
+  - but the `zkd0` regression screen failed hard:
+    - candidate:
+      - `pairs_sum/hot median=0.141693`
+      - `pairs_array_sum/hot median=0.203562`
+    - restored baseline:
+      - `pairs_sum/hot median=0.209249`
+      - `pairs_array_sum/hot median=0.254719`
+- Conclusion:
+  - this is not a clean cross-host reject in the old sense, because it helped
+    `kdz` hash and also improved the current `zkd0` baseline
+  - but it remains a reject for the current branch because it materially
+    regresses the array hot case on both hosts and does not remove the
+    loop-back `int.num` check that motivated the experiment
+  - the next live target is still the shared backend `addov_rr_int_eq` guard
+    path, not more recorder-side hash carry or convert tagging
+
+2026-03-30: `AGFR`/`CGFR` equality-guard lowering is a backend reject
+
+- Instruction-floor check on `kdz`:
+  - gas accepts the signed-32 register forms directly:
+    - `agfr %r2,%r3`
+    - `cgfr %r2,%r3`
+    - `sgfr %r2,%r3`
+  - so there is a real instruction-level alternative to the current
+    `LGFR tmp,dest` + `CGR dest,tmp` sequence for guarded integer add/sub
+- Backend experiment:
+  - keep the existing equality-guard semantics
+    - overflow test remains `sum64 == sext32(sum64)`
+  - replace only the int-guarded add/sub equality path in
+    `src/lj_asm_s390x.h`
+  - old rr shape:
+    - `LGFR dest,dest`
+    - `AGR` / `SGR`
+    - `LGFR tmp,dest`
+    - `CGR dest,tmp`
+    - guard on `CC_NE`
+  - candidate rr shape:
+    - `LGFR dest,dest`
+    - `AGFR` / `SGFR`
+    - `CGFR dest,dest`
+    - guard on `CC_NE`
+  - constant-path `AGHI` cases were cut the same way:
+    - `LGFR dest,dest`
+    - `AGHI`
+    - `CGFR dest,dest`
+    - guard on `CC_NE`
+- Structural result:
+  - low-noise add/guard logs still hit the intended payer:
+    - `addov_rr_int_eq`
+  - but the temporary compare register is gone from the backend shape
+- Validation:
+  - `kdz` correctness stayed green:
+    - `HASH_VALUE 300`
+    - `HASH_KEY 310`
+    - `ARRAY_VALUE 500`
+    - `RESULT 5000000`
+  - pinned `kdz` perf lost to the restored baseline:
+    - candidate:
+      - `pairs_sum/hot median=0.058440`
+      - `pairs_array_sum/hot median=0.060322`
+    - restored baseline:
+      - `pairs_sum/hot median=0.056341`
+      - `pairs_array_sum/hot median=0.059806`
+- Conclusion:
+  - this is a real backend simplification, not a no-op
+  - but it is not promotable because it still loses on the authoritative
+    pinned `kdz` baseline
+  - so the remaining target is no longer “find a smaller equality-guard
+    sequence”; it is to remove or avoid the hot `IR_ADDOV` earlier than final
+    machine lowering
+
+2026-03-30: generalized iterator payload `ADDVV` numeric reload is a reject
+
+- Goal:
+  - target the actual hot root-trace owner directly
+  - for exact iterator bodies whose first payload instruction is `BC_ADDVV`
+    consuming the helper-returned value slot, reload the other operand as
+    `num` with `IRSLOAD_CONVERT` and let normal arithmetic lowering run
+  - unlike the earlier hash-only cut, widen this exact payload tag to both
+    array and hash value-only loops
+- Recorder/backend experiment:
+  - add temporary iterator-payload scratch fields in `jit_State`
+  - in `rec_itern()`, tag the exact payload pc and value slot whenever
+    `lj_record_next()` returned a non-nil value
+  - in `lj_record_ins()`, on the exact tagged `BC_ADDVV`, reload the
+    non-value operand with
+    `sloadt(..., IRT_GUARD|IRT_NUM, IRSLOAD_TYPECHECK|IRSLOAD_CONVERT)`
+  - add the minimal s390x `IRSLOAD_CONVERT` support in `asm_sload()` for the
+    `num <- int` case
+- Structural result on clean `kdz`:
+  - hash root trace changed from
+    - `int VLOAD #0`
+    - `int SLOAD #3 T`
+    - `int ADDOV`
+  - to
+    - `int VLOAD #0`
+    - `num SLOAD #3 TC`
+    - `num CONV value`
+    - `num ADD`
+    - loop-back `int CONV prev_num int.num check`
+  - array root trace flipped the same way:
+    - old array root used `int ADD` for the visible numeric key and
+      `int ADDOV` for the carried total
+    - candidate array root kept the numeric-key path intact but replaced the
+      carried total with `num SLOAD #3 TC`, `num ADD`, and the same back-edge
+      `int.num` check
+- Correctness:
+  - `kdz` stayed green on the exact value-only and key-using micros:
+    - `HASH_VALUE_MICRO 300`
+    - `HASH_KEY 310`
+    - `ARRAY_VALUE_MICRO 500`
+- Validation on pinned `kdz`:
+  - candidate:
+    - `pairs_sum/hot median=0.056274`
+    - `pairs_array_sum/hot median=0.063843`
+  - restored baseline:
+    - `pairs_sum/hot median=0.056341`
+    - `pairs_array_sum/hot median=0.059806`
+- Conclusion:
+  - this proves the dominant root-trace `ADDOV` can be displaced structurally
+    for both iterator families
+  - but the generalized numeric-reload policy is not promotable because array
+    gets materially worse while hash is effectively flat
+  - so the remaining problem is not “turn value-only iterator accumulation into
+    num everywhere”; the next target has to explain why array loses when the
+    root `ADDOV` is removed and why hash does not win enough to justify it
+
+2026-03-31: hash-only accumulator preseed-to-num is also a reject
+
+- Goal:
+  - avoid the rejected payload-local reload path and try a narrower recorder cut
+  - on the exact non-array path, if the first payload instruction is
+    `BC_ADDVV` consuming the helper-returned value slot, preseed the other
+    payload operand slot in `J->base` as `num` before the payload runs
+  - if that worked, hash could avoid both the hot root `ADDOV` and the frame
+    value reload without touching array policy or adding a custom backend path
+- Recorder experiment:
+  - in `rec_itern()`, inspect the exact payload pc
+  - only for `!nextisarray` and exact first-op `BC_ADDVV` using `ra+1`
+  - preseed the other operand slot as `num` in `J->base`
+    - use `sloadt(..., IRT_GUARD|IRT_NUM, IRSLOAD_TYPECHECK|IRSLOAD_CONVERT)`
+      if the slot was still unloaded and the runtime TValue was integer
+    - otherwise convert an already-loaded integer ref with `IR_CONV num.int`
+- Structural result on clean `kdz`:
+  - hash root trace changed to a true numeric accumulator chain:
+    - `CALLL lj_vm_next (0002 0003)`
+    - `num CONV value`
+    - `num CONV total`
+    - `num ADD`
+    - loop `CALLL lj_vm_next (0002 0003)` again
+    - back-edge `int CONV prev_num int.num check`
+    - `num PHI`
+  - so this cut did remove the old frame value reload and the plain root
+    `ADDOV`, but it still kept the loop-back `int.num` check
+- Correctness:
+  - `kdz` stayed green on the standard checks:
+    - `RESULT 5000000`
+    - hash value micro `300`
+    - hash key micro `600`
+    - array value micro `500`
+    - array key micro `800`
+- Validation on pinned `kdz`:
+  - first candidate pass:
+    - `pairs_sum/hot median=0.057114`
+    - `pairs_array_sum/hot median=0.061318`
+  - restored baseline immediately after:
+    - `pairs_sum/hot median=0.057555`
+    - `pairs_array_sum/hot median=0.061202`
+  - repeated same-host A/B remained too close and too noisy to show a clear
+    hash win:
+    - candidate runs:
+      - `pairs_sum/hot median=0.057561`, `pairs_array_sum/hot median=0.060429`
+      - `pairs_sum/hot median=0.055838`, `pairs_array_sum/hot median=0.068660`
+      - `pairs_sum/hot median=0.058882`, `pairs_array_sum/hot median=0.056667`
+    - restored baseline runs:
+      - `pairs_sum/hot median=0.057236`, `pairs_array_sum/hot median=0.061361`
+      - `pairs_sum/hot median=0.057604`, `pairs_array_sum/hot median=0.058329`
+      - `pairs_sum/hot median=0.059835`, `pairs_array_sum/hot median=0.057742`
+- Conclusion:
+  - this is a real structural change, not a no-op:
+    - hash accumulator became `num`
+    - root `ADDOV` disappeared
+    - the frame value reload also disappeared from the hot root trace
+  - the surviving back-edge `int.num` check is now explained:
+    - `src/lj_opt_loop.c` inserts it during loop unroll type reconciliation
+    - exact site:
+      - when a copied loop-carried dependency changes from original `int` to
+        new `num`, `loop_unroll()` hits
+        `irt_isnum(irr->t) && irt_isinteger(t)` and emits
+        `IR_CONV int.num check`
+    - that means this family will always keep the back-edge check unless the
+      original carried slot type is already `num` before loop unroll sees it
+  - but it still did not produce a convincing same-host `kdz` win
+  - because the policy is hash-only (`!nextisarray`), the array variance in the
+    repeated runs is not a policy signal and should be treated as noise
+  - the remaining live seam in this family is now even narrower:
+    - the back-edge `int.num` check that survives after the root `ADDOV`
+      and frame value reload are gone
+  - until that surviving check can be removed or explained, this preseed-to-num
+    cut is not promotable
+
+2026-03-31: exact operand-decode early-num load is also a reject
+
+- Goal:
+  - move the same hash-only accumulator family one step earlier than the
+    preseed-to-num cut
+  - tag the exact non-array payload `BC_ADDVV` in `rec_itern()`
+  - then, in `lj_record_ins()` operand decode, load the accumulator slot as
+    `num` with `IRSLOAD_TYPECHECK|IRSLOAD_CONVERT` before any plain int
+    `getslot()` can record the original slot ref
+  - if that worked, it would be the first version that could plausibly avoid
+    the old int-origin slot contract before the payload arithmetic is recorded
+- Recorder/backend experiment:
+  - add temporary exact-payload scratch fields in `jit_State`
+  - tag only the exact non-array `BC_ADDVV` payload slot in `rec_itern()`
+  - in `lj_record_ins()`, override the tagged operand decode to use
+    `sloadt(..., IRT_GUARD|IRT_NUM, IRSLOAD_TYPECHECK|IRSLOAD_CONVERT)`
+  - keep the minimal s390x `IRSLOAD_CONVERT` support in `asm_sload()`
+- Structural result on clean `kdz`:
+  - the hot slot load really changed:
+    - `S390X_SLOAD ref=8 op1=3 type=19 op2=0xc`
+  - the old backend add log did not appear:
+    - no `S390X_ADD kind=addov_rr_int_eq`
+  - so this is a real earlier cut than the plain payload-local convert path
+- Correctness:
+  - `kdz` stayed green on the focused micros:
+    - `HASH_VALUE 3000`
+    - `HASH_KEY 1320`
+    - `ARRAY_VALUE 3000`
+- Validation on pinned `kdz`:
+  - candidate:
+    - `pairs_sum/hot median=0.059046`
+    - `pairs_array_sum/hot median=0.058509`
+  - restored pushed baseline immediately after:
+    - `pairs_sum/hot median=0.058474`
+    - `pairs_array_sum/hot median=0.059654`
+- Conclusion:
+  - this is another real structural change, not a no-op
+  - but it still fails the authoritative same-host `kdz` bar:
+    - hash got slightly worse
+    - array got slightly better
+  - that means even the earliest exact payload-slot numeric load tested so far
+    is not a promotable iterator perf win
+  - the accumulator-to-num family should stay in the reject pile unless a new
+    cut can both remove the surviving loop-unroll `int.num` check and beat the
+    synced split baseline on same-host `kdz`
+
+2026-03-31: Lane A floor and four-piece Lane B baseline are the new freeze point
+
+- Lane split:
+  - Lane A is build/stability only
+  - Lane B is promotable recorder-side iterator perf only
+  - Lane C is parked bridge/continuation research only
+  - the current branch should stop cross-contaminating those three lines
+
+- Lane A restamp on clean default s390x rebuilds:
+  - `kdz` clean rebuild in `src/` came back JIT-enabled by default:
+    - `jit.status() => true fold cse`
+  - `zkd0` clean rebuild in `src/` also came back JIT-enabled by default:
+    - `jit.status() => true fold cse`
+  - long-run correctness stayed green on the clean default builds:
+    - `kdz`:
+      - `/tmp/oneshot_iter.lua 20 => RESULT 500`
+      - `/tmp/oneshot_iter.lua 2000 => RESULT 50000`
+      - `/tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+      - `-joff /tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+    - `zkd0`:
+      - `/tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+      - `-joff /tmp/oneshot_iter.lua 200000 => RESULT 5000000`
+  - conclusion:
+    - the validated Lane A floor is now:
+      - `ERRNO_SAVE` / `ERRNO_RESTORE` hardening
+      - `IRSLOAD_KIDX_NUMKEY`
+      - s390x JIT enabled by default without `LUAJIT_ENABLE_S390X_JIT`
+
+- Lane B freeze point:
+  - keep the four-piece recorder split only:
+    - array visible numeric key from successor index
+    - lazy non-array visible key
+    - trusted read-only hash table live-in shaping
+    - non-array value-lane seeding from `ix.val`
+  - do not collapse to full-lazy
+  - do not reopen hidden-control carry or accumulator-to-`num` families unless
+    a new cut beats this exact baseline on pinned `kdz`
+
+- Current pinned-host perf baseline:
+  - `kdz` same-host pinned:
+    - `pairs_sum/hot median=0.056362`
+    - `pairs_array_sum/hot median=0.061370`
+  - `zkd0` regression screen:
+    - `HASH_VALUE 3000`
+    - `HASH_KEY 1320`
+    - `ARRAY_VALUE 3000`
+    - `pairs_sum/hot median=0.098189`
+    - `pairs_array_sum/hot median=0.097454`
+
+- Current low-noise owner map on the frozen baseline:
+  - value-only hash:
+    - shared payer is still `addov_rr_int_eq`
+    - non-value cluster is still the hidden `KEYINDEX` load:
+      - `S390X_SLOAD ... op1=10 ... op2=0x44`
+    - the only other frame `SLOAD` is the carried total slot:
+      - `S390X_SLOAD ... op1=3 ... op2=0x4`
+    - there is no extra visible value-lane frame `SLOAD`
+  - key-using hash:
+    - still pays shared `addov_rr_int_eq`
+    - keeps the hidden `KEYINDEX` load
+    - adds a visible key/type `SLOAD`:
+      - `S390X_SLOAD ... op1=11 ... type=4 ... op2=0x4`
+  - array value-only control:
+    - still pays shared `addov_rr_int_eq`
+    - keeps numeric-key array control loads:
+      - `S390X_SLOAD ... op1=10 ... op2=0xc4`
+      - `S390X_SLOAD ... op1=9 ... type=11 ... op2=0x4`
+
+- Minimal proof that hash root no longer frame-sources the value lane:
+  - value-only hash bytecode payload is:
+    - `ADDVV 1 1 10`
+  - on the frozen baseline, low-noise hash compile logs show only:
+    - the carried total slot `SLOAD`
+    - the hidden `KEYINDEX` `SLOAD`
+  - there is no third frame `SLOAD` for the helper-returned visible value lane
+  - conclusion:
+    - helper `VLOAD #0` now feeds the hash add path directly on the frozen
+      baseline, and the old extra frame value `SLOAD` is gone
+
+- Decision from the restamp:
+  - shared `addov_rr_int_eq` is now the dominant cross-family payer
+  - hash root still carries the hidden `KEYINDEX` load cluster
+  - the next live target is not another carry/no-guard/full-lazy experiment
+  - if one more accumulator-family pass is attempted at all, it must target
+    the original carried-total type before `loop_unroll()` sees it, and it
+    must be rejected immediately if the back-edge `int.num` check survives
