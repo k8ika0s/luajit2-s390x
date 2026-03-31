@@ -1,6 +1,6 @@
 # s390x Validation Runbook
 
-Last updated: 2026-03-31 10:44:29 PDT
+Last updated: 2026-03-31 11:35:00 PDT
 
 ## Purpose
 
@@ -56,6 +56,26 @@ That helper is now the default measurement path because it locks the contract:
 - pinned `taskset -c 0` benchmark runs
 - same benchmark file for `jit.on` and `-joff`
 - raw owner logs and IR dumps retained beside the benchmark JSONL
+
+For the frozen-baseline “measure, then decide” pass, use the truth-pack helper:
+
+```sh
+python3 tools/s390x/build_iterator_truth_pack.py \
+  --host kdz \
+  --output-dir artifacts/s390x/truth-packs/20260331-kdz-frozen-baseline-truth-pack
+```
+
+That helper uses the same sync and rebuild contract, then adds:
+
+- focused hot medians for:
+  - value-only hash
+  - key-using hash
+  - array value-only control
+- `-jdump=im` IR+mcode dumps for the same three loops
+- low-noise owner logs
+- steady-state `jit.attach("trace")` and `jit.attach("texit")` counts after
+  warmup
+- `perf stat` capture when the host supports the requested counters
 
 Required output bundle:
 
@@ -133,14 +153,14 @@ Same-harness `-joff` comparator on `kdz`:
 - `pairs_sum/hot median=0.004289`
 - `pairs_array_sum/hot median=0.003695`
 
-Current `kdz` distance to that comparator:
+Current `kdz` distance to that comparator from the frozen-baseline truth pack:
 
 - hash hot:
-  - gap `+0.057562s`
-  - ratio `14.42x`
+  - gap `+0.055205s`
+  - ratio `10.90x`
 - array hot:
-  - gap `+0.060150s`
-  - ratio `17.28x`
+  - gap `+0.062611s`
+  - ratio `16.17x`
 
 Current `kdz` delivery ladder:
 
@@ -155,6 +175,11 @@ Current `kdz` delivery ladder:
 
 If the helper restamp bar fails again, stop and explain the drift before
 opening another perf patch family.
+
+If the frozen-baseline truth pack still shows materially nonzero steady-state
+trace starts, aborts, or texits after warmup, do not switch the branch over to
+“compiled throughput only” debugging. The next target remains root/side-trace
+ownership on the frozen baseline.
 
 ## Focused Micros
 
@@ -221,6 +246,24 @@ Current owner map on the measured branch-tip baseline:
 - key-using hash adds a visible key/type `SLOAD`
 - array still carries numeric-key control loads
 - hash root no longer frame-sources the visible value lane
+
+Current frozen-baseline truth-pack decision on `kdz`:
+
+- value-only hash:
+  - `TRACE_START 10`
+  - `TRACE_ABORT 9`
+  - `TEXIT_COUNT 960000`
+- key-using hash:
+  - `TRACE_START 10`
+  - `TRACE_ABORT 9`
+  - `TEXIT_COUNT 640000`
+- array value-only control:
+  - `TRACE_START 12`
+  - `TRACE_ABORT 10`
+  - `TEXIT_COUNT 960000`
+- conclusion:
+  - steady-state exit behavior is still materially nonzero
+  - do not treat the current perf gap as pure compiled-loop throughput yet
 
 Fresh `kdz` proof bundle:
 
