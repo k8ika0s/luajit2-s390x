@@ -9,6 +9,34 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 12:02:00 PDT`
+- Truth-pack helper now records per-trace and per-exit histograms in the
+  focused warmup-after capture:
+  - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+- Refreshed histogram run on `kdz`:
+  - value-only hash:
+    - `trace histogram abort:3=9,start:2=1,start:3=9,stop:2=1`
+    - `texit histogram 1:1=960000`
+  - key-using hash:
+    - `trace histogram abort:3=9,start:2=1,start:3=9,stop:2=1`
+    - `texit histogram 1:1=640000`
+  - array value-only control:
+    - `trace histogram abort:6=10,start:5=1,start:6=10,stop:5=1`
+    - `texit histogram 4:1=87,5:1=959913`
+- Focused follow-up classification on `kdz`:
+  - value-only hash `trace 2` exists, but `traceinfo(2)` reports:
+    - `linktype=stitch`
+    - `nins=9`
+    - `nexit=2`
+  - after that stitch trace exists, a dump started in the measured phase shows:
+    - repeated `TRACE 1 exit 1`
+    - then `TRACE 3 start ...`
+    - then `TRACE 3 abort ... -- inner loop in root trace`
+- Decision:
+  - the next target is not generic “exit 1 is hot”
+  - the next target is why hash `exit 1` remains root-owned while array
+    `exit 1` promotes to a live side trace
+
 - Timestamp: `2026-03-31 11:48:00 PDT`
 - Focused follow-up on the frozen `kdz` baseline after the truth pack:
   - a post-warmup `jit.dump` `texit` probe on value-only hash shows repeated
