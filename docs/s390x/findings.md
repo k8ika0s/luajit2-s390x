@@ -9,6 +9,34 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 13:05:00 PDT`
+- Source diagnosis for the owner-link seam:
+  - the first stop target for iterator descendants is chosen in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    by `rec_loop_jit()`, before the later child-link promotion logic in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    runs
+  - specifically:
+    - `rec_loop_jit(J, rc, ...)` receives the compiled-loop target as `lnk`
+    - it then decides between:
+      - `lj_record_stop(..., LJ_TRLINK_LOOP, J->cur.traceno)` for a self-loop
+      - `lj_record_stop(..., LJ_TRLINK_ROOT, lnk)` for a root-linked child
+  - that means the observed `link=1` vs `link=2` split is not created by the
+    later `S390X_ROOT_PROMOTE_CHILD_*` machinery alone; it is already present
+    in the initial stop decision
+- Focused classifier with `LUAJIT_S390X_ALLOW_ITER_DESC=1`:
+  - on a stripped direct probe, both hash and array collapse to the same shape:
+    - `trace 1`: loop
+    - `trace 2`: loop
+    - later descendants: `link=1`, `linktype=root`
+  - so descendant permission alone is not enough to reproduce the earlier
+    array promoted-owner behavior
+- Decision:
+  - the next target is now even narrower:
+    - explain why the default array path reaches a different `rec_loop_jit()`
+      stop target / trace family than hash, rather than treating child-link
+      promotion as the first cause
+
 - Timestamp: `2026-03-31 12:38:00 PDT`
 - Focused `kdz` classifier against the frozen baseline:
   - hash `trace 2` body can now be captured directly under `jit.dump`
