@@ -1488,6 +1488,8 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
   ix.mobj = 1;  /* We need the next index, too. */
   J->maxslot = ra + lj_record_next(J, &ix);
   J->needsnap = 1;
+  if (!nextisarray && ix.key == 0 && !tref_isnil(ix.val))
+    J->base[ra+1] = ix.val;
   lj_record_s390x_itern_focus_log(J, "after_next", ra, &ix, nextt, keyflags);
   if (!tref_isnil(ix.key)) {  /* Looping back? */
     const BCIns *oldpc = J->pc;
