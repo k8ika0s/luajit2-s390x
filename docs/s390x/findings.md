@@ -6836,3 +6836,648 @@ array/hash payer split
   - hash side is still paying in the pre-call KEYINDEX/address-lane cluster
   - the bridge/continuation crash work is no longer the primary iterator
     target
+
+2026-03-30: clean array-only result-path derivation removes the old post-call
+array key-lane payer
+
+- I moved the next perf pass onto a clean detached worktree at `81fd03d1` and
+  left the dirty bridge/snapshot scratch out of the experiment.
+- The array-only change is in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+  - extend `rec_next_types()` to report whether the next visible item comes
+    from the array part
+  - in `lj_record_next()`, when the path is array-only and the visible key is
+    numeric, derive that visible key from the returned successor index
+    (`HIOP(trvk) - 1`) instead of reloading `VLOAD #1` from the `lj_vm_next`
+    tuple
+- This stays exact-path-only:
+  - numeric-key array traversal only
+  - no hash behavior changes
+  - no new descendant/bridge policy changes
+- Clean `kdz` correctness stayed green on that build with the same safe env
+  bundle:
+  - `/tmp/oneshot_iter.lua 20 -> RESULT 500`
+  - `/tmp/oneshot_iter.lua 2000 -> RESULT 50000`
+  - `/tmp/oneshot_iter.lua 200000 -> RESULT 5000000`
+  - `./luajit -joff /tmp/oneshot_iter.lua 200000 -> RESULT 5000000`
+- The low-noise manual `pairs_array_sum:20` classifier changed exactly where
+  expected:
+  - `RESULT actual=500 expected=500`
+  - the old repeated post-call array key-lane cluster is gone:
+    - `vload_next_key_int`
+    - `vload_next_key_nil`
+  - the remaining repeated guards are now the carried-total/slot-load side of
+    the loop, not the helper-tuple key-lane reload
+- The clean perf gate on `kdz` improved on the array hot case while leaving the
+  hash case essentially where it was:
+  - JIT on:
+    - `pairs_sum/hot median=0.072109`
+    - `pairs_array_sum/hot median=0.071600`
+  - `-joff`:
+    - `pairs_sum/hot median=0.004267`
+    - `pairs_array_sum/hot median=0.004011`
+  - compared to the previous clean baseline:
+    - `pairs_sum/hot` is effectively unchanged (`0.072996 -> 0.072109`)
+    - `pairs_array_sum/hot` improves materially (`0.083461 -> 0.071600`)
+- The low-noise manual `pairs_sum:20` hash classifier remained on the same
+  pre-call/restart owner family:
+  - `vload_addr`
+  - duplicate guard site at the table/key restart boundary
+  - `sload_keyindex`
+  - `sload_type`
+  - then the carried-total `addov_rr_int_eq`
+- So the next split is now cleaner than before:
+  - array has a concrete result-path win that removes the old post-call
+    numeric key-lane payer
+  - hash is still the remaining iterator perf target and stays on the
+    pre-call KEYINDEX/address-lane side
+
+2026-03-30: clean hash-side lazy visible-key materialization removes the eager
+helper-tuple `vload_addr` payer
+
+- The next clean worktree experiment stayed recorder-side and built on top of
+  the array-only result-path change in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c).
+- Instead of eagerly materializing the visible hash key from `lj_vm_next`'s
+  returned tuple, `lj_record_next()` now leaves the visible key slot unloaded
+  on the non-array path and lets the loop body `SLOAD` it later if needed.
+- This is not the same as dropping hash keys entirely:
+  - on `for _, v in pairs(t)` the body never asks for the visible key, so the
+    old `vload_addr` payer disappears
+  - on `for k, v in pairs(t)` the body later touches the key slot and the trace
+    naturally reloads it with `SLOAD`, which stayed semantically correct in the
+    small key-using classifier
+- Clean `kdz` results with the same safe env bundle:
+  - low-noise `pairs_sum:20` stayed correct: `RESULT actual=500 expected=500`
+  - the old repeated `vload_addr` hash payer disappeared from the guard log
+  - the remaining repeated hash cluster became:
+    - `sload_keyindex`
+    - `sload_type`
+    - carried-total integer slot/add guards
+- A key-using hash classifier also stayed correct:
+  - `for k, v in pairs(t) do total = total + v + #k end`
+  - `run(20) -> 600`
+  - IR confirmed the visible key now comes from `str SLOAD #12` on demand
+    instead of the old eager helper-tuple `str VLOAD #1`
+- The clean perf gate on `kdz` improved again on the hash hot case:
+  - JIT on:
+    - `pairs_sum/hot median=0.068346`
+    - `pairs_array_sum/hot median=0.072085`
+  - compared to the clean post-array baseline:
+    - `pairs_sum/hot` improves materially (`0.072109 -> 0.068346`)
+    - `pairs_array_sum/hot` stays in the same band (`0.071600 -> 0.072085`)
+- So the recorder-side split now looks much cleaner:
+  - array: derive the numeric visible key directly from the successor index
+  - hash: lazily materialize the visible key only if the loop body actually
+    asks for it
+
+2026-03-30: same-host pinned A/B shows the `zkd0` full-lazy hash delta is not
+just host-speed skew, but it also is not a direct hash-policy effect
+
+- To separate machine-profile differences from policy effects, I reran the
+  split-vs-full-lazy A/B on the same pinned core (`taskset -c 0`) with the
+  same safe env bundle and `S390X_PERF_SAMPLES=9`.
+- `kdz` same-host repeated medians:
+  - split:
+    - `pairs_sum/hot`: `0.078863`, `0.079172`, `0.077700`
+    - `pairs_array_sum/hot`: `0.079935`, `0.080002`, `0.080002`
+  - full-lazy:
+    - `pairs_sum/hot`: `0.079261`, `0.080554`, `0.079099`
+    - `pairs_array_sum/hot`: `0.080667`, `0.079288`, `0.079789`
+  - median-of-medians:
+    - hash: full-lazy is only about `0.5%` slower
+    - array: full-lazy is about `0.27%` faster
+- `zkd0` same-host repeated medians:
+  - split:
+    - `pairs_sum/hot`: `0.145481`, `0.137792`, `0.136099`
+    - `pairs_array_sum/hot`: `0.142606`, `0.126713`, `0.142824`
+  - full-lazy:
+    - `pairs_sum/hot`: `0.156157`, `0.156250`, `0.131984`
+    - `pairs_array_sum/hot`: `0.133959`, `0.130575`, `0.127103`
+  - median-of-medians:
+    - hash: full-lazy is about `13.33%` slower
+    - array: full-lazy is about `8.44%` faster
+- So the earlier cross-host read really was misleading:
+  - `zkd0` is slower overall than `kdz`
+  - absolute host-to-host timings are not directly comparable
+  - the only trustworthy comparison is split-vs-full-lazy on the same host
+- But the source diff gives the more important structural constraint:
+  - split vs full-lazy differs only in the array-success path inside
+    `lj_record_next()`
+  - the non-array success path already uses the same lazy visible-key rule in
+    both variants
+  - so the `zkd0` hash delta cannot be a direct consequence of different hash
+    recorder logic
+- The practical read is:
+  - the big `zkd0` full-lazy hash loss is either measurement variance or a
+    secondary whole-binary / whole-suite effect
+  - it is not a clean argument for changing the intended hash policy
+  - the promotable next patch should therefore stay on the split recorder
+    shape, not the simpler full-lazy collapse
+
+2026-03-30: `zkd0` fresh-process A/B stays too noisy for policy choice; direct
+`KEYINDEX` tag-word compare is an immediate reject
+
+- I followed up the same-host suite A/B with fresh-process isolated hash-only
+  and array-only runs on `zkd0` to remove suite-order contamination.
+- Those isolated `zkd0` runs did not preserve the earlier clean split:
+  - host state during the run was already noisy:
+    - split block started around `loadavg 6.73 5.19 3.68`
+    - lazy block started around `loadavg 7.35 5.47 3.81`
+    - `nproc=8`
+  - isolated hash medians:
+    - split: `0.143018`, `0.139432`, `0.161071`
+    - full-lazy: `0.124187`, `0.152878`, `0.129796`
+  - isolated array medians:
+    - split: `0.133113`, `0.139894`, `0.132421`
+    - full-lazy: `0.127625`, `0.159798`, `0.159999`
+- So `zkd0` is still too noisy to pick recorder policy from the benchmark
+  numbers alone:
+  - the isolated hash run no longer shows the earlier clean “full-lazy loses”
+    pattern
+  - the isolated array run swings hard enough that its direction is unstable
+  - the trustworthy policy read is still:
+    - use same-host `kdz` as the primary signal
+    - use the source diff itself, which proves split vs full-lazy differs only
+      in the array-success path
+- I then tested a backend-side hash candidate in the clean split worktree:
+  - replace the `IRSLOAD_KEYINDEX` s390x check with a direct high-word compare
+    against `LJ_KEYINDEX` instead of the old 64-bit load-plus-shift path
+  - the same direct compare was also tried in `asm_gencall_sload()`
+- That backend cut is a reject:
+  - after rebuilding the clean split repo on `kdz`, even
+    `/tmp/oneshot_iter.lua 20` stopped making forward progress
+  - the run hung at `n=20` instead of returning the normal `RESULT 500`
+  - restoring the previous backend file immediately brought the clean split
+    repo back to `RESULT 500`
+- So the next target remains the same:
+  - keep the split recorder patch as the promotable candidate
+  - do not collapse to full-lazy
+  - do not pursue the direct `KEYINDEX` tag-word compare path further
+
+2026-03-30: hash `KEYINDEX` no-guard is a semantic reject; hash table live-in
+shaping is the real next win
+
+- I tested a recorder-side hash-only `KEYINDEX` classifier first:
+  - drop `IRSLOAD_TYPECHECK` from the hidden control-var `KEYINDEX` load on the
+    non-array `ITERN` path
+  - keep array numeric-key handling unchanged
+- That cut is a reject:
+  - value-only iterators stayed green:
+    - `oneshot_iter.lua 20 -> 500`
+    - `oneshot_iter.lua 2000 -> 50000`
+    - `oneshot_iter.lua 200000 -> 5000000`
+  - but a key-using hash loop stopped making progress
+  - so the hidden hash `KEYINDEX` guard is not redundant; it carries real hash
+    iteration semantics
+- The more useful follow-up was narrower:
+  - keep the `KEYINDEX` path unchanged
+  - only reshape the `pairs()` table live-in on the hash side
+  - in `rec_isnext()` and `rec_itern()`, use a read-only trusted table ref for
+    hash iteration instead of a generic typechecked table `SLOAD`
+  - array keeps the existing path
+- That hash table live-in cut held up on `kdz`:
+  - correctness:
+    - `oneshot_iter.lua 20 -> 500`
+    - `oneshot_iter.lua 2000 -> 50000`
+    - `oneshot_iter.lua 200000 -> 5000000`
+    - key-using hash loop
+      `for k,v in pairs({aa=1,bbb=2,c=3,d=4,e=5}) do total = total + v + #k end`
+      still returned `460` for `run(20)`
+  - low-noise hash `SLOAD` log:
+    - before: hot pre-call hash trace showed table slot `#9` and hidden
+      `KEYINDEX` slot `#10`
+    - after: the table slot `SLOAD` disappeared while the hidden `KEYINDEX`
+      `SLOAD` remained
+    - so the hash side now keeps the real semantic guard and drops the table
+      live-in typecheck
+- Clean `kdz` perf from the detached split worktree improved materially:
+  - prior split baseline:
+    - `pairs_sum/hot median=0.068346`
+    - `pairs_array_sum/hot median=0.072085`
+  - hash table live-in cut:
+    - run 1:
+      - `pairs_sum/hot median=0.058412`
+      - `pairs_array_sum/hot median=0.060240`
+    - run 2:
+      - `pairs_sum/hot median=0.061722`
+      - `pairs_array_sum/hot median=0.065274`
+    - unconditional clean build:
+      - `pairs_sum/hot median=0.060262`
+      - `pairs_array_sum/hot median=0.061562`
+- `zkd0` remains noisier, so only same-host A/B is trustworthy:
+  - baseline split on the same clean repo:
+    - `pairs_sum/hot median=0.172180`
+    - `pairs_array_sum/hot median=0.133606`
+  - hash table live-in cut on the same clean repo:
+    - `pairs_sum/hot median=0.171461`
+    - `pairs_array_sum/hot median=0.125585`
+  - so `zkd0` does not show a regression signal; if anything it trends slightly
+    better, but not strongly enough to outweigh the cleaner `kdz` signal
+- Practical read:
+  - `KEYINDEX` no-guard is rejected
+  - hash table live-in shaping is the current promotable hash-side follow-up to
+    the split recorder patch
+  - the remaining hash cost is not the visible-key tuple load anymore, and not
+    the hidden control-var guard either; the next removable payer was the hash
+    table slot typecheck
+
+2026-03-30: hash traversal-index keepalive does not change the loop contract
+
+- I tested one narrower follow-up in the clean detached split repo:
+  - keep the hash table live-in cut
+  - add a hash-only no-op use of the returned traversal index
+    (`ix.mobj = ADD ix.mobj, 0`) before leaving the visible key unloaded
+  - goal: see whether a trivial explicit use would make the loop preserve the
+    returned `HIOP` as a carried value for the next `lj_vm_next()` call
+- That classifier is a reject:
+  - the hash IR was unchanged
+  - it still records:
+    - `tab SLOAD #9 R`
+    - `int SLOAD #10 TK`
+    - `CALLL lj_vm_next (0002 0003)`
+    - loop `CALLL lj_vm_next (0002 0003)` again
+  - array still differs in the expected way:
+    - loop `CALLL lj_vm_next (0002 0006)`
+    - with `HIOP` / `PHI` carried around the loop
+- So the remaining hash difference is deeper than a dead-code/liveness issue on
+  the returned traversal index:
+  - a dummy keepalive is not enough to make hash reuse the returned `HIOP` as
+    the next loop-carried control input
+  - after the table live-in fix, the remaining hash-specific contract is still
+    the frame `KEYINDEX` path itself
+
+2026-03-30: value-only hash `KEYINDEX` no-guard by loop-body slot scan is also a
+reject
+
+- I tested one more narrow hash-side classifier in the clean detached split
+  repo:
+  - keep the split recorder patch and the hash table live-in win
+  - add an env-gated hash-only fast path
+    `LUAJIT_S390X_HASH_KEY_UNUSED_NOGUARD=1`
+  - conservatively scan the local loop body from `ITERN` back to its body entry
+    and drop `IRSLOAD_TYPECHECK` from the hidden hash `KEYINDEX` load only when
+    the visible key slot appears unused
+- This is structurally narrower than the earlier global `KEYINDEX` no-guard:
+  - key-using loops keep the guard
+  - only value-only hash loops are eligible
+- Small correctness classifiers stayed green:
+  - `/tmp/oneshot_iter.lua 20 -> RESULT 500`
+  - `/tmp/oneshot_iter.lua 2000 -> RESULT 50000`
+  - `/tmp/oneshot_iter.lua 200000 -> RESULT 5000000`
+  - key-using hash loop
+    `for k,v in pairs({aa=1,bbb=2,c=3,d=4,e=5}) do total = total + v + #k end`
+    still returned `43` for `f(20)`
+- But it is not promotable:
+  - on an idle `kdz`, a pinned same-binary A/B using the hot hash and array
+    loops showed the baseline half finishing in the normal band:
+    - `pairs_sum_hot 0.059565`
+    - `pairs_array_sum_hot 0.060925`
+  - the env-on half then fell into a pathological long-running shape instead of
+    finishing in the same band
+  - stale host contention was ruled out first by explicitly killing the old
+    stray `HASH_KEYINDEX_NOGUARD`, `iterator_table.lua`, and prior bench jobs
+- So this value-only keyed no-guard path is also a reject:
+  - it is not just “unclear perf”
+  - it actively destabilizes the hot hash/array loop surface on clean `kdz`
+  - the remaining safe target is still the hash `KEYINDEX` live-in contract
+    itself, without dropping the hidden control-var guard
+
+2026-03-30: recorder-side hash control-input carry via unused visible-key slot
+is not promotable
+
+- I tested one narrower recorder-only follow-up under
+  `LUAJIT_S390X_HASH_KEY_CARRY=1`:
+  - keep the promoted split recorder baseline unchanged
+  - only on non-array loops where the visible key slot is provably unused,
+    cache the returned traversal index in that unused visible-key slot
+  - feed the next `lj_vm_next()` call from that carried ref while keeping the
+    hidden `KEYINDEX` slot and guard intact
+- The experiment rebuilt cleanly and stayed semantically correct on `kdz`:
+  - `oneshot_iter.lua 20 -> 500`
+  - `oneshot_iter.lua 2000 -> 50000`
+  - `oneshot_iter.lua 200000 -> 5000000`
+  - key-using hash loop still returned `43` for `f(20)`
+- Same-binary pinned A/B on clean `kdz` looked promising:
+  - baseline:
+    - `pairs_sum_hot 0.059960`
+    - `pairs_array_sum_hot 0.062132`
+  - env on:
+    - `pairs_sum_hot 0.057555`
+    - `pairs_array_sum_hot 0.059757`
+- But it is not promotable:
+  - the low-noise `SLOAD` proxy did not give a clean structural proof that the
+    hash loop stopped re-sourcing its second `lj_vm_next()` input from the
+    frame `KEYINDEX` path
+  - and the `zkd0` same-binary regression screen failed:
+    - baseline:
+      - `pairs_sum_hot 0.105885`
+      - `pairs_array_sum_hot 0.124655`
+    - env on:
+      - `pairs_sum_hot 0.140418`
+      - `pairs_array_sum_hot 0.134604`
+- So this carry path is a reject for now:
+  - it is a real directional classifier on `kdz`
+  - but it is not stable enough across hosts to land
+  - the branch stays on the promoted recorder split baseline only
+
+2026-03-30: backend dedup of duplicate hash `KEYINDEX` gencall/typecheck is a
+crash reject
+
+- I tested one narrower backend-side follow-up for the remaining hash payer:
+  - keep the promoted recorder split baseline unchanged
+  - in `asm_sload()`, when a hidden `IRSLOAD_KEYINDEX` ref has no direct uses
+    and the same ref was already typechecked by `asm_gencall_sload()` while
+    being prepared as the `lj_vm_next()` argument, skip the second local
+    `sload_keyindex` typecheck
+  - gate it behind `LUAJIT_S390X_DEDUP_KEYINDEX_GENCALL_SLOAD=1`
+- This required first syncing the clean detached split repo with the current
+  s390x assembler state from the main workspace:
+  - the clean repo did not yet carry the `ASMState` gencall-tracking fields in
+    `lj_asm.c`
+  - without that sync the header-only experiment was not even self-consistent
+- Once the clean detached repo was made self-consistent, the experiment
+  rejected immediately on `kdz`:
+  - build completed successfully
+  - `env LUAJIT_S390X_DEDUP_KEYINDEX_GENCALL_SLOAD=1 ./luajit /tmp/oneshot_iter.lua 200000`
+    crashed with `SIGSEGV`
+- So this dedup path is not promotable:
+ - it is not just “no perf win”
+  - it breaks the long authoritative iterator surface outright
+  - the remaining safe target stays recorder/live-in side, not another attempt
+    to delete the hidden hash `KEYINDEX` guard path in backend code
+
+2026-03-30: clean s390x rebuilds were still disabling JIT by default
+
+- The validation floor failure on `kdz` was source-level, not host noise:
+  - `make -pn` showed `TARGET_LJARCH = s390x`
+  - but the same `TARGET_TESTARCH` expansion still contained:
+    - `LJ_TARGET_S390X 1`
+    - `LJ_ARCH_NOJIT 1`
+    - `LJ_HASJIT 0`
+  - so the clean build was correctly identifying s390x, then disabling JIT in
+    `src/lj_arch.h`
+- The cause was the still-active opt-in guard in `src/lj_arch.h`:
+  - s390x kept:
+    - `#if !defined(LUAJIT_ENABLE_S390X_JIT)`
+    - `#define LJ_ARCH_NOJIT 1 /* NYI */`
+  - which meant every clean native rebuild without ad hoc `XCFLAGS` produced a
+    no-JIT binary, even though the branch now relies on default-clean JIT
+    rebuilds for validation
+- I removed that guard locally and restamped it on a clean `kdz` repo:
+  - patch one clean repo’s `src/lj_arch.h`
+  - `make clean && make -j4`
+  - then `./luajit -e 'print(jit and jit.status())'`
+- Result:
+  - clean rebuild returned `true`
+  - `jit.on()` worked again without any `XCFLAGS=-DLUAJIT_ENABLE_S390X_JIT`
+- This is not a perf change by itself, but it fixes the validation floor:
+  - clean s390x builds are JIT-capable again by default
+  - later recorder-side A/B work can be trusted without hidden build flags
+
+2026-03-30: `rec_itern()` `nextt != IRT_NIL` loopback decision is a mixed
+reject
+
+- With the clean-build floor repaired, I retested the narrow recorder theory in
+  `src/lj_record.c`:
+  - keep the promoted recorder split baseline unchanged
+  - change the `rec_itern()` loopback test from:
+    - `if (!tref_isnil(ix.key))`
+  - to:
+    - `if ((nextt & 0xff) != IRT_NIL)`
+- Why this was worth testing:
+  - the lazy non-array path intentionally sets `ix->key = 0`
+  - so the old test conflates:
+    - “visible key intentionally unloaded”
+    - and “iterator actually returned nil”
+  - that made it the tightest recorder-side suspicion for the remaining hash
+    control asymmetry
+- The experiment stayed semantically correct on clean `kdz`:
+  - `oneshot_iter.lua 20 -> 500`
+  - `oneshot_iter.lua 2000 -> 50000`
+  - key-using hash loop still returned the expected `740` for `run(20)`
+- On the repaired clean repo, that one-line change does not buy a distinct
+  structural win on its own:
+  - after reverting it, the same value-only hash IR still looped as:
+    - first call `CALLL lj_vm_next (0002 0003)`
+    - loop call `CALLL lj_vm_next (0002 0006)`
+  - so the earlier “it caused the control input carry” read was not stable
+    enough to treat as causal
+  - the useful result remains the pinned same-repo perf A/B, not the stale
+    structural interpretation
+- But same-repo pinned `kdz` A/B says it is not the right landing policy:
+  - candidate:
+    - `pairs_sum/hot 0.062256`
+    - `pairs_array_sum/hot 0.059013`
+  - reverted baseline on the same repo:
+    - `pairs_sum/hot 0.059822`
+    - `pairs_array_sum/hot 0.062837`
+- So the change trades hash down for array up:
+  - array improves materially
+  - hash regresses materially
+  - that makes it a mixed policy, not a promotable hash fix
+- Status:
+  - reject for the current branch
+  - branch stays on the last validated recorder split baseline
+  - the remaining hash target is still narrower than this loop/leave rewrite
+
+2026-03-30: value-only hash body-scan loopback override is a structural win but
+still a perf reject
+
+- After repairing the clean-build floor and syncing a clean `kdz` repo to the
+  actual local recorder baseline, I restamped the real value-only hash root
+  shape:
+  - no visible-key `VLOAD #1` on the baseline
+  - lazy non-array key is already working
+  - but the root trace still loops as:
+    - `tab SLOAD #9 R`
+    - hidden `KEYINDEX SLOAD #10 TK`
+    - `CALLL lj_vm_next (0002 0003)`
+    - loop `CALLL lj_vm_next (0002 0003)` again
+- The focused `ITERN` log on that synced baseline made the remaining mismatch
+  explicit:
+  - `site=after_next`:
+    - `key_nil=1`
+    - `key_ref=-32768`
+    - `s_key=0`
+  - then it immediately falls to `site=nil`
+  - so the baseline still conflates:
+    - “visible key intentionally unloaded”
+    - and “iterator returned nil”
+- A first narrower retry using `idxchain` as the discriminator is a dead end:
+  - value-only hash loops still show `idxchain=0`
+  - bytecode dumps show why:
+    - both `for _, v in pairs(t)` and `for k, v in pairs(t)` compile to
+      `ITERN 9 3 3`
+  - so neither `rb` nor `idxchain` distinguishes “key unused”
+- I then tested a more exact recorder-side discriminator:
+  - add a conservative bytecode body scan between the `ITERN` payload entry and
+    the next iterator step
+  - only on non-array loops with lazy visible key and non-nil result, override
+    the nil/loopback decision when slot `ra` is never read in that body
+- That cut is semantically safe and does the structural thing we wanted:
+  - `oneshot_iter.lua 20 -> 500`
+  - `oneshot_iter.lua 2000 -> 50000`
+  - key-using hash loop still returned `740`
+  - the focus log flips from `site=nil` to `site=payload`
+  - root-trace hash IR then becomes:
+    - first call `CALLL lj_vm_next (0002 0003)`
+    - loop call `CALLL lj_vm_next (0002 0006)`
+    - i.e. hidden control input is carried through prior-result `HIOP`
+- But same-host pinned `kdz` perf still rejects it:
+  - candidate:
+    - `pairs_sum/hot 0.061420`
+    - `pairs_array_sum/hot 0.063508`
+  - synced baseline just before the patch:
+    - `pairs_sum/hot 0.060340`
+    - `pairs_array_sum/hot 0.062151`
+- So even the correct value-only body-use discriminator is not the landing fix:
+  - it gets the structural carry we wanted
+  - but it still makes the hot loop slower on the authoritative host
+- Status:
+  - reject for the current branch
+  - branch stays on the synced recorder split baseline plus the clean-build
+    `lj_arch.h` floor fix
+  - the remaining hash payer is now narrower than:
+    - lazy visible-key loading
+    - table live-in shaping
+    - or loopback-control carrying by body-use discrimination
+
+2026-03-30: hash `TRACE 2` abort churn is real, but removing it is still not a
+perf win
+
+- With the synced clean `kdz` baseline restored, the next asymmetry is easy to
+  restamp:
+  - array value-only loop:
+    - `TRACE 1` forms
+    - `TRACE 2` immediately forms and stops to loop
+  - hash value-only loop:
+    - `TRACE 1` forms
+    - then `TRACE 2 start 1/1 ... abort ... leaving loop in root trace`
+      repeats over and over
+- The focused recorder logs on that exact surface (`parent=1`, `exit=1`) show
+  why hash churns:
+  - root `trace=1`:
+    - `oldop=BC_ITERN`
+    - `newop=BC_FORL`
+    - `key_nil=1`
+  - repeated side trace `trace=2 parent=1 exit=1`:
+    - `site=after_next`
+    - `nextt=4`
+    - `key_nil=1`
+    - `key_ref=-32768`
+    - `s_key=0`
+  - then it immediately falls to `site=nil`
+  - so the side-trace hash churn is the same lazy-key/nil conflation already
+    seen at root level
+- I tested the exact surgical fix that should only touch that churn:
+  - keep root trace behavior unchanged
+  - only for side traces (`parent != 0 && exitno == 1`)
+  - only for non-array loops with lazy visible key and non-nil `nextt`
+  - use the conservative bytecode body scan to prove slot `ra` is unused
+  - then override `site=nil` to `site=payload`
+- That cut is semantically safe and does exactly what it should structurally:
+  - `oneshot_iter.lua 20 -> 500`
+  - `oneshot_iter.lua 2000 -> 50000`
+  - key-using hash loop still returned `740`
+  - focused log on `trace=2 parent=1 exit=1` flips from:
+    - `site=after_next -> site=nil`
+  - to:
+    - `site=after_next -> site=payload`
+  - `TRACE 2` now forms and stops to loop instead of repeatedly aborting
+  - `TRACE 2 IR` becomes:
+    - first call `CALLL lj_vm_next (0002 0003)`
+    - loop call `CALLL lj_vm_next (0002 0006)`
+    - i.e. carried hidden control via prior-result `HIOP`
+- But same-host pinned `kdz` A/B still rejects it:
+  - side-trace-only candidate single run:
+    - `pairs_sum/hot 0.062196`
+    - `pairs_array_sum/hot 0.063217`
+  - repeated candidate hot medians:
+    - hash: `0.061813`, `0.057118`, `0.060274`
+    - array: `0.061538`, `0.062793`, `0.064080`
+  - repeated synced-baseline hot medians right after restore:
+    - hash: `0.056385`, `0.058654`, `0.060260`
+    - array: `0.059320`, `0.062397`, `0.061621`
+- So the conclusion changed again:
+  - hash `TRACE 2` abort churn is real and recorder-caused
+  - but eliminating that churn alone is not enough to win the hot benchmark
+  - the remaining major hash payer is below the `TRACE 2 start/abort` seam
+- One more useful structural comparison from the same clean baseline:
+  - array `TRACE 1 IR`:
+    - current iteration value comes from helper result `VLOAD #0`
+    - loop call already uses carried `HIOP`
+  - hash `TRACE 1 IR`:
+    - still starts with:
+      - `tab SLOAD #9 R`
+      - hidden `KEYINDEX SLOAD #10 TK`
+      - `CALLL lj_vm_next (0002 0003)`
+      - `int VLOAD #0`
+      - extra frame `int SLOAD #12 T`
+    - and loops as:
+      - `CALLL lj_vm_next (0002 0003)` again
+  - so the remaining hash payer now looks more like root-trace steady-state
+    value/control ownership than side-trace churn
+
+2026-03-30: landing split summary
+
+- Treat the branch as three lanes:
+  - Lane A: stability/build-floor
+  - Lane B: promotable recorder-side iterator perf
+  - Lane C: parked bridge/continuation research
+- Operational baseline for further work:
+  - one authoritative clean `kdz` worktree
+  - one `zkd0` regression worktree
+  - full tracked-file sync only
+  - direct `src/` rebuild only
+  - same-host pinned `kdz` A/B is the policy signal
+  - low-noise manual logging or debugger only
+
+Lane A
+
+- The clean-build floor was still wrong:
+  - s390x clean rebuilds were disabling JIT by default in `src/lj_arch.h`
+  - removing the `LUAJIT_ENABLE_S390X_JIT` opt-in guard restores
+    default-clean `jit.status() == true`
+- The stability/build-floor stack is:
+  - `0a76ac86` `ERRNO_SAVE` / `ERRNO_RESTORE` hardening in
+    `src/lj_dispatch.h`
+  - `a48c6214` `IRSLOAD_KIDX_NUMKEY` restore in `src/lj_ir.h`
+  - local `src/lj_arch.h` JIT-default fix
+
+Lane B
+
+- The promotable recorder baseline in `src/lj_record.c` is:
+  - array visible numeric key from successor index `HIOP(trvk) - 1`
+  - lazy non-array visible key
+  - trusted read-only hash table live-in shaping in `rec_isnext()` /
+    `rec_itern()`
+- This removed real hot payers on clean `kdz`:
+  - `pairs_array_sum/hot` improved from `0.083461` to `0.071600`
+  - `pairs_sum/hot` improved from `0.072109` to `0.068346`
+  - hash table live-in shaping brought clean medians down again to about
+    `0.060262` for `pairs_sum/hot` and `0.061562` for
+    `pairs_array_sum/hot`
+- Keep this as a split patch, not a full-lazy collapse.
+
+Reject pile
+
+- Do not reopen:
+  - full-lazy collapse
+  - any `KEYINDEX` no-guard path
+  - direct `KEYINDEX` tag-word compare
+  - backend `KEYINDEX` guard dedup
+  - recorder-side hash carry through unused visible-key slot
+  - body-scan loopback overrides as landing policy
+  - `TRACE 2` churn elimination as a perf proxy
+  - `trace3` accumulator live-in injection
+  - bridge-local producer/consumer fusion
+
+Next hash target
+
+- The remaining major hash cost is now below visible-key laziness, below hash
+  table live-in shaping, and below `TRACE 2` churn.
+- Next task:
+  - map root-trace `SLOAD #12 T` on the clean split baseline for value-only
+    hash, key-using hash, and array control loops
+  - only then decide the next root-trace steady-state patch
