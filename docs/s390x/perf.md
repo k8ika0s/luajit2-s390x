@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 11:48:00 PDT
+Last updated: 2026-03-31 12:02:00 PDT
 
 ## Scope
 
@@ -202,6 +202,24 @@ Focused follow-up on `kdz` narrowed that site further:
   the early hidden-control/root-ownership seam, not the visible value lane and
   not a late backend add/compare rewrite
 
+The next focused read sharpened the ownership split:
+
+- value-only hash measured phase:
+  - one successful extra trace: `trace 2`
+  - `trace 2` is `linktype=stitch`
+  - all observed texits still stay on `1:1`
+  - the next attempted owner is `trace 3`
+  - `trace 3` aborts as `inner loop in root trace`
+- array value-only control measured phase:
+  - `exit 1` does promote to a live side trace
+  - observed texits are overwhelmingly on `5:1`, with only a small residual
+    count on `4:1`
+
+So the next justified target is:
+
+- explain why hash `exit 1` remains root-owned while array `exit 1` promotes to
+  a live side trace
+
 Fresh proof artifacts from the checked-in helpers:
 
 - `kdz` truth-pack bundle:
@@ -293,8 +311,8 @@ Current status against that gate:
 - the minimal checkpoint regression screen is complete on `zkd0`
 - the owner map is refreshed
 - the next open question is now narrower:
-  - why is value-only hash repeatedly taking `TRACE 1 exit 1` on the frozen
-    baseline?
+  - why does hash `exit 1` remain root-owned while array `exit 1` promotes to
+    a live side trace?
 - there is still no justified new code-level perf patch until that site is
   identified cleanly
 

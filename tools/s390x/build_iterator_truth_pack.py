@@ -91,6 +91,48 @@ local jit = require("jit")
 local testlib = dofile("tests/s390x/helpers/testlib.lua")
 testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
+local function emit_trace_hist(events)
+  local buckets = {}
+  for i = 1, #events do
+    local ev = events[i]
+    local kind = tostring(ev[1])
+    local traceno = tonumber(ev[2])
+    if traceno then
+      local key = kind .. ":" .. traceno
+      buckets[key] = (buckets[key] or 0) + 1
+    end
+  end
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print("TRACE_HIST", table.concat(parts, ","))
+end
+local function emit_texit_hist(events)
+  local buckets = {}
+  for i = 1, #events do
+    local ev = events[i]
+    local traceno = tonumber(ev[1])
+    local exitno = tonumber(ev[2])
+    if traceno and exitno then
+      local key = traceno .. ":" .. exitno
+      buckets[key] = (buckets[key] or 0) + 1
+    end
+  end
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print("TEXIT_HIST", table.concat(parts, ","))
+end
 local t = { a = 10, b = 20, c = 30, d = 40, e = 50 }
 local function run(n)
   local total = 0
@@ -114,12 +156,56 @@ print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
 print("TRACE_FLUSH", testlib.count_trace_events(trace_cap.events, "flush"))
 print("TRACE_EVENT_COUNT", #trace_cap.events)
 print("TEXIT_COUNT", #texit_cap.events)
+emit_trace_hist(trace_cap.events)
+emit_texit_hist(texit_cap.events)
 """,
     "hash_key": """\
 local jit = require("jit")
 local testlib = dofile("tests/s390x/helpers/testlib.lua")
 testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
+local function emit_trace_hist(events)
+  local buckets = {}
+  for i = 1, #events do
+    local ev = events[i]
+    local kind = tostring(ev[1])
+    local traceno = tonumber(ev[2])
+    if traceno then
+      local key = kind .. ":" .. traceno
+      buckets[key] = (buckets[key] or 0) + 1
+    end
+  end
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print("TRACE_HIST", table.concat(parts, ","))
+end
+local function emit_texit_hist(events)
+  local buckets = {}
+  for i = 1, #events do
+    local ev = events[i]
+    local traceno = tonumber(ev[1])
+    local exitno = tonumber(ev[2])
+    if traceno and exitno then
+      local key = traceno .. ":" .. exitno
+      buckets[key] = (buckets[key] or 0) + 1
+    end
+  end
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print("TEXIT_HIST", table.concat(parts, ","))
+end
 local t = { aa = 10, bb = 20, cc = 30 }
 local function run(n)
   local total = 0
@@ -143,12 +229,56 @@ print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
 print("TRACE_FLUSH", testlib.count_trace_events(trace_cap.events, "flush"))
 print("TRACE_EVENT_COUNT", #trace_cap.events)
 print("TEXIT_COUNT", #texit_cap.events)
+emit_trace_hist(trace_cap.events)
+emit_texit_hist(texit_cap.events)
 """,
     "array_value": """\
 local jit = require("jit")
 local testlib = dofile("tests/s390x/helpers/testlib.lua")
 testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
+local function emit_trace_hist(events)
+  local buckets = {}
+  for i = 1, #events do
+    local ev = events[i]
+    local kind = tostring(ev[1])
+    local traceno = tonumber(ev[2])
+    if traceno then
+      local key = kind .. ":" .. traceno
+      buckets[key] = (buckets[key] or 0) + 1
+    end
+  end
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print("TRACE_HIST", table.concat(parts, ","))
+end
+local function emit_texit_hist(events)
+  local buckets = {}
+  for i = 1, #events do
+    local ev = events[i]
+    local traceno = tonumber(ev[1])
+    local exitno = tonumber(ev[2])
+    if traceno and exitno then
+      local key = traceno .. ":" .. exitno
+      buckets[key] = (buckets[key] or 0) + 1
+    end
+  end
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print("TEXIT_HIST", table.concat(parts, ","))
+end
 local t = { 10, 20, 30, 40, 50 }
 local function run(n)
   local total = 0
@@ -172,6 +302,8 @@ print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
 print("TRACE_FLUSH", testlib.count_trace_events(trace_cap.events, "flush"))
 print("TRACE_EVENT_COUNT", #trace_cap.events)
 print("TEXIT_COUNT", #texit_cap.events)
+emit_trace_hist(trace_cap.events)
+emit_texit_hist(texit_cap.events)
 """,
 }
 
@@ -400,6 +532,11 @@ def summarize_trace_decision(trace_counts: dict[str, dict[str, int | str]]) -> t
     return ("steady_state_compiled_loop_throughput", details)
 
 
+def hist_line(info: dict[str, int | str], key: str) -> str:
+    value = info.get(key, "")
+    return str(value) if value else "(none)"
+
+
 def render_summary(
     *,
     host: str,
@@ -469,7 +606,10 @@ def render_summary(
         )
 
     lines.extend(["", "## Trace / Exit Counts After Warmup", ""])
-    lines.extend(trace_lines)
+    for i, name in enumerate(MICRO_NAMES):
+        lines.append(trace_lines[i])
+        lines.append(f"  - trace histogram `{hist_line(trace_counts[name], 'TRACE_HIST')}`")
+        lines.append(f"  - texit histogram `{hist_line(trace_counts[name], 'TEXIT_HIST')}`")
     lines.append(f"- Decision: `{decision}`")
 
     lines.extend(["", "## perf stat", ""])

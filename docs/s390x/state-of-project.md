@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 11:48:00 PDT
+Last updated: 2026-03-31 12:02:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -189,6 +189,22 @@ A fresh focused follow-up on `kdz` narrowed that one step further:
   hidden control / root ownership around the `KEYINDEX` / `lj_vm_next` seam,
   not at the visible value lane and not at late backend lowering
 
+The next focused read narrowed it again:
+
+- in the measured hash phase, the one successful extra trace is `trace 2`, but
+  it is a `stitch` trace, not the steady-state owner of the hot exit path
+- all observed value-only hash texits still stay on `1:1`
+- after the stitch trace exists, the next attempted owner is `trace 3`
+- that `trace 3` still aborts as `inner loop in root trace`
+- array differs in exactly the way that now matters:
+  - its `exit 1` path does promote to a live side trace
+  - almost all observed array texits are then on `5:1`, not on the root trace
+
+So the next exact target is no longer “what exit is hot?” It is:
+
+- why does hash `exit 1` stay root-owned while array `exit 1` promotes to a
+  live side trace?
+
 ## What The Freeze Point Means
 
 The current branch should be operated as a shipping baseline, not as an open
@@ -253,8 +269,8 @@ The immediate next steps are operational, not exploratory:
    not bridge work, no-guard ideas, or late backend rewrites.
 5. Use the truth pack and focused follow-up probes to answer the next exact
    question before any new code:
-   - why is value-only hash repeatedly taking `TRACE 1 exit 1` on the frozen
-     baseline?
+   - why does hash `exit 1` remain root-owned while array `exit 1` promotes to
+     a live side trace?
 6. Do not open a new perf patch family until either:
    - the current post-cleanup drift is explained, or
    - a genuinely new root-trace or side-trace storage/control materialization
