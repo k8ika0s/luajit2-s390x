@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 12:38:00 PDT
+Last updated: 2026-03-31 13:05:00 PDT
 
 ## Scope
 
@@ -243,6 +243,23 @@ abstract. It is:
   body and owner link once descendants are allowed
 - or conclude that there is no remaining promotable root/side ownership cut on
   the current mechanism
+
+The newest source-level read narrows that again:
+
+- the first stop target is chosen earlier, in `rec_loop_jit()` inside
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+- later child-link promotion in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  can only refine a stop choice that already exists
+- a focused direct classifier with `LUAJIT_S390X_ALLOW_ITER_DESC=1` also shows
+  that descendant permission alone does not recreate the earlier array
+  promoted-owner shape; both hash and array can collapse to a `link=1`
+  root-ladder in that simplified surface
+
+So the next target is now:
+
+- explain why the default array path reaches a different `rec_loop_jit()`
+  stop target and trace family than hash
 
 Fresh proof artifacts from the checked-in helpers:
 

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 12:38:00 PDT
+Last updated: 2026-03-31 13:05:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -233,6 +233,25 @@ So the current split is now clearer:
   - explain what prevents hash from promoting into a materially different owner
     body and owner link, rather than just cloning the same root work into a
     descendant ladder
+
+One more source pass sharpened that seam again:
+
+- the first owner link is chosen in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  by `rec_loop_jit()`, before the later child-link promotion logic in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  runs
+- so the observed `link=1` vs `link=2` split is not caused only by later
+  runtime child-link retargeting
+- a focused direct probe with `LUAJIT_S390X_ALLOW_ITER_DESC=1` also shows that
+  descendant permission by itself does not recreate the earlier array promoted
+  owner behavior; both hash and array can collapse to the same `link=1`
+  root-ladder shape under that classifier
+
+That means the live question has shifted again:
+
+- why does the default array path reach a different `rec_loop_jit()` stop
+  target and trace family than hash?
 
 ## What The Freeze Point Means
 
