@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 14:26:00 PDT
+Last updated: 2026-03-31 16:00:38 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -34,7 +34,8 @@ non-causal probe effects. The current state is cleaner:
 - the branch now also has a checked-in truth-pack helper at
   [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
   so the frozen baseline can be examined with the same clean rebuild path plus
-  trace/exit counts, IR+mcode dumps, and counter availability checks
+  trace/exit counts, IR+mcode dumps, owner-selection probes, and counter
+  availability checks
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
@@ -113,13 +114,13 @@ has one explicit measurement checkpoint:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - fresh truth-pack and regression-screen numbers on that checkpoint are now:
   - `kdz` truth pack:
-    - `pairs_sum/hot median=0.060779`
-    - `pairs_array_sum/hot median=0.066737`
-    - `-joff pairs_sum/hot median=0.005574`
-    - `-joff pairs_array_sum/hot median=0.004126`
+    - `pairs_sum/hot median=0.066259`
+    - `pairs_array_sum/hot median=0.069155`
+    - `-joff pairs_sum/hot median=0.005540`
+    - `-joff pairs_array_sum/hot median=0.003716`
   - `zkd0` minimal screen:
-    - `pairs_sum/hot median=0.132097`
-    - `pairs_array_sum/hot median=0.124149`
+    - `pairs_sum/hot median=0.104839`
+    - `pairs_array_sum/hot median=0.097884`
 - the new important decision from the truth pack is not the exact median twitch;
   it is the runtime shape:
   - steady-state trace and exit activity is still materially nonzero after
@@ -133,11 +134,56 @@ has one explicit measurement checkpoint:
     - `TRACE_ABORT 9`
     - `TEXIT_COUNT 640000`
   - array value-only control:
-    - `TRACE_START 12`
+    - `TRACE_START 11`
     - `TRACE_ABORT 10`
     - `TEXIT_COUNT 960000`
 - that means the remaining iterator red is not yet just “expensive compiled
   loops”; residual exit behavior is still part of the active frontier
+
+### Non-resume owner-selection read
+
+The next pass after the rejected root-`ITERN` contract attempt was run as a
+measurement-only owner-selection pack on clean `kdz`, with a smaller focused
+array probe to keep the logs finite. That pass changes the branch direction:
+
+- the root-`ITERN` resume-contract family stays closed from the current tree
+- the next frontier is non-resume owner selection and steady-state control
+  ownership
+
+What is now mechanically proven:
+
+- value-only hash and key-using hash both spend the hot steady-state seam in:
+  - `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
+- on both hash loops, the first materially different owner candidate dies
+  before child-link/runtime ownership even matters:
+  - `trace 2` is created as a root trace with `startop=79`
+  - `rec_loop_jit_root` fires immediately
+  - `trace 2` aborts with `err=9` (`inner loop in root trace`)
+- so for hash, the first useful owner candidate dies in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  inside `rec_loop_jit()`, not in later child-link promotion and not in
+  runtime handoff
+
+Array is different, but not yet good enough:
+
+- array also spends the early hot seam in `dispatch-original` on root `trace 1`
+- its first side trace does get farther than hash:
+  - `trace 2` starts as a side trace on `parent=1 exit=1 root=1 startop=88`
+  - it repeatedly aborts the nil path with `err=8`
+  - once the payload path wins, it stops as:
+    - `linktype=6`
+    - `link=0`
+    - `root=1`
+- after that, later array descendants do stop, but they are still root-linked:
+  - `trace 3`, `trace 4`, `trace 6` all stop with `linktype=1 link=1 root=1`
+
+That means the current answer is:
+
+- hash dies too early, in `rec_loop_jit_root`
+- array survives farther, but still first becomes a root-linked descendant
+  ladder rather than a stable non-root owner
+- the next valid cut, if any, is one narrow non-resume owner-selection change
+  that changes that exact outcome
 
 ## What Has Not Been Proven Yet
 
@@ -202,8 +248,9 @@ The next focused read narrowed it again:
 
 So the next exact target is no longer “what exit is hot?” It is:
 
-- why does hash `exit 1` stay root-owned while array `exit 1` promotes to a
-  live side trace?
+- can the first useful hash `exit 1` candidate be made to survive past
+  `rec_loop_jit_root` into a materially different non-root owner shape, or is
+  this family exhausted on the current mechanism?
 
 The latest focused `kdz` probe narrows that one seam earlier:
 

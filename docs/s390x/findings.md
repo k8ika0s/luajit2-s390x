@@ -9,6 +9,69 @@ This file remains the append-only technical notebook.
 
 ## Latest Freeze-Point Note
 
+- Timestamp: `2026-03-31 16:00:38 PDT`
+- Non-resume owner-selection truth-pack pass on the frozen baseline:
+  - validation surfaces:
+    - `kdz` truth pack:
+      - `pairs_sum/hot median=0.066259`
+      - `pairs_array_sum/hot median=0.069155`
+      - `TRACE_START/TRACE_ABORT/TEXIT_COUNT`
+        - hash value: `10 / 9 / 960000`
+        - hash key: `10 / 9 / 640000`
+        - array value: `11 / 10 / 960000`
+    - `zkd0` minimal screen:
+      - `pairs_sum/hot median=0.104839`
+      - `pairs_array_sum/hot median=0.097884`
+  - helper update:
+    - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+      now has a checked-in smaller owner-selection probe path
+    - reason:
+      - the first owner-selection logging attempt used the full `80000`
+        trace-count scripts and produced gigabyte-scale logs
+      - the helper now uses short finite probe scripts for this surface
+  - exact non-resume owner-selection read on `kdz`:
+    - value-only hash:
+      - root `trace 1`:
+        - `link=1`
+        - `linktype=2`
+        - `startop=70`
+      - hot seam:
+        - repeated `S390X_JLOOP_EXIT phase=dispatch-original parent=1 exit=1 trace=1`
+      - first materially different candidate:
+        - `trace 2` starts as root with `startop=79`
+        - dies immediately at `S390X_LINNER site=rec_loop_jit_root`
+        - aborts with `err=9`
+    - key-using hash:
+      - same owner-selection outcome as value-only hash
+      - first candidate dies in `rec_loop_jit_root` before child-link/runtime
+        ownership matters
+    - array value-only control:
+      - root `trace 1` also spends the early seam in `dispatch-original`
+      - first side trace:
+        - `trace 2 parent=1 exit=1 root=1 startop=88`
+        - repeated nil-path aborts with `err=8`
+        - eventual stop:
+          - `linktype=6`
+          - `link=0`
+          - `root=1`
+      - later descendants:
+        - `trace 3`, `trace 4`, `trace 6` stop as:
+          - `linktype=1`
+          - `link=1`
+          - `root=1`
+  - decision:
+    - close the root-`ITERN` contract family again on the current mechanism
+    - the next open seam is non-resume owner selection only
+    - hash dies too early, in
+      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      inside `rec_loop_jit()`
+    - array survives farther, but still first lands in interpreter/root-linked
+      ownership rather than a stable non-root owner
+    - next valid target:
+      - one narrow non-resume owner-selection cut only if it can move hash
+        past `rec_loop_jit_root` into a materially different owner shape
+      - otherwise stop reopening this family
+
 - Timestamp: `2026-03-31 14:26:00 PDT`
 - First-side-only real hash key materialization classifier:
   - implementation shape:
