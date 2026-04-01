@@ -110,10 +110,12 @@ static int asm_s390x_bitop_log_enabled(void)
 static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
 				Reg dest, Reg left, Reg right, int rightisk)
 {
+  IRIns *lir = IR(ir->op1);
+  IRIns *rir = irref_isk(ir->op2) ? NULL : IR(ir->op2);
   if (!asm_s390x_bitop_log_enabled())
     return;
   fprintf(stderr,
-	  "S390X_BITOP kind=%s curins=%d ir=%d op=%d type=%d dest=%d left=%d right=%d rightisk=%d left_r=%d right_r=%d is64=%d isu32=%d isint=%d\n",
+	  "S390X_BITOP kind=%s curins=%d ir=%d op=%d type=%d dest=%d left=%d right=%d rightisk=%d leftref=%d leftop=%d left_r=%d rightref=%d rightop=%d right_r=%d is64=%d isu32=%d isint=%d\n",
 	  kind,
 	  (int)(as->curins - REF_BIAS),
 	  (int)((ir - as->ir) - REF_BIAS),
@@ -123,8 +125,12 @@ static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
 	  (int)left,
 	  (int)right,
 	  rightisk,
-	  (int)IR(ir->op1)->r,
-	  irref_isk(ir->op2) ? -1 : (int)IR(ir->op2)->r,
+	  (int)(ir->op1 - REF_BIAS),
+	  (int)lir->o,
+	  (int)lir->r,
+	  irref_isk(ir->op2) ? -1 : (int)(ir->op2 - REF_BIAS),
+	  rir ? (int)rir->o : -1,
+	  rir ? (int)rir->r : -1,
 	  (int)irt_is64(ir->t),
 	  (int)irt_isu32(ir->t),
 	  (int)irt_isinteger(ir->t));
