@@ -8849,3 +8849,38 @@ Next hash target
     - it is one narrow reuse/adoption experiment on this seam only, and it must
       prove a real owner/exit win rather than just collapsing traffic into one
       reused site the way `CANON_EQUIV` already did
+
+- Timestamp: `2026-03-31 19:42:10 PDT`
+- Dispatch/side-exit queue, first narrow reuse/adoption experiment is in tree:
+  - code surface:
+    - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - new env gate:
+    - `LUAJIT_S390X_HOTSIDE_REUSE_LOOP_CHILD`
+  - exact intended shape:
+    - late steady-state `exit 0`
+    - self-loop `BC_JMP` parent on the `FORL` / `JFORI` dispatch seam
+    - earlier equivalent candidate already visible
+    - existing child under that equivalent candidate already visible
+  - action:
+    - patch the current parent exit directly to the existing child loop target
+    - mark the current hot-side count done
+    - do not start recording another equivalent side trace
+  - why this is different from older classifiers:
+    - not `CANON_EQUIV` parent substitution
+    - not `CANON_CHILD` reparent-before-record
+    - not `SHARE_EQUIV` hotcount transfer
+    - it is direct exit retarget to an already existing equivalent child
+  - validation so far:
+    - local build succeeds
+    - local `luajit -e 'print(\"ok\")'` succeeds
+    - local hotloop smoke with the gate enabled terminates cleanly
+  - not proven yet:
+    - no native `kdz` structural proof
+    - no native `kdz` median
+    - no `zkd0` regression screen
+  - next gate:
+    - focused `kdz` `numeric_loop` seam with hotside focus enabled
+    - require proof that the late `phase=equiv parent=10 exit=0 cand=6 child=7`
+      region becomes `phase=reuse-loop-child`
+    - require that trace cloning drops without collapsing into the old
+      branch-hostile single-site reuse behavior
