@@ -9844,3 +9844,38 @@ Next hash target
     - it is either:
       - a fuller stateful low32-home / normalized-result contract
       - or closure of `bitops_mix` as a local family
+
+- Timestamp: `2026-04-01 13:06:09 PDT`
+- `kdz` addhome classifier moves the next backend seam from “`ADD` boundary”
+  to “plain non-guard `ADD` carry”
+  - source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      now has a focused `LUAJIT_S390X_ADDHOME_LOG` classifier for plain integer
+      `ADD`
+  - clean-host artifact:
+    - [20260401-kdz-addhome-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-addhome-audit/summary.md)
+  - `logical_chain_tail_add`:
+    - `70` plain non-guard integer `ADD` sites matched the carry shape
+    - split:
+      - `46` where the current bitop result is the only low32-home source
+      - `24` where both the carried total and current bitop result are already
+        in the same low32-home carry family
+    - those candidate adds only feed `PHI` / later plain `ADD`
+  - `logical_chain_tail_store`:
+    - no `ADD` site matched the carry shape
+    - the bitop chain still first leaves into `ASTORE`
+  - interpretation:
+    - the previous “normalize at the `ADD` boundary” model was too coarse
+    - on the add-tail isolator, plain non-guard integer `ADD` is itself part
+      of the live low32-home carry family
+    - on the store-tail isolator, `ASTORE` remains the first hard consumer
+      boundary
+  - classifier caveat:
+    - the verbose `LUAJIT_S390X_ADDHOME_LOG=1` `hotloop=1` probes timed out
+      with `REMOTE_RC=124`, so this is a structural attribution pass, not a
+      perf bar
+  - next honest target:
+    - if `bitops_mix` stays open, try a fuller low32-home carry across plain
+      non-guard integer `ADD` plus `PHI`
+    - do not reopen another “normalize at `ADD` boundary” or other partial
+      tail-only gate

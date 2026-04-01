@@ -99,6 +99,14 @@ static int asm_s390x_add_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_addhome_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ADDHOME_LOG") != NULL);
+  return enabled;
+}
+
 static int asm_s390x_bitop_log_enabled(void)
 {
   static int enabled = -1;
@@ -149,6 +157,11 @@ static int asm_s390x_is_logic_bitop_op(IROp op)
 static int asm_s390x_is_int32home_safe_bitop_consumer(IROp op)
 {
   return op == IR_BAND || op == IR_BOR || op == IR_BXOR;
+}
+
+static int asm_s390x_is_low32home_source_op(IROp op)
+{
+  return asm_s390x_is_bitop_op(op) || op == IR_ADD || op == IR_PHI;
 }
 
 static const char *asm_s390x_bnorm_site(IRIns *ir, IRIns *lir, IRIns *rir)
@@ -323,6 +336,88 @@ static void asm_s390x_add_log(ASMState *as, const char *kind, IRIns *ir,
 	  (int)tmp,
 	  (int)IR(ir->op1)->r,
 	  irref_isk(ir->op2) ? -1 : (int)IR(ir->op2)->r);
+}
+
+static void asm_s390x_addhome_use_counts(ASMState *as, IRIns *ir,
+					 int *add_uses, int *phi_uses,
+					 int *other_uses, int *guard_uses,
+					 int *first_use_op,
+					 int *first_noncarry_use_op)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+
+  *add_uses = 0;
+  *phi_uses = 0;
+  *other_uses = 0;
+  *guard_uses = 0;
+  *first_use_op = -1;
+  *first_noncarry_use_op = -1;
+
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (*first_use_op == -1)
+      *first_use_op = (int)use->o;
+    if (use->o == IR_ADD && !irt_isguard(use->t))
+      (*add_uses)++;
+    else if (use->o == IR_PHI)
+      (*phi_uses)++;
+    else {
+      if (*first_noncarry_use_op == -1)
+	*first_noncarry_use_op = (int)use->o;
+      (*other_uses)++;
+    }
+    if (irt_isguard(use->t))
+      (*guard_uses)++;
+  }
+}
+
+static void asm_s390x_addhome_log(ASMState *as, IRIns *ir)
+{
+  IRIns *lir, *rir;
+  int add_uses, phi_uses, other_uses, guard_uses;
+  int first_use_op, first_noncarry_use_op;
+  int left_low32home, right_low32home, carry_candidate;
+
+  if (!asm_s390x_addhome_log_enabled())
+    return;
+  if (irt_isguard(ir->t) || !(irt_isint(ir->t) || irt_isu32(ir->t)))
+    return;
+
+  lir = IR(ir->op1);
+  rir = irref_isk(ir->op2) ? NULL : IR(ir->op2);
+  asm_s390x_addhome_use_counts(as, ir, &add_uses, &phi_uses, &other_uses,
+			       &guard_uses, &first_use_op,
+			       &first_noncarry_use_op);
+  left_low32home = asm_s390x_is_low32home_source_op(lir->o);
+  right_low32home = rir ? asm_s390x_is_low32home_source_op(rir->o) : 0;
+  carry_candidate = (left_low32home || right_low32home) &&
+		    other_uses == 0 && guard_uses == 0;
+
+  fprintf(stderr,
+	  "S390X_ADDHOME curins=%d ir=%d type=%d leftref=%d leftop=%d leftint=%d leftu32=%d left_low32home=%d rightref=%d rightop=%d rightint=%d rightu32=%d rightisk=%d right_low32home=%d add_uses=%d phi_uses=%d other_uses=%d guard_uses=%d first_use_op=%d first_noncarry_use_op=%d carry_candidate=%d\n",
+	  (int)(as->curins - REF_BIAS),
+	  (int)((ir - as->ir) - REF_BIAS),
+	  (int)irt_type(ir->t),
+	  (int)(ir->op1 - REF_BIAS),
+	  (int)lir->o,
+	  (int)irt_isint(lir->t),
+	  (int)irt_isu32(lir->t),
+	  left_low32home,
+	  irref_isk(ir->op2) ? -1 : (int)(ir->op2 - REF_BIAS),
+	  rir ? (int)rir->o : -1,
+	  rir ? (int)irt_isint(rir->t) : 0,
+	  rir ? (int)irt_isu32(rir->t) : 0,
+	  irref_isk(ir->op2),
+	  right_low32home,
+	  add_uses,
+	  phi_uses,
+	  other_uses,
+	  guard_uses,
+	  first_use_op,
+	  first_noncarry_use_op,
+	  carry_candidate);
 }
 
 static int asm_s390x_sload_log_enabled(void)
@@ -1453,6 +1548,7 @@ static void asm_add(ASMState *as, IRIns *ir)
     asm_s390x_nyi_ir(as, ir);
     return;
   }
+  asm_s390x_addhome_log(as, ir);
   left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
   if (irref_isk(ir->op2)) {
     int32_t k = (int32_t)asm_kintptr(as, ir->op2);

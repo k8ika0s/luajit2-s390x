@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 08:46:20 PDT
+Last updated: 2026-04-01 13:06:09 PDT
 
 ## Scope
 
@@ -71,7 +71,7 @@ Current clean-`kdz` broader-throughput frontier:
   - the backend seam is no longer “`ADD` only”
   - the next honest target is a backend-wide low32-home / normalized-result
     invariant that keeps the logical chain safe internally and forces
-    normalization at arithmetic, store/compare/guard, helper, and
+    normalization at store/compare/guard, helper, and
     snapshot-visible boundaries
   - if that invariant cannot be stated precisely enough to survive those
     boundaries, `bitops_mix` should close too
@@ -104,6 +104,28 @@ Current clean-`kdz` broader-throughput frontier:
       partial `ADD`/tail gate
     - it has to be a fuller stateful low32-home / normalized-result contract,
       or the family should close too
+- next classifier read on clean `kdz`:
+  - artifact:
+    [20260401-kdz-addhome-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-addhome-audit/summary.md)
+  - `logical_chain_tail_add`:
+    - the first live low32-home carry seam is plain non-guard integer `ADD`,
+      not the earlier “normalize at `ADD` boundary” shape
+    - `70` `ADD` sites matched the carry shape:
+      - `46` with the current bitop result as the only low32-home source
+      - `24` with both the carried total and current bitop result in the same
+        low32-home carry family
+    - those candidates only feed `PHI` / later plain `ADD`
+  - `logical_chain_tail_store`:
+    - no `ADD` site matched that carry shape
+    - the bitop chain still first leaves into `ASTORE`
+  - classifier note:
+    - the verbose `LUAJIT_S390X_ADDHOME_LOG=1` trace probes timed out with
+      `REMOTE_RC=124`, so this is structural attribution, not a perf result
+  - queue correction:
+    - the next backend family, if opened, is a fuller low32-home carry across
+      plain non-guard integer `ADD` plus `PHI`
+    - `ASTORE`, `LE`/guard, helper, and other noncarry consumers remain hard
+      boundaries
 
 First broader-throughput family read from clean `kdz`:
 
