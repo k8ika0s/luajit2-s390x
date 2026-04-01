@@ -183,10 +183,43 @@ That seam is narrower again after reduced clean-host handoff probes:
     - `sum_loop`
       - caller roots (`TRACE 2`, later `TRACE 7`) stop `-> 1` before any
         caller-path `S390X_RECLOOP` appears
-      - only the separate callee loop family reaches `rec_loop_jit()`
+    - only the separate callee loop family reaches `rec_loop_jit()`
     - so `rec_loop_jit_root` is not the live vararg seam
     - the live target is now the earlier recorder/return condition that stops
       `sum_loop` caller roots before they ever reach the caller loop op
+  - reduced return logs correct that again:
+    - focused artifact bundle:
+      - [20260401-kdz-vararg-recret-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-vararg-recret-audit)
+    - the focused clean-host `sum_loop` probe does not show a divergent
+      post-return branch in `lj_record_ret()`
+    - the only observed branch is `lua_intrace_return`, and it belongs to the
+      inner `select()` work in the callee loop
+    - the actual caller-root cutoff is earlier:
+      - `TRACE 2` starts at the caller site
+      - enters `sum(...)`
+      - then stops `-> 1` on the callee `JFORI` path, with `pc` already moved
+        to the callee loop body start (`GGET`, previous op `JFORI`)
+      - so the caller root links directly into the already-compiled callee loop
+        trace before caller add / outer-loop PHIs materialize
+    - `retlast_loop` does not have that nested callee loop boundary, so its
+      caller root reaches caller add / loop formation directly
+  - the next exact target is therefore:
+    - decide whether this vararg cliff is simply the normal root-stop behavior
+      for a caller trace that enters an already-compiled nested callee loop via
+      `BC_JFORI`, or whether there is still a narrower recorder ownership seam
+      above that boundary
+  - code reading now matches that exactly:
+    - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3597)
+      handles `BC_JFORI`
+    - when the loop is entered in a root trace, it takes:
+      `lj_record_stop(J, LJ_TRLINK_ROOT, bc_d(...))`
+    - that matches the observed `sum_loop` `TRACE 2 ... -> 1` stop with
+      `prevop=JFORI`, `pc` already moved to the callee loop body start, and
+      `link=1`
+  - so the current live question is:
+    - is caller-root ownership across a call into an already-compiled nested
+      callee loop a real remaining optimization surface, or is that just the
+      normal boundary on the current mechanism
 
 ## Authoritative Validation Surfaces
 

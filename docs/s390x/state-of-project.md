@@ -169,6 +169,40 @@ non-causal probe effects. The current state is cleaner:
         `sum_loop` caller roots from reaching the caller loop op at all, while
         `retlast_loop` reaches that loop seam and stabilizes as a caller loop
         family
+  - the reduced clean-host return logs and the existing recstop dump correct
+    that again:
+    - `sum_loop` caller root is not stopping on a post-return branch in
+      `lj_record_ret()`
+    - the only observed return branch on the focused clean-host probe is
+      `lua_intrace_return`, and it belongs to the inner `select()` fastfunc
+      work inside the callee loop
+    - the decisive stop is earlier:
+      - `TRACE 2` starts at the caller site
+      - enters `sum(...)`
+      - then stops `-> 1` at the callee `JFORI` path, with `pc` already moved
+        to the callee loop body start (`GGET`, previous op `JFORI`)
+      - so the caller root is linking straight into the already-compiled callee
+        loop trace before caller add / outer-loop PHIs ever materialize
+    - `retlast_loop` has no nested callee loop seam there, so its caller root
+      reaches caller add / loop materialization directly
+  - the next exact target is therefore corrected again:
+    - explain whether the live vararg cliff is simply the normal root-stop path
+      for a caller trace that enters an already-compiled nested callee loop via
+      `BC_JFORI`, or whether there is still a narrower recorder ownership seam
+      above that boundary
+  - code reading now matches the artifact:
+    - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3597)
+      handles `BC_JFORI`
+    - when `rec_for()` says the loop is entered, the root trace takes:
+      `lj_record_stop(J, LJ_TRLINK_ROOT, bc_d(...))`
+    - that is exactly the observed `sum_loop` `TRACE 2 ... -> 1` stop with
+      `prevop=JFORI`, `pc` moved to the callee loop body start, and `link=1`
+  - so the current live question is no longer “which hidden return branch is
+    doing this?”
+  - it is:
+    - whether caller-root ownership across a call into an already-compiled
+      nested callee loop is a real open optimization surface on this mechanism,
+      or just the normal boundary we should stop fighting here
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
