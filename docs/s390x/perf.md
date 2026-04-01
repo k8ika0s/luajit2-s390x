@@ -214,6 +214,50 @@ Current clean-`kdz` broader-throughput frontier:
       boundary, not another store-tail or broad low32-home skip variant
     - if the family stays open, the next real code branch is emitter plus
       backend compare-consumer design, not another local skip gate
+- corrected clean `kdz` add-kind proof:
+  - artifact:
+    [20260401-kdz-low32cmp-addkind-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32cmp-addkind-check/summary.md)
+  - same compare counts:
+    - total `19`
+    - `LE`: `14`
+    - `NE`: `5`
+    - left source `ADD`: `19`
+    - right source constant: `19`
+  - decisive split:
+    - left add kind `ctrl_inc`: `19`
+    - left add kind `bitop_tail`: `0`
+  - reduced `-jdump=is` proof on clean `kdz` matches that:
+    - `LE` is the induction increment compare `i + 1 <= 200`
+    - `NE` is the induction zero-check in the traced `arshift` path
+    - the carried value path remains separate as `ADD total, bitop_chain`
+      followed by loop `PHI`
+  - result:
+    - the compare boundary is a loop-control seam, not the carried bitop value
+      seam
+    - close compare-consumer work for `bitops_mix` on the current mechanism
+    - the next honest backend target is the value-tail `ADD` plus `PHI`
+      boundary only, explicitly excluding the control-increment compare path
+- narrowed value-tail `ADD` / `PHI` gate check on clean `kdz`:
+  - artifact:
+    [20260401-kdz-low32valueaddphi-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32valueaddphi-check/summary.md)
+  - gate:
+    - `LUAJIT_S390X_LOW32VALUEADDPHI=1`
+  - reduced checks:
+    - add-tail reduced probe:
+      - `RUN_RC=0`
+      - `S390X_LOW32VALUEADDPHI_SUMMARY candidates=10 skips=10`
+    - store-tail reduced probe:
+      - `RUN_RC=0`
+      - no gate hits
+  - structural gate:
+    - add-tail trace probe: `RUN_RC=124`
+    - store-tail trace probe: `RUN_RC=124`
+  - result:
+    - reject this exact value-tail producer-side skip gate
+    - if the backend family stays open, the next honest target is not another
+      producer-side skip and not another compare-consumer branch
+    - it is a deeper normalized-result / low32-home contract that remains
+      finite under real trace formation
 
 First broader-throughput family read from clean `kdz`:
 

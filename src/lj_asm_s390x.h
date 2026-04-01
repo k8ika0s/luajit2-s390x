@@ -267,6 +267,14 @@ enum {
   S390X_LOW32CMP_SRC__MAX
 };
 
+enum {
+  S390X_LOW32CMP_ADDK_NONE,
+  S390X_LOW32CMP_ADDK_CTRL_INC,
+  S390X_LOW32CMP_ADDK_BITOP_TAIL,
+  S390X_LOW32CMP_ADDK_OTHER,
+  S390X_LOW32CMP_ADDK__MAX
+};
+
 static int asm_s390x_low32cmp_phase_index(const char *phase)
 {
   return strcmp(phase, "equal") == 0 ? S390X_LOW32CMP_PHASE_EQUAL :
@@ -319,11 +327,40 @@ static const char *asm_s390x_low32cmp_source_name(int idx)
   }
 }
 
+static int asm_s390x_low32cmp_add_kind(ASMState *as, IRIns *ir)
+{
+  IRIns *lir, *rir = NULL;
+  if (!ir || ir->o != IR_ADD)
+    return S390X_LOW32CMP_ADDK_NONE;
+  lir = IR(ir->op1);
+  if (!irref_isk(ir->op2))
+    rir = IR(ir->op2);
+  if (irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT &&
+      IR(ir->op2)->i == 1 &&
+      (lir->o == IR_SLOAD || lir->o == IR_ADD || lir->o == IR_PHI))
+    return S390X_LOW32CMP_ADDK_CTRL_INC;
+  if (asm_s390x_is_bitop_op(lir->o) || (rir && asm_s390x_is_bitop_op(rir->o)))
+    return S390X_LOW32CMP_ADDK_BITOP_TAIL;
+  return S390X_LOW32CMP_ADDK_OTHER;
+}
+
+static const char *asm_s390x_low32cmp_add_kind_name(int idx)
+{
+  switch (idx) {
+  case S390X_LOW32CMP_ADDK_NONE: return "none";
+  case S390X_LOW32CMP_ADDK_CTRL_INC: return "ctrl_inc";
+  case S390X_LOW32CMP_ADDK_BITOP_TAIL: return "bitop_tail";
+  default: return "other";
+  }
+}
+
 static uint64_t asm_s390x_low32cmp_total;
 static uint64_t asm_s390x_low32cmp_phase_counts[S390X_LOW32CMP_PHASE__MAX];
 static uint64_t asm_s390x_low32cmp_op_counts[IR__MAX];
 static uint64_t asm_s390x_low32cmp_left_counts[S390X_LOW32CMP_SRC__MAX];
 static uint64_t asm_s390x_low32cmp_right_counts[S390X_LOW32CMP_SRC__MAX];
+static uint64_t asm_s390x_low32cmp_left_addkind_counts[S390X_LOW32CMP_ADDK__MAX];
+static uint64_t asm_s390x_low32cmp_right_addkind_counts[S390X_LOW32CMP_ADDK__MAX];
 static uint64_t asm_s390x_low32cmp_cmp32u_counts[2];
 static uint64_t asm_s390x_low32cmp_imm16_counts[2];
 static int asm_s390x_low32cmp_atexit_registered;
@@ -358,6 +395,16 @@ static void asm_s390x_low32cmp_dump_summary(void)
       fprintf(stderr, "S390X_LOW32CMP_RIGHT src=%s count=%llu\n",
 	      asm_s390x_low32cmp_source_name(i),
 	      (unsigned long long)asm_s390x_low32cmp_right_counts[i]);
+  }
+  for (i = 0; i < S390X_LOW32CMP_ADDK__MAX; i++) {
+    if (asm_s390x_low32cmp_left_addkind_counts[i] != 0)
+      fprintf(stderr, "S390X_LOW32CMP_LEFT_ADDK kind=%s count=%llu\n",
+	      asm_s390x_low32cmp_add_kind_name(i),
+	      (unsigned long long)asm_s390x_low32cmp_left_addkind_counts[i]);
+    if (asm_s390x_low32cmp_right_addkind_counts[i] != 0)
+      fprintf(stderr, "S390X_LOW32CMP_RIGHT_ADDK kind=%s count=%llu\n",
+	      asm_s390x_low32cmp_add_kind_name(i),
+	      (unsigned long long)asm_s390x_low32cmp_right_addkind_counts[i]);
   }
   for (i = 0; i < 2; i++) {
     if (asm_s390x_low32cmp_cmp32u_counts[i] != 0)
@@ -718,6 +765,8 @@ static void asm_s390x_low32cmp_log(ASMState *as, const char *phase, IROp op,
     asm_s390x_low32cmp_op_counts[op]++;
   asm_s390x_low32cmp_left_counts[asm_s390x_low32cmp_source_index(lir)]++;
   asm_s390x_low32cmp_right_counts[asm_s390x_low32cmp_source_index(rir)]++;
+  asm_s390x_low32cmp_left_addkind_counts[asm_s390x_low32cmp_add_kind(as, lir)]++;
+  asm_s390x_low32cmp_right_addkind_counts[asm_s390x_low32cmp_add_kind(as, rir)]++;
   asm_s390x_low32cmp_cmp32u_counts[cmp32u != 0]++;
   asm_s390x_low32cmp_imm16_counts[imm16_signed != 0]++;
 }

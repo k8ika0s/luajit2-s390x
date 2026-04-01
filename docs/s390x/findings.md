@@ -10007,3 +10007,66 @@ Next hash target
       boundary, not another store-tail or broad low32-home skip variant
     - if this family stays open, the next code branch is a real emitter plus
       backend compare-consumer design, not another local normalization skip
+
+- Timestamp: `2026-04-01 10:11:20 PDT`
+- Clean `kdz` add-kind split closes the compare-consumer queue for
+  `bitops_mix`
+  - source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      now splits compare-side `ADD` sources into control increment vs bitop
+      tail kinds under the same summary logger
+  - clean-host artifact:
+    - [20260401-kdz-low32cmp-addkind-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32cmp-addkind-check/summary.md)
+  - compare summary:
+    - total compare consumers: `19`
+    - `LE`: `14`
+    - `NE`: `5`
+    - left source `ADD`: `19`
+    - right source constant: `19`
+  - decisive add-kind split:
+    - left add kind `ctrl_inc`: `19`
+    - left add kind `bitop_tail`: `0`
+  - reduced clean `kdz` `-jdump=is` proof matches the classification:
+    - the hot `LE` is the induction increment compare `i + 1 <= 200`
+    - the hot `NE` is the zero-check on that same induction value in the
+      traced `arshift` path
+    - the carried value path remains separate:
+      - `ADD total, bitop_chain`
+      - then loop `PHI total`
+  - result:
+    - the compare/guard seam is real, but it is loop control, not the carried
+      bitop value seam
+    - close compare-consumer work for `bitops_mix` on the current mechanism
+    - the next honest backend target reverts to the carried value path only:
+      low32-home through value-tail `ADD` plus loop `PHI`, explicitly
+      excluding the control-increment `ADD + 1` compare path
+
+- Timestamp: `2026-04-01 10:11:20 PDT`
+- First exact value-tail `ADD` / `PHI` low32-home gate is rejected on clean
+  `kdz`
+  - source gate:
+    - `LUAJIT_S390X_LOW32VALUEADDPHI=1`
+    - only plain non-guard integer `ADD`
+    - `op2` non-constant
+    - at least one source is a real bitop producer
+    - carry users restricted to `ADD` / `PHI`
+    - control increment `ADD + 1` excluded by construction
+  - clean-host artifact:
+    - [20260401-kdz-low32valueaddphi-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32valueaddphi-check/summary.md)
+  - reduced checks:
+    - add-tail reduced probe:
+      - `RUN_RC=0`
+      - `S390X_LOW32VALUEADDPHI_SUMMARY candidates=10 skips=10`
+    - store-tail reduced probe:
+      - `RUN_RC=0`
+      - no gate hits
+  - structural gate:
+    - add-tail trace probe: `RUN_RC=124`
+    - store-tail trace probe: `RUN_RC=124`
+  - result:
+    - reject this exact value-tail producer-side skip gate
+    - restore source baseline after the host check
+    - if `bitops_mix` stays open, the next honest target is deeper than a
+      producer-side `asm_bnorm32()` skip:
+      it needs a fuller normalized-result / low32-home contract that stays
+      finite under real trace formation
