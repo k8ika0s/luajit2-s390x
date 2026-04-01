@@ -9319,3 +9319,62 @@ Next hash target
     - explain which recorder/return condition on the traced-callee return path
       prevents `sum_loop` caller roots from reaching the caller loop op at all,
       while `retlast_loop` reaches that seam and stabilizes as a loop family
+
+- Timestamp: `2026-04-01 01:52:00 PDT`
+- Reduced return logs correct the live vararg seam again
+  - focused artifact bundle:
+    - [20260401-kdz-vararg-recret-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-vararg-recret-audit)
+  - clean-host result:
+    - `sum_loop` does not show a divergent post-return branch in
+      `lj_record_ret()`
+    - the only observed return branch is `lua_intrace_return`
+    - that branch belongs to the inner `select()` fastfunc work in the callee
+      loop, not to the outer caller add / return path
+  - combined with the existing recstop dump:
+    - `TRACE 2` starts at the caller site
+    - enters `sum(...)`
+    - then stops `-> 1` with:
+      - `pc=...d824`
+      - `op=54` (`GGET`)
+      - `prevop=78` (`JFORI`)
+      - `linktype=1`
+      - `link=1`
+      - `framedepth=2`
+    - that is the callee loop-body start after the nested `JFORI` path has
+      already moved `pc` into the callee loop body
+  - implication:
+    - the caller root is not being cut off after traced-callee return
+    - it is being cut off earlier, by linking directly into the already-
+      compiled callee loop trace when it reaches the nested `BC_JFORI` seam
+    - `retlast_loop` does not have that nested callee loop boundary, so its
+      caller root reaches caller add / loop formation directly
+  - next exact target:
+    - decide whether the `sum_loop` cliff is simply the normal root-stop path
+      for a caller trace that enters an already-compiled nested callee loop via
+      `BC_JFORI`, or whether there is still a narrower recorder ownership seam
+      above that boundary
+
+- Timestamp: `2026-04-01 02:02:00 PDT`
+- Recorder code confirms the corrected `sum_loop` stop mechanism
+  - relevant code path:
+    - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3597)
+    - `case BC_JFORI:` calls `rec_for(J, pc, 0)`
+    - if the loop is entered, it immediately does:
+      `lj_record_stop(J, LJ_TRLINK_ROOT, bc_d(...))`
+  - this matches the clean-host `sum_loop` artifact exactly:
+    - [20260401-kdz-vararg-recstop-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-vararg-recstop-audit)
+    - `TRACE 2` starts at the caller site
+    - then stops `-> 1` with:
+      - `prevop=78` (`JFORI`)
+      - `pc=...d824`, `op=54` (`GGET`) at the callee loop-body start
+      - `linktype=1`, `link=1`
+  - implication:
+    - this is not a hidden post-return split anymore
+    - it is the normal root-stop path for a caller trace that enters an
+      already-compiled nested callee loop
+    - `retlast_loop` avoids this because it has no nested callee loop there
+  - next exact target:
+    - decide whether caller-root ownership across a call into an already-
+      compiled nested callee loop is a real optimization surface on the current
+      mechanism, or whether that boundary should be treated as closed and the
+      broader vararg queue should move elsewhere
