@@ -122,9 +122,38 @@ non-causal probe effects. The current state is cleaner:
     - so the extra `sum_loop` root-family traces are not being born in the
       generic `trace_stop(... BC_CALL/BC_CALLM/BC_ITERC ...)` or
       `lj_trace_stitch()` handoff path either
+  - one more corrected clean-host classifier changed the read again:
+    - the earlier start-log pass had used the wrong env name
+    - the real gate is `LUAJIT_S390X_TRACE_START_LOG`
+    - with that corrected gate on clean `kdz`:
+      - `sum_loop`
+        - `trace 1` starts as a root at the callee loop in `sum(...)`
+        - `trace 2` starts as a second root at the caller site
+      - `retlast_loop`
+        - `trace 1` starts as a root at the caller site
+        - later traces are then side growth from that caller root
+    - so `sum_loop` is not creating `trace 2` through a hidden post-return
+      root-link decision
+    - it is splitting into two independently hot root sites:
+      - callee vararg scan first
+      - then caller arithmetic/call site
   - that leaves one honest live target in this family:
-    - recorder-side root-link selection after `lua_intrace_return`
-    - before generic stitch/patching logic ever matters
+    - why the caller root in `sum_loop` (`TRACE 2`) stops `-> 1` and then
+      keeps feeding the inner-loop ladder, instead of settling into the same
+      stable caller-loop family shape seen in `retlast_loop`
+  - the reduced clean-host caller-root dumps now make that target concrete:
+    - `retlast_loop`
+      - caller root already contains the outer-loop arithmetic and loop-carried
+        PHIs
+      - it stops as a loop immediately
+    - `sum_loop`
+      - caller root stops after callee identity/setup guards
+      - it does not yet materialize the caller add or outer-loop carried total
+      - so it stops `-> 1` before the caller body becomes a real loop owner
+  - the next exact target is therefore:
+    - why the caller root for `sum_loop` stops before caller-body
+      materialization after the traced callee call, while `retlast_loop`
+      reaches the caller add/loop path in the root itself
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a

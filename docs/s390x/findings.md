@@ -9222,3 +9222,64 @@ Next hash target
     - the live vararg seam moves earlier again
     - the next exact target is recorder-side root-link selection after
       `lua_intrace_return`, before generic stitch machinery matters
+
+- Timestamp: `2026-04-01 01:08:00 PDT`
+- Corrected clean-host trace-start classifier changed the vararg read again
+  - focused artifact bundle:
+    - [20260331-kdz-vararg-tracestart-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-tracestart-audit)
+  - correction:
+    - the earlier start-log pass used the wrong env name
+    - the actual gate is `LUAJIT_S390X_TRACE_START_LOG`
+  - clean `kdz` result with the corrected gate:
+    - `sum_loop`
+      - `S390X_TRACE_START ... op=79 parent=0 exit=0` at the callee loop
+      - then a second `S390X_TRACE_START ... op=79 parent=0 exit=0` at the
+        caller site before `TRACE 2`
+      - so `TRACE 2` is a normal second root trace started by hotcount, not a
+        hidden post-return root-link creation
+    - `retlast_loop`
+      - only one root start appears in the reduced probe
+      - that root starts directly at the caller site
+      - later traces are then side growth from that caller root
+  - implication:
+    - `sum_loop` is structurally split across two independently hot root sites:
+      - callee vararg scan loop first
+      - then caller arithmetic/call site
+    - the generic call/stitch path is still not the birth point of the extra
+      caller family
+  - decision:
+    - the live target is no longer “who creates the extra caller root?”
+    - the live target is:
+      - why the caller root in `sum_loop` stops `-> 1` and keeps feeding the
+        inner-loop ladder instead of converging into the stable caller-loop
+        family shape seen in `retlast_loop`
+
+- Timestamp: `2026-04-01 01:20:00 PDT`
+- Reduced caller-root dumps make the vararg stop-point explicit
+  - focused artifact bundle:
+    - [20260331-kdz-vararg-rootdump-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-rootdump-audit)
+  - `retlast_loop`
+    - caller root (`TRACE 1`) already contains:
+      - the caller add
+      - the outer-loop increment/check
+      - outer-loop PHIs
+    - it stops as a loop immediately
+  - `sum_loop`
+    - callee loop (`TRACE 1`) is separate
+    - caller root (`TRACE 2`) contains:
+      - caller-side `tobit` setup
+      - callee function identity guard
+      - `select` env / identity guards
+    - but it does not yet contain:
+      - the caller add of callee result into the outer total
+      - the outer-loop carried total / PHIs
+    - it stops `-> 1` before the caller body becomes a real loop owner
+  - important contrast:
+    - the live seam is not generic “two roots are bad”
+    - it is specifically that traced-callee return to caller in `sum_loop`
+      stops before caller-body materialization, while `retlast_loop` reaches
+      caller add/loop formation in the caller root itself
+  - next exact target:
+    - explain which recorder/return condition prevents `sum_loop` caller root
+      from materializing the caller add and outer-loop PHIs after the traced
+      callee call

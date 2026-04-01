@@ -136,9 +136,44 @@ That seam is narrower again after reduced clean-host handoff probes:
   - that rules out the generic `trace_stop(... BC_CALL/BC_CALLM/BC_ITERC ...)`
     plus `lj_trace_stitch()` handoff path as the birth point of the extra
     caller family
-  - the next exact target therefore moves one step earlier:
-    - recorder-side root-link selection after `lua_intrace_return`
-    - before generic stitch machinery matters
+- one corrected clean-host start classifier changed that read again:
+  - the actual gate is `LUAJIT_S390X_TRACE_START_LOG`
+  - with that gate on clean `kdz`:
+    - `sum_loop`
+      - `trace 1` starts as a root at the callee vararg loop
+      - `trace 2` starts as a second independent root at the caller site
+    - `retlast_loop`
+      - `trace 1` starts as a root at the caller site
+      - later traces then grow from that caller root
+  - so `sum_loop` is not creating `trace 2` through hidden post-return
+    root-link selection
+  - it is splitting across two hotcounted root sites instead
+  - the next exact target therefore shifts:
+    - explain why the caller root in `sum_loop` stops `-> 1` and keeps feeding
+      the inner-loop ladder instead of converging into the stable caller-loop
+      family seen in `retlast_loop`
+- the reduced caller-root dumps make that stop-point explicit:
+  - focused artifact bundle:
+    - [20260331-kdz-vararg-rootdump-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-rootdump-audit)
+  - `retlast_loop`
+    - caller root already contains:
+      - the caller add
+      - the outer loop increment/check
+      - outer-loop PHIs
+    - it stops as a loop immediately
+  - `sum_loop`
+    - caller root stops after:
+      - callee function identity guard
+      - `select` env / identity guards
+    - it does not yet materialize:
+      - the caller add of callee result into the outer total
+      - the outer-loop carried total / PHIs
+    - it stops `-> 1` before the caller body becomes a real loop owner
+  - the next exact target is therefore no longer “why is there a second root?”
+  - it is:
+    - why traced-callee return to caller in `sum_loop` stops before caller-body
+      materialization, while `retlast_loop` reaches caller add/loop formation
+      in the caller root itself
 
 ## Authoritative Validation Surfaces
 
