@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 12:28:40 PDT
+Last updated: 2026-04-01 12:36:01 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -148,25 +148,28 @@ non-causal probe effects. The current state is cleaner:
       `W32_HOME` carry experiment over the existing 64-bit emitter surface
     - not another opcode-swap family
     - not another compare-consumer branch
-  - current source state:
-    - the first gated prototype now exists in
-      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
-      behind `LUAJIT_S390X_W32HOME_STATEFUL`
-    - it skips post-op normalization for the safe-family producers:
-      - bitop logic/unary/shift/rotate
-      - plain non-guard integer `ADD`
-    - it normalizes explicit compare consumers through scratch registers in
-      `asm_intcomp()` and `asm_equal()`
-    - table-value store remains on the existing integer packing path in
-      `asm_tvstore64x()`
-    - local rebuild is clean; no clean-host `kdz` structural gate has been run
-      yet
+  - first stateful `W32_HOME` source prototype is now rejected on clean `kdz`:
+    - artifact:
+      [20260401-kdz-low32home-stateful-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-stateful-check)
+    - compile-only proofs all passed:
+      - `chain_tail_add`: `REMOTE_RC=0`
+      - `chain_tail_store`: `REMOTE_RC=0`
+      - `mix_bits`: `REMOTE_RC=0`
+    - reduced trace gate failed across the whole family:
+      - `chain_tail_add`: `REMOTE_RC=124`
+      - `chain_tail_store`: `REMOTE_RC=124`
+      - `mix_bits`: `REMOTE_RC=124`
+    - result:
+      - source returned to the non-behavior baseline after the host check
+      - this exact stateful `W32_HOME` carry prototype is closed
   - next honest task from this point:
-    - take `LUAJIT_S390X_W32HOME_STATEFUL=1` through the reduced clean-host
-      gate on `logical_chain_tail_add`, `logical_chain_tail_store`, and
-      `bitops_mix`
-    - reject immediately on `REMOTE_RC=124`, structural drift, or same-host
-      regression
+    - if `bitops_mix` stays open, the next line is no longer “first stateful
+      prototype”
+    - it is either:
+      - a deeper backend-wide result-state design that can keep reduced trace
+        formation finite
+      - or closure of `bitops_mix` as a local family and redirect to the
+        fallback integer-result queue
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

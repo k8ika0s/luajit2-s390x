@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 12:28:40 PDT
+Last updated: 2026-04-01 12:36:01 PDT
 
 ## Scope
 
@@ -110,23 +110,23 @@ Current clean-`kdz` broader-throughput frontier:
       surface
     - not another opcode-swap family
     - not another compare-consumer branch
-  - current source state:
-    - that first source prototype now exists behind
-      `LUAJIT_S390X_W32HOME_STATEFUL` in
-      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
-    - safe-family producers now skip post-op normalization under the gate
-    - compare consumers normalize through scratch registers before `CGR` /
-      `CGHI`
-    - integer TValue store stays on the existing `asm_tvstore64x()` packing
-      path
-    - this pass is local-build clean only; no new `kdz` or `zkd0` result is
-      claimed yet
-  - next gate:
-    - run the reduced clean-host structural validator with the gate on
-    - require `REMOTE_RC=0` on `logical_chain_tail_add`,
-      `logical_chain_tail_store`, and `bitops_mix`
-    - reject immediately on timeout, structural drift, or same-host median
-      loss
+  - first stateful `W32_HOME` source prototype is now a clean `kdz` reject:
+    - artifact:
+      [20260401-kdz-low32home-stateful-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-stateful-check)
+    - compile-only proofs all returned `REMOTE_RC=0`
+    - reduced trace probes all returned `REMOTE_RC=124`:
+      - `logical_chain_tail_add`
+      - `logical_chain_tail_store`
+      - `bitops_mix`
+    - source returned to the non-behavior baseline after the host check
+  - queue correction:
+    - this exact stateful `W32_HOME` carry prototype is closed
+    - if the backend family stays open, the next honest target is a deeper
+      result-state design that keeps reduced trace formation finite
+    - otherwise close `bitops_mix` too and move to:
+      - `int_add_phi_only`
+      - `logic_add_phi_noboundary`
+      - `int_add_phi_store_epilogue` only if the first two disagree
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
