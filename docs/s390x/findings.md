@@ -9921,3 +9921,41 @@ Next hash target
       - helper/call
       - store consumers such as `ASTORE`
       - snapshot-visible exits/restores
+
+- Timestamp: `2026-04-01 09:53:56 PDT`
+- Clean `kdz` boundary classifier says the live `bitops_mix` seam is
+  add/guard-boundary dominated, not store-tail dominated
+  - source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      now has a logging-only `LUAJIT_S390X_LOW32HOME_LOG` classifier for
+      bitop and plain non-guard `ADD` producers
+  - clean-host artifact:
+    - [20260401-kdz-low32home-boundary-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-boundary-audit/summary.md)
+  - `logical_chain_tail_add`:
+    - the extended family mostly stays internal:
+      - `can_carry=1`: `1039`
+      - `can_carry=0`: `94`
+    - first hard consumer split:
+      - `guard`: `65`
+      - `other`: `29`
+      - `store`: `0`
+  - `logical_chain_tail_store`:
+    - this is a separate consumer family:
+      - `can_carry=1`: `898`
+      - `can_carry=0`: `138`
+    - first hard consumer split:
+      - `store`: `68`
+      - `guard`: `45`
+      - `other`: `25`
+  - `bitops_mix`:
+    - treat the live benchmark as matching the add-tail seam, not the
+      store-tail seam
+  - classifier caveat:
+    - the reduced trace probes still timed out with `REMOTE_RC=124` under the
+      verbose logger, so this remains structural attribution, not a perf bar
+  - result:
+    - the current backend queue is no longer “generic low32-home contract”
+    - it is low32-home consumption at the compare/guard boundary on the
+      add-tail family
+    - store-tail remains a real separate boundary family, but it is not the
+      main `bitops_mix` seam
