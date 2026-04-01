@@ -268,6 +268,56 @@ non-causal probe effects. The current state is cleaner:
     - if this family stays open, the next code branch is a real compare
       consumer design with emitter support, not another local normalization
       skip
+- the next clean `kdz` proof corrects that compare read one layer deeper:
+  - artifact:
+    [20260401-kdz-low32cmp-addkind-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32cmp-addkind-check/summary.md)
+  - compare summary still matches the earlier read numerically:
+    - total compare consumers: `19`
+    - `LE`: `14`
+    - `NE`: `5`
+    - left source `ADD`: `19`
+    - right source constant: `19`
+  - but the add-kind split resolves the ambiguity:
+    - left add kind `ctrl_inc`: `19`
+    - left add kind `bitop_tail`: `0`
+  - reduced clean `kdz` `-jdump=is` proof matches that result:
+    - hot `LE` is on the induction increment `i + 1 <= 200`
+    - hot `NE` is the zero check on that same induction value in the traced
+      `arshift` path
+    - the carried value path remains separate:
+      - `ADD total, bitop_chain`
+      - then `PHI total`
+  - queue consequence:
+    - the compare/guard frontier is a loop-control seam, not the carried
+      bitop value seam
+    - close compare-consumer work for `bitops_mix` on the current mechanism
+    - the next honest backend target reverts to the carried value path only:
+      low32-home through value-tail `ADD` plus loop `PHI`, explicitly
+      excluding the control-increment `ADD + 1` compare path
+- first exact value-tail `ADD` / `PHI` gate is rejected on clean `kdz`:
+  - artifact:
+    [20260401-kdz-low32valueaddphi-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32valueaddphi-check/summary.md)
+  - gate shape:
+    - `LUAJIT_S390X_LOW32VALUEADDPHI=1`
+    - only plain non-guard integer `ADD`
+    - `op2` must be non-constant
+    - at least one source must be a real bitop producer
+    - carry users restricted to `ADD` / `PHI`
+    - control increment `ADD + 1` excluded by construction
+  - reduced checks:
+    - add-tail reduced probe completed and hit the intended seam:
+      - `candidates=10`, `skips=10`
+    - store-tail reduced probe completed and produced no hits
+  - structural gate:
+    - add-tail trace probe: `RUN_RC=124`
+    - store-tail trace probe: `RUN_RC=124`
+  - result:
+    - reject this exact value-tail producer-side skip gate
+    - current source baseline keeps only the classifier work
+    - if `bitops_mix` stays open, the next honest backend target is deeper
+      than another producer-side `asm_bnorm32()` skip
+    - it would need a fuller normalized-result / low32-home contract that
+      stays finite through real trace formation
 - the first native `kdz` pass on that new queue is now enough to name the next
   live family:
   - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
