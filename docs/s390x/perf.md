@@ -211,8 +211,21 @@ Current clean-`kdz` broader-throughput frontier:
       - `iterator_table` regresses on both hosts
       - so `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` is a broader throughput
         candidate, not a safe global default
-    - the next honest target is selective promotion scope, not more broader
-      screening
+    - first selective-scope retries are now rejected on `kdz`:
+      - exact loop-clone seam only:
+        [20260401-kdz-hotside-canon-share-loop0-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-check/summary.md)
+        - throughput still wins, iterator still regresses
+      - loop-clone seam plus root-`ITERN` exclusion:
+        [20260401-kdz-hotside-canon-share-loop0-noitern-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-noitern-check/summary.md)
+        - throughput still wins, iterator still regresses
+      - fast rerun after removing avoidable no-op overhead:
+        [20260401-kdz-hotside-canon-share-loop0-noitern-fastcheck](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-noitern-fastcheck/summary.md)
+        - `chain_tail_add/hot`: `0.007930 -> 0.003045`
+        - `pairs_sum/hot`: `0.064785 -> 0.072845`
+        - `pairs_array_sum/hot`: `0.068692 -> 0.076979`
+    - the next honest target is not more broad screening
+    - it is either a deeper selective activation design, or acceptance that
+      the dedicated gate remains throughput-only on the current mechanism
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)

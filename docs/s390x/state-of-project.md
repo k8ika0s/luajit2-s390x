@@ -286,10 +286,45 @@ non-causal probe effects. The current state is cleaner:
           - the dedicated gate is now a broader throughput promotion candidate
           - it is not promotable as a global s390x default while the frozen
             iterator family regresses on both hosts
-          - the next honest target is a selective activation boundary or
-            promotion scope for `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
-          - if no selective boundary exists, keep it as an opt-in throughput
-            candidate and leave iterator frozen
+          - the first simple selective activation attempts are now rejected:
+            - exact loop-clone seam only:
+              [20260401-kdz-hotside-canon-share-loop0-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-check/summary.md)
+              - throughput still wins:
+                - `add_phi_only/hot`: `0.000714 -> 0.000365`
+                - `chain_tail_add/hot`: `0.008402 -> 0.003092`
+                - `mix_bits/hot`: `0.008096 -> 0.003168`
+              - iterator still regresses:
+                - `pairs_sum/hot`: `0.062436 -> 0.068325`
+                - `pairs_array_sum/hot`: `0.067516 -> 0.075800`
+            - loop-clone seam plus root-`ITERN` exclusion:
+              [20260401-kdz-hotside-canon-share-loop0-noitern-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-noitern-check/summary.md)
+              - throughput still wins:
+                - `add_phi_only/hot`: `0.000664 -> 0.000503`
+                - `chain_tail_add/hot`: `0.007741 -> 0.003107`
+                - `mix_bits/hot`: `0.007789 -> 0.003240`
+              - iterator still regresses:
+                - `pairs_sum/hot`: `0.064846 -> 0.069202`
+                - `pairs_array_sum/hot`: `0.068079 -> 0.074660`
+            - fast rerun after removing avoidable no-op overhead:
+              [20260401-kdz-hotside-canon-share-loop0-noitern-fastcheck](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-noitern-fastcheck/summary.md)
+              - `chain_tail_add/hot`: `0.007930 -> 0.003045`
+              - `pairs_sum/hot`: `0.064785 -> 0.072845`
+              - `pairs_array_sum/hot`: `0.068692 -> 0.076979`
+          - focused iterator proof:
+            - hash and array reduced `pairs()` loops both keep their first
+              visible hotside seam at `parent=1 exit=1 startop=70` (`BC_ITERN`)
+            - artifacts:
+              - [20260401-kdz-hotside-iterator-small-focus-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-iterator-small-focus-check/raw/run.stderr.log)
+              - [20260401-kdz-hotside-array-iterator-loop0-focus-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-array-iterator-loop0-focus-check/raw/run.stderr.log)
+          - current queue correction:
+            - no simple structural fence line is proven yet for promoting
+              `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` beyond opt-in
+              throughput use
+            - the branch should keep the dedicated gate as an opt-in throughput
+              candidate and leave iterator frozen
+            - the next honest target is a deeper selective activation design,
+              or explicit acceptance that this gate is throughput-only on the
+              current mechanism
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
