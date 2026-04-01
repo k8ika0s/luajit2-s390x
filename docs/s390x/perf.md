@@ -141,12 +141,23 @@ Current clean-`kdz` broader-throughput frontier:
   - `bitops_mix`: baseline `0.009459`, candidate `0.004000`
   - after tracked-file resync and rebuild, structural counts match `kdz`:
     `TRACE_START 41 -> 2`, `TEXIT_COUNT 7981 -> 8000`
+- dedicated single-gate promotion:
+  - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+  - clean `kdz` check:
+    [20260401-kdz-hotside-canon-share-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-gate-check/summary.md)
+    - `int_add_phi_only`: `hot 0.000349`, `TRACE_START 3`, `TEXIT_COUNT 4001`
+    - `logical_chain_tail_add`: `hot 0.003015`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - `bitops_mix`: `hot 0.003064`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - `zkd0` screen:
+    [20260401-zkd0-hotside-canon-share-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-gate-check/summary.md)
+    - `logical_chain_tail_add`: `hot 0.003333`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - `bitops_mix`: `hot 0.004170`, `TRACE_START 2`, `TEXIT_COUNT 8000`
 - queue correction:
-  - the next honest question is not “can we lower `TEXIT_COUNT`?”
-  - it is “why does the canon/share policy win while exit totals stay flat or
-    slightly higher?”
-  - the next structural target is the tiny stable trace set under the combined
-    policy, not `SHARE_EQUIV` alone and not backend low32-home work
+  - the root-cause question is answered on this mechanism
+  - the live candidate surface is now the dedicated single gate, not the old
+    ad hoc env pair
+  - the next honest target is broader candidate validation and helper
+    integration
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
