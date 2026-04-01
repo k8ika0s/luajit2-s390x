@@ -9959,3 +9959,51 @@ Next hash target
       add-tail family
     - store-tail remains a real separate boundary family, but it is not the
       main `bitops_mix` seam
+
+- Timestamp: `2026-04-01 10:11:20 PDT`
+- Reduced clean `kdz` compare-boundary check names the active `bitops_mix`
+  consumer exactly
+  - source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      now carries a summary-only `LUAJIT_S390X_LOW32CMP_LOG` classifier in
+      `asm_intcomp()` and `asm_equal()`
+  - clean-host artifact:
+    - [20260401-kdz-low32cmp-add-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32cmp-add-check/summary.md)
+  - reduced add-tail probe result:
+    - `BUILD_RC=0`
+    - `RUN_RC=0`
+    - `RESULT 1746150614`
+  - compare summary:
+    - total low32-home compare consumers: `19`
+    - phases:
+      - `intcomp`: `14`
+      - `equal`: `5`
+    - ops:
+      - `LE`: `14`
+      - `NE`: `5`
+    - source shape:
+      - left source is always `ADD`: `19`
+      - right source is always constant: `19`
+      - unsigned compare path never triggers: `cmp32u=0`
+      - signed immediate compare path covers the hot majority:
+        - `imm16_signed=1`: `14`
+        - `imm16_signed=0`: `5`
+  - current-lowering match:
+    - in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      the hot `LE` path is the signed-immediate `asm_intcomp()` branch using
+      `CGHI`
+    - the smaller equality side path is `asm_equal()` using `CGR`
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h)
+      currently exposes only the 64-bit compare forms used here:
+      `CGR`, `CLGR`, `CGHI`
+    - there is no already-wired 32-bit compare-consumer surface to reuse
+  - result:
+    - the live `bitops_mix` boundary is no longer a generic compare/guard
+      frontier
+    - it is specifically the carried-`ADD` into signed immediate `LE` loop
+      compare boundary, with constant `NE` equality as the secondary consumer
+    - the next honest backend target is consumption at that exact compare
+      boundary, not another store-tail or broad low32-home skip variant
+    - if this family stays open, the next code branch is a real emitter plus
+      backend compare-consumer design, not another local normalization skip

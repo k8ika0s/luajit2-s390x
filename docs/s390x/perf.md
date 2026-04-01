@@ -181,6 +181,39 @@ Current clean-`kdz` broader-throughput frontier:
     - if this backend line stays open, the next honest target is low32-home
       consumption at the compare/guard boundary, not another store-tail or
       add-only gate
+- reduced clean `kdz` compare-boundary check:
+  - artifact:
+    [20260401-kdz-low32cmp-add-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32cmp-add-check/summary.md)
+  - reduced add-tail probe:
+    - `BUILD_RC=0`
+    - `RUN_RC=0`
+    - `RESULT 1746150614`
+  - compare consumers:
+    - total: `19`
+    - `LE`: `14`
+    - `NE`: `5`
+    - `intcomp`: `14`
+    - `equal`: `5`
+    - left source is always carried `ADD`: `19`
+    - right source is always constant: `19`
+    - unsigned compare path is unused: `cmp32u=0`
+    - hot compare path is the signed immediate path:
+      - `imm16_signed=1`: `14`
+      - `imm16_signed=0`: `5`
+  - current lowering match:
+    - `asm_intcomp()` signed-immediate compare lowers through `CGHI`
+    - `asm_equal()` remaining equality path lowers through `CGR`
+    - `src/lj_emit_s390x.h` only exposes the 64-bit compare forms used here:
+      `CGR`, `CLGR`, `CGHI`
+    - there is no pre-existing 32-bit compare-consumer path already wired in
+  - result:
+    - the active `bitops_mix` boundary is not a generic guard frontier
+    - it is specifically carried `ADD` into signed immediate `LE`, with
+      constant `NE` equality as a secondary boundary
+    - the next honest backend target is consumption at that exact compare
+      boundary, not another store-tail or broad low32-home skip variant
+    - if the family stays open, the next real code branch is emitter plus
+      backend compare-consumer design, not another local skip gate
 
 First broader-throughput family read from clean `kdz`:
 
