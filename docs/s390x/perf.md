@@ -260,10 +260,15 @@ Focused backend audit on that family:
 
 - artifact root:
   - [20260401-kdz-bitop-log-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-log-audit)
+  - [20260401-kdz-bitop-log-audit-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-log-audit-v2)
 - the hot chain is exactly the workload shape:
   - `band`, `bxor`, `bor`, shifts, rotates, `bswap`, `bnot`
   - every logged hot op is `IRT_INT`
   - no helper-call seam and no exit seam appear in this classifier
+  - the refined producer log shows the hot body is mostly bitop-on-bitop:
+    - later `logic` ops repeatedly consume earlier `logic`, `shiftk`, `brolk`,
+      `bswap`, and `bnot` producers
+    - the chain is not repeatedly reloading a fresh non-bitop value each step
 - the s390x backend path is the interesting part:
   - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1428)
     `asm_bitop_logic()`
@@ -273,10 +278,10 @@ Focused backend audit on that family:
     `asm_brot()`
   - all of those paths currently run through `asm_bnorm32()`
 - next exact target:
-  - prove whether repeated per-op 32-bit normalization / extend work in the
-    s390x bitop lowering is the real compiled-body payer in `bitops_mix`
-  - only then decide whether one narrow backend normalization-hoist or
-    int32-home experiment is justified
+  - prove whether repeated `asm_bnorm32()` work is being paid across an
+    already-`IRT_INT` producer chain in `bitops_mix`
+  - only then decide whether one narrow normalization-state / int32-home
+    experiment is justified
 
 ## Authoritative Validation Surfaces
 

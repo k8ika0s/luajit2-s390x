@@ -9427,3 +9427,27 @@ Next hash target
   - next exact target:
     - prove whether one narrow backend normalization-hoist or int32-home
       experiment is justified before opening any optimization patch
+
+- Timestamp: `2026-04-01 02:40:00 PDT`
+- Refined `bitops_mix` backend log narrows the live compiled-body payer
+  - relevant source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L110)
+      refined `LUAJIT_S390X_BITOP_LOG` producer logging
+  - focused artifact bundle:
+    - [20260401-kdz-bitop-log-audit-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-log-audit-v2)
+  - clean `kdz` result:
+    - the hot chain is still entirely `IRT_INT`
+    - the refined producer refs show later bitops are usually consuming earlier
+      bitop results, not fresh source values:
+      - `logic` repeatedly takes prior `logic`, `shiftk`, `brolk`, `bswap`,
+        and `bnot` producers
+      - only a small base set comes straight from the original source integer
+        or loop-carried arithmetic
+    - no helper-call seam and no exit seam appear in this classifier
+  - implication:
+    - the live question is no longer “is the chain widening out of int32?”
+    - it is whether s390x is paying `asm_bnorm32()` over and over on an
+      already-int32 producer chain
+  - next exact target:
+    - prove whether one narrow normalization-state / int32-home experiment is
+      justified before opening any backend optimization patch

@@ -236,10 +236,17 @@ non-causal probe effects. The current state is cleaner:
 - focused backend audit now names the next exact throughput seam:
   - artifact root:
     - [20260401-kdz-bitop-log-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-log-audit)
+    - [20260401-kdz-bitop-log-audit-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-log-audit-v2)
   - the hot chain is all integer bitops:
     - `band`, `bxor`, `bor`, shifts, rotates, `bswap`, `bnot`
     - every logged op is `IRT_INT`
     - no helper-call seam and no exit seam show up in this classifier
+    - the refined producer log shows the hot chain mostly consumes earlier
+      bitop results:
+      - `logic` ops repeatedly take prior `logic`, `shiftk`, `brolk`, `bswap`,
+        and `bnot` producers as inputs
+      - only a small base set comes straight from the original integer source
+        or loop-carried arithmetic
   - the s390x backend path is the interesting part:
     - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1428)
       `asm_bitop_logic()`
@@ -249,10 +256,11 @@ non-causal probe effects. The current state is cleaner:
       `asm_brot()`
     - all of those paths currently run through `asm_bnorm32()`
   - that makes the next exact target:
-    - prove whether repeated per-op 32-bit normalization / extend work in the
-      s390x bitop lowering is the real compiled-body payer in `bitops_mix`
-    - and only then decide whether one narrow backend normalization-hoist or
-      int32-home experiment is justified
+    - prove whether `asm_bnorm32()` is being re-applied across an already
+      `IRT_INT` bitop producer chain and is the real compiled-body payer in
+      `bitops_mix`
+    - and only then decide whether one narrow normalization-state / int32-home
+      experiment is justified
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
