@@ -9879,3 +9879,45 @@ Next hash target
       non-guard integer `ADD` plus `PHI`
     - do not reopen another “normalize at `ADD` boundary” or other partial
       tail-only gate
+
+- Timestamp: `2026-04-01 09:32:02 PDT`
+- First native `kdz` pass on the low32-home `ADD`/`PHI` carry gate is rejected
+  - implementation shape:
+    - keep the existing addhome classifier
+    - add a temporary low32-home carry gate for plain non-guard integer `ADD`
+      when both sources stay inside the bitop / `ADD` / `PHI` carry family
+    - skip producer-side `asm_bnorm32()` only for that carry family
+    - gate name:
+      - `LUAJIT_S390X_LOW32HOME_ADDPHI`
+  - clean-host artifact:
+    - [20260401-kdz-low32home-addphi-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-addphi-check/summary.md)
+  - structural read:
+    - the proof scripts completed cleanly:
+      - `proof_add`: `REMOTE_RC=0`, `skip_count=2`
+      - `proof_store`: `REMOTE_RC=0`, `skip_count=0`
+    - both reduced trace probes timed out on clean `kdz`:
+      - `chain_tail_add`: `REMOTE_RC=124`
+      - `chain_tail_store`: `REMOTE_RC=124`
+    - that is a first-gate failure even though the gate reached the intended
+      seam
+  - host medians:
+    - `logical_chain_tail_add`: gated `0.007441`
+    - `logical_chain_tail_store`: gated `0.006737`
+  - result:
+    - source returned to the non-behavior baseline after the host check
+    - this exact low32-home `ADD`/`PHI` carry gate is not promotable
+    - the remaining honest backend branch is now narrower:
+      - either a fuller stateful low32-home / normalized-result contract that
+        keeps the reduced trace probes finite and normalizes before any
+        guard/compare, helper/call, store, or snapshot-visible exit boundary
+      - or closure of the `bitops_mix` backend family too
+  - design read from the current lowering:
+    - safe internal family only:
+      - bitop logic/unary/shift/rotate
+      - plain non-guard integer `ADD`
+      - loop `PHI` when both incoming arms remain inside that family
+    - hard boundaries remain:
+      - guard/compare
+      - helper/call
+      - store consumers such as `ASTORE`
+      - snapshot-visible exits/restores

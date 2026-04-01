@@ -126,6 +126,36 @@ Current clean-`kdz` broader-throughput frontier:
       plain non-guard integer `ADD` plus `PHI`
     - `ASTORE`, `LE`/guard, helper, and other noncarry consumers remain hard
       boundaries
+- first host check on that `ADD`/`PHI` carry gate:
+  - artifact:
+    [20260401-kdz-low32home-addphi-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-addphi-check/summary.md)
+  - gated medians:
+    - `logical_chain_tail_add`: `0.007441`
+    - `logical_chain_tail_store`: `0.006737`
+  - structural gate:
+    - proof scripts finished cleanly and the gate fired at the targeted seam:
+      - `proof_add`: `REMOTE_RC=0`, `skip_count=2`
+      - `proof_store`: `REMOTE_RC=0`, `skip_count=0`
+    - both reduced trace probes timed out on clean `kdz`:
+      - `chain_tail_add`: `REMOTE_RC=124`
+      - `chain_tail_store`: `REMOTE_RC=124`
+  - result:
+    - this exact low32-home `ADD`/`PHI` carry gate is not promotable
+    - source returned to the non-behavior baseline after the host check
+    - the backend line now either needs a fuller stateful low32-home /
+      normalized-result contract that preserves finite trace behavior and
+      normalizes before guard/compare, helper/call, store, and
+      snapshot-visible boundaries, or it should close too
+  - design map from the lowering read:
+    - safe internal family only:
+      - bitop logic/unary/shift/rotate
+      - plain non-guard integer `ADD`
+      - loop `PHI` whose incoming arms stay inside that family
+    - hard boundaries remain:
+      - guard/compare
+      - helper/call
+      - store consumers such as `ASTORE`
+      - snapshot-visible exits/restores
 
 First broader-throughput family read from clean `kdz`:
 
