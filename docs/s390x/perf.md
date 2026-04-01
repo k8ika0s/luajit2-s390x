@@ -282,6 +282,20 @@ Focused backend audit on that family:
     already-`IRT_INT` producer chain in `bitops_mix`
   - only then decide whether one narrow normalization-state / int32-home
     experiment is justified
+- focused `asm_bnorm32()` classifier on clean `kdz` now confirms the payer
+  shape:
+  - [20260401-kdz-bnorm-log-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bnorm-log-audit)
+  - `84` total normalization sites in the focused hot run
+  - exact split:
+    - `42` unary/shift sites normalize values coming straight from the source
+      integer or loop-carried arithmetic
+    - `42` binary chain sites normalize results whose left and right inputs are
+      already prior bitops
+  - so the live backend question is now narrow:
+    - can the s390x backend safely carry “already normalized int32” state
+      across the binary bitop chain instead of reissuing `asm_bnorm32()` on
+      every chain node
+    - if not, this family should be closed without opening a backend patch
 
 ## Authoritative Validation Surfaces
 
