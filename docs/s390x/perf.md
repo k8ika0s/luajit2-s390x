@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 19:45:12 PDT
+Last updated: 2026-03-31 20:08:12 PDT
 
 ## Scope
 
@@ -14,9 +14,11 @@ was frozen into three lanes:
 The active performance frontier is no longer iterator-only. Iterator is frozen
 at the current Lane A + Lane B checkpoint unless a genuinely new seam appears
 outside the reject pile. The first dispatch/side-exit loop-clone queue has now
-also been classified and closed on the current mechanism. The next queued
-workstream is dispatch-adjacent side-exit cost work outside that rejected
-mechanism. The bridge and continuation line stays parked.
+also been classified and closed on the current mechanism. The follow-up
+dispatch-adjacent side-exit pass did not expose a second seam; the branchy
+loops collapse back to the same closed loop-clone ladder. The next queued
+workstream is helper-boundary storage/materialization audit work where the
+s390x ABI may still help. The bridge and continuation line stays parked.
 
 ## Authoritative Validation Surfaces
 
@@ -79,42 +81,54 @@ Checked-in dispatch truth-pack helper:
 
 ## Queued Dispatch / Side-Exit Frontier
 
-Current `kdz` dispatch hot medians from the active truth pack:
+Current `kdz` dispatch hot medians from the latest clean truth pack:
 
 - `numeric_loop/hot`
-  - JIT-on `0.642036`
+  - JIT-on `0.350184`
   - `-joff` `0.002168`
-  - gap `+0.639868s`
-  - ratio `296.14x`
+  - gap `+0.348016s`
+  - ratio `161.52x`
 - `side_exit_loop/hot`
-  - JIT-on `0.155224`
-  - `-joff` `0.004739`
-  - gap `+0.150485s`
-  - ratio `32.75x`
+  - JIT-on `0.535201`
+  - `-joff` `0.004667`
+  - gap `+0.530534s`
+  - ratio `114.68x`
 - `hotexit_loop/hot`
-  - JIT-on `0.380652`
-  - `-joff` `0.005653`
-  - gap `+0.374999s`
-  - ratio `67.34x`
+  - JIT-on `0.622022`
+  - `-joff` `0.005627`
+  - gap `+0.616395s`
+  - ratio `110.55x`
 
-Focused runtime read on the same branch tip:
+Focused runtime read on the same clean rerun:
 
 - `numeric_loop` after warmup:
-  - `TRACE_START 10`
-  - `TRACE_STOP 10`
+  - `TRACE_START 11`
+  - `TRACE_STOP 11`
   - `TRACE_ABORT 0`
   - `TEXIT_COUNT 2001`
-  - `TEXIT_HIST 1:0=142,2:0=1,3:0=200,4:0=200,5:0=200,6:0=200,7:0=200,8:0=200,9:0=200,10:0=200,11:0=200,12:0=58`
+  - `TEXIT_HIST 10:0=200,11:0=200,12:0=200,13:0=58,1:0=142,2:0=1,4:0=200,5:0=200,6:0=200,7:0=200,8:0=200,9:0=200`
 - `side_exit_loop` after warmup:
   - `TRACE_START 11`
   - `TRACE_STOP 11`
   - `TRACE_ABORT 0`
   - `TEXIT_COUNT 2001`
+  - `TEXIT_HIST 10:0=200,11:0=200,12:0=200,13:0=58,1:0=142,2:0=1,4:0=200,5:0=200,6:0=200,7:0=200,8:0=200,9:0=200`
+- `hotexit_loop` after warmup:
+  - `TRACE_START 11`
+  - `TRACE_STOP 11`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 2001`
+  - `TEXIT_HIST 10:0=200,11:0=200,12:0=200,13:0=58,1:0=142,2:0=1,4:0=200,5:0=200,6:0=200,7:0=200,8:0=200,9:0=200`
 - current `kdz` still reports `perf stat` hardware counters as:
   - `<not supported>`
 
-The key read is that the branch-free numeric loop already reproduces the same
-pathology. This is not primarily a loop-body branchiness problem.
+The key read is stronger now:
+
+- the branch-free numeric loop already reproduced the same pathology
+- and the branchy `side_exit_loop` / `hotexit_loop` surfaces now reproduce the
+  exact same trace/exit histogram and focused side-entry markers
+- so the current dispatch red is not opening a second branch-payload seam
+  outside the closed loop-clone mechanism
 
 ## Dispatch Seam Attribution
 
@@ -231,18 +245,29 @@ The next earlier patch-target classifier from the same seam is now rejected:
     - reject before wider classification
     - do not widen to `side_exit_loop` or `hotexit_loop`
 
-That closes the current dispatch loop-clone mechanism:
+That closed the current dispatch loop-clone mechanism:
 
 - default hotside policy sees equivalent candidates
 - direct late child-retarget is unsafe
 - patch-target shape does not unlock a safe owner/exit win
 - no new seam remains in this mechanism
 
+The follow-up dispatch-adjacent side-exit pass is now also classified:
+
+- `side_exit_loop` and `hotexit_loop` do not expose a second hot seam
+- on clean `kdz` they collapse back to the same `loop-body-entry-after-JFORI`
+  practical shape:
+  - `pc = BC_MODVN`
+  - `prevop = BC_JFORI`
+  - `startop = BC_JMP`
+  - `site=extra_loop_narrow`
+- so the current generic dispatch/side-exit line is now closed on this
+  mechanism too
+
 Next queued redirect:
 
-1. dispatch-adjacent side-exit cost surfaces outside the loop-clone seam
-2. helper-boundary storage/materialization audits where the ABI may help
-3. only then broader JIT throughput families
+1. helper-boundary storage/materialization audits where the ABI may help
+2. only then broader JIT throughput families
 
 ## Frozen Iterator Baseline
 

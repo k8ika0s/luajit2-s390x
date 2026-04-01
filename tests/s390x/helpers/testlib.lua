@@ -40,12 +40,80 @@ local function make_capture(kind)
   }
 end
 
+local function make_count_capture(kind, handler_factory)
+  local jit = require("jit")
+  local active = true
+  local cap = handler_factory()
+  local function handler(...)
+    if not active then
+      return
+    end
+    cap:record(...)
+  end
+  jit.attach(handler, kind)
+  cap.stop = function()
+    if active then
+      active = false
+      jit.attach(handler)
+    end
+  end
+  return cap
+end
+
 function M.trace_capture()
   return make_capture("trace")
 end
 
 function M.texit_capture()
   return make_capture("texit")
+end
+
+function M.trace_counter_capture()
+  return make_count_capture("trace", function()
+    local cap = {
+      total = 0,
+      start = 0,
+      stop_count = 0,
+      abort = 0,
+      hist = {},
+    }
+    function cap:record(kind, traceno)
+      self.total = self.total + 1
+      local kind_str = tostring(kind)
+      local tr = tonumber(traceno)
+      if kind_str == "start" then
+        self.start = self.start + 1
+      elseif kind_str == "stop" then
+        self.stop_count = self.stop_count + 1
+      elseif kind_str == "abort" then
+        self.abort = self.abort + 1
+      end
+      if tr then
+        local key = kind_str .. ":" .. tr
+        self.hist[key] = (self.hist[key] or 0) + 1
+      end
+    end
+    return cap
+  end)
+end
+
+function M.texit_counter_capture()
+  return make_count_capture("texit", function()
+    local cap = {
+      total = 0,
+      hist = {},
+    }
+    function cap:record(traceno, exitno)
+      local tr = tonumber(traceno)
+      local ex = tonumber(exitno)
+      self.total = self.total + 1
+      if tr and ex then
+        local key = tr .. ":" .. ex
+        self.hist[key] = (self.hist[key] or 0) + 1
+      end
+    end
+    return cap
+  end)
 end
 
 function M.find_trace_event(events, kind)

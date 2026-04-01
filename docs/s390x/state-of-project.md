@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 19:45:12 PDT
+Last updated: 2026-03-31 20:08:12 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -40,8 +40,10 @@ non-causal probe effects. The current state is cleaner:
   new seam appears outside the reject pile
 - the first dispatch/side-exit loop-clone queue has now also been classified
   and closed on the current mechanism
-- the next queued performance workstream is dispatch-adjacent side-exit cost
-  work outside that rejected loop-clone patch-target family
+- the follow-up dispatch-adjacent side-exit pass did not expose a second seam;
+  the branchy loops collapse back to the same closed loop-clone ladder
+- the next queued performance workstream is helper-boundary
+  storage/materialization audit work where the s390x ABI may still help
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
@@ -444,19 +446,42 @@ rejected:
     - patch-target shape does not open a safe win on the current dispatch
       loop-clone mechanism
 
-That closes the current dispatch loop-clone family:
+That closed the current dispatch loop-clone family:
 
 - default `trace_hotside()` can already see equivalent candidates
 - direct late child-retarget is unsafe
 - direct side-exit patching to `mcloop` is unsafe
 - no safe earlier patch target was exposed by the existing mechanism
 
-The next queued workstream is now outside this family:
+The follow-up dispatch-adjacent side-exit pass is now also classified:
 
-1. dispatch-adjacent side-exit cost surfaces outside the rejected loop-clone
-   seam
-2. helper-boundary storage/materialization audits where the s390x ABI may help
-3. only then broader JIT throughput families
+- the dispatch truth-pack helper was tightened to use lightweight aggregated
+  trace/texit counters so the branchy loops can be observed without the older
+  capture overflow path
+- clean `kdz` rerun:
+  - [20260331-kdz-dispatch-truth-pack-v4](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-dispatch-truth-pack-v4)
+- focused runtime result:
+  - `numeric_loop`, `side_exit_loop`, and `hotexit_loop` all come back with the
+    same trace/exit envelope:
+    - `TRACE_START 11`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 2001`
+    - `TEXIT_HIST 10:0=200,11:0=200,12:0=200,13:0=58,1:0=142,2:0=1,4:0=200,5:0=200,6:0=200,7:0=200,8:0=200,9:0=200`
+  - all three focused exit-attribution logs now pin the same practical seam:
+    - `pc = BC_MODVN`
+    - `prevop = BC_JFORI`
+    - `startop = BC_JMP`
+    - `site=extra_loop_narrow`
+- decision:
+  - the branchy dispatch loops do not expose a distinct side-exit payer outside
+    the already-closed loop-clone mechanism
+  - the current generic dispatch/side-exit line is now closed on this
+    mechanism too
+
+The next queued workstream is now:
+
+1. helper-boundary storage/materialization audits where the s390x ABI may help
+2. only then broader JIT throughput families
 
 ## What Has Not Been Proven Yet
 
