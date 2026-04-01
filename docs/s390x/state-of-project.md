@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 08:46:20 PDT
+Last updated: 2026-04-01 13:06:09 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -97,7 +97,6 @@ non-causal probe effects. The current state is cleaner:
   - it is a backend-wide low32-home / normalized-result contract where the
     logical chain stays safe internally and forced normalization boundaries
     include at least:
-    - integer arithmetic
     - store/compare/guard
     - helper-arg setup
     - snapshot-visible state
@@ -137,6 +136,33 @@ non-causal probe effects. The current state is cleaner:
       - a fuller stateful low32-home / normalized-result contract that avoids
         the timeout/regression shape entirely
       - or closure of this backend family too
+- the next clean-host classifier narrows that remaining contract again:
+  - artifact:
+    [20260401-kdz-addhome-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-addhome-audit/summary.md)
+  - `logical_chain_tail_add` does expose a real post-bitop carry seam:
+    - `70` plain non-guard integer `ADD` sites matched the low32-home carry
+      shape
+    - split:
+      - `46` where the current bitop result is the only low32-home source
+      - `24` where both the carried total and current bitop result are already
+        in the same low32-home carry family
+    - those `ADD` sites only feed `PHI` / later plain `ADD`, not store or
+      guard consumers
+  - `logical_chain_tail_store` does not:
+    - no `ADD` site matched the same carry shape there
+    - the bitop chain still first leaves into `ASTORE`, so store-tail remains
+      a hard consumer boundary
+  - classifier note:
+    - the verbose `LUAJIT_S390X_ADDHOME_LOG=1` `hotloop=1` probes timed out
+      with `REMOTE_RC=124`, so this is still a structural classification pass,
+      not a perf gate
+  - next honest target:
+    - if `bitops_mix` stays open, the next backend family is no longer
+      “normalize at the `ADD` boundary”
+    - it is a fuller stateful low32-home carry across plain non-guard integer
+      `ADD` plus `PHI`
+    - `ASTORE`, guard/compare (`LE`), helper, and other noncarry consumers stay
+      as hard boundaries until proven otherwise
 - the first native `kdz` pass on that new queue is now enough to name the next
   live family:
   - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
