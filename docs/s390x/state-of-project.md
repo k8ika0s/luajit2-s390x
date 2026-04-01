@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 06:17:48 PDT
+Last updated: 2026-04-01 08:18:53 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -45,10 +45,14 @@ non-causal probe effects. The current state is cleaner:
 - the next queued performance workstream is broader JIT throughput work
   unless a new helper-boundary storage/materialization seam can be named first
 - the broader-throughput queue is now explicit instead of implied:
-  - first target:
-    [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
-  - second target:
+  - active target:
     [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
+  - active seam isolators:
+    [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua)
+    and
+    [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua)
+  - parked for this cycle:
+    [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
   - [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
     stays out of this queue because it would re-entangle iterator behavior via
     `pairs()`
@@ -56,6 +60,52 @@ non-causal probe effects. The current state is cleaner:
   [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
   so broader JIT-on families can be restamped under the same tracked-file,
   direct-`src/` rebuild contract instead of ad hoc local runs
+- the latest queue correction is now explicit:
+  - `vararg_paths` is parked on the current mechanism
+  - the reduced clean-host probes plus recorder code read now support the same
+    closure:
+    - `sum_loop` is the normal root-stop path for a caller trace that enters
+      an already-compiled nested callee loop at `BC_JFORI`
+    - no narrower recorder seam has been named before that nested-loop entry
+  - the active live family is therefore backend compiled-body work in
+    `bitops_mix`, not nested vararg handoff
+- the new reduced seam isolators now keep that backend queue honest on clean
+  `kdz`:
+  - `logical_chain_tail_add`
+    - artifact:
+      [20260401-kdz-logical_chain_tail_add-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-truth-pack)
+    - `chain_tail_add/hot`: JIT-on `0.008265`, `-joff` `0.002127`, ratio
+      `3.89x`
+    - focused read: `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+    - `asm_bnorm32()` first non-bitop consumer split:
+      - `ADD`: `70`
+      - `OP_-1`: `921`
+  - `logical_chain_tail_store`
+    - artifact:
+      [20260401-kdz-logical_chain_tail_store-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_store-truth-pack)
+    - `chain_tail_store/hot`: JIT-on `0.006822`, `-joff` `0.002020`, ratio
+      `3.38x`
+    - focused read: `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+    - `asm_bnorm32()` first non-bitop consumer split:
+      - `ASTORE`: `70`
+      - `OP_-1`: `924`
+- the reduced pair says the same thing from two angles:
+  - the live red is still compiled-body dominated
+  - the named backend seam is not only “chain leaves into `ADD`”
+  - it is a backend-wide low32-home / normalized-result contract where the
+    logical chain stays safe internally and forced normalization boundaries
+    include at least:
+    - integer arithmetic
+    - store/compare/guard
+    - helper-arg setup
+    - snapshot-visible state
+- the next honest target is therefore:
+  - write the backend-wide invariant first
+  - then, if it survives those boundaries cleanly, open one narrow env-gated
+    low32-home design experiment on the reduced seam isolators before touching
+    `bitops_mix` again
 - the first native `kdz` pass on that new queue is now enough to name the next
   live family:
   - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
