@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 15:10:25 PDT
+Last updated: 2026-04-01 16:13:50 PDT
 
 ## Scope
 
@@ -223,9 +223,46 @@ Current clean-`kdz` broader-throughput frontier:
         - `chain_tail_add/hot`: `0.007930 -> 0.003045`
         - `pairs_sum/hot`: `0.064785 -> 0.072845`
         - `pairs_array_sum/hot`: `0.068692 -> 0.076979`
-    - the next honest target is not more broad screening
-    - it is either a deeper selective activation design, or acceptance that
-      the dedicated gate remains throughput-only on the current mechanism
+    - deeper selective activation is now proven and the current active
+      candidate is filtered rather than global:
+      - exact throughput activation proof:
+        [20260401-kdz-hotside-throughput-shape-proof](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-throughput-shape-proof/summary.md)
+        - actual canon/share hits sit on:
+          - `exit=0`
+          - `startop=BC_JMP`
+          - `pcop=snapop=BC_UGET`
+          - `root_startop=BC_FORL` or `BC_FUNCF`
+      - exact iterator non-hit proof:
+        [20260401-kdz-hotside-canon-share-iterator-bench-proof](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-iterator-bench-proof/summary.md)
+        - full `iterator_table` shows zero actual canon/share hits under the
+          old dedicated gate
+      - filtered gate:
+        - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+        - first inner-only filter still left iterator slightly red because
+          the remaining cost was no-op check overhead, not bad rewrites
+        - match proof:
+          [20260401-kdz-hotside-uget-looproot-match-proof/logical_chain_tail_add.summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-match-proof/logical_chain_tail_add.summary.md)
+          and
+          [20260401-kdz-hotside-uget-looproot-match-proof/iterator_table.summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-match-proof/iterator_table.summary.md)
+      - hoisted prefilter retry is the first selective gate that keeps the
+        throughput win without iterator fallout:
+        - `kdz`:
+          [20260401-kdz-hotside-canon-share-uget-looproot-perf](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-uget-looproot-perf/summary.md)
+          - `logical_chain_tail_add/hot`: `0.003130`
+          - `bitops_mix/hot`: `0.003232`
+          - `pairs_sum/hot`: `0.059845`
+          - `pairs_array_sum/hot`: `0.061876`
+        - `zkd0`:
+          [20260401-zkd0-hotside-canon-share-uget-looproot-perf](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-uget-looproot-perf/summary.md)
+          - `logical_chain_tail_add/hot`: `0.004477`
+          - `bitops_mix/hot`: `0.003607`
+          - `pairs_sum/hot`: `0.090623`
+          - `pairs_array_sum/hot`: `0.102340`
+    - queue correction:
+      - the active candidate is now the filtered gate, not the global
+        `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` surface
+      - the next honest target is broader suite validation and helper support
+        for `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
