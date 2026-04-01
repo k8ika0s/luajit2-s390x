@@ -220,6 +220,47 @@ That closes this owner-selection line again on the current tree:
   rejected first-side lazy-key classifiers
 - otherwise move to a different mechanism or ship the current freeze point
 
+One more four-track measurement pass now closes the current iterator reopening
+window on the frozen checkpoint:
+
+- Track 1 restamped the exact `trace 1 exit 1` seam on clean `kdz`
+  - hash and array both still attribute that seam to the first loop/leave
+    decision after the helper result exists
+  - hash still falls into the same closed payload-vs-nil /
+    unloaded-visible-key family
+- Track 2 showed the `rec_loop_jit_root` death is downstream
+  - the `startop=79` root candidate is not a new hash-vs-array seam
+  - the real first materially different candidate is still the first-side
+    `startop=88` path that was already closed
+- Track 3 kept the runtime read exit-heavy
+  - `kdz` truth-pack v3:
+    - `pairs_sum/hot median=0.062519`
+    - `pairs_array_sum/hot median=0.066353`
+  - focused micros stay far above same-harness `-joff`:
+    - `hash_value/hot 0.061603` vs `0.005682`
+    - `hash_key/hot 0.045652` vs `0.003942`
+    - `array_value/hot 0.064249` vs `0.004124`
+  - `perf stat` is still unsupported on `kdz`, so the active attribution path
+    is the runtime fallback:
+    - `hash_value` steady exit `1:1`, `64.17ns/texit`
+    - `hash_key` steady exit `1:1`, `71.33ns/texit`
+    - `array_value` steady exit `5:1`, `66.93ns/texit`
+    - all three classify as `exit-dominated`
+- Track 4 closed the ABI-aware preserved-GPR audit
+  - no proven loop-carried value is being dropped only because current s390x
+    reg-home/liveness fails to keep it in a preserved GPR across
+    `lj_vm_next(tab, keyindex)`
+- `zkd0` stayed a regression gate and came back worse:
+  - `pairs_sum/hot median=0.119175`
+  - `pairs_array_sum/hot median=0.120802`
+  - versus the frozen `zkd0` checkpoint those are `+26.94%` and `+37.36%`
+
+That makes the current queueing decision explicit:
+
+- no new iterator seam was proven outside the reject pile
+- iterator stays frozen at the current Lane A + Lane B checkpoint
+- the next queued perf workstream moves to dispatch/side-exit
+
 ## What Has Not Been Proven Yet
 
 The branch is not done with iterator performance, but the open space is now
@@ -257,7 +298,16 @@ So the branch is now in a stricter state than before:
 - and the truth pack says steady-state exit behavior still exists
 
 That means the next justified perf target is not “compiled throughput in the
-abstract” and not “one more backend micro-optimization.” The next justified
+abstract” and not “one more backend micro-optimization.”
+
+For iterator specifically, the current answer is now operational:
+
+- do not open another iterator patch family from the current mechanism
+- keep the frozen checkpoint as the active shipping state
+- only reopen iterator if a future measurement pass proves a genuinely new
+  root-trace storage/control seam outside the reject pile
+- otherwise spend the next perf effort on dispatch/side-exit, where the branch
+  has already shown real measured wins
 target is the exact steady-state exit / side-trace ownership on the frozen
 baseline, starting with value-only hash.
 
