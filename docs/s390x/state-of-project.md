@@ -269,11 +269,28 @@ non-causal probe effects. The current state is cleaner:
     - the split is exact:
       - `42` sites normalize unary/shift nodes fed directly from the original
         int source or loop-carried arithmetic
-      - `42` sites normalize binary chain nodes where both inputs are already
-        prior bitops
+    - `42` sites normalize binary chain nodes where both inputs are already
+      prior bitops
     - so the next exact target is no longer “is normalization happening?”
     - it is whether one narrow normalization-state experiment can safely avoid
       re-normalizing those already-int32 binary chain nodes
+  - the first exact skip experiment is now rejected:
+    - clean `kdz` artifact root:
+      - [20260401-kdz-bitop-chain-bnorm-skip-direct-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-chain-bnorm-skip-direct-v2)
+    - scope:
+      - skip `asm_bnorm32()` only on binary `band` / `bor` / `bxor` nodes
+        whose two operands are already prior bitops
+    - structural read:
+      - `S390X_BNORM_SKIP` fired heavily on clean `kdz`, so the classifier did
+        hit the intended chain nodes
+    - perf read:
+      - `mix_bits/hot` regressed from frozen `0.007645` to `0.008870`
+      - `mix_bits/small` also regressed from `0.000273` to `0.000340`
+    - result:
+      - the naive chain-node delete path is closed
+      - the live question is no longer “can we just skip those normalizations?”
+      - it is whether any stateful/int32-home variant can reduce the payer
+        without hurting the hot path
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a

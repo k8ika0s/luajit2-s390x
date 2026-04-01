@@ -128,6 +128,11 @@ static int asm_s390x_is_bitop_op(IROp op)
   }
 }
 
+static int asm_s390x_is_logic_bitop_op(IROp op)
+{
+  return op == IR_BAND || op == IR_BOR || op == IR_BXOR;
+}
+
 static void asm_s390x_bnorm_log(ASMState *as, IRIns *ir, Reg dest)
 {
   IRIns *lir;

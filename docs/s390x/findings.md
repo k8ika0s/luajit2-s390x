@@ -9478,3 +9478,27 @@ Next hash target
     - prove whether one narrow normalization-state or int32-home experiment can
       safely skip some of those chain-node `asm_bnorm32()` calls before opening
       any optimization patch
+
+- Timestamp: `2026-04-01 05:05:00 PDT`
+- Binary-chain `asm_bnorm32()` skip experiment is rejected on clean `kdz`
+  - relevant source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1422)
+      `asm_bnorm32()`
+  - focused artifact bundle:
+    - [20260401-kdz-bitop-chain-bnorm-skip-direct-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-chain-bnorm-skip-direct-v2)
+  - clean `kdz` result:
+    - the gate fired on the intended seam:
+      - `S390X_BNORM_SKIP` appears throughout the binary `band` / `bor` /
+        `bxor` chain nodes
+    - but the hot median regressed:
+      - frozen `mix_bits/hot`: `0.007645`
+      - gated `mix_bits/hot`: `0.008870`
+    - `small` also regressed:
+      - frozen `0.000273`
+      - gated `0.000340`
+  - implication:
+    - repeated normalization on chain nodes is a real surface
+    - but simply deleting those `asm_bnorm32()` calls is the wrong fix
+  - next exact target:
+    - if this family stays open, it must be a stricter normalization-state or
+      int32-home experiment, not a plain chain-node skip
