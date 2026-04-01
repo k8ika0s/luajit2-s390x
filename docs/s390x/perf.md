@@ -178,9 +178,19 @@ Dispatch hotside classifiers are now split:
 
 Next exact target:
 
-- explain why default hotside policy keeps cloning equivalent self-loop
-  `exit 0` loop traces on this seam instead of reusing or adopting an earlier
-  equivalent loop owner
+- default hotside reuse/adoption policy itself:
+  - on the late steady-state focused probe, default `trace_hotside()` already
+    logs `phase=equiv parent=10 exit=0 cand=6 child=7`
+  - but with the reuse gates off it still just counts toward `hotexit` and
+    starts another trace
+  - so the remaining dispatch red is now explicitly a policy choice, not a
+    failure to discover equivalent loop owners
+
+Next exact target:
+
+- one narrow dispatch-side reuse/adoption experiment that proves a real
+  owner/exit win on this seam, or closes the family if it only reproduces the
+  earlier branch-hostile classifier behavior
 
 ## Frozen Iterator Baseline
 
