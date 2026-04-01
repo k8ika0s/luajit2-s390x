@@ -119,6 +119,26 @@ That seam is narrower again after reduced clean-host handoff probes:
   - the next exact target moves later in the path:
     - caller-side re-entry after `lua_intrace_return`
     - before it settles into the separate `TRACE 2` / `TRACE 7` handoff family
+- two more clean-host classifiers narrow that caller-side seam further:
+  - reduced traceinfo probes:
+    - `sum_loop`
+      - `trace 1`: callee vararg scan loop
+      - `trace 2`: caller-side root trace
+      - `trace 7`: later caller-side root trace in the same family
+    - `retlast_loop`
+      - caller loop family only through the hot phase
+      - later stitch traces exist, but they are not unique to this workload
+  - focused artifact bundles:
+    - [20260331-kdz-vararg-rootstart-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-rootstart-audit)
+    - [20260331-kdz-vararg-callhandoff-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-callhandoff-audit)
+  - a synced-and-rebuilt `LUAJIT_S390X_CALLHANDOFF_LOG` classifier then stayed
+    completely silent while `sum_loop` still formed `TRACE 2` / `TRACE 7`
+  - that rules out the generic `trace_stop(... BC_CALL/BC_CALLM/BC_ITERC ...)`
+    plus `lj_trace_stitch()` handoff path as the birth point of the extra
+    caller family
+  - the next exact target therefore moves one step earlier:
+    - recorder-side root-link selection after `lua_intrace_return`
+    - before generic stitch machinery matters
 
 ## Authoritative Validation Surfaces
 

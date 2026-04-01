@@ -9189,3 +9189,36 @@ Next hash target
     - the next exact target moves later:
       - caller-side re-entry after `lua_intrace_return`
       - before that path settles into the separate caller handoff family
+
+- Timestamp: `2026-04-01 00:36:00 PDT`
+- Reduced traceinfo and call-handoff classifiers narrowed the vararg seam again
+  - focused artifact bundles:
+    - [20260331-kdz-vararg-rootstart-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-rootstart-audit)
+    - [20260331-kdz-vararg-callhandoff-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-callhandoff-audit)
+  - reduced traceinfo read on clean `kdz`:
+    - `sum_loop`
+      - `trace 1`: `link=1`, `type=loop`, callee vararg scan loop in `sum(...)`
+      - `trace 2`: `link=1`, `type=root`, caller-side root trace
+      - `trace 7`: `link=1`, `type=root`, later caller-side root trace in the
+        same family
+    - `retlast_loop`
+      - `trace 1` through `trace 10`: caller loop family only
+      - later `trace 11` and `trace 12`: stitch traces for the reporting tail,
+        not the unique hot-path payer
+  - important contrast:
+    - `sum_loop` uniquely creates fresh caller root-family traces after the
+      callee loop already exists
+    - `retlast_loop` does not
+  - one more focused negative classifier is now closed:
+    - a synced-and-rebuilt `LUAJIT_S390X_CALLHANDOFF_LOG` pass on clean `kdz`
+      stayed completely silent
+    - `sum_loop` still formed:
+      - `TRACE 2 ... -> 1`
+      - `TRACE 7 (2/0) ... -> 1`
+    - so those extra caller-family roots are not being born in the generic
+      `trace_stop(... BC_CALL/BC_CALLM/BC_ITERC ...)` plus `lj_trace_stitch()`
+      handoff path
+  - decision:
+    - the live vararg seam moves earlier again
+    - the next exact target is recorder-side root-link selection after
+      `lua_intrace_return`, before generic stitch machinery matters
