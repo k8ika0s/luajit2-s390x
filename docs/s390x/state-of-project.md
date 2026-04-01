@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 22:20:00 PDT
+Last updated: 2026-03-31 22:45:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -71,6 +71,13 @@ non-causal probe effects. The current state is cleaner:
        - repeated `select()` control,
        - vararg value access/materialization,
        - or exit churn in the traced hot path
+- that first comparison is now far enough along to narrow the live seam again:
+  - all three vararg cases show the generic loop-clone pattern on `kdz`
+  - but only `sum_loop` adds an extra caller-side handoff / return chain on
+    top of the inner traced vararg loop
+  - so the next target is no longer “generic vararg throughput”
+  - it is nested vararg summation plus caller return/handoff around
+    `sum(...)`, not the already-shared base loop-clone behavior
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a

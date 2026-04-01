@@ -9102,3 +9102,27 @@ Next hash target
      - or exit-heavy traced hot flow
   - queue rule:
     - do not widen to `bitops_mix` until one of those three is named first
+
+- Timestamp: `2026-03-31 22:45:00 PDT`
+- First structural split inside the new vararg family is now pinned on `kdz`
+  - local `-jdump=im` compare:
+    - `sum_loop` traces the inner `sum(...)` vararg scan loop directly
+    - `retlast_loop` and `retconst_loop` do not; they stay on the simpler
+      caller loop shape
+  - clean `kdz` `-jv` compare:
+    - `sum_loop`
+      - starts with an inner loop trace in `sum(...)`
+      - then adds caller-side handoff traces back into the outer loop
+      - then keeps cloning the inner loop seam
+    - `retlast_loop`
+      - shows the base loop-clone pattern only
+    - `retconst_loop`
+      - also shows the base loop-clone pattern only
+  - decision:
+    - the already-shared loop-clone behavior is not enough by itself to
+      explain the `sum_loop` cliff
+    - the new live seam is the nested vararg summation path plus caller
+      return/handoff around `sum(...)`
+    - next exact target:
+      - explain why the `sum(...)` inner vararg loop plus outer caller handoff
+        forms that extra ladder on `kdz`

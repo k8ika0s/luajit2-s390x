@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 22:20:00 PDT
+Last updated: 2026-03-31 22:45:00 PDT
 
 ## Scope
 
@@ -79,6 +79,18 @@ First broader-throughput family read from clean `kdz`:
      - `select()` control,
      - vararg value/materialization,
      - or exit-heavy traced hot flow
+
+That first contrast is now partially answered:
+
+- `retlast_loop` and `retconst_loop` both show the same base loop-clone
+  pattern on `kdz`
+- `sum_loop` is different in kind, not just in degree:
+  - it forms the inner traced vararg loop
+  - then adds caller-side handoff / return traces back into the outer loop
+- so the next live seam is:
+  - nested `sum(...)` vararg scan plus caller return/handoff
+  - not generic vararg throughput
+  - and not the already-shared base loop-clone behavior by itself
 
 ## Authoritative Validation Surfaces
 
