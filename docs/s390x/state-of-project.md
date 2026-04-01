@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 13:06:09 PDT
+Last updated: 2026-04-01 11:17:54 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -67,6 +67,8 @@ non-causal probe effects. The current state is cleaner:
     - `sum_loop` is the normal root-stop path for a caller trace that enters
       an already-compiled nested callee loop at `BC_JFORI`
     - no narrower recorder seam has been named before that nested-loop entry
+    - there is no matching reduced `x64` control artifact in this repo for the
+      same seam, so that comparison remains unavailable rather than inferred
   - the active live family is therefore backend compiled-body work in
     `bitops_mix`, not nested vararg handoff
 - the new reduced seam isolators now keep that backend queue honest on clean
@@ -100,11 +102,41 @@ non-causal probe effects. The current state is cleaner:
     - store/compare/guard
     - helper-arg setup
     - snapshot-visible state
-- the next honest target is therefore:
-  - write the backend-wide invariant first
-  - then, if it survives those boundaries cleanly, open one narrow env-gated
-    low32-home design experiment on the reduced seam isolators before touching
-    `bitops_mix` again
+- the next honest target is therefore design-first, not another local gate:
+  - main contract note:
+    [docs/s390x/low32-home-contract.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/low32-home-contract.md)
+  - semantic states:
+    - `W32_HOME`: low word authoritative, upper 32 unspecified
+    - `W64_NORM`: fully normalized and safe for generic consumers
+  - safe internal family on the current evidence:
+    - bitop logic/unary/shift/rotate
+    - plain non-guard integer `ADD`
+    - loop `PHI` when incoming arms stay in that family
+  - forced-normalization boundaries:
+    - guard/compare
+    - helper/call arg setup
+    - store consumers such as `ASTORE`
+    - snapshot-visible exits/restores
+    - any consumer outside the safe family
+  - emitter / ABI feasibility read:
+    - current 64-bit logical/arithmetic/compare lowering remains the only
+      already-wired backend surface
+    - word/high-word forms are architecture opportunities, not safe drop-in
+      swaps under the current contract
+    - helper / call interaction is a hard boundary, not the main optimization
+      surface for `bitops_mix`
+  - validator contract before any more code:
+    - compile-only proof must finish cleanly and hit only the intended seam
+    - reduced trace probes for `logical_chain_tail_add`,
+      `logical_chain_tail_store`, and `bitops_mix` must finish with
+      `REMOTE_RC=0`
+    - the family must stay compiled-body dominated with `TEXIT_COUNT=0`
+    - bare `REMOTE_RC=124` is automatic reject, not “interesting”
+  - if that contract cannot be stated or cannot stay finite, close
+    `bitops_mix` and move to the fallback queue:
+    - `int_add_phi_only`
+    - `logic_add_phi_noboundary`
+    - `int_add_phi_store_epilogue` only if the first two disagree
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

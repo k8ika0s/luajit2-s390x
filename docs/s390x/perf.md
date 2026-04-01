@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 13:06:09 PDT
+Last updated: 2026-04-01 11:17:54 PDT
 
 ## Scope
 
@@ -35,6 +35,8 @@ That broader-throughput queue is now explicit:
    is parked for this cycle because the front-most `sum_loop` split is now
    classified as the normal nested-callee `BC_JFORI -> existing loop` root-stop
    on the current mechanism, not a narrower fresh recorder seam
+   The matching reduced `x64` control probe is not available locally or in the
+   checked-in artifacts, so that comparison remains open but non-blocking.
 5. [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
    stays out of this queue because `pairs(map)` would drag iterator behavior
    back into a family that is supposed to sit outside the frozen iterator line
@@ -69,12 +71,32 @@ Current clean-`kdz` broader-throughput frontier:
       - `OP_-1`: `924`
 - current queue decision:
   - the backend seam is no longer “`ADD` only”
-  - the next honest target is a backend-wide low32-home / normalized-result
-    invariant that keeps the logical chain safe internally and forces
-    normalization at store/compare/guard, helper, and
-    snapshot-visible boundaries
-  - if that invariant cannot be stated precisely enough to survive those
-    boundaries, `bitops_mix` should close too
+  - the next honest target is the checked-in backend-wide low32-home /
+    normalized-result contract note:
+    [docs/s390x/low32-home-contract.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/low32-home-contract.md)
+  - required semantic split:
+    - `W32_HOME` across bitop logic/unary/shift/rotate, plain non-guard `ADD`,
+      and compatible loop `PHI`
+    - `W64_NORM` before guard/compare, helper/call, store, and
+      snapshot-visible boundaries
+  - emitter / ABI feasibility read:
+    - the backend only has the current 64-bit lowering surface wired today
+    - word/high-word forms are not honest blind swaps under normalize-every-
+      result semantics
+    - helper ABI strategy is secondary here because this family is
+      compiled-body dominated
+  - validator contract before any more code:
+    - compile-only proof must finish and hit only the named seam
+    - reduced trace probes for `logical_chain_tail_add`,
+      `logical_chain_tail_store`, and `bitops_mix` must finish with
+      `REMOTE_RC=0`
+    - the family must remain compiled-body dominated with `TEXIT_COUNT=0`
+    - `REMOTE_RC=124` is automatic reject
+  - if that invariant cannot be stated precisely enough or cannot stay finite,
+    close `bitops_mix` and move to:
+    - `int_add_phi_only`
+    - `logic_add_phi_noboundary`
+    - `int_add_phi_store_epilogue` only if the first two disagree
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
