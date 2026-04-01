@@ -748,6 +748,14 @@ static int lj_trace_s390x_hotside_prime_interp_enabled(void)
   return enabled;
 }
 
+static int lj_trace_s390x_hotside_reuse_loop_child_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_HOTSIDE_REUSE_LOOP_CHILD") != NULL);
+  return enabled;
+}
+
 static int lj_trace_s390x_sideexit_mcloop_enabled(void)
 {
   static int enabled = -1;
@@ -985,6 +993,78 @@ static void lj_trace_s390x_hotside_prime_interp(jit_State *J, const BCIns *pc,
 	    (unsigned int)J->param[JIT_P_hotexit]);
   }
   snap->count = target;
+}
+
+static int lj_trace_s390x_hotside_can_reuse_loop_child(jit_State *J,
+							const BCIns *pc,
+							GCtrace *T,
+							ExitNo exitno,
+							TraceNo *candnop,
+							TraceNo *childnop)
+{
+  TraceNo rootno, candno, childno;
+  GCtrace *C;
+  if (!lj_trace_s390x_hotside_reuse_loop_child_enabled() ||
+      J == NULL || pc == NULL || T == NULL || exitno != 0)
+    return 0;
+  if (T->root == 0 || bc_op(T->startins) != BC_JMP ||
+      T->linktype != LJ_TRLINK_LOOP || T->link != T->traceno ||
+      J->parent < 7 || J->pt == NULL)
+    return 0;
+  if (pc <= proto_bc(J->pt) || bc_op(pc[-1]) != BC_JFORI)
+    return 0;
+  rootno = T->root ? T->root : T->traceno;
+  candno = lj_trace_s390x_hotside_find_equiv(J, T, exitno);
+  childno = candno ? lj_trace_s390x_hotside_find_child(J, rootno, candno, exitno) : 0;
+  if (!childno)
+    return 0;
+  C = traceref(J, childno);
+  if (C == NULL || bc_op(C->startins) != BC_JMP ||
+      C->linktype != LJ_TRLINK_LOOP || C->link != childno)
+    return 0;
+  if (candnop)
+    *candnop = candno;
+  if (childnop)
+    *childnop = childno;
+  return 1;
+}
+
+static int lj_trace_s390x_hotside_reuse_loop_child(jit_State *J,
+						    const BCIns *pc,
+						    GCtrace *T,
+						    ExitNo exitno,
+						    SnapShot *snap)
+{
+  TraceNo candno = 0, childno = 0;
+  GCtrace *childT;
+  MCode *target;
+  if (!lj_trace_s390x_hotside_can_reuse_loop_child(J, pc, T, exitno,
+						    &candno, &childno))
+    return 0;
+  childT = traceref(J, childno);
+  if (childT == NULL)
+    return 0;
+  target = childT->mcode;
+  if (lj_trace_s390x_sideexit_mcloop_enabled() && childT->mcloop)
+    target = childT->mcode + childT->mcloop;
+  if (lj_trace_s390x_hotside_focus_enabled() &&
+      (lj_trace_s390x_hotside_focus_parent() < 0 ||
+       J->parent == (TraceNo)lj_trace_s390x_hotside_focus_parent()) &&
+      (lj_trace_s390x_hotside_focus_exit() < 0 ||
+       J->exitno == (ExitNo)lj_trace_s390x_hotside_focus_exit())) {
+    fprintf(stderr,
+	    "S390X_HOTSIDE_FOCUS phase=reuse-loop-child parent=%u exit=%u cand=%u child=%u root=%u pc=%p op=%u snapcount=%u hotexit=%u\n",
+	    (unsigned int)J->parent, (unsigned int)J->exitno,
+	    (unsigned int)candno, (unsigned int)childno,
+	    (unsigned int)(T->root ? T->root : T->traceno),
+	    (const void *)pc, (unsigned int)bc_op(*pc),
+	    (unsigned int)(snap ? snap->count : 0),
+	    (unsigned int)J->param[JIT_P_hotexit]);
+  }
+  lj_asm_patchexit(J, T, exitno, target);
+  if (snap)
+    snap->count = SNAPCOUNT_DONE;
+  return 1;
 }
 
 static int lj_trace_s390x_stitch_focus_enabled(void)
@@ -2905,6 +2985,20 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 	    hook_blocked, lua_ok, (unsigned int)J->state);
   }
   lj_trace_s390x_exit_log("hotside", J, pc, snap->count, NULL);
+  if (lj_trace_s390x_hotside_reuse_loop_child(J, pc, T, J->exitno, snap)) {
+    if (lj_trace_s390x_hotside_focus_enabled() &&
+	(lj_trace_s390x_hotside_focus_parent() < 0 ||
+	 J->parent == (TraceNo)lj_trace_s390x_hotside_focus_parent()) &&
+	(lj_trace_s390x_hotside_focus_exit() < 0 ||
+	 J->exitno == (ExitNo)lj_trace_s390x_hotside_focus_exit())) {
+      fprintf(stderr,
+	      "S390X_HOTSIDE_FOCUS phase=reuse-loop-child-applied parent=%u exit=%u pc=%p op=%u snapcount=%u state=%u\n",
+	      (unsigned int)J->parent, (unsigned int)J->exitno,
+	      (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
+	      (unsigned int)snap->count, (unsigned int)J->state);
+    }
+    return;
+  }
   lj_trace_s390x_hotside_share_equiv(J, pc, T, J->exitno, snap);
   lj_trace_s390x_hotside_prime_interp(J, pc, T, J->exitno, snap);
   if (!(J2G(J)->hookmask & (HOOK_GC|HOOK_VMEVENT)) &&

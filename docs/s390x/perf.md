@@ -192,6 +192,17 @@ Next exact target:
   owner/exit win on this seam, or closes the family if it only reproduces the
   earlier branch-hostile classifier behavior
 
+Active gated experiment now in tree:
+
+- `LUAJIT_S390X_HOTSIDE_REUSE_LOOP_CHILD`
+  - reuses an already-existing equivalent child loop on the late `exit 0`
+    `FORL` / `JFORI` seam by patching the current parent exit directly to that
+    child
+  - this is intentionally narrower than `CANON_EQUIV`, `CANON_CHILD`, or
+    `SHARE_EQUIV`
+  - current validation is local build/smoke only
+  - no native `kdz` structural or perf claim is attached yet
+
 ## Frozen Iterator Baseline
 
 The current promotable iterator perf baseline is the four-piece recorder split
