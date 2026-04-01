@@ -174,6 +174,19 @@ That seam is narrower again after reduced clean-host handoff probes:
     - why traced-callee return to caller in `sum_loop` stops before caller-body
       materialization, while `retlast_loop` reaches caller add/loop formation
       in the caller root itself
+  - reduced recstop logs narrow that one step further:
+    - focused artifact bundle:
+      - [20260401-kdz-vararg-recstop-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-vararg-recstop-audit)
+    - `retlast_loop`
+      - caller side traces reach `rec_loop_jit()` on the caller loop seam
+      - they log `S390X_RECLOOP ... ev=2 ...` and stop `-> loop`
+    - `sum_loop`
+      - caller roots (`TRACE 2`, later `TRACE 7`) stop `-> 1` before any
+        caller-path `S390X_RECLOOP` appears
+      - only the separate callee loop family reaches `rec_loop_jit()`
+    - so `rec_loop_jit_root` is not the live vararg seam
+    - the live target is now the earlier recorder/return condition that stops
+      `sum_loop` caller roots before they ever reach the caller loop op
 
 ## Authoritative Validation Surfaces
 

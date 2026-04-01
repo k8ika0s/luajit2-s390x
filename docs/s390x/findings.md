@@ -9283,3 +9283,39 @@ Next hash target
     - explain which recorder/return condition prevents `sum_loop` caller root
       from materializing the caller add and outer-loop PHIs after the traced
       callee call
+
+- Timestamp: `2026-04-01 01:34:00 PDT`
+- Reduced recstop logs narrow the vararg seam one step further
+  - focused artifact bundle:
+    - [20260401-kdz-vararg-recstop-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-vararg-recstop-audit)
+  - `sum_loop`
+    - `TRACE 1` is still the callee vararg loop and stops `-> loop`
+    - `TRACE 2` starts as a second root at the caller site
+    - `TRACE 2` stops back to `1` with:
+      - `pc=...d824`
+      - `op=54`
+      - `prevop=78`
+      - `startop=79`
+      - `linktype=1`
+      - `link=1`
+      - `framedepth=2`
+    - later caller trace `TRACE 7 (2/0)` repeats the same stop shape with
+      `startop=88`, `linktype=1`, `link=1`, and `framedepth=2`
+    - crucially, neither caller trace logs `S390X_RECLOOP` before stopping
+      `-> 1`
+  - `retlast_loop`
+    - caller root still forms first and stops `-> loop`
+    - caller side trace `TRACE 2 (1/0)` logs:
+      - `S390X_RECLOOP ... op=57 startop=88 ev=2 lnk=1`
+      - then `S390X_RECSTOP ... linktype=2 link=2 lnkop=88`
+      - and stops `-> loop`
+    - the same pattern then repeats through the rest of the caller loop family
+  - implication:
+    - the live vararg seam is now earlier than `rec_loop_jit_root`
+    - `sum_loop` caller roots are not dying inside `rec_loop_jit()`
+    - they are stopping before they ever reach the caller loop seam that
+      `retlast_loop` reaches and turns into a loop family
+  - next exact target:
+    - explain which recorder/return condition on the traced-callee return path
+      prevents `sum_loop` caller roots from reaching the caller loop op at all,
+      while `retlast_loop` reaches that seam and stabilizes as a loop family

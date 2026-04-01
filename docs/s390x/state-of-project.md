@@ -154,6 +154,21 @@ non-causal probe effects. The current state is cleaner:
     - why the caller root for `sum_loop` stops before caller-body
       materialization after the traced callee call, while `retlast_loop`
       reaches the caller add/loop path in the root itself
+  - the reduced clean-host recstop logs now narrow that seam one step further:
+    - `retlast_loop`
+      - caller family reaches `rec_loop_jit()` on the caller loop seam
+      - side traces log `S390X_RECLOOP ... ev=2 ...` and stop `-> loop`
+    - `sum_loop`
+      - caller roots (`TRACE 2`, later `TRACE 7`) stop `-> 1` before any
+        `S390X_RECLOOP` appears on the caller path
+      - the callee loop family still reaches `rec_loop_jit()`, but the caller
+        family does not
+    - so the live seam is now earlier than `rec_loop_jit_root`
+    - the next exact target is:
+      - which recorder/return condition on the traced-callee return path keeps
+        `sum_loop` caller roots from reaching the caller loop op at all, while
+        `retlast_loop` reaches that loop seam and stabilizes as a caller loop
+        family
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
