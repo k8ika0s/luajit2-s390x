@@ -24,6 +24,29 @@ DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
 PROBE_TIMEOUT_SECS = 20
 
 
+def load_ir_op_names() -> dict[int, str]:
+    names: dict[int, str] = {}
+    in_irdef = False
+    idx = 0
+    for raw_line in (ROOT / "src" / "lj_ir.h").read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line.startswith("#define IRDEF("):
+            in_irdef = True
+            continue
+        if in_irdef and line.startswith("/* -- Named IR literals"):
+            break
+        if not in_irdef:
+            continue
+        match = re.match(r"_\(([^,]+),", line)
+        if match:
+            names[idx] = match.group(1)
+            idx += 1
+    return names
+
+
+IR_OP_NAMES = load_ir_op_names()
+
+
 VARARG_FOCUSED_BENCH = """\
 local bit = require("bit")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
@@ -443,6 +466,271 @@ emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
 }
 
+LOGICAL_CHAIN_TAIL_ADD_BENCH = """\
+local bit = require("bit")
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local scale_order = { "hot" }
+local scales = {
+  hot = 20,
+}
+
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+
+local function chain_tail_add(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = bit.tobit(total + chain(i))
+    end
+  end
+  return total
+end
+
+local cases = {}
+for _, scale in ipairs(scale_order) do
+  local chunks = scales[scale]
+  local expected = chain_tail_add(chunks)
+  cases[#cases + 1] = {
+    workload = "chain_tail_add",
+    scale = scale,
+    iterations = chunks,
+    run = chain_tail_add,
+    validate = function(result)
+      bench.eq(result, expected, "chain_tail_add/" .. scale)
+    end,
+  }
+end
+
+bench.run_suite({ family = "logical_chain_tail_add", cases = cases })
+"""
+
+LOGICAL_CHAIN_TAIL_ADD_TRACE_SCRIPT = """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local function emit_hist(label, buckets)
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print(label, table.concat(parts, ","))
+end
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = bit.tobit(total + chain(i))
+    end
+  end
+  return total
+end
+run(1); run(1); run(1)
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
+print("RESULT", run(20))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
+"""
+
+LOGICAL_CHAIN_TAIL_ADD_CHECK_SCRIPT = """\
+local bit = require("bit")
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = bit.tobit(total + chain(i))
+    end
+  end
+  return total
+end
+print("CHAIN_TAIL_ADD", run(20))
+"""
+
+LOGICAL_CHAIN_TAIL_STORE_BENCH = """\
+local bit = require("bit")
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local scale_order = { "hot" }
+local scales = {
+  hot = 20,
+}
+
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+
+local function chain_tail_store(chunks)
+  local total = 0
+  local sink = { 0 }
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      local x = chain(i)
+      sink[1] = x
+      if x == sink[1] then
+        total = total + 1
+      end
+    end
+  end
+  return bit.tobit(total + sink[1])
+end
+
+local cases = {}
+for _, scale in ipairs(scale_order) do
+  local chunks = scales[scale]
+  local expected = chain_tail_store(chunks)
+  cases[#cases + 1] = {
+    workload = "chain_tail_store",
+    scale = scale,
+    iterations = chunks,
+    run = chain_tail_store,
+    validate = function(result)
+      bench.eq(result, expected, "chain_tail_store/" .. scale)
+    end,
+  }
+end
+
+bench.run_suite({ family = "logical_chain_tail_store", cases = cases })
+"""
+
+LOGICAL_CHAIN_TAIL_STORE_TRACE_SCRIPT = """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local function emit_hist(label, buckets)
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print(label, table.concat(parts, ","))
+end
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+local function run(chunks)
+  local total = 0
+  local sink = { 0 }
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      local x = chain(i)
+      sink[1] = x
+      if x == sink[1] then
+        total = total + 1
+      end
+    end
+  end
+  return bit.tobit(total + sink[1])
+end
+run(1); run(1); run(1)
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
+print("RESULT", run(20))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
+"""
+
+LOGICAL_CHAIN_TAIL_STORE_CHECK_SCRIPT = """\
+local bit = require("bit")
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+local function run(chunks)
+  local total = 0
+  local sink = { 0 }
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      local x = chain(i)
+      sink[1] = x
+      if x == sink[1] then
+        total = total + 1
+      end
+    end
+  end
+  return bit.tobit(total + sink[1])
+end
+print("CHAIN_TAIL_STORE", run(20))
+"""
+
 FAMILY_CONFIGS = {
     "vararg_paths": {
         "bench_file": "tests/s390x/perf/vararg_paths.lua",
@@ -476,6 +764,50 @@ FAMILY_CONFIGS = {
         "hot_cases": ("mix_bits/hot",),
         "work_items": {
             "mix_bits": 4000,
+        },
+    },
+    "logical_chain_tail_add": {
+        "bench_file": "tests/s390x/perf/logical_chain_tail_add.lua",
+        "focus_label": "logical chain add-tail throughput",
+        "selection_reason": (
+            "seam isolator for a logical producer chain whose first non-bitop "
+            "consumer is exactly one ADD"
+        ),
+        "focused_bench_script": LOGICAL_CHAIN_TAIL_ADD_BENCH,
+        "check_scripts": {
+            "chain_tail_add": LOGICAL_CHAIN_TAIL_ADD_CHECK_SCRIPT,
+        },
+        "trace_scripts": {
+            "chain_tail_add": LOGICAL_CHAIN_TAIL_ADD_TRACE_SCRIPT,
+        },
+        "bnorm_probe_scripts": {
+            "chain_tail_add": LOGICAL_CHAIN_TAIL_ADD_TRACE_SCRIPT,
+        },
+        "hot_cases": ("chain_tail_add/hot",),
+        "work_items": {
+            "chain_tail_add": 4000,
+        },
+    },
+    "logical_chain_tail_store": {
+        "bench_file": "tests/s390x/perf/logical_chain_tail_store.lua",
+        "focus_label": "logical chain store-tail throughput",
+        "selection_reason": (
+            "seam isolator for the same logical chain when the first non-bitop "
+            "consumer is a store/compare path"
+        ),
+        "focused_bench_script": LOGICAL_CHAIN_TAIL_STORE_BENCH,
+        "check_scripts": {
+            "chain_tail_store": LOGICAL_CHAIN_TAIL_STORE_CHECK_SCRIPT,
+        },
+        "trace_scripts": {
+            "chain_tail_store": LOGICAL_CHAIN_TAIL_STORE_TRACE_SCRIPT,
+        },
+        "bnorm_probe_scripts": {
+            "chain_tail_store": LOGICAL_CHAIN_TAIL_STORE_TRACE_SCRIPT,
+        },
+        "hot_cases": ("chain_tail_store/hot",),
+        "work_items": {
+            "chain_tail_store": 4000,
         },
     },
 }
@@ -522,6 +854,53 @@ def parse_histogram(hist: object) -> dict[str, int]:
             continue
         buckets[key] = int(value)
     return buckets
+
+
+def parse_inline_kv(line: str) -> dict[str, int | str]:
+    result: dict[str, int | str] = {}
+    for key, value in re.findall(r"([A-Za-z0-9_]+)=([^\s]+)", line):
+        if re.fullmatch(r"-?\d+", value):
+            result[key] = int(value)
+        else:
+            result[key] = value
+    return result
+
+
+def ir_op_name(op: object) -> str:
+    if isinstance(op, int):
+        return IR_OP_NAMES.get(op, f"OP_{op}")
+    return str(op)
+
+
+def parse_bnorm_counts(stderr_text: str) -> dict[str, Any]:
+    total = 0
+    by_site: dict[str, int] = {}
+    by_consumer: dict[str, int] = {}
+    by_pair: dict[str, dict[str, int]] = {}
+    records: list[dict[str, int | str]] = []
+    for raw_line in stderr_text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("S390X_BNORM "):
+            continue
+        record = parse_inline_kv(line)
+        if not record:
+            continue
+        site = str(record.get("site", "unknown"))
+        consumer = ir_op_name(record.get("first_nonbitop_use_op"))
+        record["first_nonbitop_use_name"] = consumer
+        total += 1
+        by_site[site] = by_site.get(site, 0) + 1
+        by_consumer[consumer] = by_consumer.get(consumer, 0) + 1
+        pair = by_pair.setdefault(site, {})
+        pair[consumer] = pair.get(consumer, 0) + 1
+        records.append(record)
+    return {
+        "total": total,
+        "by_site": by_site,
+        "by_consumer": by_consumer,
+        "by_pair": by_pair,
+        "records": records,
+    }
 
 
 def to_float_counter(value: object) -> float | None:
@@ -690,6 +1069,31 @@ printf 'REMOTE_RC=%s\\n' "$rc"
     return parse_key_value_lines(proc.stdout)
 
 
+def run_bnorm_probe(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> dict[str, object]:
+    script = f"""
+set -euo pipefail
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+set +e
+env LUAJIT_S390X_BNORM_LOG=1 timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
+rc=$?
+set -e
+printf 'REMOTE_RC=%s\\n' "$rc"
+"""
+    proc = restamp.run_remote_command(
+        host,
+        script,
+        stdout_path=raw_dir / f"{name}.stdout.log",
+        stderr_path=raw_dir / f"{name}.stderr.log",
+        label=f"{host} broader throughput bnorm probe {name}",
+    )
+    stderr_text = (raw_dir / f"{name}.stderr.log").read_text(encoding="utf-8")
+    counts = parse_bnorm_counts(stderr_text)
+    remote_rc_match = re.search(r"REMOTE_RC=(\d+)", proc.stdout)
+    counts["remote_rc"] = int(remote_rc_match.group(1)) if remote_rc_match else -1
+    return counts
+
+
 def run_perf_stat(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str, pin_core: int | None) -> dict[str, object]:
     taskset = f"taskset -c {pin_core} " if pin_core is not None else ""
     script = f"""
@@ -855,6 +1259,7 @@ def render_summary(
     focused_joff_records: list[dict[str, Any]],
     trace_counts: dict[str, dict[str, int | str]],
     handoff_counts: dict[str, dict[str, object]],
+    bnorm_counts: dict[str, dict[str, object]],
     perf_stats: dict[str, dict[str, object]],
     runtime_metrics: dict[str, dict[str, object]],
     perf_metrics: dict[str, dict[str, object]],
@@ -942,6 +1347,31 @@ def render_summary(
                 f"`lua_lower_frame_retf_count {counts.get('lua_lower_frame_retf_count', 0)}`, "
                 f"`lua_lleave_count {counts.get('lua_lleave_count', 0)}`"
             )
+    if bnorm_counts:
+        lines.extend(["", "## asm_bnorm32 Sites", ""])
+        for workload, info in bnorm_counts.items():
+            lines.append(f"- `{workload}`: total `{info.get('total', 0)}`, `REMOTE_RC {info.get('remote_rc', 'n/a')}`")
+            by_site = info.get("by_site", {})
+            if isinstance(by_site, dict) and by_site:
+                lines.append("  - by producer site:")
+                for site, count in sorted(by_site.items(), key=lambda item: (-int(item[1]), item[0])):
+                    lines.append(f"    - `{site}`: `{count}`")
+            by_consumer = info.get("by_consumer", {})
+            if isinstance(by_consumer, dict) and by_consumer:
+                lines.append("  - by first non-bitop consumer:")
+                for consumer, count in sorted(by_consumer.items(), key=lambda item: (-int(item[1]), item[0])):
+                    lines.append(f"    - `{consumer}`: `{count}`")
+            by_pair = info.get("by_pair", {})
+            if isinstance(by_pair, dict) and by_pair:
+                lines.append("  - by producer / first non-bitop consumer:")
+                for site, consumers in sorted(by_pair.items(), key=lambda item: item[0]):
+                    if not isinstance(consumers, dict):
+                        continue
+                    pair_parts = ", ".join(
+                        f"`{consumer}`={count}"
+                        for consumer, count in sorted(consumers.items(), key=lambda item: (-int(item[1]), item[0]))
+                    )
+                    lines.append(f"    - `{site}`: {pair_parts}")
     lines.extend(["", "## Artifacts", ""])
     lines.extend(
         [
@@ -954,6 +1384,8 @@ def render_summary(
     )
     if handoff_counts:
         lines.append(f"- Reduced handoff logs: `{output_dir / 'raw' / 'handoff'}`")
+    if bnorm_counts:
+        lines.append(f"- `asm_bnorm32` logs: `{output_dir / 'raw' / 'bnorm'}`")
     return "\n".join(lines) + "\n"
 
 
@@ -984,11 +1416,13 @@ def main() -> int:
     perf_dir = raw_dir / "perf-stat"
     check_dir = raw_dir / "checks"
     handoff_dir = raw_dir / "handoff"
+    bnorm_dir = raw_dir / "bnorm"
     output_dir.mkdir(parents=True, exist_ok=True)
     trace_dir.mkdir(parents=True, exist_ok=True)
     perf_dir.mkdir(parents=True, exist_ok=True)
     check_dir.mkdir(parents=True, exist_ok=True)
     handoff_dir.mkdir(parents=True, exist_ok=True)
+    bnorm_dir.mkdir(parents=True, exist_ok=True)
 
     commit = restamp.current_commit()
     host_info = restamp.collect_host_info(host)
@@ -1057,6 +1491,10 @@ def main() -> int:
             name: run_handoff_probe(host, repo, remote_tmp, handoff_dir, name)
             for name in config.get("handoff_scripts", {}).keys()
         }
+        bnorm_counts = {
+            name: run_bnorm_probe(host, repo, remote_tmp, bnorm_dir, name)
+            for name in config.get("bnorm_probe_scripts", {}).keys()
+        }
         perf_stats = {
             name: run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core)
             for name in config["trace_scripts"].keys()
@@ -1085,6 +1523,7 @@ def main() -> int:
         write_json(output_dir / "metadata.json", metadata)
         write_json(output_dir / "trace-counts.json", trace_counts)
         write_json(output_dir / "handoff-counts.json", handoff_counts)
+        write_json(output_dir / "bnorm-counts.json", bnorm_counts)
         write_json(output_dir / "perf-stat.json", perf_stats)
         write_json(output_dir / "runtime-metrics.json", runtime_metrics)
         write_json(output_dir / "perf-metrics.json", perf_metrics)
@@ -1104,6 +1543,7 @@ def main() -> int:
             focused_joff_records=focused_joff_records,
             trace_counts=trace_counts,
             handoff_counts=handoff_counts,
+            bnorm_counts=bnorm_counts,
             perf_stats=perf_stats,
             runtime_metrics=runtime_metrics,
             perf_metrics=perf_metrics,
