@@ -10122,3 +10122,51 @@ Next hash target
       branches are honest next steps
     - the only live backend lane is a design-first low32-home /
       normalized-result contract with a finite reduced validator
+
+- Timestamp: `2026-04-01 12:20:09 PDT`
+- Emitter / ABI feasibility audit says the low32-home contract can start on
+  the current 64-bit surface, but not as another opcode-swap family
+  - checked-in design note updated:
+    - [docs/s390x/low32-home-contract.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/low32-home-contract.md)
+  - currently wired and usable backend surface:
+    - normalizers and moves:
+      - `LGR`
+      - `LGFR`
+      - `LLGFR`
+    - 64-bit logical/arithmetic:
+      - `AGR`
+      - `SGR`
+      - `NGR`
+      - `OGR`
+      - `XGR`
+    - compare at hard boundaries:
+      - `CGR`
+      - `CLGR`
+      - `CGHI`
+    - shift/rotate family already used by the safe chain:
+      - `SLLK`
+      - `SRLK`
+      - `SRAK`
+      - `SLLG`
+      - `SRLG`
+      - `SRAG`
+      - `RLL`
+      - `LRVR`
+    - memory boundary forms already wired:
+      - `LLGF`
+      - `STY`
+      - `STG`
+  - current emitter gap:
+    - no wired 32-bit RR logical/arithmetic/compare family for this contract
+    - no backend-wide `W32_HOME` state tracking
+    - no explicit normalization hooks at every hard boundary
+  - ABI read:
+    - helper / call interaction remains a hard boundary, not the main
+      optimization surface for `bitops_mix`
+    - preserved-GPR strategy is secondary here because this family is
+      compiled-body dominated
+  - result:
+    - if the backend family stays open, the first honest code branch is a
+      stateful `W32_HOME` carry experiment over the existing 64-bit emitter
+      surface
+    - do not open another local opcode-swap or compare-consumer branch first

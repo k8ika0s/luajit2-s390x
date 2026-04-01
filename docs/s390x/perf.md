@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 11:17:54 PDT
+Last updated: 2026-04-01 12:20:09 PDT
 
 ## Scope
 
@@ -80,7 +80,14 @@ Current clean-`kdz` broader-throughput frontier:
     - `W64_NORM` before guard/compare, helper/call, store, and
       snapshot-visible boundaries
   - emitter / ABI feasibility read:
-    - the backend only has the current 64-bit lowering surface wired today
+    - current emitter surface already wired and usable:
+      - `LGR`, `LGFR`, `LLGFR`
+      - `AGR`, `SGR`, `NGR`, `OGR`, `XGR`
+      - `CGR`, `CLGR`, `CGHI`
+      - `SLLK`, `SRLK`, `SRAK`, `SLLG`, `SRLG`, `SRAG`, `RLL`, `LRVR`
+      - `LLGF`, `STY`, `STG`
+    - current emitter does not wire a 32-bit RR logical/arithmetic/compare
+      family for this contract
     - word/high-word forms are not honest blind swaps under normalize-every-
       result semantics
     - helper ABI strategy is secondary here because this family is
@@ -97,6 +104,12 @@ Current clean-`kdz` broader-throughput frontier:
     - `int_add_phi_only`
     - `logic_add_phi_noboundary`
     - `int_add_phi_store_epilogue` only if the first two disagree
+  - prototype implication:
+    - if this backend family stays open, the first honest code branch is a
+      stateful `W32_HOME` carry experiment over the current 64-bit emitter
+      surface
+    - not another opcode-swap family
+    - not another compare-consumer branch
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 11:17:54 PDT
+Last updated: 2026-04-01 12:20:09 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -119,9 +119,15 @@ non-causal probe effects. The current state is cleaner:
     - snapshot-visible exits/restores
     - any consumer outside the safe family
   - emitter / ABI feasibility read:
-    - current 64-bit logical/arithmetic/compare lowering remains the only
-      already-wired backend surface
-    - word/high-word forms are architecture opportunities, not safe drop-in
+    - current emitter surface already wired and usable:
+      - `LGR`, `LGFR`, `LLGFR`
+      - `AGR`, `SGR`, `NGR`, `OGR`, `XGR`
+      - `CGR`, `CLGR`, `CGHI`
+      - `SLLK`, `SRLK`, `SRAK`, `SLLG`, `SRLG`, `SRAG`, `RLL`, `LRVR`
+      - `LLGF`, `STY`, `STG`
+    - current emitter does not wire a 32-bit RR logical/arithmetic/compare
+      family for this contract
+    - word/high-word forms are architecture opportunities, not honest drop-in
       swaps under the current contract
     - helper / call interaction is a hard boundary, not the main optimization
       surface for `bitops_mix`
@@ -137,6 +143,11 @@ non-causal probe effects. The current state is cleaner:
     - `int_add_phi_only`
     - `logic_add_phi_noboundary`
     - `int_add_phi_store_epilogue` only if the first two disagree
+  - first prototype implication:
+    - if this family stays open, the first honest code branch is a stateful
+      `W32_HOME` carry experiment over the existing 64-bit emitter surface
+    - not another opcode-swap family
+    - not another compare-consumer branch
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
