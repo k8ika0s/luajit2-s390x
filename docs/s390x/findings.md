@@ -9502,3 +9502,33 @@ Next hash target
   - next exact target:
     - if this family stays open, it must be a stricter normalization-state or
       int32-home experiment, not a plain chain-node skip
+
+- Timestamp: `2026-04-01 05:15:00 PDT`
+- Clean `kdz` mcode dump pins the current bitop hot-loop lowering shape
+  - relevant source:
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h#L120)
+      `S390XI_OGR`
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h#L122)
+      `S390XI_XGR`
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h#L123)
+      `S390XI_NGR`
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h#L97)
+      `S390XI_LGFR`
+  - focused artifact bundle:
+    - [20260401-kdz-bitops-mcode-audit-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-mcode-audit-v3)
+  - clean `kdz` result:
+    - after enabling the repo-local dump module via `LUA_PATH=./src/?.lua;;`,
+      the hot loop body shows repeated raw opcode triplets:
+      - `b904` (`LGR`)
+      - `b980` / `b981` / `b982` (`NGR` / `OGR` / `XGR`)
+      - `b914` (`LGFR`)
+    - `BSWAP` also shows `b91f` (`LRVR`) followed by `b914`
+    - no 32-bit logical register forms appear in the dumped hot body
+  - implication:
+    - the backend is explicitly materializing `64-bit logical op + post-op
+      sign-extend` across the bitop chain
+    - the remaining open backend question is now narrower than
+      normalization-state alone
+  - next exact target:
+    - determine whether the s390x backend has a valid 32-bit logical lowering
+      surface at all; if not, this compiled-body family is close to closure
