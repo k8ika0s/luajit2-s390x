@@ -9040,3 +9040,54 @@ Next hash target
     - helper added locally and validated for syntax/smoke only
     - no new authoritative `kdz` or `zkd0` family restamp is claimed yet from
       this note
+
+- Timestamp: `2026-03-31 22:05:00 PDT`
+- First broader-throughput `kdz` pass names the next live family: traced hot vararg loops
+  - first native queue target:
+    - [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+  - artifact root:
+    - [20260331-kdz-vararg_paths-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-vararg_paths-truth-pack)
+  - authoritative clean-host raw medians already captured:
+    - `sum_loop/hot`
+      - JIT-on `1.109134`
+      - `-joff` `0.004543`
+      - about `244.14x` slower with JIT on
+    - `retlast_loop/hot`
+      - JIT-on `0.029367`
+      - `-joff` `0.001993`
+      - about `14.74x` slower with JIT on
+    - `retconst_loop/hot`
+      - JIT-on `0.028397`
+      - `-joff` `0.000561`
+      - about `50.62x` slower with JIT on
+  - focused hot-only medians keep the same ordering:
+    - `sum_loop/hot`
+      - JIT-on `0.459993`
+      - `-joff` `0.004453`
+      - about `103.30x`
+    - `retlast_loop/hot`
+      - JIT-on `0.029780`
+      - `-joff` `0.002047`
+      - about `14.55x`
+    - `retconst_loop/hot`
+      - JIT-on `0.027820`
+      - `-joff` `0.000574`
+      - about `48.47x`
+  - clean `kdz` smoke is not the issue:
+    - plain remote per-case checks still return the expected values
+      - `SUM_LOOP 279`
+      - `RETLAST_LOOP 159`
+      - `RETCONST_LOOP 840`
+  - the first follow-up structural read is narrower:
+    - the full-family and focused median passes complete
+    - but the focused per-workload hot trace-count path is not yet stable on
+      this family and was hanging the helper before timeout hardening
+    - the checked-in broader-throughput helper now wraps those per-workload
+      probes in a fixed timeout instead of wedging the whole run
+  - decision:
+    - do not widen to `bitops_mix` yet
+    - the next live target is traced hot vararg loop behavior, starting with
+      `sum_loop`
+    - this is now the front-most broader-throughput family because it is
+      dramatically redder than the other two vararg paths and is cleanly
+      outside the closed iterator and dispatch mechanisms

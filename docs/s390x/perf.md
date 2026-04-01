@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 21:05:00 PDT
+Last updated: 2026-03-31 22:05:00 PDT
 
 ## Scope
 
@@ -32,6 +32,46 @@ That broader-throughput queue is now explicit:
 3. [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
    stays out of this queue because `pairs(map)` would drag iterator behavior
    back into a family that is supposed to sit outside the frozen iterator line
+
+First broader-throughput family read from clean `kdz`:
+
+- artifact root:
+  - [20260331-kdz-vararg_paths-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-vararg_paths-truth-pack)
+- current raw medians:
+  - `sum_loop/hot`
+    - JIT-on `1.109134`
+    - `-joff` `0.004543`
+    - gap `+1.104591s`
+    - ratio `244.14x`
+  - `retlast_loop/hot`
+    - JIT-on `0.029367`
+    - `-joff` `0.001993`
+    - gap `+0.027374s`
+    - ratio `14.74x`
+  - `retconst_loop/hot`
+    - JIT-on `0.028397`
+    - `-joff` `0.000561`
+    - gap `+0.027836s`
+    - ratio `50.62x`
+- focused hot-only medians:
+  - `sum_loop/hot`
+    - JIT-on `0.459993`
+    - `-joff` `0.004453`
+    - ratio `103.30x`
+  - `retlast_loop/hot`
+    - JIT-on `0.029780`
+    - `-joff` `0.002047`
+    - ratio `14.55x`
+  - `retconst_loop/hot`
+    - JIT-on `0.027820`
+    - `-joff` `0.000574`
+    - ratio `48.47x`
+- current interpretation:
+  - `vararg_paths` is a real broader-throughput red family on the current
+    tree, not a mild widening check
+  - `sum_loop` is the front-most hot case by a wide margin
+  - the branch should not widen farther into `bitops_mix` before naming the
+    traced hot vararg seam first
 
 ## Authoritative Validation Surfaces
 
@@ -106,6 +146,9 @@ Checked-in broader-throughput truth-pack helper:
   - `jit.attach("trace")` and `jit.attach("texit")` counts after warmup
   - `perf stat` when the host supports those events
   - raw smoke, trace-count, and perf-stat logs
+- the first native `vararg_paths` pass also forced one hardening step:
+  - focused per-workload probes now run under a fixed timeout instead of
+    hanging the entire helper when a hot traced surface wedges
 
 ## Queued Dispatch / Side-Exit Frontier
 
