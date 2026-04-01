@@ -365,6 +365,21 @@ non-causal probe effects. The current state is cleaner:
         carry a normalized int32/result-home through the bitop chain and only
         pay the boundary normalize where the chain leaves into integer
         arithmetic
+      - first env-gated carry-skip attempt on that seam is now rejected:
+        [20260401-kdz-bitops-int32home-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-int32home-gate-check/summary.md)
+      - clean `kdz` result:
+        - baseline `mix_bits/hot 0.008095`
+        - gated `mix_bits/hot 0.008593`
+        - regression `+0.000498s` (`1.062x`)
+      - structural read:
+        - the gate hit `2392` candidate sites in the focused hot probe
+        - the probe still terminated cleanly with `REMOTE_RC=0`
+      - conclusion:
+        - the named int32-home boundary is real
+        - but simple carry-site skip on the current lowering shape is not
+          promotable
+        - if this family stays open, the next cut has to preserve a real
+          int32-home/result state, not just skip `LGFR` at candidate producers
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a

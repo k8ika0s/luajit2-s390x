@@ -9672,3 +9672,30 @@ Next hash target
     - it is “can the backend carry a normalized int32/result-home through the
       bitop chain and only normalize again when the chain leaves into `ADD`?”
     - that is the next honest backend family if `bitops_mix` stays open
+
+- Timestamp: `2026-04-01 07:08:54 PDT`
+- First env-gated int32-home carry-skip attempt is a clean `kdz` reject
+  - implementation shape:
+    - keep the corrected `asm_bnorm32()` classifier
+    - under a temporary gate, skip producer-side normalize only for sites whose
+      direct consumers stayed inside the safe logical bitop chain
+  - clean-host artifact:
+    - [20260401-kdz-bitops-int32home-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-int32home-gate-check/summary.md)
+  - structural result:
+    - focused probe terminated cleanly with `REMOTE_RC=0`
+    - `TRACE_START 4`
+    - `TRACE_STOP 3`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 401`
+    - the gate was active and hit `2392` candidate sites
+  - perf result on clean `kdz`:
+    - baseline `mix_bits/hot 0.008095`
+    - gated `mix_bits/hot 0.008593`
+    - regression `+0.000498s` (`1.062x`)
+  - result:
+    - source returned to the non-behavior baseline after the host check
+    - the named int32-home boundary is still real
+    - but simple candidate-site `LGFR` skip is not promotable
+    - if this family stays open, the next honest cut has to preserve a real
+      normalized-result / int32-home state, not just suppress producer
+      normalization
