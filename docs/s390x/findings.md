@@ -9091,3 +9091,14 @@ Next hash target
     - this is now the front-most broader-throughput family because it is
       dramatically redder than the other two vararg paths and is cleanly
       outside the closed iterator and dispatch mechanisms
+
+- Timestamp: `2026-03-31 22:20:00 PDT`
+- Next exact task queue inside the new vararg family is now fixed:
+  1. isolate traced hot `sum_loop` on clean `kdz`
+  2. compare it directly against `retlast_loop` and `retconst_loop`
+  3. name which payer class is actually extra on `sum_loop`:
+     - repeated `select()` control
+     - vararg value access/materialization
+     - or exit-heavy traced hot flow
+  - queue rule:
+    - do not widen to `bitops_mix` until one of those three is named first

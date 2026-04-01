@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 22:05:00 PDT
+Last updated: 2026-03-31 22:20:00 PDT
 
 ## Scope
 
@@ -72,6 +72,13 @@ First broader-throughput family read from clean `kdz`:
   - `sum_loop` is the front-most hot case by a wide margin
   - the branch should not widen farther into `bitops_mix` before naming the
     traced hot vararg seam first
+- exact next tasks on this family:
+  1. isolate traced hot `sum_loop` on clean `kdz`
+  2. compare that path against `retlast_loop` and `retconst_loop`
+  3. classify the extra red as:
+     - `select()` control,
+     - vararg value/materialization,
+     - or exit-heavy traced hot flow
 
 ## Authoritative Validation Surfaces
 

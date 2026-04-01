@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 22:05:00 PDT
+Last updated: 2026-03-31 22:20:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -64,6 +64,13 @@ non-causal probe effects. The current state is cleaner:
     enough to serve as a full truth-pack completion path, so the next work is
     narrowed to traced hot vararg loop behavior, not generic broader-throughput
     sweeping
+  - the next exact tasks inside that family are now:
+    1. isolate traced hot `sum_loop`
+    2. compare it against `retlast_loop` and `retconst_loop`
+    3. determine whether the extra payer is:
+       - repeated `select()` control,
+       - vararg value access/materialization,
+       - or exit churn in the traced hot path
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
