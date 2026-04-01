@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 21:05:00 PDT
+Last updated: 2026-03-31 22:05:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -56,6 +56,14 @@ non-causal probe effects. The current state is cleaner:
   [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
   so broader JIT-on families can be restamped under the same tracked-file,
   direct-`src/` rebuild contract instead of ad hoc local runs
+- the first native `kdz` pass on that new queue is now enough to name the next
+  live family:
+  - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
+    especially at `sum_loop/hot`
+  - the focused hot trace-count probes on clean `kdz` are not yet stable
+    enough to serve as a full truth-pack completion path, so the next work is
+    narrowed to traced hot vararg loop behavior, not generic broader-throughput
+    sweeping
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
@@ -535,6 +543,33 @@ That broader-throughput queue is now grounded as:
    is intentionally not the next target because its `pairs(map)` loop would
    reintroduce iterator behavior into a queue that is supposed to be outside
    the frozen iterator family
+
+The first authoritative `kdz` pass on that queue is now partially in hand:
+
+- clean-host raw medians from
+  [20260331-kdz-vararg_paths-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-vararg_paths-truth-pack)
+  already show:
+  - `sum_loop/hot`
+    - JIT-on `1.109134`
+    - `-joff` `0.004543`
+    - about `244.14x` slower with JIT on
+  - `retlast_loop/hot`
+    - JIT-on `0.029367`
+    - `-joff` `0.001993`
+    - about `14.74x` slower with JIT on
+  - `retconst_loop/hot`
+    - JIT-on `0.028397`
+    - `-joff` `0.000561`
+    - about `50.62x` slower with JIT on
+- focused hot-only medians keep the same order:
+  - `sum_loop/hot`: `0.459993` vs `0.004453`
+  - `retlast_loop/hot`: `0.029780` vs `0.002047`
+  - `retconst_loop/hot`: `0.027820` vs `0.000574`
+- interpretation:
+  - this is not a generic branch or iterator seam reopening
+  - the next live target is traced hot vararg loop behavior, starting with
+    `sum_loop`, because that path is dramatically redder than the other two
+    vararg cases
 
 ## What Has Not Been Proven Yet
 

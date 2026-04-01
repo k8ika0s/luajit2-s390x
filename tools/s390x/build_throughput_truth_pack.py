@@ -21,6 +21,7 @@ import restamp_iterator_perf as restamp
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
+PROBE_TIMEOUT_SECS = 20
 
 
 VARARG_FOCUSED_BENCH = """\
@@ -603,7 +604,11 @@ def run_check(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-./src/luajit {shlex.quote(f"{remote_tmp}/{name}.lua")}
+set +e
+timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}.lua")}
+rc=$?
+set -e
+printf 'REMOTE_RC=%s\\n' "$rc"
 """
     proc = restamp.run_remote_command(
         host,
@@ -620,7 +625,11 @@ def run_trace_count(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
+set +e
+timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
+rc=$?
+set -e
+printf 'REMOTE_RC=%s\\n' "$rc"
 """
     proc = restamp.run_remote_command(
         host,
@@ -642,7 +651,11 @@ if ! command -v perf >/dev/null 2>&1; then
   echo "PERF_STATUS unavailable:perf-not-found"
   exit 0
 fi
-perf stat -x, -e cycles,instructions,branches,branch-misses -- {taskset}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
+set +e
+perf stat -x, -e cycles,instructions,branches,branch-misses -- timeout {PROBE_TIMEOUT_SECS} {taskset}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
+rc=$?
+set -e
+printf 'PERF_RC=%s\\n' "$rc"
 """
     proc = restamp.run_ssh_script(host, script)
     write_text(raw_dir / f"{name}.stdout.log", proc.stdout)
@@ -651,6 +664,8 @@ perf stat -x, -e cycles,instructions,branches,branch-misses -- {taskset}./src/lu
         return {"status": "unavailable", "reason": f"exit-{proc.returncode}"}
     if "PERF_STATUS unavailable:" in proc.stdout:
         return {"status": "unavailable", "reason": proc.stdout.strip().split(":", 1)[1]}
+    if "PERF_RC=124" in proc.stdout:
+        return {"status": "timeout", "reason": "timeout-20s"}
     counters: dict[str, str] = {}
     for raw_line in proc.stderr.splitlines():
         line = raw_line.strip()
@@ -681,11 +696,14 @@ def focused_runtime_metrics(
         trace_starts = int(trace_counts[workload].get("TRACE_START", 0))
         trace_aborts = int(trace_counts[workload].get("TRACE_ABORT", 0))
         work_items = int(config["work_items"][workload])
+        remote_rc = int(trace_counts[workload].get("REMOTE_RC", 0)) if isinstance(trace_counts[workload].get("REMOTE_RC"), int) else None
         gap_sec = jit_median - joff_median
         gap_ratio = (jit_median / joff_median) if joff_median else None
         texits_per_work_item = texits / work_items if work_items else None
         trace_abort_rate = (trace_aborts / trace_starts) if trace_starts else None
-        if texits_per_work_item is not None and texits_per_work_item >= 0.05:
+        if remote_rc == 124:
+            classification = "probe-timeout"
+        elif texits_per_work_item is not None and texits_per_work_item >= 0.05:
             classification = "exit-dominated"
         elif texits == 0 and gap_ratio is not None and gap_ratio > 1.0:
             classification = "compiled-body-dominated"
@@ -699,6 +717,7 @@ def focused_runtime_metrics(
             "texits": texits,
             "texits_per_work_item": texits_per_work_item,
             "trace_abort_rate": trace_abort_rate,
+            "remote_rc": remote_rc,
             "classification": classification,
         }
     return metrics
@@ -719,6 +738,7 @@ def derive_perf_metrics(
         branches = to_float_counter(counters.get("branches")) if isinstance(counters, dict) else None
         branch_misses = to_float_counter(counters.get("branch-misses")) if isinstance(counters, dict) else None
         texits = int(trace_counts[workload].get("TEXIT_COUNT", 0))
+        remote_rc = int(trace_counts[workload].get("REMOTE_RC", 0)) if isinstance(trace_counts[workload].get("REMOTE_RC"), int) else None
         cpi = (cycles / instructions) if cycles is not None and instructions not in (None, 0.0) else None
         branch_miss_rate = (branch_misses / branches) if branch_misses is not None and branches not in (None, 0.0) else None
         cycles_per_texit = (cycles / texits) if cycles is not None and texits else None
@@ -730,6 +750,7 @@ def derive_perf_metrics(
             "cpi": cpi,
             "branch_miss_rate": branch_miss_rate,
             "cycles_per_texit": cycles_per_texit,
+            "remote_rc": remote_rc,
         }
     return metrics
 
@@ -810,7 +831,7 @@ def render_summary(
         trace_info = trace_counts[workload]
         lines.append(f"- `{workload}`")
         lines.append(f"  - hot median: JIT-on `{runtime['jit_median_sec']:.6f}s`, `-joff` `{runtime['joff_median_sec']:.6f}s`, gap `{runtime['jit_gap_sec']:+.6f}s`, ratio `{runtime['jit_gap_ratio']:.2f}x`")
-        lines.append(f"  - `TRACE_START {int(trace_info.get('TRACE_START', 0))}`, `TRACE_STOP {int(trace_info.get('TRACE_STOP', 0))}`, `TRACE_ABORT {int(trace_info.get('TRACE_ABORT', 0))}`, `TEXIT_COUNT {int(trace_info.get('TEXIT_COUNT', 0))}`")
+        lines.append(f"  - `REMOTE_RC {trace_info.get('REMOTE_RC', 'n/a')}`, `TRACE_START {int(trace_info.get('TRACE_START', 0))}`, `TRACE_STOP {int(trace_info.get('TRACE_STOP', 0))}`, `TRACE_ABORT {int(trace_info.get('TRACE_ABORT', 0))}`, `TEXIT_COUNT {int(trace_info.get('TEXIT_COUNT', 0))}`")
         lines.append(f"  - classification: `{runtime['classification']}`")
     lines.extend(["", "## perf stat", ""])
     for hot_key in config["hot_cases"]:
