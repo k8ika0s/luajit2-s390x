@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 18:23:33 PDT
+Last updated: 2026-03-31 18:44:04 PDT
 
 ## Scope
 
@@ -130,6 +130,12 @@ The active seam on the frozen dispatch baseline is now mechanically pinned:
   - `startop = BC_JMP`
   - `startpc == pc == snappc`
   - `parent_snapnent = 0`
+- a focused recorder rerun now shows that same first side trace does pass the
+  current extra-loop narrow gate:
+  - `prev_is_jfori = 1`
+  - `fori_target = 1`
+  - `target_match = 1`
+  - `site=extra_loop_narrow`
 - after `sidecheck`, that trace is still on the same bare body-entry state
 
 Current named seam:
@@ -139,17 +145,27 @@ Current named seam:
 Current read:
 
 - the hot failure is in the generic `FORL` / `JFORI` loop-entry path
+- it is not a missed side-trace `JFORI` / `FORL` eligibility check
+- the current extra-loop narrow path is firing and still not changing the
+  owner/exit shape enough to stop the `exit 0` ladder
 - hot-side duplication is downstream of that seam
 - this is not an iterator seam, not bridge/continuation machinery, and not a
   late backend lowering opportunity
 
-One hotside-classifier is already closed here:
+Dispatch hotside classifiers are now split:
 
 - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1` does not fix the problem
 - on the focused numeric probe it collapses the observed exit traffic into one
   reused site:
   - `7:0=160743`
 - that is not a real owner/materialization win
+- `LUAJIT_S390X_HOTSIDE_CANON_CHILD=1` reduces trace churn but not the real
+  payer:
+  - `TRACE_START` drops from `10` to `6`
+  - `TEXIT_COUNT` stays at `2001`
+  - the last trace still absorbs `8:0=858`
+- `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1` timed out after `20s` on the focused
+  `numeric_loop` probe with no result and is not safe to treat as a live path
 
 ## Frozen Iterator Baseline
 

@@ -3763,9 +3763,33 @@ void lj_record_setup(jit_State *J)
     }
     /* Check whether we could at least potentially form an extra loop. */
     if (allow_extra_loop && J->exitno == 0 && T->snap[0].nent == 0) {
+      if (lj_record_s390x_side_focus_enabled()) {
+	int prev_is_jfori = (J->pc > proto_bc(J->pt) && bc_op(J->pc[-1]) == BC_JFORI);
+	TraceNo fori_target = prev_is_jfori ? bc_d(J->pc[bc_j(J->pc[-1])-1]) : 0;
+	fprintf(stderr,
+		"S390X_SIDE_FOCUS site=extra_loop_check trace=%u parent=%u exit=%u root=%u startop=%u op=%u prevop=%u snap0_nent=%u prev_is_jfori=%u fori_target=%u target_match=%u\n",
+		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		(unsigned int)J->exitno, (unsigned int)root,
+		(unsigned int)bc_op(J->cur.startins),
+		(unsigned int)bc_op(*J->pc),
+		(unsigned int)(J->pc > proto_bc(J->pt) ? bc_op(J->pc[-1]) : BC__MAX),
+		(unsigned int)T->snap[0].nent,
+		(unsigned int)prev_is_jfori,
+		(unsigned int)fori_target,
+		(unsigned int)(prev_is_jfori && fori_target == root));
+      }
       /* We can narrow a FORL for some side traces, too. */
       if (J->pc > proto_bc(J->pt) && bc_op(J->pc[-1]) == BC_JFORI &&
 	  bc_d(J->pc[bc_j(J->pc[-1])-1]) == root) {
+	if (lj_record_s390x_side_focus_enabled()) {
+	  fprintf(stderr,
+		  "S390X_SIDE_FOCUS site=extra_loop_narrow trace=%u parent=%u exit=%u root=%u startop=%u op=%u prevop=%u\n",
+		  (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		  (unsigned int)J->exitno, (unsigned int)root,
+		  (unsigned int)bc_op(J->cur.startins),
+		  (unsigned int)bc_op(*J->pc),
+		  (unsigned int)bc_op(J->pc[-1]));
+	}
 	lj_snap_add(J);
 	rec_for_loop(J, J->pc-1, &J->scev, 1);
 	goto sidecheck;

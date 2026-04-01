@@ -8748,3 +8748,44 @@ Next hash target
     - next exact target is to explain why the first side trace stays a bare
       `BC_JMP` side entry at the same body PC instead of becoming a materially
       different owner
+
+- Timestamp: `2026-03-31 18:44:04 PDT`
+- Dispatch/side-exit queue, current exact dispatch read:
+  - focused `kdz` root-seam rerun on `numeric_loop` kept the same named seam:
+    - `loop-body-entry-after-JFORI`
+  - the important new proof is that the first side trace is not missing the
+    current side-trace `JFORI` / `FORL` narrow gate:
+    - `trace=4 parent=1 exit=0`
+    - `prev_is_jfori = 1`
+    - `fori_target = 1`
+    - `target_match = 1`
+    - `site=extra_loop_narrow`
+  - that same proof repeats through the whole hot-side ladder:
+    - `trace=5 parent=4 exit=0`
+    - `trace=6 parent=5 exit=0`
+    - ... through later descendants
+  - despite the narrow path firing, recorder side setup still leaves each
+    trace on the same body-entry state:
+    - `pc = BC_MODVN`
+    - `prevop = BC_JFORI`
+    - `startop = BC_JMP`
+    - `after_sidecheck` still unchanged
+  - classifier results on the same focused numeric probe:
+    - `LUAJIT_S390X_HOTSIDE_CANON_CHILD=1`
+      - reduces `TRACE_START` from `10` to `6`
+      - leaves `TEXIT_COUNT` at `2001`
+      - last trace still absorbs `8:0=858`
+      - not enough by itself
+    - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1`
+      - timed out after `20s` on the `2000`-iteration focused probe
+      - produced no result before timeout
+      - reject as unsafe from the current seam
+  - decision:
+    - the live dispatch problem is no longer “failure to qualify for the
+      current extra-loop narrow path”
+    - the live problem is that the current narrow path still does not produce
+      a materially different owner/body shape and still leaves the per-iteration
+      `exit 0` ladder in place
+    - next exact target is to inspect the side-trace path after
+      `rec_for_loop(..., init=1)` and explain why that narrow setup still
+      emerges as the same `BC_JMP` body-entry ladder
