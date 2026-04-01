@@ -9532,3 +9532,37 @@ Next hash target
   - next exact target:
     - determine whether the s390x backend has a valid 32-bit logical lowering
       surface at all; if not, this compiled-body family is close to closure
+
+- Timestamp: `2026-04-01 05:28:40 PDT`
+- Source review shows the `bitops_mix` lowering seam is part of a broader
+  backend-wide integer-result contract
+  - relevant source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1341)
+      `asm_add()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1635)
+      `asm_sub()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1710)
+      `asm_mul()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1482)
+      `asm_bnorm32()`
+  - source result:
+    - integer add and sub already follow the same result contract seen in the
+      dumped bitop chain:
+      - normalize or sign-extend the destination with `LGFR` / `LLGFR`
+      - perform the 64-bit integer op
+      - then reassert the 32-bit result shape again on guarded paths
+    - integer multiply is even more explicit:
+      - `MSGFR` is bracketed by `LGFR` in both guarded and non-guarded forms
+    - so the current `NGR` / `OGR` / `XGR` plus `LGFR` read in `bitops_mix`
+      is not an isolated backend quirk
+    - it is one instance of a broader s390x integer-result lowering contract
+  - implication:
+    - the next honest family is no longer “optimize bitops normalization”
+    - it is “does the backend have any broader 32-bit integer-result lowering
+      surface at all?”
+    - if the answer is no, `bitops_mix` should be closed as a local family
+      instead of continuing with narrower bitops-only patches
+  - next exact target:
+    - audit whether any valid backend-wide 32-bit ALU/logical lowering path
+      exists for `int` results on s390x before opening another code
+      experiment
