@@ -9699,3 +9699,39 @@ Next hash target
     - if this family stays open, the next honest cut has to preserve a real
       normalized-result / int32-home state, not just suppress producer
       normalization
+
+- Timestamp: `2026-04-01 10:07:33 PDT`
+- First low32-home logical-subchain variant is a same-host `kdz` reject
+  - implementation shape:
+    - keep the corrected `asm_bnorm32()` classifier
+    - open a temporary low32-home path only for:
+      - `band` / `bor` / `bxor`
+      - classifier-proven carry and `ADD`-tail nodes
+    - lower those nodes with 32-bit `LR` / `NR` / `OR` / `XR`
+    - do not emit internal post-op normalize on those nodes
+  - clean-host artifact:
+    - [20260401-kdz-bitops-low32home-subchain-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-low32home-subchain-check/summary.md)
+  - first focused `kdz` pass:
+    - baseline `mix_bits/hot 0.008784`
+    - gated `mix_bits/hot 0.008609`
+    - apparent delta `-0.000175s` (`0.980x`)
+  - reduced structural read:
+    - gated reduced check terminated cleanly
+    - the new path did fire:
+      - `logic32carry 21`
+      - `logic32tail 2`
+    - the focused trace-count script timed out in both baseline and gated
+      forms, so it did not provide a usable structural split
+  - same-host rerun to check stability:
+    - [20260401-kdz-bitops-low32home-subchain-rerun](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-low32home-subchain-rerun/summary.md)
+    - baseline `mix_bits/hot 0.008312`
+    - gated `mix_bits/hot 0.008749`
+    - regression `+0.000437s`
+  - result:
+    - source returned to the non-behavior baseline after the rerun
+    - the gate is real, but the same-host perf result is unstable and not
+      promotable
+    - this exact low32-home logical-subchain variant is closed
+    - if the backend line stays open, the next honest target is a deeper
+      consumer-side normalized-result / int32-home design, not another local
+      logical-subchain rewrite

@@ -396,6 +396,33 @@ Focused backend audit on that family:
       - any remaining backend family here has to carry a real normalized
         int32/result-home state rather than simply suppressing producer
         normalization at candidate nodes
+    - first low32-home logical-subchain variant is also rejected:
+      [20260401-kdz-bitops-low32home-subchain-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-low32home-subchain-check/summary.md)
+    - exact shape:
+      - only `band` / `bor` / `bxor`
+      - only classifier-proven carry and `ADD`-tail nodes
+      - 32-bit `LR` / `NR` / `OR` / `XR` low32-home lowering with no internal
+        normalize on those nodes
+    - clean `kdz` read:
+      - first focused pass:
+        - baseline `mix_bits/hot 0.008784`
+        - gated `mix_bits/hot 0.008609`
+      - same-host rerun without rebuild:
+        - baseline `mix_bits/hot 0.008312`
+        - gated `mix_bits/hot 0.008749`
+    - supporting structural read:
+      - reduced gated check completed and hit the new path:
+        - `logic32carry 21`
+        - `logic32tail 2`
+      - the focused trace-count script timed out in both baseline and gated
+        forms, so it did not separate the variant structurally
+    - conclusion:
+      - the gate is live, but the same-host perf result is unstable and not
+        promotable
+      - this exact low32-home logical-subchain variant is closed
+      - if `bitops_mix` stays open from here, the next honest target is a
+        deeper consumer-side normalized-result / int32-home design, not more
+        local logical-subchain rewrites
 
 ## Authoritative Validation Surfaces
 
