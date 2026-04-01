@@ -381,6 +381,21 @@ Focused backend audit on that family:
     - so the next honest backend target is not “fewer `LGFR`s everywhere”
     - it is a carried normalized int32/result-home across the bitop chain with
       one explicit leave-the-chain boundary into integer arithmetic
+    - first env-gated carry-skip check on that exact seam:
+      [20260401-kdz-bitops-int32home-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-int32home-gate-check/summary.md)
+    - clean `kdz` A/B:
+      - baseline `mix_bits/hot 0.008095`
+      - gated `mix_bits/hot 0.008593`
+      - regression `+0.000498s` (`1.062x`)
+    - the gate was not dead:
+      - `2392` candidate sites fired in the focused structural probe
+      - probe completed cleanly with `REMOTE_RC=0`
+    - conclusion:
+      - the boundary is real, but plain candidate-site `LGFR` skip is not
+        promotable
+      - any remaining backend family here has to carry a real normalized
+        int32/result-home state rather than simply suppressing producer
+        normalization at candidate nodes
 
 ## Authoritative Validation Surfaces
 
