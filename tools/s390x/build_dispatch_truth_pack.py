@@ -149,17 +149,7 @@ local jit = require("jit")
 local testlib = dofile("tests/s390x/helpers/testlib.lua")
 testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
-local function emit_trace_hist(events)
-  local buckets = {}
-  for i = 1, #events do
-    local ev = events[i]
-    local kind = tostring(ev[1])
-    local traceno = tonumber(ev[2])
-    if traceno then
-      local key = kind .. ":" .. traceno
-      buckets[key] = (buckets[key] or 0) + 1
-    end
-  end
+local function emit_hist(label, buckets)
   local keys = {}
   for key in pairs(buckets) do keys[#keys + 1] = key end
   table.sort(keys)
@@ -168,28 +158,7 @@ local function emit_trace_hist(events)
     local key = keys[i]
     parts[#parts + 1] = key .. "=" .. buckets[key]
   end
-  print("TRACE_HIST", table.concat(parts, ","))
-end
-local function emit_texit_hist(events)
-  local buckets = {}
-  for i = 1, #events do
-    local ev = events[i]
-    local traceno = tonumber(ev[1])
-    local exitno = tonumber(ev[2])
-    if traceno and exitno then
-      local key = traceno .. ":" .. exitno
-      buckets[key] = (buckets[key] or 0) + 1
-    end
-  end
-  local keys = {}
-  for key in pairs(buckets) do keys[#keys + 1] = key end
-  table.sort(keys)
-  local parts = {}
-  for i = 1, #keys do
-    local key = keys[i]
-    parts[#parts + 1] = key .. "=" .. buckets[key]
-  end
-  print("TEXIT_HIST", table.concat(parts, ","))
+  print(label, table.concat(parts, ","))
 end
 local function run(n)
   local total = 0
@@ -199,34 +168,24 @@ local function run(n)
   return total
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_capture()
-local texit_cap = testlib.texit_capture()
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
 print("RESULT", run(2000))
 trace_cap.stop()
 texit_cap.stop()
-print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))
-print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))
-print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
-print("TEXIT_COUNT", #texit_cap.events)
-emit_trace_hist(trace_cap.events)
-emit_texit_hist(texit_cap.events)
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
     "side_exit_loop": """\
 local jit = require("jit")
 local testlib = dofile("tests/s390x/helpers/testlib.lua")
 testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
-local function emit_trace_hist(events)
-  local buckets = {}
-  for i = 1, #events do
-    local ev = events[i]
-    local kind = tostring(ev[1])
-    local traceno = tonumber(ev[2])
-    if traceno then
-      local key = kind .. ":" .. traceno
-      buckets[key] = (buckets[key] or 0) + 1
-    end
-  end
+local function emit_hist(label, buckets)
   local keys = {}
   for key in pairs(buckets) do keys[#keys + 1] = key end
   table.sort(keys)
@@ -235,28 +194,7 @@ local function emit_trace_hist(events)
     local key = keys[i]
     parts[#parts + 1] = key .. "=" .. buckets[key]
   end
-  print("TRACE_HIST", table.concat(parts, ","))
-end
-local function emit_texit_hist(events)
-  local buckets = {}
-  for i = 1, #events do
-    local ev = events[i]
-    local traceno = tonumber(ev[1])
-    local exitno = tonumber(ev[2])
-    if traceno and exitno then
-      local key = traceno .. ":" .. exitno
-      buckets[key] = (buckets[key] or 0) + 1
-    end
-  end
-  local keys = {}
-  for key in pairs(buckets) do keys[#keys + 1] = key end
-  table.sort(keys)
-  local parts = {}
-  for i = 1, #keys do
-    local key = keys[i]
-    parts[#parts + 1] = key .. "=" .. buckets[key]
-  end
-  print("TEXIT_HIST", table.concat(parts, ","))
+  print(label, table.concat(parts, ","))
 end
 local function run(n)
   local total = 0
@@ -270,34 +208,24 @@ local function run(n)
   return total
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_capture()
-local texit_cap = testlib.texit_capture()
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
 print("RESULT", run(2000))
 trace_cap.stop()
 texit_cap.stop()
-print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))
-print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))
-print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
-print("TEXIT_COUNT", #texit_cap.events)
-emit_trace_hist(trace_cap.events)
-emit_texit_hist(texit_cap.events)
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
     "hotexit_loop": """\
 local jit = require("jit")
 local testlib = dofile("tests/s390x/helpers/testlib.lua")
 testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
-local function emit_trace_hist(events)
-  local buckets = {}
-  for i = 1, #events do
-    local ev = events[i]
-    local kind = tostring(ev[1])
-    local traceno = tonumber(ev[2])
-    if traceno then
-      local key = kind .. ":" .. traceno
-      buckets[key] = (buckets[key] or 0) + 1
-    end
-  end
+local function emit_hist(label, buckets)
   local keys = {}
   for key in pairs(buckets) do keys[#keys + 1] = key end
   table.sort(keys)
@@ -306,28 +234,7 @@ local function emit_trace_hist(events)
     local key = keys[i]
     parts[#parts + 1] = key .. "=" .. buckets[key]
   end
-  print("TRACE_HIST", table.concat(parts, ","))
-end
-local function emit_texit_hist(events)
-  local buckets = {}
-  for i = 1, #events do
-    local ev = events[i]
-    local traceno = tonumber(ev[1])
-    local exitno = tonumber(ev[2])
-    if traceno and exitno then
-      local key = traceno .. ":" .. exitno
-      buckets[key] = (buckets[key] or 0) + 1
-    end
-  end
-  local keys = {}
-  for key in pairs(buckets) do keys[#keys + 1] = key end
-  table.sort(keys)
-  local parts = {}
-  for i = 1, #keys do
-    local key = keys[i]
-    parts[#parts + 1] = key .. "=" .. buckets[key]
-  end
-  print("TEXIT_HIST", table.concat(parts, ","))
+  print(label, table.concat(parts, ","))
 end
 local function run(n)
   local total = 0
@@ -343,27 +250,27 @@ local function run(n)
   return total
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_capture()
-local texit_cap = testlib.texit_capture()
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
 print("RESULT", run(2000))
 trace_cap.stop()
 texit_cap.stop()
-print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))
-print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))
-print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))
-print("TEXIT_COUNT", #texit_cap.events)
-emit_trace_hist(trace_cap.events)
-emit_texit_hist(texit_cap.events)
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
 }
 
 PERF_STAT_SCRIPTS = {
-    name: script.replace('local testlib = dofile("tests/s390x/helpers/testlib.lua")\n', "").replace("testlib.enable_repo_jit_modules()\n", "").replace("local trace_cap = testlib.trace_capture()\n", "").replace("local texit_cap = testlib.texit_capture()\n", "").replace("trace_cap.stop()\n", "").replace("texit_cap.stop()\n", "").replace('print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))\n', "").replace('print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))\n', "").replace('print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))\n', "").replace('print("TEXIT_COUNT", #texit_cap.events)\n', "").replace("emit_trace_hist(trace_cap.events)\n", "").replace("emit_texit_hist(texit_cap.events)\n", "")
+    name: script.replace('local testlib = dofile("tests/s390x/helpers/testlib.lua")\n', "").replace("testlib.enable_repo_jit_modules()\n", "").replace("local trace_cap = testlib.trace_counter_capture()\n", "").replace("local texit_cap = testlib.texit_counter_capture()\n", "").replace("trace_cap.stop()\n", "").replace("texit_cap.stop()\n", "").replace('print("TRACE_START", trace_cap.start)\n', "").replace('print("TRACE_STOP", trace_cap.stop_count)\n', "").replace('print("TRACE_ABORT", trace_cap.abort)\n', "").replace('print("TEXIT_COUNT", texit_cap.total)\n', "").replace('emit_hist("TRACE_HIST", trace_cap.hist)\n', "").replace('emit_hist("TEXIT_HIST", texit_cap.hist)\n', "")
     for name, script in TRACE_COUNT_SCRIPTS.items()
 }
 
 EXIT_LOG_SCRIPTS = {
-    name: script.replace("print(\"TRACE_START\", testlib.count_trace_events(trace_cap.events, \"start\"))\n", "").replace("print(\"TRACE_STOP\", testlib.count_trace_events(trace_cap.events, \"stop\"))\n", "").replace("print(\"TRACE_ABORT\", testlib.count_trace_events(trace_cap.events, \"abort\"))\n", "").replace("print(\"TEXIT_COUNT\", #texit_cap.events)\n", "").replace("emit_trace_hist(trace_cap.events)\n", "").replace("emit_texit_hist(texit_cap.events)\n", "")
+    name: script.replace('print("TRACE_START", trace_cap.start)\n', "").replace('print("TRACE_STOP", trace_cap.stop_count)\n', "").replace('print("TRACE_ABORT", trace_cap.abort)\n', "").replace('print("TEXIT_COUNT", texit_cap.total)\n', "").replace('emit_hist("TRACE_HIST", trace_cap.hist)\n', "").replace('emit_hist("TEXIT_HIST", texit_cap.hist)\n', "")
     for name, script in TRACE_COUNT_SCRIPTS.items()
 }
 
@@ -819,7 +726,6 @@ def parse_exit_focus_details(path: pathlib.Path) -> dict[str, object]:
         if (
             first_side_enter.get("op_name") == "MODVN"
             and first_side_enter.get("prevop_name") == "JFORI"
-            and first_side_enter.get("parent_startop_name") == "FORL"
             and first_side_enter.get("startop_name") == "JMP"
         ):
             info["seam_attribution"] = "loop-body-entry-after-JFORI"

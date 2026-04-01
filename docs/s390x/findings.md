@@ -8927,3 +8927,46 @@ Next hash target
       - dispatch-adjacent side-exit cost surfaces outside the loop-clone seam
       - helper-boundary storage/materialization audits where the ABI may help
       - only then broader JIT throughput families
+
+- Timestamp: `2026-03-31 20:08:12 PDT`
+- Dispatch/side-exit queue, branchy follow-up surfaces collapse to the same seam:
+  - helper/workflow change:
+    - [tests/s390x/helpers/testlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/helpers/testlib.lua)
+      now has lightweight aggregated trace/texit counters
+    - [tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+      now uses those counters for dispatch trace-count runs so the branchy loops
+      can be observed without the earlier capture-overflow failure
+  - clean `kdz` rerun:
+    - [20260331-kdz-dispatch-truth-pack-v4](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-dispatch-truth-pack-v4)
+  - latest clean dispatch medians:
+    - `numeric_loop/hot`
+      - JIT-on `0.350184`
+      - `-joff` `0.002168`
+      - ratio `161.52x`
+    - `side_exit_loop/hot`
+      - JIT-on `0.535201`
+      - `-joff` `0.004667`
+      - ratio `114.68x`
+    - `hotexit_loop/hot`
+      - JIT-on `0.622022`
+      - `-joff` `0.005627`
+      - ratio `110.55x`
+  - focused runtime result:
+    - all three loops now capture cleanly and come back with the same shape:
+      - `TRACE_START 11`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 2001`
+      - `TEXIT_HIST 10:0=200,11:0=200,12:0=200,13:0=58,1:0=142,2:0=1,4:0=200,5:0=200,6:0=200,7:0=200,8:0=200,9:0=200`
+    - all three focused exit logs show the same practical side-entry seam:
+      - `pc = BC_MODVN`
+      - `prevop = BC_JFORI`
+      - `startop = BC_JMP`
+      - `site=extra_loop_narrow`
+  - decision:
+    - the branchy dispatch surfaces do not expose a distinct side-exit payer
+      outside the already-closed loop-clone mechanism
+    - the current generic dispatch/side-exit line is now closed on this
+      mechanism
+    - next queued redirect:
+      - helper-boundary storage/materialization audits where the ABI may help
+      - only then broader JIT throughput families
