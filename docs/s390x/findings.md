@@ -10574,3 +10574,45 @@ Next hash target
     - the next honest target is selective activation or promotion scope for
       this gate, not more broader screening and not any reopening of the old
       iterator/dispatch/low32-home families
+
+- Timestamp: `2026-04-01 15:54:28 PDT`
+- The first simple selective-scope attempts for the dedicated hotside gate are
+  now rejected on clean `kdz`
+  - exact loop-clone seam only:
+    [20260401-kdz-hotside-canon-share-loop0-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-check/summary.md)
+    - throughput still wins:
+      - `add_phi_only/hot`: `0.000714 -> 0.000365`
+      - `chain_tail_add/hot`: `0.008402 -> 0.003092`
+      - `mix_bits/hot`: `0.008096 -> 0.003168`
+    - iterator still regresses:
+      - `pairs_sum/hot`: `0.062436 -> 0.068325`
+      - `pairs_array_sum/hot`: `0.067516 -> 0.075800`
+  - loop-clone seam plus root-`ITERN` exclusion:
+    [20260401-kdz-hotside-canon-share-loop0-noitern-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-noitern-check/summary.md)
+    - throughput still wins:
+      - `add_phi_only/hot`: `0.000664 -> 0.000503`
+      - `chain_tail_add/hot`: `0.007741 -> 0.003107`
+      - `mix_bits/hot`: `0.007789 -> 0.003240`
+    - iterator still regresses:
+      - `pairs_sum/hot`: `0.064846 -> 0.069202`
+      - `pairs_array_sum/hot`: `0.068079 -> 0.074660`
+  - fast rerun after removing avoidable no-op overhead:
+    [20260401-kdz-hotside-canon-share-loop0-noitern-fastcheck](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-loop0-noitern-fastcheck/summary.md)
+    - `chain_tail_add/hot`: `0.007930 -> 0.003045`
+    - `pairs_sum/hot`: `0.064785 -> 0.072845`
+    - `pairs_array_sum/hot`: `0.068692 -> 0.076979`
+  - focused iterator probes:
+    - hash reduced `pairs()` loop:
+      [20260401-kdz-hotside-iterator-small-focus-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-iterator-small-focus-check/raw/run.stderr.log)
+    - array reduced `pairs()` loop:
+      [20260401-kdz-hotside-array-iterator-loop0-focus-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-array-iterator-loop0-focus-check/raw/run.stderr.log)
+  - read:
+    - the first visible iterator hotside seam still shows up as
+      `parent=1 exit=1 startop=70` (`BC_ITERN`) on both reduced hash and array
+      `pairs()` probes
+    - but excluding root-`ITERN` families is still not enough to neutralize
+      the iterator regression in the full benchmark
+    - so the next honest queue is no longer “simple structural scope switch”
+    - it is either a deeper selective activation design, or acceptance that
+      `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` stays throughput-only on the
+      current mechanism
