@@ -721,7 +721,8 @@ static int lj_trace_s390x_hotside_canon_enabled(void)
   static int enabled = -1;
   if (enabled == -1)
     enabled = (getenv("LUAJIT_S390X_HOTSIDE_CANON_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL);
+	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
+	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
   return enabled;
 }
 
@@ -738,7 +739,32 @@ static int lj_trace_s390x_hotside_share_equiv_enabled(void)
   static int enabled = -1;
   if (enabled == -1)
     enabled = (getenv("LUAJIT_S390X_HOTSIDE_SHARE_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL);
+	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
+	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
+  return enabled;
+}
+
+static int lj_trace_s390x_hotside_event_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_HOTSIDE_EVENT_LOG") != NULL);
+  return enabled;
+}
+
+static int lj_trace_s390x_hotside_uget_looproot_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
+  return enabled;
+}
+
+static int lj_trace_s390x_hotside_match_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_HOTSIDE_MATCH_LOG") != NULL);
   return enabled;
 }
 
@@ -842,6 +868,72 @@ static TraceNo lj_trace_s390x_hotside_find_child(jit_State *J, TraceNo rootno,
   return 0;
 }
 
+static void lj_trace_s390x_hotside_event_log(jit_State *J, const char *phase,
+					     const BCIns *pc, GCtrace *T,
+					     ExitNo exitno, SnapShot *snap,
+					     TraceNo candno, TraceNo childno)
+{
+  TraceNo rootno;
+  GCtrace *root;
+  SnapEntry *map;
+  const BCIns *snappc;
+  if (!lj_trace_s390x_hotside_event_log_enabled() || T == NULL || snap == NULL)
+    return;
+  rootno = T->root ? T->root : T->traceno;
+  root = traceref(J, rootno);
+  map = &T->snapmap[snap->mapofs];
+  snappc = snap_pc(&map[snap->nent]);
+  fprintf(stderr,
+	  "S390X_HOTSIDE_EVENT phase=%s parent=%u exit=%u cand=%u child=%u root=%u pc=%p op=%u snappc=%p snapop=%u snapcount=%u startop=%u root_startop=%u linktype=%u link=%u nsnap=%u nchild=%u\n",
+	  phase,
+	  (unsigned int)J->parent, (unsigned int)exitno,
+	  (unsigned int)candno, (unsigned int)childno, (unsigned int)rootno,
+	  (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
+	  (const void *)snappc, (unsigned int)(snappc ? bc_op(*snappc) : 0),
+	  (unsigned int)snap->count, (unsigned int)bc_op(T->startins),
+	  (unsigned int)(root ? bc_op(root->startins) : 0),
+	  (unsigned int)T->linktype, (unsigned int)T->link,
+	  (unsigned int)T->nsnap, (unsigned int)T->nchild);
+}
+
+static int lj_trace_s390x_hotside_uget_looproot_match(jit_State *J,
+						      const BCIns *pc,
+						      GCtrace *T,
+						      ExitNo exitno,
+						      SnapShot *snap)
+{
+  TraceNo rootno;
+  GCtrace *root;
+  SnapEntry *map;
+  const BCIns *snappc;
+  BCOp rootop;
+  if (!lj_trace_s390x_hotside_uget_looproot_enabled())
+    return 1;
+  if (pc == NULL || T == NULL || snap == NULL || exitno != 0)
+    return 0;
+  if (bc_op(T->startins) != BC_JMP || bc_op(*pc) != BC_UGET)
+    return 0;
+  map = &T->snapmap[snap->mapofs];
+  snappc = snap_pc(&map[snap->nent]);
+  if (snappc != pc || bc_op(*snappc) != BC_UGET)
+    return 0;
+  rootno = T->root ? T->root : T->traceno;
+  root = traceref(J, rootno);
+  if (root == NULL)
+    return 0;
+  rootop = bc_op(root->startins);
+  if (lj_trace_s390x_hotside_match_log_enabled()) {
+    fprintf(stderr,
+	    "S390X_HOTSIDE_MATCH phase=uget-looproot parent=%u exit=%u root=%u pc=%p op=%u startop=%u root_startop=%u linktype=%u link=%u nsnap=%u nchild=%u\n",
+	    (unsigned int)J->parent, (unsigned int)exitno, (unsigned int)rootno,
+	    (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
+	    (unsigned int)bc_op(T->startins), (unsigned int)rootop,
+	    (unsigned int)T->linktype, (unsigned int)T->link,
+	    (unsigned int)T->nsnap, (unsigned int)T->nchild);
+  }
+  return rootop == BC_FORL || rootop == BC_FUNCF;
+}
+
 static int lj_trace_s390x_hotside_try_canon(jit_State *J, const BCIns *pc,
 					    GCtrace **Tp, ExitNo exitno,
 					    SnapShot **snapp)
@@ -867,6 +959,8 @@ static int lj_trace_s390x_hotside_try_canon(jit_State *J, const BCIns *pc,
 		(unsigned int)T->nsnap,
 		(unsigned int)T->nins, (unsigned int)bc_op(T->startins));
       }
+      lj_trace_s390x_hotside_event_log(J, "canon", pc, T, exitno, snap,
+				       candno, 0);
       J->parent = candno;
       *Tp = C;
       *snapp = csnap;
@@ -895,6 +989,8 @@ static int lj_trace_s390x_hotside_try_canon(jit_State *J, const BCIns *pc,
 		(unsigned int)T->nsnap,
 		(unsigned int)T->nins, (unsigned int)bc_op(T->startins));
       }
+      lj_trace_s390x_hotside_event_log(J, "canon-child", pc, T, exitno, snap,
+				       candno, childno);
       J->parent = childno;
       *Tp = C;
       *snapp = csnap;
@@ -938,6 +1034,8 @@ static void lj_trace_s390x_hotside_share_equiv(jit_State *J, const BCIns *pc,
 	      (unsigned int)(pc ? bc_op(*pc) : 0), (unsigned int)snap->count,
 	      (unsigned int)target, (unsigned int)J->param[JIT_P_hotexit]);
     }
+    lj_trace_s390x_hotside_event_log(J, "share-done", pc, T, exitno, snap,
+				     candno, 0);
     snap->count = target;
     return;
   }
@@ -955,6 +1053,8 @@ static void lj_trace_s390x_hotside_share_equiv(jit_State *J, const BCIns *pc,
 	    (unsigned int)(pc ? bc_op(*pc) : 0), (unsigned int)snap->count,
 	    (unsigned int)csnap->count, (unsigned int)J->param[JIT_P_hotexit]);
   }
+  lj_trace_s390x_hotside_event_log(J, "share-copy", pc, T, exitno, snap,
+				   candno, 0);
   snap->count = csnap->count;
 }
 
@@ -2834,6 +2934,9 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 {
   GCtrace *T = traceref(J, J->parent);
   SnapShot *snap = &T->snap[J->exitno];
+  int scoped_hotside_ok = lj_trace_s390x_hotside_uget_looproot_match(J, pc, T,
+								       J->exitno,
+								       snap);
   if (lj_trace_s390x_hotside_focus_enabled() &&
       (lj_trace_s390x_hotside_focus_parent() < 0 ||
        J->parent == (TraceNo)lj_trace_s390x_hotside_focus_parent()) &&
@@ -2859,7 +2962,8 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
       }
     }
   }
-  if (lj_trace_s390x_hotside_try_canon(J, pc, &T, J->exitno, &snap)) {
+  if (scoped_hotside_ok &&
+      lj_trace_s390x_hotside_try_canon(J, pc, &T, J->exitno, &snap)) {
     if (lj_trace_s390x_hotside_focus_enabled() &&
 	(lj_trace_s390x_hotside_focus_parent() < 0 ||
 	 J->parent == (TraceNo)lj_trace_s390x_hotside_focus_parent()) &&
@@ -2907,7 +3011,8 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 	    hook_blocked, lua_ok, (unsigned int)J->state);
   }
   lj_trace_s390x_exit_log("hotside", J, pc, snap->count, NULL);
-  lj_trace_s390x_hotside_share_equiv(J, pc, T, J->exitno, snap);
+  if (scoped_hotside_ok)
+    lj_trace_s390x_hotside_share_equiv(J, pc, T, J->exitno, snap);
   lj_trace_s390x_hotside_prime_interp(J, pc, T, J->exitno, snap);
   if (!(J2G(J)->hookmask & (HOOK_GC|HOOK_VMEVENT)) &&
       isluafunc(curr_func(J->L)) &&
