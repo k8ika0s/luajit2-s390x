@@ -10198,3 +10198,31 @@ Next hash target
     - require `REMOTE_RC=0` and the same compiled-body family
     - reject immediately on `REMOTE_RC=124`, structural drift, or same-host
       regression
+
+- Timestamp: `2026-04-01 12:36:01 PDT`
+- First stateful `W32_HOME` carry prototype is rejected on clean `kdz`
+  - source gate:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - `LUAJIT_S390X_W32HOME_STATEFUL`
+  - clean-host artifact:
+    - [20260401-kdz-low32home-stateful-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-stateful-check)
+  - local bar before host check:
+    - local rebuild succeeded with
+      `env MACOSX_DEPLOYMENT_TARGET=15.0 make -C src -j4 luajit`
+    - local smoke `./src/luajit -e 'print("ok")'` succeeded
+  - clean `kdz` structural gate:
+    - compile-only proofs all passed:
+      - `chain_tail_add`: `REMOTE_RC=0`
+      - `chain_tail_store`: `REMOTE_RC=0`
+      - `mix_bits`: `REMOTE_RC=0`
+    - reduced trace probes all failed the first real bar:
+      - `chain_tail_add`: `REMOTE_RC=124`
+      - `chain_tail_store`: `REMOTE_RC=124`
+      - `mix_bits`: `REMOTE_RC=124`
+  - result:
+    - reject this exact stateful `W32_HOME` carry prototype
+    - restore source baseline after the host check
+    - if `bitops_mix` stays open, the next honest target is deeper than this
+      first stateful carry experiment:
+      it needs a backend-wide result-state design that still keeps reduced
+      trace formation finite
