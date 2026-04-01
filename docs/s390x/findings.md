@@ -8697,3 +8697,54 @@ Next hash target
     - no new iterator seam was proven outside the reject pile
     - freeze iterator at the current Lane A + Lane B checkpoint
     - move the next queued perf workstream to dispatch/side-exit
+
+- Timestamp: `2026-03-31 18:23:33 PDT`
+- Dispatch/side-exit queue, first exact seam attribution:
+  - checked in a dispatch truth-pack helper:
+    - [tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+  - active `kdz` dispatch hot medians from the current branch tip:
+    - `numeric_loop/hot 0.642036` vs `-joff 0.002168` (`296.14x`)
+    - `side_exit_loop/hot 0.155224` vs `-joff 0.004739` (`32.75x`)
+    - `hotexit_loop/hot 0.380652` vs `-joff 0.005653` (`67.34x`)
+  - focused runtime read:
+    - branch-free `numeric_loop` already reproduces the failure
+    - after warmup it still shows:
+      - `TRACE_START 10`
+      - `TRACE_STOP 10`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 2001`
+    - `side_exit_loop` shows the same exit-heavy shape:
+      - `TRACE_START 11`
+      - `TRACE_STOP 11`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 2001`
+  - exact seam on the focused numeric probe:
+    - root `trace 1` starts at `BC_FORL` and stops as a loop
+    - the hot seam is `trace 1 exit 0`
+    - `trace_hotside()` sees the replay at:
+      - `pc = BC_MODVN`
+      - `prevop = BC_JFORI`
+      - `snappc = BC_MODVN`
+      - `parent_startop = BC_FORL`
+    - recorder side setup then enters the first side trace as:
+      - `parent=1 exit=0`
+      - `startop = BC_JMP`
+      - `startpc == pc == snappc`
+      - `parent_snapnent = 0`
+    - after `sidecheck`, that first side trace is still on the same bare
+      body-entry state
+  - named seam:
+    - `loop-body-entry-after-JFORI`
+  - classifier result:
+    - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1` is not a fix
+    - on the same numeric probe it collapses observed exit traffic into one
+      reused site:
+      - `7:0=160743`
+    - that is not a real owner/materialization win
+  - decision:
+    - the active frontier is now generic dispatch `FORL` / `JFORI`
+      loop-entry `exit 0`
+    - do not reopen iterator-only work from this evidence
+    - next exact target is to explain why the first side trace stays a bare
+      `BC_JMP` side entry at the same body PC instead of becoming a materially
+      different owner

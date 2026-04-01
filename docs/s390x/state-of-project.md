@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 16:41:00 PDT
+Last updated: 2026-03-31 18:23:33 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -36,6 +36,10 @@ non-causal probe effects. The current state is cleaner:
   so the frozen baseline can be examined with the same clean rebuild path plus
   trace/exit counts, IR+mcode dumps, owner-selection probes, and counter
   availability checks
+- the iterator lane is now frozen at the current checkpoint unless a genuinely
+  new seam appears outside the reject pile
+- the next queued performance workstream is generic dispatch/side-exit, not
+  more iterator-only surgery
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
@@ -260,6 +264,84 @@ That makes the current queueing decision explicit:
 - no new iterator seam was proven outside the reject pile
 - iterator stays frozen at the current Lane A + Lane B checkpoint
 - the next queued perf workstream moves to dispatch/side-exit
+
+### Queued Dispatch / Side-Exit Workstream
+
+The branch now has a checked-in dispatch truth-pack helper at
+[tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+to restamp the next active frontier on the same clean-host contract.
+
+Current `kdz` hot medians from the active dispatch pack are:
+
+- `numeric_loop/hot`
+  - JIT-on `0.642036`
+  - `-joff` `0.002168`
+  - gap `+0.639868s`
+  - ratio `296.14x`
+- `side_exit_loop/hot`
+  - JIT-on `0.155224`
+  - `-joff` `0.004739`
+  - gap `+0.150485s`
+  - ratio `32.75x`
+- `hotexit_loop/hot`
+  - JIT-on `0.380652`
+  - `-joff` `0.005653`
+  - gap `+0.374999s`
+  - ratio `67.34x`
+
+The important read is the shared runtime shape, not just the medians:
+
+- branch-free `numeric_loop` is already enough to reproduce the same hot-side
+  failure mode
+- after warmup, `numeric_loop` still shows:
+  - `TRACE_START 10`
+  - `TRACE_STOP 10`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 2001`
+- `side_exit_loop` matches the same pattern:
+  - `TRACE_START 11`
+  - `TRACE_STOP 11`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 2001`
+- this is not a branch-payload-only issue in the loop body
+- the common seam is now the generic dispatch loopback path
+
+The exact seam on the frozen dispatch baseline is now named:
+
+- `trace 1 exit 0` is the hot seam
+- on the focused numeric probe:
+  - root `trace 1` starts at `BC_FORL` and stops as a loop
+  - the hot-side replay lands on the loop-body entry:
+    - `pc = BC_MODVN`
+    - `prevop = BC_JFORI`
+    - `snappc = BC_MODVN`
+  - the first side trace enters as:
+    - `parent=1 exit=0`
+    - `startop = BC_JMP`
+    - `parent_startop = BC_FORL`
+    - `parent_snapnent = 0`
+  - after `sidecheck`, that first side trace is still on the same bare body
+    entry state
+
+That means the active dispatch seam is now:
+
+- generic `FORL` / `JFORI` loop-entry `exit 0`
+- not iterator lazy-key ownership
+- not bridge/continuation machinery
+- not late backend instruction shaving
+
+One classifier has already been rejected on this surface:
+
+- `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1` on clean `kdz` does not fix the ladder
+- instead it collapses the observed exit traffic into one reused site:
+  - `7:0=160743`
+- that is not a real owner/materialization win and is branch-hostile on z
+
+The next exact target from here is therefore:
+
+- explain and, if possible, remove the generic `FORL` loop-entry `exit 0`
+  seam so the first side trace becomes a materially different owner instead of
+  a repeated `BC_JMP` side entry at the same body PC
 
 ## What Has Not Been Proven Yet
 
