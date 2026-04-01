@@ -9799,3 +9799,48 @@ Next hash target
       - snapshot-visible state
     - if that invariant cannot be stated and enforced cleanly, close
       `bitops_mix` as a local family too
+
+- Timestamp: `2026-04-01 08:46:20 PDT`
+- First invariant-driven reduced-probe low32-home gate is rejected on clean
+  `kdz`
+  - implementation shape:
+    - keep current 64-bit logical lowering
+    - skip producer-side `asm_bnorm32()` only for proven logical-chain carry
+      nodes and `ADD`-tail nodes
+    - insert explicit normalize at the `ADD` consumer boundary
+    - gate names:
+      - `LUAJIT_S390X_LOW32HOME_ADD`
+      - `LUAJIT_S390X_LOW32HOME_LOG`
+  - clean-host artifact:
+    - [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
+  - host result:
+    - `logical_chain_tail_add`
+      - baseline `0.008265`
+      - gated `0.008807`
+      - regression `+0.000542s` (`1.066x`)
+    - `logical_chain_tail_store`
+      - baseline `0.006822`
+      - gated `0.007940`
+      - regression `+0.001118s` (`1.164x`)
+  - structural read:
+    - the gate was active on the intended seam:
+      - `logical_chain_tail_add`
+        - `add-boundary:add-tail`: `46`
+        - `skip-bnorm:add-tail`: `46`
+        - `skip-bnorm:carry`: `483`
+        - logged `asm_bnorm32()` sites: `991 -> 439`
+      - `logical_chain_tail_store`
+        - `skip-bnorm:carry`: `487`
+        - logged `asm_bnorm32()` sites: `994 -> 489`
+    - both reduced trace probes still timed out with `REMOTE_RC=124`
+      ([trace.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/raw/logical_chain_tail_add/trace.stdout.log),
+      [trace.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/raw/logical_chain_tail_store/trace.stdout.log))
+  - result:
+    - source returned to the non-behavior baseline after the host check
+    - the seam is still real, but this exact consumer-boundary gate is not
+      promotable
+    - if the backend line stays open from here, the next honest target is no
+      longer another partial `ADD`/tail gate
+    - it is either:
+      - a fuller stateful low32-home / normalized-result contract
+      - or closure of `bitops_mix` as a local family

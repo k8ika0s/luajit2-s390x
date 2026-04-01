@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 08:18:53 PDT
+Last updated: 2026-04-01 08:46:20 PDT
 
 ## Scope
 
@@ -75,6 +75,35 @@ Current clean-`kdz` broader-throughput frontier:
     snapshot-visible boundaries
   - if that invariant cannot be stated precisely enough to survive those
     boundaries, `bitops_mix` should close too
+- first invariant-driven reduced-probe gate is now a clean `kdz` reject:
+  - artifact:
+    [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
+  - gate shape:
+    - keep current 64-bit logical lowering
+    - skip producer-side `asm_bnorm32()` only for proven logical-chain carry
+      nodes and `ADD`-tail nodes
+    - normalize explicitly at the `ADD` consumer boundary
+  - host result:
+    - `logical_chain_tail_add`: baseline `0.008265`, gated `0.008807`,
+      regression `+0.000542s` (`1.066x`)
+    - `logical_chain_tail_store`: baseline `0.006822`, gated `0.007940`,
+      regression `+0.001118s` (`1.164x`)
+  - structural result:
+    - the gate did fire:
+      - `add-boundary:add-tail`: `46`
+      - `skip-bnorm:add-tail`: `46`
+      - `skip-bnorm:carry`: `483` on add-tail, `487` on store-tail
+    - logged `asm_bnorm32()` totals dropped from:
+      - add-tail `991 -> 439`
+      - store-tail `994 -> 489`
+    - but both reduced trace probes timed out with `REMOTE_RC=124`
+  - result:
+    - source returned to the non-behavior baseline after the host check
+    - this exact consumer-boundary low32-home gate is closed
+    - if `bitops_mix` stays open, the next honest target is not another
+      partial `ADD`/tail gate
+    - it has to be a fuller stateful low32-home / normalized-result contract,
+      or the family should close too
 
 First broader-throughput family read from clean `kdz`:
 

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 08:18:53 PDT
+Last updated: 2026-04-01 08:46:20 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -106,6 +106,37 @@ non-causal probe effects. The current state is cleaner:
   - then, if it survives those boundaries cleanly, open one narrow env-gated
     low32-home design experiment on the reduced seam isolators before touching
     `bitops_mix` again
+- that first invariant-driven reduced-probe gate is now rejected on clean
+  `kdz`:
+  - artifact:
+    [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
+  - gated surface:
+    - keep current 64-bit logical lowering
+    - skip producer-side `asm_bnorm32()` only for proven logical-chain carry
+      nodes and `ADD`-tail nodes
+    - insert explicit normalize at the `ADD` consumer boundary
+  - host result:
+    - `logical_chain_tail_add`: baseline `0.008265`, gated `0.008807`,
+      regression `+0.000542s` (`1.066x`)
+    - `logical_chain_tail_store`: baseline `0.006822`, gated `0.007940`,
+      regression `+0.001118s` (`1.164x`)
+  - structural read:
+    - the gate was real:
+      - `add-boundary:add-tail`: `46`
+      - `skip-bnorm:add-tail`: `46`
+      - `skip-bnorm:carry`: `483` on add-tail, `487` on store-tail
+      - logged `asm_bnorm32()` totals fell to `439` on add-tail and `489` on
+        store-tail
+    - but both reduced trace probes timed out with `REMOTE_RC=124`
+  - result:
+    - source returned to the non-behavior baseline after the host check
+    - explicit add-boundary normalization plus carry-skip is closed
+    - if `bitops_mix` stays open from here, the next honest target is no
+      longer another partial boundary gate
+    - it is either:
+      - a fuller stateful low32-home / normalized-result contract that avoids
+        the timeout/regression shape entirely
+      - or closure of this backend family too
 - the first native `kdz` pass on that new queue is now enough to name the next
   live family:
   - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
