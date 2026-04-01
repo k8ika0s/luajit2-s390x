@@ -78,6 +78,31 @@ non-causal probe effects. The current state is cleaner:
   - so the next target is no longer “generic vararg throughput”
   - it is nested vararg summation plus caller return/handoff around
     `sum(...)`, not the already-shared base loop-clone behavior
+- that seam is narrower again after the reduced clean-host handoff probes:
+  - the extra `sum_loop` red is not a reopened lower-frame return bug
+  - the reduced `kdz` `LUAJIT_S390X_RECRET_LOG=1` probes show:
+    - `sum_loop`, `retlast_loop`, and `retconst_loop` all return through
+      `lua_intrace_return`
+    - none of them hit `lua_lower_frame_retf`
+    - none of them hit `lua_root_lower_frame_lleave`
+  - what singles `sum_loop` out is structural instead:
+    - it builds a separate caller handoff trace family (`TRACE 2`, later
+      `TRACE 7`) on top of the inner callee loop family
+    - `retlast_loop` and `retconst_loop` stay inside the shared single-family
+      loop-clone pattern
+  - the next exact target is therefore:
+    - caller/callee handoff around a traced Lua callee loop
+    - not generic return lowering
+    - and not another lower-frame return fix family
+  - one candidate inside that seam is now also ruled out on clean `kdz`:
+    - a new focused `LUAJIT_S390X_FUNCJIT_LOG` pass was silent on the reduced
+      `sum_loop` and `retlast_loop` probes
+    - so the extra `sum_loop` family is not being born at `rec_func_jit()` /
+      compiled-callee entry
+    - the next exact target moves later:
+      - caller-side re-entry after `lua_intrace_return`
+      - before the caller path settles into the separate `TRACE 2` / `TRACE 7`
+        family
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a

@@ -96,6 +96,39 @@ static int s390x_recret_log_enabled(void)
   return state;
 }
 
+static int s390x_funcjit_log_enabled(void)
+{
+  static int state = -1;
+  if (state == -1) {
+    const char *flag = getenv("LUAJIT_S390X_FUNCJIT_LOG");
+    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
+  }
+  return state;
+}
+
+static void s390x_funcjit_log(jit_State *J, const char *site, TraceNo lnk,
+			      GCtrace *T)
+{
+  FILE *out;
+  if (!s390x_funcjit_log_enabled())
+    return;
+  out = stderr;
+  fprintf(out,
+	  "S390X_FUNCJIT site=%s trace=%u parent=%u exit=%u pc=%p startpc=%p samepc=%u op=%u startop=%u lnk=%u callee_root=%u callee_startop=%u callee_link=%u callee_linktype=%u callee_startpc=%p\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (void *)J->pc, (void *)J->startpc,
+	  (unsigned int)(J->pc == J->startpc),
+	  (unsigned int)bc_op(*J->pc),
+	  (unsigned int)bc_op(J->cur.startins),
+	  (unsigned int)lnk,
+	  (unsigned int)(T ? T->root : 0),
+	  (unsigned int)(T ? bc_op(T->startins) : 0),
+	  (unsigned int)(T ? T->link : 0),
+	  (unsigned int)(T ? T->linktype : 0),
+	  (void *)(T ? mref(T->startpc, BCIns) : NULL));
+  fflush(out);
+}
+
 static void s390x_recret_log(jit_State *J, const char *phase, TValue *frame,
 			     BCReg rbase, ptrdiff_t gotresults, BCReg baseadj)
 {
@@ -2853,7 +2886,9 @@ static void rec_func_jit(jit_State *J, TraceNo lnk)
   GCtrace *T;
   rec_func_setup(J);
   T = traceref(J, lnk);
+  s390x_funcjit_log(J, "entry", lnk, T);
   if (T->linktype == LJ_TRLINK_RETURN) {  /* Trace returns to interpreter? */
+    s390x_funcjit_log(J, "continue_return", lnk, T);
     check_call_unroll(J, lnk);
     /* Temporarily unpatch JFUNC* to continue recording across function. */
     J->patchins = *J->pc;
@@ -2864,8 +2899,10 @@ static void rec_func_jit(jit_State *J, TraceNo lnk)
   J->instunroll = 0;  /* Cannot continue across a compiled function. */
   if (J->pc == J->startpc && J->framedepth + J->retdepth == 0)
     lj_record_stop(J, LJ_TRLINK_TAILREC, J->cur.traceno);  /* Extra tail-rec. */
-  else
+  else {
+    s390x_funcjit_log(J, "stop_root", lnk, T);
     lj_record_stop(J, LJ_TRLINK_ROOT, lnk);  /* Link to the function. */
+  }
 }
 
 /* -- Vararg handling ----------------------------------------------------- */

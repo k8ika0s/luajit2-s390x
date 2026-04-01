@@ -9126,3 +9126,66 @@ Next hash target
     - next exact target:
       - explain why the `sum(...)` inner vararg loop plus outer caller handoff
         forms that extra ladder on `kdz`
+
+- Timestamp: `2026-03-31 23:35:00 PDT`
+- Reduced clean-host handoff probes narrowed the vararg seam again
+  - artifact bundle:
+    - [20260331-kdz-vararg-handoff-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-handoff-audit)
+  - reduced `kdz` probes run with:
+    - `jit.opt.start("hotloop=1")`
+    - `LUAJIT_S390X_RECRET_LOG=1`
+    - `-jv`
+    - `n=2000`
+  - `sum_loop`
+    - still starts with the inner callee loop
+    - then forms a separate caller handoff trace family:
+      - `TRACE 2 ... -> 1`
+      - later `TRACE 7 (2/0) ... -> 1`
+    - `lj_record_ret()` logs on those traces show:
+      - `site=lua_intrace_return`
+      - no `site=lua_lower_frame_retf`
+      - no `site=lua_root_lower_frame_lleave`
+    - the `TRACE 2` dump is dominated by callee re-entry setup:
+      - caller-side `tobit`
+      - guard on the `sum` function object
+      - fresh `select` env lookup / identity guard
+      - then stop `-> 1`
+  - `retlast_loop`
+    - shows the shared base loop-clone ladder only
+    - repeated return logging is still `site=lua_intrace_return`
+    - no separate handoff-family root is formed
+  - `retconst_loop`
+    - shows the same shared base loop-clone ladder only
+    - repeated return logging is also `site=lua_intrace_return`
+    - no lower-frame return path appears here either
+  - decision:
+    - the extra `sum_loop` red is not a generic lower-frame return bug
+    - the live seam is now caller/callee handoff around a traced Lua callee
+      loop, layered over the already-known base loop-clone pattern
+    - next exact target:
+      - explain why that caller handoff path keeps materializing as a second
+        trace family instead of staying inside one stable owner family
+
+- Timestamp: `2026-03-31 23:58:00 PDT`
+- Focused `rec_func_jit()` classifier came back negative on clean `kdz`
+  - artifact bundle:
+    - [20260331-kdz-vararg-funcjit-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-funcjit-audit)
+  - one new focused log gate was added:
+    - `LUAJIT_S390X_FUNCJIT_LOG`
+    - it logs entry / continue / stop decisions in `rec_func_jit()`
+  - clean `kdz` reduced probes for:
+    - `sum_loop`
+    - `retlast_loop`
+  - result:
+    - no `S390X_FUNCJIT` lines at all on either reduced probe
+    - `sum_loop` still shows:
+      - `TRACE 2 ... -> 1`
+      - later `TRACE 7 (2/0) ... -> 1`
+      - repeated `site=lua_intrace_return`
+    - `retlast_loop` still shows only the shared loop-clone ladder
+  - decision:
+    - the extra `sum_loop` handoff family is not being born at
+      `rec_func_jit()` / compiled-callee entry
+    - the next exact target moves later:
+      - caller-side re-entry after `lua_intrace_return`
+      - before that path settles into the separate caller handoff family

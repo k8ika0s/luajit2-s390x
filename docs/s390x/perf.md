@@ -92,6 +92,34 @@ That first contrast is now partially answered:
   - not generic vararg throughput
   - and not the already-shared base loop-clone behavior by itself
 
+That seam is narrower again after reduced clean-host handoff probes:
+
+- the extra `sum_loop` red is not coming from a reopened lower-frame return
+  path
+- reduced `kdz` `LUAJIT_S390X_RECRET_LOG=1` probes show:
+  - all three workloads return through `lua_intrace_return`
+  - none of them hit `lua_lower_frame_retf`
+  - none of them hit `lua_root_lower_frame_lleave`
+- what singles `sum_loop` out is the extra trace family:
+  - `sum_loop` forms an inner callee loop family, then a separate caller
+    handoff family (`TRACE 2`, later `TRACE 7`) linking back into it
+  - `retlast_loop` and `retconst_loop` stay inside the already-shared
+    single-family loop-clone pattern
+- focused artifact bundle for this seam:
+  - [20260331-kdz-vararg-handoff-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-vararg-handoff-audit)
+- the next exact target is now:
+  - caller/callee handoff around a traced Lua callee loop
+  - not generic vararg return lowering
+  - and not another lower-frame return bug family
+- one narrower candidate inside that seam is now closed:
+  - a focused clean-host `LUAJIT_S390X_FUNCJIT_LOG` pass was silent on the
+    reduced `sum_loop` and `retlast_loop` probes
+  - so the extra `sum_loop` family is not being born at `rec_func_jit()` /
+    compiled-callee entry
+  - the next exact target moves later in the path:
+    - caller-side re-entry after `lua_intrace_return`
+    - before it settles into the separate `TRACE 2` / `TRACE 7` handoff family
+
 ## Authoritative Validation Surfaces
 
 - Primary perf host:
@@ -168,6 +196,10 @@ Checked-in broader-throughput truth-pack helper:
 - the first native `vararg_paths` pass also forced one hardening step:
   - focused per-workload probes now run under a fixed timeout instead of
     hanging the entire helper when a hot traced surface wedges
+- the helper now also owns reduced vararg handoff probes for this family:
+  - `-jv` reduced scripts with `LUAJIT_S390X_RECRET_LOG=1`
+  - saved under `raw/handoff`
+  - summarized in `handoff-counts.json`
 
 ## Queued Dispatch / Side-Exit Frontier
 
