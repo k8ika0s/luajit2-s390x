@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 06:17:48 PDT
+Last updated: 2026-04-01 08:18:53 PDT
 
 ## Scope
 
@@ -24,14 +24,57 @@ bridge and continuation line stays parked.
 
 That broader-throughput queue is now explicit:
 
-1. [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
-   is first because it pressures arg-bank, call, return, and `select()` /
-   vararg flow without reusing the closed iterator or dispatch seams
-2. [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
-   is second as a backend-heavy compiled-body control
-3. [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
+1. [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
+   is the active broader-throughput family
+2. [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua)
+   is the first reduced seam isolator for the bitop chain when the first
+   non-bitop consumer is exactly one `ADD`
+3. [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua)
+   is the store/compare twin for the same chain
+4. [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+   is parked for this cycle because the front-most `sum_loop` split is now
+   classified as the normal nested-callee `BC_JFORI -> existing loop` root-stop
+   on the current mechanism, not a narrower fresh recorder seam
+5. [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
    stays out of this queue because `pairs(map)` would drag iterator behavior
    back into a family that is supposed to sit outside the frozen iterator line
+
+Current clean-`kdz` broader-throughput frontier:
+
+- `vararg_paths` is now parked, not live
+  - `sum_loop` remains very red, but the current front-most split is now
+    classified as the normal caller-root stop into an already-compiled nested
+    callee loop
+  - no narrower seam has been named before nested `BC_JFORI` entry, so this
+    family should not reopen in the current cycle
+- `bitops_mix` remains the only honest live family
+  - it is compiled-body dominated
+  - it is not an exit or helper-boundary problem
+  - plain opcode swaps, plain `LGFR`-skip gates, and the first low32-home
+    logical-subchain variant are all already rejected
+- the reduced seam isolators preserve the same backend boundary:
+  - [20260401-kdz-logical_chain_tail_add-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-truth-pack)
+    - `chain_tail_add/hot`: JIT-on `0.008265`, `-joff` `0.002127`, ratio
+      `3.89x`
+    - `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+    - `asm_bnorm32()` first non-bitop consumers:
+      - `ADD`: `70`
+      - `OP_-1`: `921`
+  - [20260401-kdz-logical_chain_tail_store-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_store-truth-pack)
+    - `chain_tail_store/hot`: JIT-on `0.006822`, `-joff` `0.002020`, ratio
+      `3.38x`
+    - `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+    - `asm_bnorm32()` first non-bitop consumers:
+      - `ASTORE`: `70`
+      - `OP_-1`: `924`
+- current queue decision:
+  - the backend seam is no longer “`ADD` only”
+  - the next honest target is a backend-wide low32-home / normalized-result
+    invariant that keeps the logical chain safe internally and forces
+    normalization at arithmetic, store/compare/guard, helper, and
+    snapshot-visible boundaries
+  - if that invariant cannot be stated precisely enough to survive those
+    boundaries, `bitops_mix` should close too
 
 First broader-throughput family read from clean `kdz`:
 

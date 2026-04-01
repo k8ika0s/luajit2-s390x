@@ -9735,3 +9735,67 @@ Next hash target
     - if the backend line stays open, the next honest target is a deeper
       consumer-side normalized-result / int32-home design, not another local
       logical-subchain rewrite
+
+- Timestamp: `2026-04-01 08:18:53 PDT`
+- `vararg_paths` is now parked for the current cycle
+  - closure read:
+    - `sum_loop` remains red, but the front-most split is now classified as
+      the normal root-stop path for a caller trace that enters an already-
+      compiled nested callee loop at `BC_JFORI`
+    - no narrower recorder seam has been named before that nested-loop entry
+  - supporting evidence already on branch:
+    - reduced clean-host probes showed `sum_loop` split across two hot roots,
+      while `retlast_loop` stayed in the caller loop family
+    - recorder code at
+      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3597)
+      matches the observed `BC_JFORI -> existing loop` root stop
+  - control note:
+    - there is no completed repo-local x64 reduced-`sum_loop` control artifact
+      on this branch
+    - the closure here rests on the clean `kdz` reduced probes plus shared
+      recorder semantics, not on a new cross-backend diff
+  - result:
+    - do not reopen `vararg_paths` in this cycle unless a seam earlier than the
+      nested callee-loop entry is named first
+
+- Timestamp: `2026-04-01 08:18:53 PDT`
+- Reduced logical-chain seam isolators preserve the same named backend family
+  on clean `kdz`
+  - new in-tree probes:
+    - [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua)
+    - [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua)
+  - clean-host artifacts:
+    - [20260401-kdz-logical_chain_tail_add-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-truth-pack)
+    - [20260401-kdz-logical_chain_tail_store-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_store-truth-pack)
+  - `logical_chain_tail_add`:
+    - `chain_tail_add/hot`: JIT-on `0.008265`, `-joff` `0.002127`, ratio
+      `3.89x`
+    - focused read: `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+    - `asm_bnorm32()` first non-bitop consumer split:
+      - `ADD`: `70`
+      - `OP_-1`: `921`
+  - `logical_chain_tail_store`:
+    - `chain_tail_store/hot`: JIT-on `0.006822`, `-joff` `0.002020`, ratio
+      `3.38x`
+    - focused read: `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+    - `asm_bnorm32()` first non-bitop consumer split:
+      - `ASTORE`: `70`
+      - `OP_-1`: `924`
+  - interpretation:
+    - both reduced probes remain compiled-body dominated
+    - the live seam is not “`ADD` only”
+    - the backend line is now cleanly a broader low32-home /
+      normalized-result contract problem where the safe logical chain must
+      survive until a forced-normalization boundary
+  - next honest target:
+    - write the backend-wide invariant first
+    - safe internal chain ops currently proven: `band`, `bor`, `bxor`
+    - forced-normalization boundaries include at least:
+      - integer arithmetic
+      - store/compare/guard
+      - helper-arg setup
+      - snapshot-visible state
+    - if that invariant cannot be stated and enforced cleanly, close
+      `bitops_mix` as a local family too
