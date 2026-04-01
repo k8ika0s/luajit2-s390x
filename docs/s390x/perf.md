@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 14:33:30 PDT
+Last updated: 2026-04-01 15:10:25 PDT
 
 ## Scope
 
@@ -169,15 +169,33 @@ Current clean-`kdz` broader-throughput frontier:
     - [20260401-kdz-logical_chain_tail_add-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-hotside_canon_share-truth-pack)
       - `chain_tail_add/hot`: JIT-on `0.003052`, `-joff` `0.002541`,
         `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - [20260401-kdz-logical_chain_tail_store-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_store-hotside_canon_share-truth-pack)
+      - `chain_tail_store/hot`: JIT-on `0.002800`, `-joff` `0.002016`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
     - [20260401-kdz-bitops_mix-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-hotside_canon_share-truth-pack)
       - `mix_bits/hot`: JIT-on `0.003084`, `-joff` `0.002168`,
         `TRACE_START 2`, `TEXIT_COUNT 8000`
   - helper-backed `zkd0` screen:
+    - [20260401-zkd0-logical_chain_tail_add-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_add-baseline-truth-pack)
+      - baseline `chain_tail_add/hot`: JIT-on `0.016437`,
+        `TRACE_START 41`, `TEXIT_COUNT 7981`
+    - [20260401-zkd0-logical_chain_tail_add-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_add-hotside_canon_share-truth-pack)
+      - candidate `chain_tail_add/hot`: JIT-on `0.003722`,
+        `-joff 0.003899`, `TRACE_START 2`, `TEXIT_COUNT 8000`
     - [20260401-zkd0-bitops_mix-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-bitops_mix-hotside_canon_share-truth-pack)
       - `mix_bits/hot`: JIT-on `0.004230`, `-joff` `0.002933`,
         `TRACE_START 2`, `TEXIT_COUNT 8000`
-  - the next honest target is broader candidate validation from this
-    helper-backed single gate
+    - [20260401-zkd0-logical_chain_tail_store-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_store-baseline-truth-pack)
+      - baseline `chain_tail_store/hot`: JIT-on `0.009260`,
+        `TRACE_START 42`, `TEXIT_COUNT 7983`
+    - [20260401-zkd0-logical_chain_tail_store-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_store-hotside_canon_share-truth-pack)
+      - candidate `chain_tail_store/hot`: JIT-on `0.003955`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - queue correction:
+    - the dedicated gate now covers every active reduced throughput surface in
+      the current queue with helper-backed evidence
+    - the next honest target is broader suite validation and promotion
+      criteria from this helper-backed single gate
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
