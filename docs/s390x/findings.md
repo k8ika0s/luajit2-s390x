@@ -10526,3 +10526,51 @@ Next hash target
     - stop spending turns on reduced candidate matrix filling
     - the next honest target is promotion criteria and broader suite
       validation for `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+
+- Timestamp: `2026-04-01 15:39:28 PDT`
+- The broader promotion-scope screen for
+  `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` now defines the fence line
+  cleanly
+  - broader throughput screens now in hand:
+    - `kdz`:
+      - [20260401-kdz-hotside-canon-share-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-broader-suite-check/summary.md)
+      - [20260401-kdz-hotside-canon-share-ffi-screen](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-ffi-screen/summary.md)
+      - [20260401-kdz-hotside-canon-share-ffi-cdata-rerun](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-ffi-cdata-rerun/summary.md)
+      - [20260401-kdz-hotside-canon-share-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-promotion-scope-check/summary.md)
+    - `zkd0`:
+      - [20260401-zkd0-hotside-canon-share-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-broader-suite-check/summary.md)
+      - [20260401-zkd0-hotside-canon-share-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-promotion-scope-check/summary.md)
+  - broader-screen read:
+    - the earlier `ffi_cdata/mixed_width_loop` caveat does not hold up on the
+      same-host rerun:
+      - `kdz`: `0.028053 -> 0.027835`
+    - the dedicated gate stays strongly positive on broader throughput
+      families on both hosts:
+      - `kdz`:
+        - `dispatch_trace/numeric_loop`: `0.403098 -> 0.008842`
+        - `be_helpers/number_helper_loop`: `0.760303 -> 0.007868`
+        - `ffi_calls/direct_abs`: `1.186680 -> 0.017131`
+        - `vararg_paths/sum_loop`: `1.150344 -> 0.014361`
+        - `mixed_ffi/mixed_ffi_loop`: `0.045255 -> 0.013581`
+        - `mixed_noffi/mixed_loop`: `0.081497 -> 0.026823`
+      - `zkd0`:
+        - `dispatch_trace/numeric_loop`: `0.927825 -> 0.017705`
+        - `be_helpers/number_helper_loop`: `1.863057 -> 0.009562`
+        - `vararg_paths/sum_loop`: `2.688349 -> 0.019945`
+        - `mixed_ffi/mixed_ffi_loop`: `0.105319 -> 0.022101`
+        - `mixed_noffi/mixed_loop`: `0.145128 -> 0.053974`
+    - but it is not a safe global default:
+      - `iterator_table` regresses on `kdz`
+        - `pairs_sum/hot`: `0.062803 -> 0.066317`
+        - `pairs_array_sum/hot`: `0.063466 -> 0.076668`
+      - `iterator_table` regresses on `zkd0`
+        - `pairs_sum/hot`: `0.093072 -> 0.110394`
+        - `pairs_array_sum/hot`: `0.119120 -> 0.129420`
+  - queue correction:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` is now a broader throughput
+      promotion candidate
+    - it is not promotable as a global s390x default while the frozen
+      iterator family regresses on both hosts
+    - the next honest target is selective activation or promotion scope for
+      this gate, not more broader screening and not any reopening of the old
+      iterator/dispatch/low32-home families
