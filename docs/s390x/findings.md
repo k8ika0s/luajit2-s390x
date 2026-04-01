@@ -8789,3 +8789,35 @@ Next hash target
     - next exact target is to inspect the side-trace path after
       `rec_for_loop(..., init=1)` and explain why that narrow setup still
       emerges as the same `BC_JMP` body-entry ladder
+
+- Timestamp: `2026-03-31 18:44:04 PDT`
+- Dispatch/side-exit queue, corrected owner read from focused `traceinfo`:
+  - the same clean `kdz` `numeric_loop` seam now has an explicit trace snapshot:
+    - `trace 1`: `link=1`, `linktype=loop`, `nins=18`, `nk=7`, `nexit=4`
+    - `trace 2`: `link=1`, `linktype=root`, `nins=4`, `nk=6`, `nexit=3`
+    - `trace 3` through `trace 12`: each is `link=self`, `linktype=loop`,
+      `nins=18`, `nk=7`, `nexit=4`
+    - `trace 13`: `link=0`, `linktype=stitch`, `nins=11`, `nk=19`, `nexit=2`
+  - that corrects the previous interpretation:
+    - the dispatch descendants are not failing to become loop owners
+    - they are already becoming self-loop loop traces
+  - combined with the focused recorder logs:
+    - `site=extra_loop_narrow` fires at `trace=4 parent=1 exit=0`
+    - and then again through later descendants
+  - current read:
+    - the live dispatch problem is now churn/reuse, not basic owner formation
+    - equivalent self-loop loop traces keep getting cloned on the same
+      `FORL` / `JFORI` `exit 0` seam instead of reusing a stable earlier owner
+  - classifier context:
+    - `LUAJIT_S390X_HOTSIDE_CANON_CHILD=1`
+      - reduces `TRACE_START` from `10` to `6`
+      - leaves `TEXIT_COUNT` at `2001`
+      - not enough by itself
+    - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1`
+      - timed out after `20s` on the focused probe
+      - unsafe from the current seam
+  - decision:
+    - next exact target is `trace_hotside()` equivalence/reuse policy for this
+      `exit 0` loop-clone family
+    - inspect why default policy keeps cloning equivalent self-loop loop traces
+      instead of reusing or adopting an earlier equivalent loop owner

@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 18:44:04 PDT
+Last updated: 2026-03-31 18:56:55 PDT
 
 ## Scope
 
@@ -146,11 +146,20 @@ Current read:
 
 - the hot failure is in the generic `FORL` / `JFORI` loop-entry path
 - it is not a missed side-trace `JFORI` / `FORL` eligibility check
-- the current extra-loop narrow path is firing and still not changing the
-  owner/exit shape enough to stop the `exit 0` ladder
+- the current extra-loop narrow path is firing
 - hot-side duplication is downstream of that seam
 - this is not an iterator seam, not bridge/continuation machinery, and not a
   late backend lowering opportunity
+
+A focused `traceinfo` snapshot on the same `kdz` numeric seam corrects the
+owner read:
+
+- the descendants are not staying root-linked stubs
+- `trace 3` through `trace 12` are already self-loop loop traces with the same
+  `nins=18`, `nk=7`, and `nexit=4`
+- the remaining dispatch problem is churn/reuse:
+  - equivalent self-loop loop traces keep getting cloned on the same `exit 0`
+    seam instead of reusing a stable earlier owner
 
 Dispatch hotside classifiers are now split:
 
@@ -166,6 +175,12 @@ Dispatch hotside classifiers are now split:
   - the last trace still absorbs `8:0=858`
 - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1` timed out after `20s` on the focused
   `numeric_loop` probe with no result and is not safe to treat as a live path
+
+Next exact target:
+
+- explain why default hotside policy keeps cloning equivalent self-loop
+  `exit 0` loop traces on this seam instead of reusing or adopting an earlier
+  equivalent loop owner
 
 ## Frozen Iterator Baseline
 

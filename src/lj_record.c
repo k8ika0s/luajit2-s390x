@@ -1250,6 +1250,23 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
 	      (unsigned int)J->framedepth, (unsigned int)J->retdepth);
     }
 #if LJ_TARGET_S390X
+    if (lj_record_s390x_side_focus_enabled() &&
+	J->parent != 0 && J->exitno == 0 &&
+	J->cur.root == 1 &&
+	bc_op(J->cur.startins) == BC_JMP &&
+	bc_op(*J->pc) == BC_JLOOP) {
+      fprintf(stderr,
+	      "S390X_SIDE_FOCUS site=rec_loop_jit_enter trace=%u parent=%u exit=%u root=%u startpc=%p pc=%p samepc=%u startop=%u op=%u ev=%u lnk=%u framedepth=%u retdepth=%u\n",
+	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	      (unsigned int)J->exitno, (unsigned int)J->cur.root,
+	      (const void *)J->startpc, (const void *)J->pc,
+	      (unsigned int)(J->pc == J->startpc),
+	      (unsigned int)bc_op(J->cur.startins),
+	      (unsigned int)bc_op(*J->pc),
+	      (unsigned int)ev, (unsigned int)lnk,
+	      (unsigned int)J->framedepth,
+	      (unsigned int)J->retdepth);
+    }
     if (lj_record_s390x_recloop_focus_enabled() &&
 	J->parent >= 3 && J->exitno == 0 && J->cur.root == 1 &&
 	bc_op(J->cur.startins) == BC_JMP && bc_op(*J->pc) == BC_JLOOP) {
@@ -1344,9 +1361,33 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
       fprintf(stderr,
 	      "S390X_RECLOOP trace=%u parent=%u exit=%u loopdesc_self_owner_stop=1 root=%u lnk=%u\n",
 	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-	      (unsigned int)J->exitno, (unsigned int)J->cur.root,
-	      (unsigned int)lnk);
+	(unsigned int)J->exitno, (unsigned int)J->cur.root,
+	(unsigned int)lnk);
 #endif
+    if (lj_record_s390x_side_focus_enabled() &&
+	J->parent != 0 && J->exitno == 0 &&
+	J->cur.root == 1 &&
+	bc_op(J->cur.startins) == BC_JMP &&
+	bc_op(*J->pc) == BC_JLOOP) {
+      const char *decision = s390x_loopdesc_self_owner_stop ? "root-self-owner" :
+			     (!s390x_link_loop_desc &&
+			      (J->pc == J->startpc || iterator_restart_loop || payload_desc_loop) &&
+			      J->framedepth + J->retdepth == 0) ? "loop-self" :
+			     "root-link";
+      fprintf(stderr,
+	      "S390X_SIDE_FOCUS site=rec_loop_jit_decision trace=%u parent=%u exit=%u root=%u samepc=%u startop=%u op=%u ev=%u lnk=%u iterator_restart=%u payload_desc=%u link_loop_desc=%u self_owner=%u decision=%s\n",
+	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	      (unsigned int)J->exitno, (unsigned int)J->cur.root,
+	      (unsigned int)(J->pc == J->startpc),
+	      (unsigned int)bc_op(J->cur.startins),
+	      (unsigned int)bc_op(*J->pc),
+	      (unsigned int)ev, (unsigned int)lnk,
+	      (unsigned int)iterator_restart_loop,
+	      (unsigned int)payload_desc_loop,
+	      (unsigned int)s390x_link_loop_desc,
+	      (unsigned int)s390x_loopdesc_self_owner_stop,
+	      decision);
+    }
     J->instunroll = 0;  /* Cannot continue across a compiled loop op. */
     if (s390x_loopdesc_self_owner_stop)
       lj_record_stop(J, LJ_TRLINK_ROOT, lnk);  /* Reuse existing loop-desc owner. */
@@ -3517,12 +3558,31 @@ void lj_record_ins(jit_State *J)
       J->loopref = J->cur.nins;
     break;
   case BC_JFORI:
+    {
+      LoopEvent ev;
     lj_assertJ(bc_op(pc[(ptrdiff_t)rc-BCBIAS_J]) == BC_JFORL,
 	       "JFORI does not point to JFORL");
-    if (rec_for(J, pc, 0) != LOOPEV_LEAVE)  /* Link to existing loop. */
-      lj_record_stop(J, LJ_TRLINK_ROOT, bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
+      ev = rec_for(J, pc, 0);
+      if (lj_record_s390x_side_focus_enabled() &&
+	  J->parent != 0 && J->exitno == 0 &&
+	  J->cur.root == 1 &&
+	  bc_op(J->cur.startins) == BC_JMP) {
+	fprintf(stderr,
+		"S390X_SIDE_FOCUS site=bc_jfori trace=%u parent=%u exit=%u root=%u startpc=%p pc=%p samepc=%u startop=%u op=%u ev=%u target=%u\n",
+		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		(unsigned int)J->exitno, (unsigned int)J->cur.root,
+		(const void *)J->startpc, (const void *)J->pc,
+		(unsigned int)(J->pc == J->startpc),
+		(unsigned int)bc_op(J->cur.startins),
+		(unsigned int)bc_op(*pc),
+		(unsigned int)ev,
+		(unsigned int)bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
+      }
+      if (ev != LOOPEV_LEAVE)  /* Link to existing loop. */
+	lj_record_stop(J, LJ_TRLINK_ROOT, bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
     /* Continue tracing if the loop is not entered. */
     break;
+    }
 
   case BC_FORL:
     rec_loop_interp(J, pc, rec_for(J, pc+((ptrdiff_t)rc-BCBIAS_J), 1));

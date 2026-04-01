@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 18:44:04 PDT
+Last updated: 2026-03-31 18:56:55 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -352,11 +352,26 @@ Dispatch-side hot-side classifiers are now split:
 - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1` is not safe from the current seam:
   - the focused `numeric_loop` probe timed out after `20s` with no result
 
+A focused `traceinfo` snapshot on the same clean `kdz` seam corrects one part of
+the earlier read:
+
+- the dispatch descendants do not fail to become loop owners
+- on the focused `numeric_loop` probe:
+  - `trace 1`: `link=1`, `linktype=loop`, `nins=18`, `nexit=4`
+  - `trace 2`: `link=1`, `linktype=root`, `nins=4`, `nexit=3`
+  - `trace 3` through `trace 12`: each is `link=self`, `linktype=loop`,
+    `nins=18`, `nexit=4`
+  - `trace 13`: `link=0`, `linktype=stitch`, `nins=11`, `nexit=2`
+- so the current extra-loop narrow path is firing and does produce self-loop
+  loop traces
+- the real remaining dispatch red is that execution keeps spawning a chain of
+  equivalent self-loop loop traces instead of settling on one reusable owner
+
 The next exact target from here is therefore:
 
-- explain why the current extra-loop narrow path still leaves
-  `parent=1 exit=0` and its descendants as the same `BC_JMP` body-entry
-  `exit 0` ladder
+- explain why default hot-side policy keeps cloning equivalent self-loop
+  `exit 0` loop traces on the same `FORL` / `JFORI` seam instead of reusing or
+  adopting an earlier equivalent loop owner
 
 ## What Has Not Been Proven Yet
 
