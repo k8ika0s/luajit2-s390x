@@ -9599,3 +9599,42 @@ Next hash target
   - next exact target:
     - decide whether to open one explicit backend-wide 32-bit lowering design
       family, or close `bitops_mix` and redirect again
+
+- Timestamp: `2026-04-01 06:17:48 PDT`
+- Backend-wide 32-bit integer-result lowering is now a measured reject on
+  clean `kdz`
+  - native semantics probes closed the easy path first:
+    - `AR`, `SR`, `NR`, `OR`, `XR`, `AHI`, `MSR`, and `LR` all preserve stale
+      upper 32 bits in 64-bit mode
+    - so a valid int32 lowering still needs explicit normalization under the
+      current backend contract
+  - first code pass:
+    - add the missing 32-bit register arithmetic/logical forms to the emitter
+    - lower through three-register arithmetic/logical forms plus the existing
+      `asm_bnorm32()` / `LGFR` contract
+    - authoritative clean-host artifact:
+      - [20260401-kdz-bitops_mix-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-truth-pack)
+    - perf result:
+      - `mix_bits/hot` regressed from frozen `0.007645` to `0.008957`
+  - second code pass:
+    - drop the three-register forms
+    - keep the explicit normalize contract
+    - use two-register `AR` / `SR` / `NR` / `OR` / `XR`
+    - use `AHI`
+    - use direct `CC_OF` guards for int32 `addov` / `subov`
+    - use `LR` only where low-32 setup before a later normalize was enough
+    - best clean `kdz` rerun:
+      - `mix_bits/small 0.000261`
+      - `mix_bits/medium 0.001637`
+      - `mix_bits/hot 0.007879`
+    - that is materially better than the first pass, but still slower than the
+      frozen `0.007645`
+  - follow-up shift setup variants also failed:
+    - removing the pre-shift setup move pushed `mix_bits/hot` to `0.008114`
+    - using `LR` for that setup pushed `mix_bits/hot` to `0.008079`
+  - result:
+    - source reverted to the frozen baseline after the clean-host checks
+    - the backend-wide 32-bit opcode-swap family is closed on the current
+      normalize-every-result mechanism
+    - if this backend line reopens, the next honest family is a deeper
+      normalized-result / int32-home design, not more local opcode swaps
