@@ -330,11 +330,16 @@ Focused backend audit on that family:
       `asm_sub()` uses the same pattern
     - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1710)
       `asm_mul()` does too
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h#L97)
+      exposes only the 64-bit register forms currently used by these paths:
+      `AGR`, `SGR`, `NGR`, `OGR`, `XGR`, `MSGFR`
+    - there are no active 32-bit register `AR` / `SR` / `NR` / `OR` / `XR`
+      forms to retarget to from the current emitter surface
   - if this family stays open, the next exact target is not another bitops-only
     skip gate
   - it is whether the backend has a broader valid 32-bit integer-result
-    lowering surface at all; without that, this `bitops_mix` line is close to
-    closure as a local family
+    lowering surface that would need to be added at all; without that, this
+    `bitops_mix` line is close to closure as a local family
 
 ## Authoritative Validation Surfaces
 

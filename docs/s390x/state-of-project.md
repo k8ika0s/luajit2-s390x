@@ -311,11 +311,16 @@ non-causal probe effects. The current state is cleaner:
         `asm_sub()` does too
       - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1710)
         `asm_mul()` also brackets the op with `LGFR`
+      - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h#L97)
+        currently defines only the 64-bit register forms used here:
+        `AGR`, `SGR`, `NGR`, `OGR`, `XGR`, `MSGFR`
+      - there are no existing 32-bit register `AR` / `SR` / `NR` / `OR` / `XR`
+        forms wired into the active emitter path
     - if this family stays open, the next honest target is no longer a
       bitops-only tweak
     - it is whether the s390x backend has a broader 32-bit integer-result
-      lowering surface at all, or whether the current `64-bit op + LGFR`
-      contract is fundamental on this backend
+      lowering surface that would have to be added, or whether the current
+      `64-bit op + LGFR` contract is fundamental on this backend
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
