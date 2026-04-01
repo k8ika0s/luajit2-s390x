@@ -731,6 +731,223 @@ end
 print("CHAIN_TAIL_STORE", run(20))
 """
 
+INT_ADD_PHI_ONLY_BENCH = """\
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local scale_order = { "small", "medium", "hot" }
+local scales = {
+  small = 1,
+  medium = 5,
+  hot = 20,
+}
+
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = total + i + 3
+    end
+  end
+  return total
+end
+
+local cases = {}
+for _, scale in ipairs(scale_order) do
+  local chunks = scales[scale]
+  local expected = run(chunks)
+  cases[#cases + 1] = {
+    workload = "add_phi_only",
+    scale = scale,
+    iterations = chunks,
+    run = run,
+    validate = function(result)
+      bench.eq(result, expected, "add_phi_only/" .. scale)
+    end,
+  }
+end
+
+bench.run_suite({ family = "int_add_phi_only", cases = cases })
+"""
+
+INT_ADD_PHI_ONLY_TRACE_SCRIPT = """\
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local function emit_hist(label, buckets)
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print(label, table.concat(parts, ","))
+end
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = total + i + 3
+    end
+  end
+  return total
+end
+run(1); run(1); run(1)
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
+print("RESULT", run(20))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
+"""
+
+INT_ADD_PHI_ONLY_CHECK_SCRIPT = """\
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = total + i + 3
+    end
+  end
+  return total
+end
+print("ADD_PHI_ONLY", run(20))
+"""
+
+LOGIC_ADD_PHI_NOBOUNDARY_BENCH = """\
+local bit = require("bit")
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local scale_order = { "small", "medium", "hot" }
+local scales = {
+  small = 1,
+  medium = 5,
+  hot = 20,
+}
+
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return bit.band(x, 0x3ff)
+end
+
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = total + chain(i)
+    end
+  end
+  return total
+end
+
+local cases = {}
+for _, scale in ipairs(scale_order) do
+  local chunks = scales[scale]
+  local expected = run(chunks)
+  cases[#cases + 1] = {
+    workload = "logic_add_phi_noboundary",
+    scale = scale,
+    iterations = chunks,
+    run = run,
+    validate = function(result)
+      bench.eq(result, expected, "logic_add_phi_noboundary/" .. scale)
+    end,
+  }
+end
+
+bench.run_suite({ family = "logic_add_phi_noboundary", cases = cases })
+"""
+
+LOGIC_ADD_PHI_NOBOUNDARY_TRACE_SCRIPT = """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local function emit_hist(label, buckets)
+  local keys = {}
+  for key in pairs(buckets) do keys[#keys + 1] = key end
+  table.sort(keys)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    parts[#parts + 1] = key .. "=" .. buckets[key]
+  end
+  print(label, table.concat(parts, ","))
+end
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return bit.band(x, 0x3ff)
+end
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = total + chain(i)
+    end
+  end
+  return total
+end
+run(1); run(1); run(1)
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
+print("RESULT", run(20))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
+"""
+
+LOGIC_ADD_PHI_NOBOUNDARY_CHECK_SCRIPT = """\
+local bit = require("bit")
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return bit.band(x, 0x3ff)
+end
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = total + chain(i)
+    end
+  end
+  return total
+end
+print("LOGIC_ADD_PHI_NOBOUNDARY", run(20))
+"""
+
 FAMILY_CONFIGS = {
     "vararg_paths": {
         "bench_file": "tests/s390x/perf/vararg_paths.lua",
@@ -808,6 +1025,45 @@ FAMILY_CONFIGS = {
         "hot_cases": ("chain_tail_store/hot",),
         "work_items": {
             "chain_tail_store": 4000,
+        },
+    },
+    "int_add_phi_only": {
+        "bench_file": "tests/s390x/perf/int_add_phi_only.lua",
+        "focus_label": "integer add/phi throughput",
+        "selection_reason": (
+            "fallback control family for plain integer result carry through "
+            "ADD and PHI without bitops in the hot body"
+        ),
+        "focused_bench_script": INT_ADD_PHI_ONLY_BENCH,
+        "check_scripts": {
+            "add_phi_only": INT_ADD_PHI_ONLY_CHECK_SCRIPT,
+        },
+        "trace_scripts": {
+            "add_phi_only": INT_ADD_PHI_ONLY_TRACE_SCRIPT,
+        },
+        "hot_cases": ("add_phi_only/hot",),
+        "work_items": {
+            "add_phi_only": 4000,
+        },
+    },
+    "logic_add_phi_noboundary": {
+        "bench_file": "tests/s390x/perf/logic_add_phi_noboundary.lua",
+        "focus_label": "logic-to-add/phi throughput",
+        "selection_reason": (
+            "fallback family for a bounded logical chain whose first non-bitop "
+            "consumer is carried ADD and PHI, without store or value-compare "
+            "tails in the hot body"
+        ),
+        "focused_bench_script": LOGIC_ADD_PHI_NOBOUNDARY_BENCH,
+        "check_scripts": {
+            "logic_add_phi_noboundary": LOGIC_ADD_PHI_NOBOUNDARY_CHECK_SCRIPT,
+        },
+        "trace_scripts": {
+            "logic_add_phi_noboundary": LOGIC_ADD_PHI_NOBOUNDARY_TRACE_SCRIPT,
+        },
+        "hot_cases": ("logic_add_phi_noboundary/hot",),
+        "work_items": {
+            "logic_add_phi_noboundary": 4000,
         },
     },
 }
