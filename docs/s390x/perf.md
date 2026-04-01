@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 12:36:01 PDT
+Last updated: 2026-04-01 13:21:11 PDT
 
 ## Scope
 
@@ -43,90 +43,58 @@ That broader-throughput queue is now explicit:
 
 Current clean-`kdz` broader-throughput frontier:
 
-- `vararg_paths` is now parked, not live
-  - `sum_loop` remains very red, but the current front-most split is now
-    classified as the normal caller-root stop into an already-compiled nested
-    callee loop
-  - no narrower seam has been named before nested `BC_JFORI` entry, so this
-    family should not reopen in the current cycle
-- `bitops_mix` remains the only honest live family
-  - it is compiled-body dominated
-  - it is not an exit or helper-boundary problem
-  - plain opcode swaps, plain `LGFR`-skip gates, and the first low32-home
-    logical-subchain variant are all already rejected
-- the reduced seam isolators preserve the same backend boundary:
+- `vararg_paths` stays parked, not live
+  - `sum_loop` remains classified as the normal caller-root stop into an
+    already-compiled nested callee loop
+  - no narrower recorder seam has been named before nested `BC_JFORI` entry
+- broader-throughput observability is now corrected:
+  - [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+    now parses `REMOTE_RC=...` correctly
+  - [tests/s390x/helpers/testlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/helpers/testlib.lua)
+    now exposes lightweight trace/texit counters so reduced trace validation
+    does not wedge on hist bookkeeping
+- corrected clean-`kdz` frontier:
+  - [20260401-kdz-bitops_mix-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-truth-pack)
+    - `mix_bits/hot`: JIT-on `0.008267`, `-joff` `0.002084`, ratio `3.97x`
+    - `REMOTE_RC 0`, `TRACE_START 41`, `TRACE_STOP 41`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 7981`
+    - classification: `exit-dominated`
   - [20260401-kdz-logical_chain_tail_add-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-truth-pack)
-    - `chain_tail_add/hot`: JIT-on `0.008265`, `-joff` `0.002127`, ratio
+    - `chain_tail_add/hot`: JIT-on `0.008269`, `-joff` `0.002123`, ratio
       `3.89x`
-    - `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
-    - `asm_bnorm32()` first non-bitop consumers:
-      - `ADD`: `70`
-      - `OP_-1`: `921`
+    - `REMOTE_RC 0`, `TRACE_START 41`, `TRACE_STOP 41`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 7981`
+    - classification: `exit-dominated`
   - [20260401-kdz-logical_chain_tail_store-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_store-truth-pack)
-    - `chain_tail_store/hot`: JIT-on `0.006822`, `-joff` `0.002020`, ratio
-      `3.38x`
-    - `TRACE_START 0`, `TRACE_STOP 0`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
-    - `asm_bnorm32()` first non-bitop consumers:
-      - `ASTORE`: `70`
-      - `OP_-1`: `924`
-- current queue decision:
-  - the backend seam is no longer “`ADD` only”
-  - the next honest target is the checked-in backend-wide low32-home /
-    normalized-result contract note:
+    - `chain_tail_store/hot`: JIT-on `0.006676`, `-joff` `0.002319`, ratio
+      `2.88x`
+    - `REMOTE_RC 0`, `TRACE_START 42`, `TRACE_STOP 42`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 7983`
+    - classification: `exit-dominated`
+  - [20260401-kdz-int_add_phi_only-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-int_add_phi_only-truth-pack)
+    - `add_phi_only/hot`: JIT-on `0.000672`, `-joff` `0.000020`, ratio
+      `33.60x`
+    - `REMOTE_RC 0`, `TRACE_START 20`, `TRACE_STOP 20`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 4001`
+    - classification: `exit-dominated`
+  - [20260401-kdz-logic_add_phi_noboundary-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logic_add_phi_noboundary-truth-pack)
+    - `logic_add_phi_noboundary/hot`: JIT-on `0.003527`, `-joff` `0.002153`,
+      ratio `1.64x`
+    - `REMOTE_RC 0`, `TRACE_START 23`, `TRACE_STOP 21`, `TRACE_ABORT 2`,
+      `TEXIT_COUNT 4001`
+    - classification: `exit-dominated`
+- queue correction:
+  - `bitops_mix` is no longer an honest compiled-body / low32-home frontier on
+    the current evidence
+  - the low32-home / normalized-result contract note is parked design context,
+    not the active main-line queue:
     [docs/s390x/low32-home-contract.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/low32-home-contract.md)
-  - required semantic split:
-    - `W32_HOME` across bitop logic/unary/shift/rotate, plain non-guard `ADD`,
-      and compatible loop `PHI`
-    - `W64_NORM` before guard/compare, helper/call, store, and
-      snapshot-visible boundaries
-  - emitter / ABI feasibility read:
-    - current emitter surface already wired and usable:
-      - `LGR`, `LGFR`, `LLGFR`
-      - `AGR`, `SGR`, `NGR`, `OGR`, `XGR`
-      - `CGR`, `CLGR`, `CGHI`
-      - `SLLK`, `SRLK`, `SRAK`, `SLLG`, `SRLG`, `SRAG`, `RLL`, `LRVR`
-      - `LLGF`, `STY`, `STG`
-    - current emitter does not wire a 32-bit RR logical/arithmetic/compare
-      family for this contract
-    - word/high-word forms are not honest blind swaps under normalize-every-
-      result semantics
-    - helper ABI strategy is secondary here because this family is
-      compiled-body dominated
-  - validator contract before any more code:
-    - compile-only proof must finish and hit only the named seam
-    - reduced trace probes for `logical_chain_tail_add`,
-      `logical_chain_tail_store`, and `bitops_mix` must finish with
-      `REMOTE_RC=0`
-    - the family must remain compiled-body dominated with `TEXIT_COUNT=0`
-    - `REMOTE_RC=124` is automatic reject
-  - if that invariant cannot be stated precisely enough or cannot stay finite,
-    close `bitops_mix` and move to:
-    - `int_add_phi_only`
-    - `logic_add_phi_noboundary`
-    - `int_add_phi_store_epilogue` only if the first two disagree
-  - prototype implication:
-    - if this backend family stays open, the first honest code branch is a
-      stateful `W32_HOME` carry experiment over the current 64-bit emitter
-      surface
-    - not another opcode-swap family
-    - not another compare-consumer branch
-  - first stateful `W32_HOME` source prototype is now a clean `kdz` reject:
-    - artifact:
-      [20260401-kdz-low32home-stateful-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-stateful-check)
-    - compile-only proofs all returned `REMOTE_RC=0`
-    - reduced trace probes all returned `REMOTE_RC=124`:
-      - `logical_chain_tail_add`
-      - `logical_chain_tail_store`
-      - `bitops_mix`
-    - source returned to the non-behavior baseline after the host check
-  - queue correction:
-    - this exact stateful `W32_HOME` carry prototype is closed
-    - if the backend family stays open, the next honest target is a deeper
-      result-state design that keeps reduced trace formation finite
-    - otherwise close `bitops_mix` too and move to:
-      - `int_add_phi_only`
-      - `logic_add_phi_noboundary`
-      - `int_add_phi_store_epilogue` only if the first two disagree
+  - the live target is now a generic throughput loop-clone / exit family:
+    - `int_add_phi_only` as the smallest reproducer
+    - `logical_chain_tail_add` as the value-tail sibling
+    - `bitops_mix` as the larger mixed logic/add reproducer
+  - do not reopen low32-home prototype work until a finite compiled-body family
+    exists again under the corrected validator
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)

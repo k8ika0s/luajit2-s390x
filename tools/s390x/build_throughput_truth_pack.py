@@ -203,8 +203,8 @@ local function run(n)
   return result
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(16000))
 trace_cap.stop()
 texit_cap.stop()
@@ -212,8 +212,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
     "retlast_loop": """\
 local bit = require("bit")
@@ -243,8 +241,8 @@ local function run(n)
   return result
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(16000))
 trace_cap.stop()
 texit_cap.stop()
@@ -252,8 +250,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
     "retconst_loop": """\
 local bit = require("bit")
@@ -283,8 +279,8 @@ local function run(n)
   return result
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(16000))
 trace_cap.stop()
 texit_cap.stop()
@@ -292,8 +288,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
 }
 
@@ -452,8 +446,8 @@ local function run(chunks)
   return total
 end
 run(1); run(1); run(1)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(20))
 trace_cap.stop()
 texit_cap.stop()
@@ -461,8 +455,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
 }
 
@@ -553,8 +545,8 @@ local function run(chunks)
   return total
 end
 run(1); run(1); run(1)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(20))
 trace_cap.stop()
 texit_cap.stop()
@@ -562,8 +554,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """
 
 LOGICAL_CHAIN_TAIL_ADD_CHECK_SCRIPT = """\
@@ -688,8 +678,8 @@ local function run(chunks)
   return bit.tobit(total + sink[1])
 end
 run(1); run(1); run(1)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(20))
 trace_cap.stop()
 texit_cap.stop()
@@ -697,8 +687,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """
 
 LOGICAL_CHAIN_TAIL_STORE_CHECK_SCRIPT = """\
@@ -795,8 +783,8 @@ local function run(chunks)
   return total
 end
 run(1); run(1); run(1)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(20))
 trace_cap.stop()
 texit_cap.stop()
@@ -804,8 +792,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """
 
 INT_ADD_PHI_ONLY_CHECK_SCRIPT = """\
@@ -910,8 +896,8 @@ local function run(chunks)
   return total
 end
 run(1); run(1); run(1)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
 print("RESULT", run(20))
 trace_cap.stop()
 texit_cap.stop()
@@ -919,8 +905,6 @@ print("TRACE_START", trace_cap.start)
 print("TRACE_STOP", trace_cap.stop_count)
 print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
 """
 
 LOGIC_ADD_PHI_NOBOUNDARY_CHECK_SCRIPT = """\
@@ -1083,6 +1067,17 @@ def parse_key_value_lines(text: str) -> dict[str, int | str]:
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line:
+            continue
+        if "=" in line and " " not in line:
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key:
+                continue
+            if re.fullmatch(r"-?\d+", value):
+                result[key] = int(value)
+            else:
+                result[key] = value
             continue
         parts = line.split(None, 1)
         if len(parts) != 2:

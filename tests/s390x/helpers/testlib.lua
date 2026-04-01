@@ -97,6 +97,29 @@ function M.trace_counter_capture()
   end)
 end
 
+function M.trace_counter_capture_lite()
+  return make_count_capture("trace", function()
+    local cap = {
+      total = 0,
+      start = 0,
+      stop_count = 0,
+      abort = 0,
+    }
+    function cap:record(kind)
+      self.total = self.total + 1
+      local kind_str = tostring(kind)
+      if kind_str == "start" then
+        self.start = self.start + 1
+      elseif kind_str == "stop" then
+        self.stop_count = self.stop_count + 1
+      elseif kind_str == "abort" then
+        self.abort = self.abort + 1
+      end
+    end
+    return cap
+  end)
+end
+
 function M.texit_counter_capture()
   return make_count_capture("texit", function()
     local cap = {
@@ -111,6 +134,18 @@ function M.texit_counter_capture()
         local key = tr .. ":" .. ex
         self.hist[key] = (self.hist[key] or 0) + 1
       end
+    end
+    return cap
+  end)
+end
+
+function M.texit_counter_capture_lite()
+  return make_count_capture("texit", function()
+    local cap = {
+      total = 0,
+    }
+    function cap:record()
+      self.total = self.total + 1
     end
     return cap
   end)

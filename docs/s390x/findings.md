@@ -10226,3 +10226,49 @@ Next hash target
       first stateful carry experiment:
       it needs a backend-wide result-state design that still keeps reduced
       trace formation finite
+
+- Timestamp: `2026-04-01 13:15:00 PDT`
+- Throughput helper timeout parsing and validator path are corrected; the
+  broader-throughput queue is no longer a compiled-body read
+  - helper fixes:
+    - [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+      now parses `REMOTE_RC=...`
+    - [tests/s390x/helpers/testlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/helpers/testlib.lua)
+      now provides lightweight trace/texit counters with no growing hist maps
+  - corrected clean `kdz` restamps:
+    - `bitops_mix`:
+      - `mix_bits/hot`: JIT-on `0.008267`, `-joff` `0.002084`
+      - `REMOTE_RC 0`, `TRACE_START 41`, `TRACE_STOP 41`, `TRACE_ABORT 0`,
+        `TEXIT_COUNT 7981`
+      - classification: `exit-dominated`
+    - `logical_chain_tail_add`:
+      - `chain_tail_add/hot`: JIT-on `0.008269`, `-joff` `0.002123`
+      - `REMOTE_RC 0`, `TRACE_START 41`, `TRACE_STOP 41`, `TRACE_ABORT 0`,
+        `TEXIT_COUNT 7981`
+      - classification: `exit-dominated`
+    - `logical_chain_tail_store`:
+      - `chain_tail_store/hot`: JIT-on `0.006676`, `-joff` `0.002319`
+      - `REMOTE_RC 0`, `TRACE_START 42`, `TRACE_STOP 42`, `TRACE_ABORT 0`,
+        `TEXIT_COUNT 7983`
+      - classification: `exit-dominated`
+    - `int_add_phi_only`:
+      - `add_phi_only/hot`: JIT-on `0.000672`, `-joff` `0.000020`
+      - `REMOTE_RC 0`, `TRACE_START 20`, `TRACE_STOP 20`, `TRACE_ABORT 0`,
+        `TEXIT_COUNT 4001`
+      - classification: `exit-dominated`
+    - `logic_add_phi_noboundary`:
+      - `logic_add_phi_noboundary/hot`: JIT-on `0.003527`, `-joff`
+        `0.002153`
+      - `REMOTE_RC 0`, `TRACE_START 23`, `TRACE_STOP 21`, `TRACE_ABORT 2`,
+        `TEXIT_COUNT 4001`
+      - classification: `exit-dominated`
+  - manual bare `-jv` clean-host probes for `int_add_phi_only` and
+    `logic_add_phi_noboundary` both terminate with `REMOTE_RC=0` and show the
+    same self-loop clone ladder after the first root/side formation
+  - queue correction:
+    - the earlier low32-home / normalized-result line was based on a false
+      compiled-body read from the old validator path
+    - do not reopen backend low32-home work on the current mechanism
+    - the next honest target is generic throughput loop-clone / exit behavior,
+      starting with `int_add_phi_only` as the smallest reproducer and
+      `logical_chain_tail_add` / `bitops_mix` as the aligned siblings
