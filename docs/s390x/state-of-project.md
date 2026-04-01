@@ -227,6 +227,47 @@ non-causal probe effects. The current state is cleaner:
       generic low32-home contract and no longer store-tail
     - it is low32-home consumption at the compare/guard boundary on the
       add-tail family
+- reduced clean `kdz` compare-boundary check now names the active consumer
+  exactly:
+  - artifact:
+    [20260401-kdz-low32cmp-add-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32cmp-add-check/summary.md)
+  - reduced add-tail probe result:
+    - `BUILD_RC=0`
+    - `RUN_RC=0`
+    - `RESULT 1746150614`
+  - compare summary:
+    - total low32-home compare consumers: `19`
+    - `intcomp`: `14`
+    - `equal`: `5`
+    - compare ops:
+      - `LE`: `14`
+      - `NE`: `5`
+    - source shape:
+      - left source is always `ADD`: `19`
+      - right source is always constant: `19`
+      - unsigned compare path is never used: `cmp32u=0` for all `19`
+      - signed immediate compare path covers the hot majority:
+        - `imm16_signed=1`: `14`
+        - `imm16_signed=0`: `5`
+  - source read:
+    - this matches the current lowering in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h):
+      - `asm_intcomp()` uses `CGHI` on the signed-immediate path
+      - `asm_equal()` uses `CGR` for the remaining equality guard path
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h)
+      currently exposes only the 64-bit compare forms used here:
+      `CGR`, `CLGR`, `CGHI`
+    - there is no existing 32-bit compare-consumer surface already wired into
+      this backend
+  - queue consequence:
+    - the live `bitops_mix` boundary is no longer “generic compare/guard”
+    - it is specifically the carried-`ADD` into signed immediate `LE` loop
+      compare boundary, with constant `NE` equality as the secondary consumer
+    - the next honest backend target is compare/guard consumption at that
+      exact boundary, not another store-tail or broad skip variant
+    - if this family stays open, the next code branch is a real compare
+      consumer design with emitter support, not another local normalization
+      skip
 - the first native `kdz` pass on that new queue is now enough to name the next
   live family:
   - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
