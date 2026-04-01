@@ -323,9 +323,18 @@ Focused backend audit on that family:
   - the current backend is not just “doing some extra normalization”
   - it is explicitly materializing a `64-bit logical op + post-op sign-extend`
     pattern throughout the chain
-  - if this family stays open, the next exact target is not another skip gate
-  - it is whether the backend has a valid 32-bit logical lowering surface at
-    all; without that, this line is close to closure
+  - clean source review now shows that this contract is broader than bitops:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1341)
+      `asm_add()` uses `asm_bnorm32()` or `LGFR` around integer result ops
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1635)
+      `asm_sub()` uses the same pattern
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1710)
+      `asm_mul()` does too
+  - if this family stays open, the next exact target is not another bitops-only
+    skip gate
+  - it is whether the backend has a broader valid 32-bit integer-result
+    lowering surface at all; without that, this `bitops_mix` line is close to
+    closure as a local family
 
 ## Authoritative Validation Surfaces
 

@@ -304,8 +304,18 @@ non-causal probe effects. The current state is cleaner:
   - that narrows the next backend question again:
     - the current s390x emitter is really paying `64-bit logical op + LGFR`
       across the chain
-    - if this family stays open, the next honest target is whether a real
-      32-bit logical lowering path exists at all for this backend surface
+    - but clean source review now shows that this is not a bitops-local contract:
+      - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1341)
+        `asm_add()` uses the same integer-result pattern
+      - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1635)
+        `asm_sub()` does too
+      - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1710)
+        `asm_mul()` also brackets the op with `LGFR`
+    - if this family stays open, the next honest target is no longer a
+      bitops-only tweak
+    - it is whether the s390x backend has a broader 32-bit integer-result
+      lowering surface at all, or whether the current `64-bit op + LGFR`
+      contract is fundamental on this backend
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
