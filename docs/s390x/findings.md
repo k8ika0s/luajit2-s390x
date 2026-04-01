@@ -8648,3 +8648,52 @@ Next hash target
     - close the first-side owner-selection family again on the current tree
     - do not code another override here unless a future cut is demonstrably
       different from the rejected first-side lazy-key classifiers
+
+- Timestamp: `2026-03-31 17:46:25 PDT`
+- Four-track frozen-baseline iterator restamp:
+  - scope:
+    - Track 1 exact `trace 1 exit 1` seam attribution
+    - Track 2 `rec_loop_jit_root` stop-target autopsy
+    - Track 3 exit-cost vs compiled-body-cost attribution
+    - Track 4 ABI-aware preserved-GPR opportunity audit
+  - authoritative `kdz` bundle:
+    - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-frozen-baseline-v3/summary.md)
+  - `kdz` frozen-baseline medians:
+    - `pairs_sum/hot 0.062519`
+    - `pairs_array_sum/hot 0.066353`
+  - focused same-harness `-joff` gaps:
+    - `hash_value 0.061603` vs `0.005682` (`10.84x`)
+    - `hash_key 0.045652` vs `0.003942` (`11.58x`)
+    - `array_value 0.064249` vs `0.004124` (`15.58x`)
+  - Track 1 result:
+    - both hash and array still attribute `trace 1 exit 1` to the first
+      loop/leave decision after the helper result exists
+    - hash stays on the same closed payload-vs-nil / unloaded-visible-key
+      family
+  - Track 2 result:
+    - `rec_loop_jit_root` is still downstream
+    - the `startop=79` root candidate is not the real hash-vs-array split
+    - the first materially different candidate is still the first-side
+      `startop=88` path that was already closed
+  - Track 3 result:
+    - `perf stat` is still unavailable on `kdz`:
+      - `cycles`, `instructions`, `branches`, `branch-misses`
+        all report `<not supported>`
+    - runtime fallback now carries the exit/body attribution:
+      - `hash_value`: steady exit `1:1`, `64.17ns/texit`
+      - `hash_key`: steady exit `1:1`, `71.33ns/texit`
+      - `array_value`: steady exit `5:1`, `66.93ns/texit`
+    - all three focused loops classify as `exit-dominated`
+  - Track 4 result:
+    - no proven preserved-GPR opportunity on the current tree
+    - the surviving loop-carried/control loads are not currently shown to
+      exist only because s390x reg-home/liveness drops a value across
+      `lj_vm_next(tab, keyindex)`
+  - `zkd0` regression screen:
+    - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-zkd0-post-tracks-screen/summary.md)
+    - `pairs_sum/hot 0.119175` (`+26.94%` vs frozen)
+    - `pairs_array_sum/hot 0.120802` (`+37.36%` vs frozen)
+  - decision:
+    - no new iterator seam was proven outside the reject pile
+    - freeze iterator at the current Lane A + Lane B checkpoint
+    - move the next queued perf workstream to dispatch/side-exit

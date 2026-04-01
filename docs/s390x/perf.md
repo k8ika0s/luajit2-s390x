@@ -283,6 +283,42 @@ Corrected finite owner-selection rerun on `kdz`:
   - any future cut must be genuinely different from those rejected
     first-side lazy-key classifiers
 
+Four-track frozen-baseline restamp on `kdz` and `zkd0` now closes the current
+iterator reopening window:
+
+- authoritative `kdz` truth pack:
+  - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-frozen-baseline-v3/summary.md)
+  - `pairs_sum/hot median=0.062519`
+  - `pairs_array_sum/hot median=0.066353`
+  - focused same-harness `-joff` gaps:
+    - `hash_value` `10.84x`
+    - `hash_key` `11.58x`
+    - `array_value` `15.58x`
+  - `perf stat` is still unsupported, so the active exit/body attribution uses
+    the runtime fallback section in the truth pack
+  - all three focused loops still classify as `exit-dominated`
+- exact seam read from that restamp:
+  - `hash_value` and `hash_key` still classify as the same closed first-side
+    lazy-key family
+  - `array_value` still reaches the payload/root-linked side path, but not a
+    new iterator family worth opening
+  - `rec_loop_jit_root` remains a downstream symptom, not a new stop-target
+    seam
+- ABI-aware preserved-GPR audit is also negative on the current tree
+  - no proven loop-carried value is being dropped only because current s390x
+    register-home/liveness fails to keep it in a preserved GPR across
+    `lj_vm_next`
+- `zkd0` regression screen:
+  - [summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps/20260331-zkd0-post-tracks-screen/summary.md)
+  - `pairs_sum/hot median=0.119175` (`+26.94%` vs frozen)
+  - `pairs_array_sum/hot median=0.120802` (`+37.36%` vs frozen)
+
+Queueing decision:
+
+- no new iterator seam is open from the current mechanism
+- iterator stays frozen at the current Lane A + Lane B checkpoint
+- next queued perf workstream moves to dispatch/side-exit
+
 ## What Is Rejected
 
 These are not active perf candidates anymore:
