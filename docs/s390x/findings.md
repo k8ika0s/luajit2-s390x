@@ -10335,7 +10335,45 @@ Next hash target
       - `bitops_mix`: `0.009459 -> 0.004000`
   - queue correction:
     - the live question is no longer “can hotside share reduce exits?”
-    - it is “why does `CANON_EQUIV + SHARE_EQUIV` win by collapsing trace
-      population even while aggregate exits stay flat or slightly higher?”
+    - it is “what exact loop-clone mechanism lets `CANON_EQUIV + SHARE_EQUIV`
+      win while aggregate exits stay flat?”
     - the next honest target is the stable tiny-trace-set shape under that
       combined policy, not `SHARE_EQUIV` alone and not backend low32-home work
+
+- Timestamp: `2026-04-01 13:56:32 PDT`
+- The generic throughput exit flurry is now mechanically narrowed on the
+  smallest reproducer
+  - mechanism artifact:
+    [20260401-kdz-hotside-canon-share-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-mechanism/summary.md)
+  - `SHARE_EQUIV` alone already proved the bad late seam:
+    - `phase=equiv parent=24 exit=0 cand=6 child=7`
+    - `phase=share-done parent=24 exit=0 cand=5 ... target=199`
+    - immediately followed by `phase=start parent=24 exit=0 ... snapcount=200`
+  - the combined canon/share pair behaves differently in the warmed measured
+    run:
+    - `FOCUS_PARENT=24` is silent
+      - `TRACE_START 1`
+      - `TRACE_STOP 1`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 4021`
+      - focused log lines `0`
+    - the warmed `-jv` run shows only early-seam hotside activity:
+      - `parent=24` hits `0`
+      - `parent=4` hits `202`
+      - final `phase=start parent=4 exit=0 ... snapcount=200`
+  - source-order interpretation from
+    [trace_hotside()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `try_canon()` runs before `share_equiv()`
+    - so the combined policy rewrites the current parent back to an earlier
+      equivalent trace before the hotcount/share logic acts
+  - current strongest read:
+    - the flurry is not many distinct hot exits
+    - it is one repeated `exit 0` self-loop seam whose hotcount used to walk
+      up an equivalent-parent clone ladder
+    - `CANON_EQUIV + SHARE_EQUIV` wins by stopping that migration, not by
+      lowering the raw number of exits
+  - next queue correction:
+    - stop treating the exit flurry itself as mysterious
+    - the next honest target is to decide whether this pair should become one
+      dedicated policy/gate and then validate it beyond the current throughput
+      surfaces

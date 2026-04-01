@@ -164,14 +164,31 @@ non-causal probe effects. The current state is cleaner:
     - `bitops_mix`: baseline `0.009459`, candidate `0.004000`
     - after tracked-file resync and rebuild, the structural counts match `kdz`:
       `TRACE_START 41 -> 2`, `TEXIT_COUNT 7981 -> 8000`
+  - clean `kdz` mechanism proof:
+    - artifact:
+      [20260401-kdz-hotside-canon-share-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-mechanism/summary.md)
+    - `SHARE_EQUIV` alone still hits the late ladder seam:
+      - `parent=24 exit=0`
+      - `phase=share-done ... target=199`
+      - immediate `phase=start ... snapcount=200`
+    - the combined canon/share policy no longer reaches that late parent in
+      the warmed measured run:
+      - `FOCUS_PARENT=24` logs are silent
+      - the warmed `-jv` run shows only `parent=4` hotside counting and
+        `phase=start parent=4 ... snapcount=200`
   - current queue correction:
-    - the active question is no longer “can hotside reuse reduce exits?”
-    - it is “why does `CANON_EQUIV + SHARE_EQUIV` win by collapsing trace
-      population even while aggregate exit counts stay flat or slightly
-      higher?”
-    - the next honest target is the stable tiny-trace-set shape under that
-      combined policy, not more low32-home work and not `SHARE_EQUIV` by
-      itself
+    - the exit flurry is now mechanically narrowed:
+      - one repeated `exit 0` self-loop seam
+      - hotcount migration up an equivalent-parent clone ladder
+    - the combined canon/share policy wins because it keeps the measured run
+      on the early canonical seam instead of letting that hotcount migrate to
+      late parents
+    - aggregate exits stay flat because the loop still exits every trip
+    - trace population collapses because those exits stop creating fresh later
+      equivalent parents
+    - the next honest target is no longer “find the cause of the flurry”
+    - it is whether to promote this combined policy into one dedicated gate and
+      validate it more broadly as the current throughput fix candidate
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
