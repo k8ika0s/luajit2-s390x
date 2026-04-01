@@ -8884,3 +8884,46 @@ Next hash target
     - do not keep the gate in the tree
     - from the current seam, direct child-retarget is not safe enough to be a
       live dispatch family
+
+- Timestamp: `2026-03-31 19:45:12 PDT`
+- Dispatch/side-exit queue, earlier patch-target classifier is also rejected:
+  - exact gate:
+    - `LUAJIT_S390X_SIDEEXIT_MCLOOP`
+  - exact intended question:
+    - whether the loop-clone ladder exists because parent side exits are
+      patched to generic trace entry instead of the loop-body target
+      (`T->mcloop`)
+  - clean `kdz` structural gate:
+    - authoritative repo:
+      - `kdz:/root/luajit2-s390x/perf-clean-20260330/repo`
+    - focused surface:
+      - `numeric_loop_trace.lua`
+    - result:
+      - clean rebuild succeeded
+      - the native probe then failed immediately with:
+        - `Segmentation fault (core dumped)`
+      - no trace-count stdout was produced before the crash
+    - artifact bundle:
+      - [20260331-kdz-sideexit-mcloop-numeric](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-sideexit-mcloop-numeric)
+  - code-level autopsy:
+    - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      can force `trace_stop()` to patch side exits to
+      `J->cur.mcode + T->mcloop`
+    - [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c)
+      only defines `mcloop` as an internal loop-body entry offset
+    - [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+      only consumes `mcloop` through owner/resume-gated VM entry paths
+    - that makes `mcloop` an internal controlled entry target, not a generic
+      safe landing site for arbitrary patched side exits
+  - decision:
+    - reject `SIDEEXIT_MCLOOP` immediately
+    - do not widen to `side_exit_loop` or `hotexit_loop`
+    - close the current dispatch loop-clone mechanism:
+      - default hot-side policy already sees equivalent candidates
+      - direct late child-retarget is unsafe
+      - direct `sideexit -> mcloop` patch-target is unsafe
+      - no safe earlier patch target was exposed on this mechanism
+    - next queued redirect:
+      - dispatch-adjacent side-exit cost surfaces outside the loop-clone seam
+      - helper-boundary storage/materialization audits where the ABI may help
+      - only then broader JIT throughput families
