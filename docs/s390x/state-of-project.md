@@ -248,9 +248,48 @@ non-causal probe effects. The current state is cleaner:
       - current queue correction:
         - the dedicated gate now covers every active reduced throughput
           surface in the current queue with helper-backed evidence
-        - the next honest target is broader suite validation and promotion
-          criteria from this helper-backed single gate, not more root-cause
-          fishing and not low32-home reopening
+        - broader non-reduced validation is also now in hand:
+          - `kdz` broader-suite artifacts:
+            - [20260401-kdz-hotside-canon-share-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-broader-suite-check/summary.md)
+            - [20260401-kdz-hotside-canon-share-ffi-screen](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-ffi-screen/summary.md)
+            - [20260401-kdz-hotside-canon-share-ffi-cdata-rerun](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-ffi-cdata-rerun/summary.md)
+            - [20260401-kdz-hotside-canon-share-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-promotion-scope-check/summary.md)
+          - `zkd0` broader-suite artifacts:
+            - [20260401-zkd0-hotside-canon-share-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-broader-suite-check/summary.md)
+            - [20260401-zkd0-hotside-canon-share-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-promotion-scope-check/summary.md)
+        - broader-screen read:
+          - the earlier `ffi_cdata/mixed_width_loop` caveat washed out on the
+            same-host rerun: `0.028053 -> 0.027835` on `kdz`
+          - the dedicated gate is strongly positive on broader throughput
+            families on both hosts:
+            - `kdz`:
+              - `dispatch_trace/numeric_loop`: `0.403098 -> 0.008842`
+              - `be_helpers/number_helper_loop`: `0.760303 -> 0.007868`
+              - `ffi_calls/direct_abs`: `1.186680 -> 0.017131`
+              - `vararg_paths/sum_loop`: `1.150344 -> 0.014361`
+              - `mixed_ffi/mixed_ffi_loop`: `0.045255 -> 0.013581`
+              - `mixed_noffi/mixed_loop`: `0.081497 -> 0.026823`
+            - `zkd0`:
+              - `dispatch_trace/numeric_loop`: `0.927825 -> 0.017705`
+              - `be_helpers/number_helper_loop`: `1.863057 -> 0.009562`
+              - `vararg_paths/sum_loop`: `2.688349 -> 0.019945`
+              - `mixed_ffi/mixed_ffi_loop`: `0.105319 -> 0.022101`
+              - `mixed_noffi/mixed_loop`: `0.145128 -> 0.053974`
+          - but it is not a safe global default:
+            - `iterator_table` regresses on `kdz`
+              - `pairs_sum/hot`: `0.062803 -> 0.066317`
+              - `pairs_array_sum/hot`: `0.063466 -> 0.076668`
+            - `iterator_table` regresses on `zkd0`
+              - `pairs_sum/hot`: `0.093072 -> 0.110394`
+              - `pairs_array_sum/hot`: `0.119120 -> 0.129420`
+        - current queue correction:
+          - the dedicated gate is now a broader throughput promotion candidate
+          - it is not promotable as a global s390x default while the frozen
+            iterator family regresses on both hosts
+          - the next honest target is a selective activation boundary or
+            promotion scope for `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+          - if no selective boundary exists, keep it as an opt-in throughput
+            candidate and leave iterator frozen
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
@@ -1697,28 +1736,31 @@ Current owner map contract:
 - Lane A is proven and should be treated as stable floor work.
 - Lane B has a promotable four-piece recorder baseline.
 - Lane C is parked research.
-- the branch now has a reproducible post-cleanup JIT-on measurement path, and
-  that path says the current tip is slower than the older freeze-point
-  reference
+- the branch now has a reproducible post-cleanup JIT-on measurement path
+- the current live non-iterator throughput candidate is
+  `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+- that candidate is broadly positive on throughput families, but it regresses
+  the frozen iterator family on both `kdz` and `zkd0`
 
 ### Next 1-3 work sessions
 
 - keep the docs in sync with the measured branch-tip state
 - preserve the clean `kdz` and `zkd0` validation surfaces
-- treat the current Lane A plus Lane B freeze point as the branch shipping
-  position in source unless a genuinely new root-trace ownership idea appears
-- decide whether the post-cleanup drift is real branch cost or a measurement
-  artifact before opening another perf family
+- treat the current Lane A plus Lane B freeze point as the shipping iterator
+  position
+- define whether `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` has a real
+  selective promotion scope that excludes frozen iterator behavior
 - avoid reopening any family already closed by the reject pile
 
 ### After that
 
 There are only two realistic outcomes:
 
-- a genuinely new root-trace storage/control ownership idea appears and beats
-  the measured branch-tip baseline, or
-- no such idea appears, and the branch moves forward with the proven Lane A
-  plus Lane B stack as the current freeze point
+- a selective promotion boundary exists and the dedicated hotside gate moves
+  forward as the current throughput candidate without touching frozen iterator
+  behavior, or
+- no such boundary exists, and the branch keeps the gate as an opt-in
+  throughput candidate while iterator remains frozen at the current checkpoint
 
 ## Where To Look Next
 

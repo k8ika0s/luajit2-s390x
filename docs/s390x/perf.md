@@ -194,8 +194,25 @@ Current clean-`kdz` broader-throughput frontier:
   - queue correction:
     - the dedicated gate now covers every active reduced throughput surface in
       the current queue with helper-backed evidence
-    - the next honest target is broader suite validation and promotion
-      criteria from this helper-backed single gate
+    - broader non-reduced screens now also hold:
+      - `kdz`:
+        - [20260401-kdz-hotside-canon-share-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-broader-suite-check/summary.md)
+        - [20260401-kdz-hotside-canon-share-ffi-screen](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-ffi-screen/summary.md)
+        - [20260401-kdz-hotside-canon-share-ffi-cdata-rerun](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-ffi-cdata-rerun/summary.md)
+        - [20260401-kdz-hotside-canon-share-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-promotion-scope-check/summary.md)
+      - `zkd0`:
+        - [20260401-zkd0-hotside-canon-share-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-broader-suite-check/summary.md)
+        - [20260401-zkd0-hotside-canon-share-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-promotion-scope-check/summary.md)
+    - the remaining off-family caveat is gone:
+      - `ffi_cdata/mixed_width_loop` on `kdz` reran from
+        `0.028053 -> 0.027835`
+    - the promotion boundary is now explicit:
+      - broader throughput families win heavily on both hosts
+      - `iterator_table` regresses on both hosts
+      - so `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` is a broader throughput
+        candidate, not a safe global default
+    - the next honest target is selective promotion scope, not more broader
+      screening
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
