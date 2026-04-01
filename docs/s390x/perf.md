@@ -367,6 +367,20 @@ Focused backend audit on that family:
     - if `bitops_mix` stays open, the next real family is a deeper
       normalized-result / int32-home design, not more local opcode
       substitutions
+    - first clean `kdz` classifier for that deeper family:
+      [20260401-kdz-bitops-int32home-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-int32home-audit/summary.md)
+    - corrected `asm_bnorm32()` split:
+      - `chain-binary`: `1337` sites total, `1146` of them pure carry sites
+        consumed only by later bitops, `174` first leave the chain through
+        `ADD`
+      - `source-binary`: `189` sites, all still feed later bitops
+      - `source-shift`: `763` sites, all still feed later bitops
+      - `source-unary`: `382` sites, all still feed later bitops
+    - the only named first non-bitop consumer is op `41` (`ADD`) with `190`
+      hits
+    - so the next honest backend target is not “fewer `LGFR`s everywhere”
+    - it is a carried normalized int32/result-home across the bitop chain with
+      one explicit leave-the-chain boundary into integer arithmetic
 
 ## Authoritative Validation Surfaces
 

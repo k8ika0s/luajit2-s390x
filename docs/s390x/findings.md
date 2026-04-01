@@ -9638,3 +9638,37 @@ Next hash target
       normalize-every-result mechanism
     - if this backend line reopens, the next honest family is a deeper
       normalized-result / int32-home design, not more local opcode swaps
+
+- Timestamp: `2026-04-01 06:42:31 PDT`
+- Corrected `asm_bnorm32()` classifier names the actual `bitops_mix` backend
+  boundary on clean `kdz`
+  - source/logging surface:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      now classifies `asm_bnorm32()` sites by producer shape and full-trace
+      consumer shape
+  - clean-host artifact:
+    - [20260401-kdz-bitops-int32home-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-int32home-audit/summary.md)
+  - finite probe result:
+    - `REMOTE_RC=0`
+    - `RESULT 873075307`
+    - `TRACE_START 4`
+    - `TRACE_STOP 3`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 401`
+  - corrected site split:
+    - `chain-binary`: `1337` total
+      - `1146` sites feed only later bitops
+      - `174` sites first leave the chain through integer arithmetic
+      - `16` sites leave through integer arithmetic plus one non-arith user
+      - `1` dead-end site remains
+    - `source-binary`: `189` total, all feed later bitops
+    - `source-shift`: `763` total, all feed later bitops
+    - `source-unary`: `382` total, all feed later bitops
+  - named first non-bitop consumer:
+    - op `41` = `ADD`
+    - hit `190` times in the focused hot probe
+  - implication:
+    - the live backend seam is no longer “can we swap to 32-bit opcodes?”
+    - it is “can the backend carry a normalized int32/result-home through the
+      bitop chain and only normalize again when the chain leaves into `ADD`?”
+    - that is the next honest backend family if `bitops_mix` stays open

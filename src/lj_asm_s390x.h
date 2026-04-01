@@ -115,6 +115,19 @@ static int asm_s390x_bnorm_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_is_intarith_op(IROp op)
+{
+  switch (op) {
+  case IR_ADD: case IR_ADDOV:
+  case IR_SUB: case IR_SUBOV:
+  case IR_MUL: case IR_MULOV:
+  case IR_NEG:
+    return 1;
+  default:
+    return 0;
+  }
+}
+
 static int asm_s390x_is_bitop_op(IROp op)
 {
   switch (op) {
@@ -133,21 +146,91 @@ static int asm_s390x_is_logic_bitop_op(IROp op)
   return op == IR_BAND || op == IR_BOR || op == IR_BXOR;
 }
 
+static const char *asm_s390x_bnorm_site(IRIns *ir, IRIns *lir, IRIns *rir)
+{
+  int leftbit = asm_s390x_is_bitop_op(lir->o);
+  int rightbit = rir ? asm_s390x_is_bitop_op(rir->o) : 0;
+
+  if (asm_s390x_is_logic_bitop_op(ir->o)) {
+    if (leftbit && rightbit)
+      return "chain-binary";
+    if (leftbit || rightbit)
+      return "mixed-binary";
+    return "source-binary";
+  }
+
+  if (ir->o == IR_BNOT || ir->o == IR_BSWAP)
+    return leftbit ? "chain-unary" : "source-unary";
+
+  if (ir->o == IR_BSHL || ir->o == IR_BSHR || ir->o == IR_BSAR ||
+      ir->o == IR_BROL || ir->o == IR_BROR)
+    return leftbit ? "chain-shift" : "source-shift";
+
+  return leftbit ? "chain-other" : "source-other";
+}
+
+static void asm_s390x_bnorm_use_counts(ASMState *as, IRIns *ir,
+				       int *bitop_uses, int *intarith_uses,
+				       int *other_uses, int *guard_uses,
+				       int *first_use_op,
+				       int *first_nonbitop_use_op)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+
+  *bitop_uses = 0;
+  *intarith_uses = 0;
+  *other_uses = 0;
+  *guard_uses = 0;
+  *first_use_op = -1;
+  *first_nonbitop_use_op = -1;
+
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (*first_use_op == -1)
+      *first_use_op = (int)use->o;
+    if (asm_s390x_is_bitop_op(use->o)) {
+      (*bitop_uses)++;
+    } else {
+      if (*first_nonbitop_use_op == -1)
+	*first_nonbitop_use_op = (int)use->o;
+      if (asm_s390x_is_intarith_op(use->o) && irt_isinteger(use->t))
+	(*intarith_uses)++;
+      else
+	(*other_uses)++;
+    }
+    if (irt_isguard(use->t))
+      (*guard_uses)++;
+  }
+}
+
 static void asm_s390x_bnorm_log(ASMState *as, IRIns *ir, Reg dest)
 {
   IRIns *lir;
   IRIns *rir;
+  const char *site;
+  int bitop_uses, intarith_uses, other_uses, guard_uses;
+  int first_use_op, first_nonbitop_use_op;
+  int carry_candidate, tail_candidate;
   if (!asm_s390x_bnorm_log_enabled() || !asm_s390x_is_bitop_op(ir->o))
     return;
   lir = IR(ir->op1);
   rir = irref_isk(ir->op2) ? NULL : IR(ir->op2);
+  site = asm_s390x_bnorm_site(ir, lir, rir);
+  asm_s390x_bnorm_use_counts(as, ir, &bitop_uses, &intarith_uses, &other_uses,
+			     &guard_uses, &first_use_op,
+			     &first_nonbitop_use_op);
+  carry_candidate = bitop_uses > 0 && intarith_uses == 0 && other_uses == 0;
+  tail_candidate = bitop_uses == 0 && intarith_uses > 0 && other_uses == 0;
   fprintf(stderr,
-	  "S390X_BNORM curins=%d ir=%d op=%d type=%d dest=%d leftref=%d leftop=%d lefttype=%d leftbitop=%d leftint=%d leftu32=%d left64=%d rightref=%d rightop=%d righttype=%d rightbitop=%d rightint=%d rightu32=%d right64=%d selfint=%d selfu32=%d self64=%d\n",
+	  "S390X_BNORM curins=%d ir=%d op=%d type=%d dest=%d site=%s leftref=%d leftop=%d lefttype=%d leftbitop=%d leftint=%d leftu32=%d left64=%d rightref=%d rightop=%d righttype=%d rightbitop=%d rightint=%d rightu32=%d right64=%d selfint=%d selfu32=%d self64=%d bitop_uses=%d intarith_uses=%d other_uses=%d guard_uses=%d first_use_op=%d first_nonbitop_use_op=%d carry_candidate=%d tail_candidate=%d\n",
 	  (int)(as->curins - REF_BIAS),
 	  (int)((ir - as->ir) - REF_BIAS),
 	  (int)ir->o,
 	  (int)irt_type(ir->t),
 	  (int)dest,
+	  site,
 	  (int)(ir->op1 - REF_BIAS),
 	  (int)lir->o,
 	  (int)irt_type(lir->t),
@@ -164,7 +247,15 @@ static void asm_s390x_bnorm_log(ASMState *as, IRIns *ir, Reg dest)
 	  rir ? (int)irt_is64(rir->t) : 0,
 	  (int)irt_isinteger(ir->t),
 	  (int)irt_isu32(ir->t),
-	  (int)irt_is64(ir->t));
+	  (int)irt_is64(ir->t),
+	  bitop_uses,
+	  intarith_uses,
+	  other_uses,
+	  guard_uses,
+	  first_use_op,
+	  first_nonbitop_use_op,
+	  carry_candidate,
+	  tail_candidate);
 }
 
 static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
