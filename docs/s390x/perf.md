@@ -296,6 +296,21 @@ Focused backend audit on that family:
       across the binary bitop chain instead of reissuing `asm_bnorm32()` on
       every chain node
     - if not, this family should be closed without opening a backend patch
+- first exact skip experiment on that seam is now rejected:
+  - [20260401-kdz-bitop-chain-bnorm-skip-direct-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-chain-bnorm-skip-direct-v2)
+  - structural proof:
+    - `S390X_BNORM_SKIP` fired on the intended binary chain nodes
+  - `kdz` medians with the gate enabled:
+    - `mix_bits/small`: `0.000340`
+    - `mix_bits/medium`: `0.001965`
+    - `mix_bits/hot`: `0.008870`
+  - compared with the frozen baseline:
+    - `small` regressed from `0.000273`
+    - `hot` regressed from `0.007645`
+  - conclusion:
+    - a plain chain-node `asm_bnorm32()` delete is not promotable
+    - any next backend step must be narrower than “skip result normalization on
+      binary bitops”
 
 ## Authoritative Validation Surfaces
 
