@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 20:08:12 PDT
+Last updated: 2026-03-31 20:20:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -42,8 +42,8 @@ non-causal probe effects. The current state is cleaner:
   and closed on the current mechanism
 - the follow-up dispatch-adjacent side-exit pass did not expose a second seam;
   the branchy loops collapse back to the same closed loop-clone ladder
-- the next queued performance workstream is helper-boundary
-  storage/materialization audit work where the s390x ABI may still help
+- the next queued performance workstream is broader JIT throughput work
+  unless a new helper-boundary storage/materialization seam can be named first
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
@@ -482,6 +482,34 @@ The next queued workstream is now:
 
 1. helper-boundary storage/materialization audits where the s390x ABI may help
 2. only then broader JIT throughput families
+
+The first helper-boundary follow-up from that queue is now classified:
+
+- clean `kdz` audit surface:
+  - [20260331-kdz-href-helper-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-href-helper-audit)
+  - target script:
+    - [hotexit_update_preinterned.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/hotexit_update_preinterned.lua)
+- result:
+  - the helper-backed dynamic `HREF` hot-exit surface is structurally healthy
+    on the current tree
+  - clean `kdz` still shows the expected converged shape:
+    - `trace 1`: root loop
+    - `trace 2`: update-path root from `parent=1 exit=2`
+    - `trace 3`: update-path loop from `parent=1 exit=0`
+    - `trace 4`: final stitch
+  - the repro terminates cleanly and reports the expected final table state
+- decision:
+  - this existing helper-backed `HREF` path is not the next broken
+    helper-boundary family
+  - there is no new helper-boundary storage/materialization seam named from
+    this audit
+
+That narrows the queue again:
+
+1. if a new helper-boundary seam is proposed, it must be named first and be
+   demonstrably different from the already-closed `lj_vm_next` and dynamic
+   `HREF` surfaces
+2. otherwise the next live workstream is broader JIT throughput work
 
 ## What Has Not Been Proven Yet
 
