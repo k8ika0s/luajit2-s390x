@@ -288,9 +288,24 @@ non-causal probe effects. The current state is cleaner:
       - `mix_bits/small` also regressed from `0.000273` to `0.000340`
     - result:
       - the naive chain-node delete path is closed
-      - the live question is no longer “can we just skip those normalizations?”
-      - it is whether any stateful/int32-home variant can reduce the payer
-        without hurting the hot path
+    - the live question is no longer “can we just skip those normalizations?”
+    - it is whether any stateful/int32-home variant can reduce the payer
+      without hurting the hot path
+  - focused clean-`kdz` mcode dump now pins the hot loop body shape:
+    - artifact root:
+      - [20260401-kdz-bitops-mcode-audit-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-mcode-audit-v3)
+    - using the repo-local dump module via `LUA_PATH=./src/?.lua;;`, the hot
+      loop body shows repeated raw opcode triplets for the binary chain:
+      - `b904` (`LGR`) move into the destination
+      - `b980` / `b981` / `b982` (`NGR` / `OGR` / `XGR`)
+      - `b914` (`LGFR`) post-op renormalization
+    - `b91f` (`LRVR`) for `BSWAP` is also followed by `b914`
+    - no 32-bit logical register forms appear anywhere in the dumped hot body
+  - that narrows the next backend question again:
+    - the current s390x emitter is really paying `64-bit logical op + LGFR`
+      across the chain
+    - if this family stays open, the next honest target is whether a real
+      32-bit logical lowering path exists at all for this backend surface
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a

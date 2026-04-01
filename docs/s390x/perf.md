@@ -311,6 +311,21 @@ Focused backend audit on that family:
     - a plain chain-node `asm_bnorm32()` delete is not promotable
     - any next backend step must be narrower than “skip result normalization on
       binary bitops”
+- focused clean-`kdz` mcode dump now confirms the emitted hot-loop shape:
+  - [20260401-kdz-bitops-mcode-audit-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-mcode-audit-v3)
+  - using the repo-local dump module, the hot binary chain repeatedly emits:
+    - `LGR`
+    - `NGR` / `OGR` / `XGR`
+    - `LGFR`
+  - `BSWAP` likewise emits `LRVR` followed by `LGFR`
+  - no 32-bit logical register forms appear in the dumped hot body
+- consequence:
+  - the current backend is not just “doing some extra normalization”
+  - it is explicitly materializing a `64-bit logical op + post-op sign-extend`
+    pattern throughout the chain
+  - if this family stays open, the next exact target is not another skip gate
+  - it is whether the backend has a valid 32-bit logical lowering surface at
+    all; without that, this line is close to closure
 
 ## Authoritative Validation Surfaces
 
