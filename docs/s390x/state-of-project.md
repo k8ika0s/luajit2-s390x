@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 18:23:33 PDT
+Last updated: 2026-03-31 18:44:04 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -320,28 +320,43 @@ The exact seam on the frozen dispatch baseline is now named:
     - `startop = BC_JMP`
     - `parent_startop = BC_FORL`
     - `parent_snapnent = 0`
+  - that first side trace does pass the current extra-loop narrow gate:
+    - `prev_is_jfori = 1`
+    - `fori_target = 1`
+    - `target_match = 1`
+    - `site=extra_loop_narrow`
   - after `sidecheck`, that first side trace is still on the same bare body
     entry state
 
 That means the active dispatch seam is now:
 
 - generic `FORL` / `JFORI` loop-entry `exit 0`
+- not a missed side-trace `JFORI` / `FORL` eligibility check
+- the current extra-loop narrow path is firing and still not changing the
+  owner/exit shape enough to stop the one-exit-per-iteration ladder
 - not iterator lazy-key ownership
 - not bridge/continuation machinery
 - not late backend instruction shaving
 
-One classifier has already been rejected on this surface:
+Dispatch-side hot-side classifiers are now split:
 
 - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1` on clean `kdz` does not fix the ladder
 - instead it collapses the observed exit traffic into one reused site:
   - `7:0=160743`
 - that is not a real owner/materialization win and is branch-hostile on z
+- `LUAJIT_S390X_HOTSIDE_CANON_CHILD=1` reduces trace churn but leaves the
+  real payer in place:
+  - `TRACE_START` drops from `10` to `6`
+  - `TEXIT_COUNT` stays at `2001`
+  - the last trace still absorbs `8:0=858`
+- `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1` is not safe from the current seam:
+  - the focused `numeric_loop` probe timed out after `20s` with no result
 
 The next exact target from here is therefore:
 
-- explain and, if possible, remove the generic `FORL` loop-entry `exit 0`
-  seam so the first side trace becomes a materially different owner instead of
-  a repeated `BC_JMP` side entry at the same body PC
+- explain why the current extra-loop narrow path still leaves
+  `parent=1 exit=0` and its descendants as the same `BC_JMP` body-entry
+  `exit 0` ladder
 
 ## What Has Not Been Proven Yet
 

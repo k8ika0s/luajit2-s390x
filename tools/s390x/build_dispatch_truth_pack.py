@@ -725,6 +725,8 @@ def parse_exit_focus_details(path: pathlib.Path) -> dict[str, object]:
         "first_trace_abort": None,
         "first_hotside_before": None,
         "first_side_enter": None,
+        "first_extra_loop_check": None,
+        "first_extra_loop_narrow": None,
         "first_side_after_sidecheck": None,
         "seam_attribution": None,
     }
@@ -745,6 +747,10 @@ def parse_exit_focus_details(path: pathlib.Path) -> dict[str, object]:
             side_focus["line"] = line
             if site == "enter" and info["first_side_enter"] is None:
                 info["first_side_enter"] = side_focus
+            elif site == "extra_loop_check" and info["first_extra_loop_check"] is None:
+                info["first_extra_loop_check"] = side_focus
+            elif site == "extra_loop_narrow" and info["first_extra_loop_narrow"] is None:
+                info["first_extra_loop_narrow"] = side_focus
             elif site == "after_sidecheck" and info["first_side_after_sidecheck"] is None:
                 info["first_side_after_sidecheck"] = side_focus
             continue
@@ -1007,6 +1013,16 @@ def render_summary(
         if isinstance(first_side, dict):
             lines.append(
                 f"  - first side enter `pc={first_side.get('op_name', first_side.get('op'))}` `prev={first_side.get('prevop_name', first_side.get('prevop'))}` `start={first_side.get('startop_name', first_side.get('startop'))}` `parent_start={first_side.get('parent_startop_name', first_side.get('parent_startop'))}`"
+            )
+        extra_loop_check = focus.get("first_extra_loop_check")
+        if isinstance(extra_loop_check, dict):
+            lines.append(
+                f"  - extra-loop check `prev_is_jfori={extra_loop_check.get('prev_is_jfori')}` `fori_target={extra_loop_check.get('fori_target')}` `target_match={extra_loop_check.get('target_match')}`"
+            )
+        extra_loop_narrow = focus.get("first_extra_loop_narrow")
+        if isinstance(extra_loop_narrow, dict):
+            lines.append(
+                f"  - extra-loop narrow fires at `pc={extra_loop_narrow.get('op_name', extra_loop_narrow.get('op'))}` `prev={extra_loop_narrow.get('prevop_name', extra_loop_narrow.get('prevop'))}`"
             )
         after_sidecheck = focus.get("first_side_after_sidecheck")
         if isinstance(after_sidecheck, dict):
