@@ -103,6 +103,28 @@ non-causal probe effects. The current state is cleaner:
       - caller-side re-entry after `lua_intrace_return`
       - before the caller path settles into the separate `TRACE 2` / `TRACE 7`
         family
+  - that caller-side re-entry seam is now narrower again after two more clean
+    `kdz` classifiers:
+    - reduced traceinfo probes show `sum_loop` and `retlast_loop` split before
+      any later stitch noise matters:
+      - `sum_loop`
+        - `trace 1`: callee vararg scan loop in `sum(...)`
+        - `trace 2`: root trace at caller setup
+        - `trace 7`: later root trace in the same caller family
+      - `retlast_loop`
+        - `trace 1` onward: caller loop family only
+        - later stitch traces exist, but only after that caller loop family is
+          already stable
+    - a focused clean-host `LUAJIT_S390X_CALLHANDOFF_LOG` classifier was then
+      synced and rebuilt on `kdz`
+    - that logger stayed silent while `sum_loop` still formed `TRACE 2` /
+      `TRACE 7`
+    - so the extra `sum_loop` root-family traces are not being born in the
+      generic `trace_stop(... BC_CALL/BC_CALLM/BC_ITERC ...)` or
+      `lj_trace_stitch()` handoff path either
+  - that leaves one honest live target in this family:
+    - recorder-side root-link selection after `lua_intrace_return`
+    - before generic stitch/patching logic ever matters
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
