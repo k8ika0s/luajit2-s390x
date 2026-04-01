@@ -10170,3 +10170,31 @@ Next hash target
       stateful `W32_HOME` carry experiment over the existing 64-bit emitter
       surface
     - do not open another local opcode-swap or compare-consumer branch first
+
+- Timestamp: `2026-04-01 12:28:40 PDT`
+- First source-level `W32_HOME` carry prototype is now in place behind a gate,
+  pending clean-host validation
+  - source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - gate: `LUAJIT_S390X_W32HOME_STATEFUL`
+  - shape:
+    - skip post-op `asm_bnorm32()` for the safe-family producers:
+      - bitop logic/unary/shift/rotate
+      - plain non-guard integer `ADD`
+    - normalize hard compare consumers explicitly through scratch registers in
+      `asm_intcomp()` and `asm_equal()`
+    - leave integer TValue store on the existing `asm_tvstore64x()` packing
+      path
+  - local validation:
+    - `git diff --check` is clean
+    - local rebuild succeeded with
+      `env MACOSX_DEPLOYMENT_TARGET=15.0 make -C src -j4 luajit`
+    - no clean-host `kdz` or `zkd0` result is claimed yet
+  - next gate:
+    - run the reduced clean-host structural validator on:
+      - `logical_chain_tail_add`
+      - `logical_chain_tail_store`
+      - `bitops_mix`
+    - require `REMOTE_RC=0` and the same compiled-body family
+    - reject immediately on `REMOTE_RC=124`, structural drift, or same-host
+      regression
