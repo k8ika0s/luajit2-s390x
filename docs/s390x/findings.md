@@ -10070,3 +10070,55 @@ Next hash target
       producer-side `asm_bnorm32()` skip:
       it needs a fuller normalized-result / low32-home contract that stays
       finite under real trace formation
+
+- Timestamp: `2026-04-01 11:17:54 PDT`
+- Four-track queue correction: park `vararg_paths`, check in the low32-home
+  contract, and require a finite reduced validator before any more backend
+  code
+  - `vararg_paths`:
+    - treat `sum_loop` as the normal nested-callee `BC_JFORI -> existing loop`
+      root-stop on the current mechanism
+    - no narrower recorder seam was named before nested-loop entry
+    - no matching reduced `x64` control artifact exists locally or in the
+      checked-in repo for the same seam, so that comparison stays unavailable
+      rather than inferred
+    - park `vararg_paths` for this cycle
+  - new checked-in design note:
+    - [docs/s390x/low32-home-contract.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/low32-home-contract.md)
+    - semantic states:
+      - `W32_HOME`: low word authoritative, upper 32 unspecified
+      - `W64_NORM`: fully normalized and safe for generic consumers
+    - safe internal family:
+      - bitop logic/unary/shift/rotate
+      - plain non-guard integer `ADD`
+      - loop `PHI` when incoming arms stay inside the same family
+    - forced-normalization boundaries:
+      - guard/compare
+      - helper/call arg setup
+      - store consumers such as `ASTORE`
+      - snapshot-visible exits/restores
+      - any consumer outside the family
+    - emitter / ABI feasibility:
+      - current 64-bit lowering is the only already-wired backend surface
+      - word/high-word forms are architecture opportunities, not honest blind
+        swaps under the current contract
+      - helper ABI strategy is secondary here because `bitops_mix` is
+        compiled-body dominated and helper/call remains a hard boundary
+  - reduced-validator contract:
+    - compile-only proof must return `REMOTE_RC=0` and hit only the intended
+      seam
+    - reduced trace probes for `logical_chain_tail_add`,
+      `logical_chain_tail_store`, and `bitops_mix` must also return
+      `REMOTE_RC=0`
+    - the family must remain compiled-body dominated with `TEXIT_COUNT=0`
+    - bare `REMOTE_RC=124` is automatic reject, not “interesting”
+  - fallback queue if the low32-home contract cannot be stated or cannot stay
+    finite:
+    - `int_add_phi_only`
+    - `logic_add_phi_noboundary`
+    - `int_add_phi_store_epilogue` only if the first two disagree
+  - result:
+    - no more local opcode swaps, producer-side skips, or compare-boundary
+      branches are honest next steps
+    - the only live backend lane is a design-first low32-home /
+      normalized-result contract with a finite reduced validator
