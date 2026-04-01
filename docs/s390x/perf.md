@@ -156,6 +156,31 @@ Current clean-`kdz` broader-throughput frontier:
       - helper/call
       - store consumers such as `ASTORE`
       - snapshot-visible exits/restores
+- next structural classifier on clean `kdz`:
+  - artifact:
+    [20260401-kdz-low32home-boundary-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-boundary-audit/summary.md)
+  - `logical_chain_tail_add`:
+    - `can_carry=1`: `1039`
+    - first hard consumer split:
+      - `guard`: `65`
+      - `other`: `29`
+      - `store`: `0`
+  - `logical_chain_tail_store`:
+    - `can_carry=1`: `898`
+    - first hard consumer split:
+      - `store`: `68`
+      - `guard`: `45`
+      - `other`: `25`
+  - `bitops_mix`:
+    - treat the live benchmark family as matching the add-tail seam rather
+      than the store-tail seam
+  - result:
+    - the current compiled-body red is add/guard-boundary dominated
+    - store-tail is a real separate boundary family, but it is not the main
+      `bitops_mix` seam
+    - if this backend line stays open, the next honest target is low32-home
+      consumption at the compare/guard boundary, not another store-tail or
+      add-only gate
 
 First broader-throughput family read from clean `kdz`:
 

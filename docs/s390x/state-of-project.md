@@ -194,6 +194,39 @@ non-causal probe effects. The current state is cleaner:
       - helper/call boundaries
       - store consumers such as `ASTORE`
       - snapshot-visible exit/restore paths
+- the next clean `kdz` boundary classifier narrows the live backend seam
+  again:
+  - artifact:
+    [20260401-kdz-low32home-boundary-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-boundary-audit/summary.md)
+  - `logical_chain_tail_add`:
+    - the extended low32-home family mostly stays internal:
+      - `can_carry=1`: `1039`
+      - `can_carry=0`: `94`
+    - first hard consumer split:
+      - `guard`: `65`
+      - `other`: `29`
+      - `store`: `0`
+  - `logical_chain_tail_store`:
+    - this is a genuinely different consumer seam:
+      - `can_carry=1`: `898`
+      - `can_carry=0`: `138`
+    - first hard consumer split:
+      - `store`: `68`
+      - `guard`: `45`
+      - `other`: `25`
+  - `bitops_mix`:
+    - treat the live benchmark family as matching the add-tail seam, not the
+      store-tail seam
+    - the active compiled-body red is therefore add/guard-boundary dominated,
+      not store-boundary dominated
+  - classifier note:
+    - the reduced trace probes still timed out with `REMOTE_RC=124` under the
+      verbose logger, so this is structural attribution only
+  - next honest target:
+    - if `bitops_mix` stays open, the next backend family is no longer a
+      generic low32-home contract and no longer store-tail
+    - it is low32-home consumption at the compare/guard boundary on the
+      add-tail family
 - the first native `kdz` pass on that new queue is now enough to name the next
   live family:
   - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
