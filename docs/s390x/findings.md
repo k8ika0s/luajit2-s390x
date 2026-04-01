@@ -8821,3 +8821,31 @@ Next hash target
       `exit 0` loop-clone family
     - inspect why default policy keeps cloning equivalent self-loop loop traces
       instead of reusing or adopting an earlier equivalent loop owner
+
+- Timestamp: `2026-03-31 19:22:40 PDT`
+- Dispatch/side-exit queue, default hot-side policy is now mechanically pinned:
+  - static read from [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `trace_hotside()` always computes equivalent candidates for focused logs
+    - actual adoption only happens through the env-gated helpers:
+      - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV`
+      - `LUAJIT_S390X_HOTSIDE_CANON_CHILD`
+      - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV`
+    - with those gates off, the default path just increments `snap->count` and
+      starts a new side trace once `hotexit` is reached
+  - late steady-state proof from the focused `kdz` dispatch artifact:
+    - `parent=10 exit=0`
+    - `phase=equiv`
+    - `cand=6`
+    - `child=7`
+    - followed immediately by repeated `phase=before ... snapcount=...`
+    - and finally `phase=start ... snapcount=200`
+  - combined read:
+    - the current loop-clone ladder is not because the runtime cannot see an
+      equivalent owner
+    - it is because default `trace_hotside()` is still choosing “count to
+      hotexit and start another trace” on this seam
+  - decision:
+    - the next exact dispatch target is no longer seam discovery
+    - it is one narrow reuse/adoption experiment on this seam only, and it must
+      prove a real owner/exit win rather than just collapsing traffic into one
+      reused site the way `CANON_EQUIV` already did

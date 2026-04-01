@@ -369,9 +369,24 @@ the earlier read:
 
 The next exact target from here is therefore:
 
-- explain why default hot-side policy keeps cloning equivalent self-loop
-  `exit 0` loop traces on the same `FORL` / `JFORI` seam instead of reusing or
-  adopting an earlier equivalent loop owner
+- default `trace_hotside()` reuse/adoption policy on the same seam:
+  - by late steady-state (`parent=10 exit=0` in the focused `kdz` probe),
+    default policy already sees:
+    - `cand=6`
+    - `child=7`
+  - but with all hotside reuse gates off it still:
+    - leaves `J->parent` unchanged
+    - increments `snap->count`
+    - starts a fresh side trace at `hotexit`
+  - so the current loop-clone ladder is not a discovery failure
+  - it is the default behavior of `trace_hotside()` when reuse/adoption is not
+    explicitly enabled
+
+The next exact target from here is therefore:
+
+- one narrow dispatch-side reuse/adoption experiment, only if it can prove a
+  real owner/exit win on this seam instead of just collapsing traffic into one
+  reused site
 
 ## What Has Not Been Proven Yet
 
