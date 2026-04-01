@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 18:56:55 PDT
+Last updated: 2026-03-31 19:45:12 PDT
 
 ## Scope
 
@@ -13,8 +13,10 @@ was frozen into three lanes:
 
 The active performance frontier is no longer iterator-only. Iterator is frozen
 at the current Lane A + Lane B checkpoint unless a genuinely new seam appears
-outside the reject pile. The next queued workstream is dispatch/side-exit on
-the same clean-host contract. The bridge and continuation line stays parked.
+outside the reject pile. The first dispatch/side-exit loop-clone queue has now
+also been classified and closed on the current mechanism. The next queued
+workstream is dispatch-adjacent side-exit cost work outside that rejected
+mechanism. The bridge and continuation line stays parked.
 
 ## Authoritative Validation Surfaces
 
@@ -176,7 +178,7 @@ Dispatch hotside classifiers are now split:
 - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1` timed out after `20s` on the focused
   `numeric_loop` probe with no result and is not safe to treat as a live path
 
-Next exact target:
+Next exact target from there:
 
 - default hotside reuse/adoption policy itself:
   - on the late steady-state focused probe, default `trace_hotside()` already
@@ -186,7 +188,7 @@ Next exact target:
   - so the remaining dispatch red is now explicitly a policy choice, not a
     failure to discover equivalent loop owners
 
-Next exact target:
+Next exact target from there:
 
 - one narrow dispatch-side reuse/adoption experiment that proves a real
   owner/exit win on this seam, or closes the family if it only reproduces the
@@ -209,6 +211,38 @@ First narrow reuse/adoption experiment from this seam is now rejected:
   - decision:
     - reject before perf
     - do not keep the gate in-tree
+
+The next earlier patch-target classifier from the same seam is now rejected:
+
+- `LUAJIT_S390X_SIDEEXIT_MCLOOP`
+  - exact attempt:
+    - patch parent side exits to the loop-body target (`T->mcloop`) instead of
+      generic trace entry
+  - clean `kdz` structural gate:
+    - focused `numeric_loop_trace.lua`
+    - clean rebuild succeeded
+    - the native probe then segfaulted before any trace-count output
+  - code-level autopsy:
+    - `trace_stop()` can redirect to `J->cur.mcode + T->mcloop`
+    - but `mcloop` is only defined as an internal loop-body entry offset
+    - the VM consumes that path only through owner/resume-gated entry flow
+    - so it is not a generic safe side-exit landing target
+  - decision:
+    - reject before wider classification
+    - do not widen to `side_exit_loop` or `hotexit_loop`
+
+That closes the current dispatch loop-clone mechanism:
+
+- default hotside policy sees equivalent candidates
+- direct late child-retarget is unsafe
+- patch-target shape does not unlock a safe owner/exit win
+- no new seam remains in this mechanism
+
+Next queued redirect:
+
+1. dispatch-adjacent side-exit cost surfaces outside the loop-clone seam
+2. helper-boundary storage/materialization audits where the ABI may help
+3. only then broader JIT throughput families
 
 ## Frozen Iterator Baseline
 

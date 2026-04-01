@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 18:56:55 PDT
+Last updated: 2026-03-31 19:45:12 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -38,8 +38,10 @@ non-causal probe effects. The current state is cleaner:
   availability checks
 - the iterator lane is now frozen at the current checkpoint unless a genuinely
   new seam appears outside the reject pile
-- the next queued performance workstream is generic dispatch/side-exit, not
-  more iterator-only surgery
+- the first dispatch/side-exit loop-clone queue has now also been classified
+  and closed on the current mechanism
+- the next queued performance workstream is dispatch-adjacent side-exit cost
+  work outside that rejected loop-clone patch-target family
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
@@ -259,7 +261,7 @@ window on the frozen checkpoint:
   - `pairs_array_sum/hot median=0.120802`
   - versus the frozen `zkd0` checkpoint those are `+26.94%` and `+37.36%`
 
-That makes the current queueing decision explicit:
+That made the earlier queueing decision explicit:
 
 - no new iterator seam was proven outside the reject pile
 - iterator stays frozen at the current Lane A + Lane B checkpoint
@@ -367,7 +369,7 @@ the earlier read:
 - the real remaining dispatch red is that execution keeps spawning a chain of
   equivalent self-loop loop traces instead of settling on one reusable owner
 
-The next exact target from here is therefore:
+The next exact target from there was therefore:
 
 - default `trace_hotside()` reuse/adoption policy on the same seam:
   - by late steady-state (`parent=10 exit=0` in the focused `kdz` probe),
@@ -382,7 +384,7 @@ The next exact target from here is therefore:
   - it is the default behavior of `trace_hotside()` when reuse/adoption is not
     explicitly enabled
 
-The next exact target from here is therefore:
+The next exact target from there was therefore:
 
 - one narrow dispatch-side reuse/adoption experiment, only if it can prove a
   real owner/exit win on this seam instead of just collapsing traffic into one
@@ -409,6 +411,52 @@ That first narrow reuse/adoption experiment is now rejected:
     - do not keep the gate in the tree
     - the dispatch family is still open, but this direct child-retarget path is
       not safe from the current seam
+
+The next earlier patch-target classifier from that same seam is now also
+rejected:
+
+- `LUAJIT_S390X_SIDEEXIT_MCLOOP`
+  - exact intended shape:
+    - keep the same loop-clone seam and patch parent side exits to the
+      existing loop-body target (`T->mcloop`) instead of generic trace entry
+  - why it was worth testing:
+    - narrower and earlier than direct late child-retarget
+    - already existed in-tree
+    - directly tested whether the remaining ladder was caused by landing at the
+      trace entry prologue rather than the loop body
+  - clean `kdz` structural gate:
+    - focused `numeric_loop_trace.lua`
+    - clean rebuild succeeded
+    - the probe then failed immediately with a native segmentation fault before
+      any trace-count output was produced
+  - code-level autopsy:
+    - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      can force side-exit patching to `J->cur.mcode + T->mcloop`
+    - but [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c)
+      only defines `mcloop` as an internal loop-body entry offset
+    - and [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+      only consumes `mcloop` through owner/resume-controlled VM entry paths
+    - so `mcloop` is not a generic safe side-exit landing target on this
+      mechanism
+  - decision:
+    - reject immediately
+    - do not widen to `side_exit_loop` or `hotexit_loop`
+    - patch-target shape does not open a safe win on the current dispatch
+      loop-clone mechanism
+
+That closes the current dispatch loop-clone family:
+
+- default `trace_hotside()` can already see equivalent candidates
+- direct late child-retarget is unsafe
+- direct side-exit patching to `mcloop` is unsafe
+- no safe earlier patch target was exposed by the existing mechanism
+
+The next queued workstream is now outside this family:
+
+1. dispatch-adjacent side-exit cost surfaces outside the rejected loop-clone
+   seam
+2. helper-boundary storage/materialization audits where the s390x ABI may help
+3. only then broader JIT throughput families
 
 ## What Has Not Been Proven Yet
 
