@@ -10428,3 +10428,39 @@ Next hash target
     - the next honest target is helper integration and broader candidate
       validation, not more root-cause digging on the already-explained exit
       flurry
+
+- Timestamp: `2026-04-01 14:33:30 PDT`
+- The dedicated canon/share gate is now integrated into the checked-in
+  throughput helper and validated there, not just through manual spot checks
+  - helper change:
+    [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+    now accepts `--candidate`, wires named env sets through benchmark, check,
+    trace-count, `perf stat`, handoff, and `asm_bnorm32` probe paths, and
+    writes candidate-qualified output directories
+  - helper-backed clean `kdz` artifacts:
+    - [20260401-kdz-int_add_phi_only-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-int_add_phi_only-hotside_canon_share-truth-pack)
+      - `add_phi_only/hot`: JIT-on `0.000350`, `-joff` `0.000032`,
+        `TRACE_START 3`, `TEXIT_COUNT 4001`
+    - [20260401-kdz-logic_add_phi_noboundary-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logic_add_phi_noboundary-hotside_canon_share-truth-pack)
+      - `logic_add_phi_noboundary/hot`: JIT-on `0.002619`, `-joff`
+        `0.002159`, `TRACE_START 5`, `TRACE_ABORT 2`, `TEXIT_COUNT 4001`
+    - [20260401-kdz-logical_chain_tail_add-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-hotside_canon_share-truth-pack)
+      - `chain_tail_add/hot`: JIT-on `0.003052`, `-joff` `0.002541`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - [20260401-kdz-bitops_mix-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-hotside_canon_share-truth-pack)
+      - `mix_bits/hot`: JIT-on `0.003084`, `-joff` `0.002168`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - helper-backed `zkd0` screen:
+    - [20260401-zkd0-bitops_mix-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-bitops_mix-hotside_canon_share-truth-pack)
+      - `mix_bits/hot`: JIT-on `0.004230`, `-joff` `0.002933`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - read:
+    - the dedicated gate is now the authoritative helper-backed throughput
+      candidate surface
+    - the same mechanism still explains the win: exits stay live, but trace
+      population collapses to the early canonical seam
+    - `logic_add_phi_noboundary` also improves materially under the same gate,
+      but retains its smaller `TRACE_ABORT 2` side shape
+  - queue correction:
+    - the next honest target is broader family validation from this dedicated
+      gate, not more loop-flurry root-cause work and not low32-home reopening

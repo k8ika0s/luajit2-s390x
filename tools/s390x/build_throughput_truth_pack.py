@@ -22,6 +22,12 @@ import restamp_iterator_perf as restamp
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
 PROBE_TIMEOUT_SECS = 20
+CANDIDATE_ENVS: dict[str, dict[str, str]] = {
+    "baseline": {},
+    "hotside_canon_share": {
+        "LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV": "1",
+    },
+}
 
 
 def load_ir_op_names() -> dict[int, str]:
@@ -1166,8 +1172,23 @@ def to_float_counter(value: object) -> float | None:
         return None
 
 
-def remote_env_prefix(*, bench_file: str, jsonl_path: str | None, samples: int, warmup: int) -> str:
+def shell_env_prefix(extra_env: dict[str, str] | None = None) -> str:
+    if not extra_env:
+        return ""
+    return "env " + " ".join(f"{key}={shlex.quote(value)}" for key, value in extra_env.items()) + " "
+
+
+def remote_env_prefix(
+    *,
+    bench_file: str,
+    jsonl_path: str | None,
+    samples: int,
+    warmup: int,
+    extra_env: dict[str, str] | None = None,
+) -> str:
     env = []
+    if extra_env:
+        env.extend(f"{key}={shlex.quote(value)}" for key, value in extra_env.items())
     if jsonl_path:
         env.append(f"S390X_PERF_OUTPUT_JSONL={shlex.quote(jsonl_path)}")
     env.extend(
@@ -1219,6 +1240,7 @@ def run_family_bench(
     samples: int,
     warmup: int,
     joff: bool,
+    extra_env: dict[str, str] | None,
 ) -> list[dict[str, Any]]:
     json_name = f"{mode_label}.jsonl"
     remote_json = f"{remote_tmp}/{json_name}"
@@ -1228,7 +1250,7 @@ set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 rm -f {shlex.quote(remote_json)}
-{remote_env_prefix(bench_file=bench_file, jsonl_path=remote_json, samples=samples, warmup=warmup)} {f"taskset -c {pin_core} " if pin_core is not None else ""}./src/luajit {' '.join(shlex.quote(arg) for arg in luajit_args)}
+{remote_env_prefix(bench_file=bench_file, jsonl_path=remote_json, samples=samples, warmup=warmup, extra_env=extra_env)} {f"taskset -c {pin_core} " if pin_core is not None else ""}./src/luajit {' '.join(shlex.quote(arg) for arg in luajit_args)}
 """
     restamp.run_remote_command(
         host,
@@ -1254,6 +1276,7 @@ def run_focused_bench(
     samples: int,
     warmup: int,
     joff: bool,
+    extra_env: dict[str, str] | None,
 ) -> list[dict[str, Any]]:
     mode = "focused-jit-on" if not joff else "focused-joff"
     remote_json = f"{remote_tmp}/{mode}.jsonl"
@@ -1263,7 +1286,7 @@ set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 rm -f {shlex.quote(remote_json)}
-{remote_env_prefix(bench_file=bench_file, jsonl_path=remote_json, samples=samples, warmup=warmup)} {luajit_cmd}
+{remote_env_prefix(bench_file=bench_file, jsonl_path=remote_json, samples=samples, warmup=warmup, extra_env=extra_env)} {luajit_cmd}
 """
     restamp.run_remote_command(
         host,
@@ -1278,13 +1301,20 @@ rm -f {shlex.quote(remote_json)}
     return restamp.parse_jsonl_records(local_json)
 
 
-def run_check(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> str:
+def run_check(
+    host: str,
+    repo: str,
+    remote_tmp: str,
+    raw_dir: pathlib.Path,
+    name: str,
+    extra_env: dict[str, str] | None,
+) -> str:
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 set +e
-timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}.lua")}
+{shell_env_prefix(extra_env)}timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}.lua")}
 rc=$?
 set -e
 printf 'REMOTE_RC=%s\\n' "$rc"
@@ -1299,13 +1329,20 @@ printf 'REMOTE_RC=%s\\n' "$rc"
     return proc.stdout.strip()
 
 
-def run_trace_count(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> dict[str, int | str]:
+def run_trace_count(
+    host: str,
+    repo: str,
+    remote_tmp: str,
+    raw_dir: pathlib.Path,
+    name: str,
+    extra_env: dict[str, str] | None,
+) -> dict[str, int | str]:
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 set +e
-timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
+{shell_env_prefix(extra_env)}timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
 rc=$?
 set -e
 printf 'REMOTE_RC=%s\\n' "$rc"
@@ -1320,13 +1357,22 @@ printf 'REMOTE_RC=%s\\n' "$rc"
     return parse_key_value_lines(proc.stdout)
 
 
-def run_bnorm_probe(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> dict[str, object]:
+def run_bnorm_probe(
+    host: str,
+    repo: str,
+    remote_tmp: str,
+    raw_dir: pathlib.Path,
+    name: str,
+    extra_env: dict[str, str] | None,
+) -> dict[str, object]:
+    probe_env = dict(extra_env or {})
+    probe_env["LUAJIT_S390X_BNORM_LOG"] = "1"
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 set +e
-env LUAJIT_S390X_BNORM_LOG=1 timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
+{shell_env_prefix(probe_env)}timeout {PROBE_TIMEOUT_SECS} ./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
 rc=$?
 set -e
 printf 'REMOTE_RC=%s\\n' "$rc"
@@ -1345,7 +1391,15 @@ printf 'REMOTE_RC=%s\\n' "$rc"
     return counts
 
 
-def run_perf_stat(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str, pin_core: int | None) -> dict[str, object]:
+def run_perf_stat(
+    host: str,
+    repo: str,
+    remote_tmp: str,
+    raw_dir: pathlib.Path,
+    name: str,
+    pin_core: int | None,
+    extra_env: dict[str, str] | None,
+) -> dict[str, object]:
     taskset = f"taskset -c {pin_core} " if pin_core is not None else ""
     script = f"""
 set -euo pipefail
@@ -1356,7 +1410,7 @@ if ! command -v perf >/dev/null 2>&1; then
   exit 0
 fi
 set +e
-perf stat -x, -e cycles,instructions,branches,branch-misses -- timeout {PROBE_TIMEOUT_SECS} {taskset}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
+perf stat -x, -e cycles,instructions,branches,branch-misses -- {shell_env_prefix(extra_env)}timeout {PROBE_TIMEOUT_SECS} {taskset}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
 rc=$?
 set -e
 printf 'PERF_RC=%s\\n' "$rc"
@@ -1393,13 +1447,22 @@ def parse_handoff_counts(text: str) -> dict[str, int]:
     }
 
 
-def run_handoff_probe(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> dict[str, object]:
+def run_handoff_probe(
+    host: str,
+    repo: str,
+    remote_tmp: str,
+    raw_dir: pathlib.Path,
+    name: str,
+    extra_env: dict[str, str] | None,
+) -> dict[str, object]:
+    probe_env = dict(extra_env or {})
+    probe_env["LUAJIT_S390X_RECRET_LOG"] = "1"
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 set +e
-env LUAJIT_S390X_RECRET_LOG=1 timeout {PROBE_TIMEOUT_SECS} ./src/luajit -e 'package.path="./src/?.lua;./src/?/init.lua;"..package.path' -jv {shlex.quote(f"{remote_tmp}/{name}_handoff.lua")}
+{shell_env_prefix(probe_env)}timeout {PROBE_TIMEOUT_SECS} ./src/luajit -e 'package.path="./src/?.lua;./src/?/init.lua;"..package.path' -jv {shlex.quote(f"{remote_tmp}/{name}_handoff.lua")}
 rc=$?
 set -e
 printf 'REMOTE_RC=%s\\n' "$rc"
@@ -1496,6 +1559,8 @@ def derive_perf_metrics(
 def render_summary(
     *,
     family: str,
+    candidate: str,
+    candidate_env: dict[str, str],
     config: dict[str, Any],
     output_dir: pathlib.Path,
     host: str,
@@ -1532,6 +1597,8 @@ def render_summary(
         f"- Model: `{host_info.get('MODEL', 'unknown')}`",
         f"- Repo: `{repo}`",
         f"- Commit: `{commit}`",
+        f"- Candidate: `{candidate}`",
+        f"- Candidate env: `{candidate_env if candidate_env else {}}`",
         f"- Benchmark: `{config['bench_file']}`",
         f"- Pinned core: `{pin_core if pin_core is not None else 'unbound'}`",
         f"- Samples: `{samples}`",
@@ -1644,6 +1711,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--family", choices=tuple(FAMILY_CONFIGS.keys()), required=True)
     parser.add_argument("--host", choices=restamp.HOST_LABELS, required=True)
+    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="baseline")
     parser.add_argument("--repo", help="Override authoritative remote repo path.")
     parser.add_argument("--output-root", type=pathlib.Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--pin-core", type=int, default=restamp.DEFAULT_PIN_CORE)
@@ -1655,12 +1723,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     family = args.family
+    candidate = args.candidate
+    candidate_env = CANDIDATE_ENVS[candidate]
     config = FAMILY_CONFIGS[family]
     host = args.host
     repo = args.repo or restamp.AUTHORITATIVE_REPOS[host]
     output_dir = (
         args.output_root
-        / f"{dt.datetime.now().astimezone().strftime('%Y%m%d')}-{host}-{family}-truth-pack"
+        / f"{dt.datetime.now().astimezone().strftime('%Y%m%d')}-{host}-{family}-{candidate}-truth-pack"
     )
     raw_dir = output_dir / "raw"
     trace_dir = raw_dir / "trace-counts"
@@ -1695,6 +1765,7 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=False,
+            extra_env=candidate_env,
         )
         joff_records = run_family_bench(
             host=host,
@@ -1707,6 +1778,7 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=True,
+            extra_env=candidate_env,
         )
         focused_records = run_focused_bench(
             host=host,
@@ -1718,6 +1790,7 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=False,
+            extra_env=candidate_env,
         )
         focused_joff_records = run_focused_bench(
             host=host,
@@ -1729,25 +1802,26 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=True,
+            extra_env=candidate_env,
         )
         check_results = {
-            name: run_check(host, repo, remote_tmp, check_dir, name)
+            name: run_check(host, repo, remote_tmp, check_dir, name, candidate_env)
             for name in config["check_scripts"].keys()
         }
         trace_counts = {
-            name: run_trace_count(host, repo, remote_tmp, trace_dir, name)
+            name: run_trace_count(host, repo, remote_tmp, trace_dir, name, candidate_env)
             for name in config["trace_scripts"].keys()
         }
         handoff_counts = {
-            name: run_handoff_probe(host, repo, remote_tmp, handoff_dir, name)
+            name: run_handoff_probe(host, repo, remote_tmp, handoff_dir, name, candidate_env)
             for name in config.get("handoff_scripts", {}).keys()
         }
         bnorm_counts = {
-            name: run_bnorm_probe(host, repo, remote_tmp, bnorm_dir, name)
+            name: run_bnorm_probe(host, repo, remote_tmp, bnorm_dir, name, candidate_env)
             for name in config.get("bnorm_probe_scripts", {}).keys()
         }
         perf_stats = {
-            name: run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core)
+            name: run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core, candidate_env)
             for name in config["trace_scripts"].keys()
         }
         runtime_metrics = focused_runtime_metrics(
@@ -1759,6 +1833,8 @@ def main() -> int:
         perf_metrics = derive_perf_metrics(config, trace_counts, perf_stats)
         metadata = {
             "family": family,
+            "candidate": candidate,
+            "candidate_env": candidate_env,
             "focus_label": config["focus_label"],
             "selection_reason": config["selection_reason"],
             "host": host,
@@ -1780,6 +1856,8 @@ def main() -> int:
         write_json(output_dir / "perf-metrics.json", perf_metrics)
         summary = render_summary(
             family=family,
+            candidate=candidate,
+            candidate_env=candidate_env,
             config=config,
             output_dir=output_dir,
             host=host,
