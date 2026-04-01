@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 22:45:00 PDT
+Last updated: 2026-04-01 06:17:48 PDT
 
 ## Scope
 
@@ -340,6 +340,33 @@ Focused backend audit on that family:
   - it is whether the backend has a broader valid 32-bit integer-result
     lowering surface that would need to be added at all; without that, this
     `bitops_mix` line is close to closure as a local family
+- one backend-wide 32-bit integer-result lowering pass is now measured and
+  rejected:
+  - native `kdz` probes showed the candidate 32-bit ops (`AR`, `SR`, `NR`,
+    `OR`, `XR`, `AHI`, `MSR`, `LR`) do not auto-normalize in 64-bit mode
+  - so the current backend contract still needs explicit `LGFR` / `LLGFR`
+    after those ops
+  - first code pass:
+    - three-register arithmetic/logical forms plus the existing normalize step
+    - clean truth-pack artifact:
+      [20260401-kdz-bitops_mix-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-truth-pack)
+    - `mix_bits/hot` regressed to `0.008957`
+  - second code pass:
+    - two-register `AR` / `SR` / `NR` / `OR` / `XR`
+    - `AHI`
+    - direct `CC_OF` guards for int32 add/sub overflow
+    - selective `LR` setup before a later normalize
+    - best clean `kdz` rerun improved to `mix_bits/hot 0.007879`
+    - still slower than the frozen `0.007645`
+  - follow-up shift setup variants were also negative:
+    - remove setup move: `0.008114`
+    - `LR` setup move: `0.008079`
+  - conclusion:
+    - the backend-wide opcode-swap family is not promotable on the current
+      normalize-every-result contract
+    - if `bitops_mix` stays open, the next real family is a deeper
+      normalized-result / int32-home design, not more local opcode
+      substitutions
 
 ## Authoritative Validation Surfaces
 

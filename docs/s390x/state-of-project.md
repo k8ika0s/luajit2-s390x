@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 22:45:00 PDT
+Last updated: 2026-04-01 06:17:48 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -321,6 +321,35 @@ non-causal probe effects. The current state is cleaner:
     - it is whether the s390x backend has a broader 32-bit integer-result
       lowering surface that would have to be added, or whether the current
       `64-bit op + LGFR` contract is fundamental on this backend
+  - one full backend-wide 32-bit lowering pass is now classified and rejected:
+    - native `kdz` semantics probes showed the candidate 32-bit ops do not
+      auto-normalize in 64-bit mode:
+      - `AR`, `SR`, `NR`, `OR`, `XR`, `AHI`, `MSR`, and `LR` all preserve the
+        stale high 32 bits
+      - so the current backend still needs an explicit normalize step after
+        those ops
+    - first code pass:
+      - three-register arithmetic/logical forms plus the existing normalize
+        contract
+      - clean truth-pack artifact:
+        [20260401-kdz-bitops_mix-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-truth-pack)
+      - `mix_bits/hot` regressed from frozen `0.007645` to `0.008957`
+    - second code pass:
+      - two-register `AR` / `SR` / `NR` / `OR` / `XR`
+      - `AHI`
+      - direct `CC_OF` guards for int32 `addov` / `subov`
+      - selective `LR` where low-32 setup before a later normalize was enough
+      - best clean `kdz` rerun improved to `mix_bits/hot 0.007879`, but still
+        missed the frozen `0.007645` host bar
+    - follow-up shift setup variants were both negative:
+      - remove the setup move: `0.008114`
+      - use `LR` for the setup move: `0.008079`
+    - result:
+      - source is back on the frozen baseline
+      - the backend-wide opcode-swap family is closed on the current
+        normalize-every-result contract
+      - if this line reopens, the next honest family is a deeper
+        normalized-result / int32-home design, not more local opcode swaps
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
