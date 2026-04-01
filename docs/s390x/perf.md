@@ -221,6 +221,63 @@ That seam is narrower again after reduced clean-host handoff probes:
       callee loop a real remaining optimization surface, or is that just the
       normal boundary on the current mechanism
 
+That branch decision is now clean enough to move the broader-throughput queue:
+
+- `sum_loop` still explains the vararg cliff, but its front-most split is the
+  normal root `BC_JFORI -> existing loop` stop into an already-compiled nested
+  callee loop
+- that is not the next grounded local optimization target on the current
+  mechanism
+- the broader-throughput queue therefore moves forward to
+  [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
+
+First `bitops_mix` read from clean `kdz`:
+
+- artifact root:
+  - [20260331-kdz-bitops_mix-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-bitops_mix-truth-pack)
+- raw medians:
+  - `mix_bits/small`: JIT-on `0.000273`, `-joff` `0.000105`, ratio `2.60x`
+  - `mix_bits/medium`: JIT-on `0.002093`, `-joff` `0.000525`, ratio `3.99x`
+  - `mix_bits/hot`: JIT-on `0.007645`, `-joff` `0.002099`, ratio `3.64x`
+- focused hot read:
+  - JIT-on `0.007662`
+  - `-joff` `0.002123`
+  - gap `+0.005539s`
+  - ratio `3.61x`
+- runtime classification:
+  - `TRACE_START 0`
+  - `TRACE_STOP 0`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 0`
+  - `compiled-body-dominated`
+- interpretation:
+  - this is the first clean non-iterator, non-dispatch, non-helper family in
+    the current queue that is materially red without any live exit churn
+  - so the next work is a real compiled-body / lowering audit, not more
+    ownership or exit chasing
+
+Focused backend audit on that family:
+
+- artifact root:
+  - [20260401-kdz-bitop-log-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-log-audit)
+- the hot chain is exactly the workload shape:
+  - `band`, `bxor`, `bor`, shifts, rotates, `bswap`, `bnot`
+  - every logged hot op is `IRT_INT`
+  - no helper-call seam and no exit seam appear in this classifier
+- the s390x backend path is the interesting part:
+  - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1428)
+    `asm_bitop_logic()`
+  - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1443)
+    `asm_bitshift()`
+  - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1490)
+    `asm_brot()`
+  - all of those paths currently run through `asm_bnorm32()`
+- next exact target:
+  - prove whether repeated per-op 32-bit normalization / extend work in the
+    s390x bitop lowering is the real compiled-body payer in `bitops_mix`
+  - only then decide whether one narrow backend normalization-hoist or
+    int32-home experiment is justified
+
 ## Authoritative Validation Surfaces
 
 - Primary perf host:

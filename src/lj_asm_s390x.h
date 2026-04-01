@@ -99,6 +99,37 @@ static int asm_s390x_add_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_bitop_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_BITOP_LOG") != NULL);
+  return enabled;
+}
+
+static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
+				Reg dest, Reg left, Reg right, int rightisk)
+{
+  if (!asm_s390x_bitop_log_enabled())
+    return;
+  fprintf(stderr,
+	  "S390X_BITOP kind=%s curins=%d ir=%d op=%d type=%d dest=%d left=%d right=%d rightisk=%d left_r=%d right_r=%d is64=%d isu32=%d isint=%d\n",
+	  kind,
+	  (int)(as->curins - REF_BIAS),
+	  (int)((ir - as->ir) - REF_BIAS),
+	  (int)ir->o,
+	  (int)irt_type(ir->t),
+	  (int)dest,
+	  (int)left,
+	  (int)right,
+	  rightisk,
+	  (int)IR(ir->op1)->r,
+	  irref_isk(ir->op2) ? -1 : (int)IR(ir->op2)->r,
+	  (int)irt_is64(ir->t),
+	  (int)irt_isu32(ir->t),
+	  (int)irt_isinteger(ir->t));
+}
+
 static void asm_s390x_add_log(ASMState *as, const char *kind, IRIns *ir,
 			      Reg dest, Reg left, Reg right, Reg tmp)
 {
@@ -1397,6 +1428,7 @@ static void asm_bitop_logic(ASMState *as, IRIns *ir, uint32_t op)
     ra_allock(as, asm_kintptr(as, ir->op2), rset_exclude(RSET_GPR_NOB, left)) :
     ra_alloc1_nobase(as, ir->op2, rset_exclude(RSET_GPR_NOB, left), -232);
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -230);
+  asm_s390x_bitop_log(as, "logic", ir, dest, left, right, irref_isk(ir->op2));
   asm_bnorm32(as, ir, dest);
   emit_u32(as, S390X_INS_RXE(op, dest, right));
   if (dest != left)
@@ -1408,6 +1440,7 @@ static void asm_bnot(ASMState *as, IRIns *ir)
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -234);
   Reg right = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -233);
+  asm_s390x_bitop_log(as, "bnot", ir, dest, left, right, 0);
   asm_bnorm32(as, ir, dest);
   emit_u32(as, S390X_INS_RXE(S390XI_XGR, dest, right));
   if (dest != left)
@@ -1419,6 +1452,7 @@ static void asm_bswap(ASMState *as, IRIns *ir)
 {
   Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -235);
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -236);
+  asm_s390x_bitop_log(as, "bswap", ir, dest, left, RID_NONE, 0);
   if (!irt_is64(ir->t))
     asm_bnorm32(as, ir, dest);
   emit_u32(as, S390X_INS_RXE(irt_is64(ir->t) ? S390XI_LRVGR : S390XI_LRVR,
@@ -1447,6 +1481,7 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -239);
     uint64_t immop;
     int32_t sh = IR(ir->op2)->i & 31;
+    asm_s390x_bitop_log(as, "shiftk", ir, dest, left, RID_NONE, 1);
     if (op == S390XI_SRLK) {
       emit_shiftimm(as, S390XI_SRLG, dest, dest, sh);
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
@@ -1462,6 +1497,7 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -239);
     Reg right = ra_alloc1_nobase(as, ir->op2, rset_exclude(RSET_GPR_NOB, left), -238);
     Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -237);
+    asm_s390x_bitop_log(as, "shift", ir, dest, left, right, 0);
     asm_bnorm32(as, ir, dest);
     emit_u48_pad8(as, S390X_INS_RSYB(op, dest, left, right, 0));
     if (op == S390XI_SRLK) {
@@ -1496,6 +1532,8 @@ static void asm_brot(ASMState *as, IRIns *ir, int rightrot)
     Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -240);
     if (rightrot)
       rot = (32 - rot) & 31;
+    asm_s390x_bitop_log(as, rightrot ? "brork" : "brolk", ir, dest, left,
+			RID_NONE, 1);
     asm_bnorm32(as, ir, dest);
     emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, dest, left, 0, rot));
     return;
@@ -1507,6 +1545,7 @@ static void asm_brot(ASMState *as, IRIns *ir, int rightrot)
     }
   }
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -240);
+  asm_s390x_bitop_log(as, rightrot ? "bror" : "brol", ir, dest, left, right, 0);
   asm_bnorm32(as, ir, dest);
   emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, dest, left, right, 0));
   if (rightrot) {

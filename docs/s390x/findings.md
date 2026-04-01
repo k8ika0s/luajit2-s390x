@@ -9378,3 +9378,52 @@ Next hash target
       compiled nested callee loop is a real optimization surface on the current
       mechanism, or whether that boundary should be treated as closed and the
       broader vararg queue should move elsewhere
+
+- Timestamp: `2026-04-01 02:18:00 PDT`
+- `bitops_mix` is now the live broader-throughput family
+  - artifact root:
+    - [20260331-kdz-bitops_mix-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260331-kdz-bitops_mix-truth-pack)
+  - clean `kdz` medians:
+    - `mix_bits/small`: JIT-on `0.000273`, `-joff` `0.000105`, ratio `2.60x`
+    - `mix_bits/medium`: JIT-on `0.002093`, `-joff` `0.000525`, ratio `3.99x`
+    - `mix_bits/hot`: JIT-on `0.007645`, `-joff` `0.002099`, ratio `3.64x`
+    - focused hot: JIT-on `0.007662`, `-joff` `0.002123`, ratio `3.61x`
+  - runtime read:
+    - `TRACE_START 0`
+    - `TRACE_STOP 0`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 0`
+    - classification: `compiled-body-dominated`
+  - implication:
+    - this is the first clean non-iterator, non-dispatch, non-helper family in
+      the current queue that is materially red without any live exit churn
+    - the queue should move off the vararg nested-callee-loop boundary and onto
+      compiled-body lowering work
+
+- Timestamp: `2026-04-01 02:28:00 PDT`
+- Focused backend log names the next `bitops_mix` seam
+  - relevant source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L78)
+      new `LUAJIT_S390X_BITOP_LOG` gate
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1428)
+      `asm_bitop_logic()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1443)
+      `asm_bitshift()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1490)
+      `asm_brot()`
+  - focused artifact bundle:
+    - [20260401-kdz-bitop-log-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitop-log-audit)
+  - clean `kdz` result:
+    - the hot chain is exactly the workload shape:
+      - `band`, `bxor`, `bor`, shifts, rotates, `bswap`, `bnot`
+    - every logged hot op is `IRT_INT`
+    - no helper-call seam and no exit seam appear in this classifier
+    - the s390x backend path is the interesting part:
+      - all of those lowering paths currently run through `asm_bnorm32()`
+  - implication:
+    - the next exact target is no longer ownership or exits
+    - it is whether repeated per-op 32-bit normalization / extend work in the
+      s390x bitop lowering is the real compiled-body payer in `bitops_mix`
+  - next exact target:
+    - prove whether one narrow backend normalization-hoist or int32-home
+      experiment is justified before opening any optimization patch
