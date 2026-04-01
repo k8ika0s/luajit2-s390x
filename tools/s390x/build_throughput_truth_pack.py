@@ -274,6 +274,52 @@ emit_hist("TEXIT_HIST", texit_cap.hist)
 """,
 }
 
+VARARG_HANDOFF_SCRIPTS = {
+    "sum_loop": """\
+local bit = require("bit")
+local jit = require("jit")
+jit.opt.start("hotloop=1")
+local function sum(...)
+  local total = 0
+  for i = 1, select("#", ...) do
+    total = total + select(i, ...)
+  end
+  return total
+end
+local result = 0
+for i = 1, 2000 do
+  result = bit.tobit(result + sum(1, 2, 3, ((i - 1) % 17) + 1))
+end
+print("RESULT", result)
+""",
+    "retlast_loop": """\
+local bit = require("bit")
+local jit = require("jit")
+jit.opt.start("hotloop=1")
+local function retlast(...)
+  return select(select("#", ...), ...)
+end
+local result = 0
+for i = 1, 2000 do
+  result = bit.tobit(result + retlast(1, 2, 3, ((i - 1) % 17) + 1))
+end
+print("RESULT", result)
+""",
+    "retconst_loop": """\
+local bit = require("bit")
+local jit = require("jit")
+jit.opt.start("hotloop=1")
+local function retconst(...)
+  return 42
+end
+local result = 0
+for i = 1, 2000 do
+  result = bit.tobit(result + retconst(1, 2, 3, i))
+end
+print("RESULT", result)
+""",
+}
+
 BITOPS_FOCUSED_BENCH = """\
 local bit = require("bit")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
@@ -409,6 +455,7 @@ FAMILY_CONFIGS = {
         "focused_bench_script": VARARG_FOCUSED_BENCH,
         "check_scripts": VARARG_CHECK_SCRIPTS,
         "trace_scripts": VARARG_TRACE_SCRIPTS,
+        "handoff_scripts": VARARG_HANDOFF_SCRIPTS,
         "hot_cases": ("sum_loop/hot", "retlast_loop/hot", "retconst_loop/hot"),
         "work_items": {
             "sum_loop": 16000,
@@ -524,6 +571,8 @@ def prepare_truth_scripts(host: str, remote_tmp: str, config: dict[str, Any]) ->
     for name, content in config["trace_scripts"].items():
         lines.extend([f'cat >"{remote_tmp}/{name}_trace.lua" <<\'EOF\'', content.rstrip(), "EOF"])
         lines.extend([f'cat >"{remote_tmp}/{name}_perf.lua" <<\'EOF\'', content.rstrip(), "EOF"])
+    for name, content in config.get("handoff_scripts", {}).items():
+        lines.extend([f'cat >"{remote_tmp}/{name}_handoff.lua" <<\'EOF\'', content.rstrip(), "EOF"])
     proc = restamp.run_ssh_script(host, "\n".join(lines) + "\n")
     restamp.require_ok(proc, f"{host} throughput truth-pack script setup")
 
@@ -679,6 +728,40 @@ printf 'PERF_RC=%s\\n' "$rc"
     return {"status": "ok", "counters": counters}
 
 
+def parse_handoff_counts(text: str) -> dict[str, int]:
+    return {
+        "trace_loop_count": len(re.findall(r"^\[TRACE\s+\d+.* loop\]$", text, re.MULTILINE)),
+        "trace_handoff_count": len(re.findall(r"^\[TRACE\s+\d+.* -> \d+\]$", text, re.MULTILINE)),
+        "lua_intrace_return_count": len(re.findall(r"site=lua_intrace_return", text)),
+        "lua_lower_frame_retf_count": len(re.findall(r"site=lua_lower_frame_retf", text)),
+        "lua_lleave_count": len(re.findall(r"site=lua_root_lower_frame_lleave", text)),
+    }
+
+
+def run_handoff_probe(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> dict[str, object]:
+    script = f"""
+set -euo pipefail
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+set +e
+env LUAJIT_S390X_RECRET_LOG=1 timeout {PROBE_TIMEOUT_SECS} ./src/luajit -e 'package.path="./src/?.lua;./src/?/init.lua;"..package.path' -jv {shlex.quote(f"{remote_tmp}/{name}_handoff.lua")}
+rc=$?
+set -e
+printf 'REMOTE_RC=%s\\n' "$rc"
+"""
+    proc = restamp.run_remote_command(
+        host,
+        script,
+        stdout_path=raw_dir / f"{name}.stdout.log",
+        stderr_path=raw_dir / f"{name}.stderr.log",
+        label=f"{host} broader throughput handoff probe {name}",
+    )
+    counts = parse_handoff_counts(proc.stdout)
+    remote_rc_match = re.search(r"REMOTE_RC=(\d+)", proc.stdout)
+    counts["remote_rc"] = int(remote_rc_match.group(1)) if remote_rc_match else -1
+    return counts
+
+
 def focused_runtime_metrics(
     config: dict[str, Any],
     focused_jit_on: dict[str, dict[str, Any]],
@@ -771,6 +854,7 @@ def render_summary(
     focused_records: list[dict[str, Any]],
     focused_joff_records: list[dict[str, Any]],
     trace_counts: dict[str, dict[str, int | str]],
+    handoff_counts: dict[str, dict[str, object]],
     perf_stats: dict[str, dict[str, object]],
     runtime_metrics: dict[str, dict[str, object]],
     perf_metrics: dict[str, dict[str, object]],
@@ -847,6 +931,17 @@ def render_summary(
             f"CPI `{metrics['cpi']:.4f}`" if metrics["cpi"] is not None else
             f"- `{workload}`: counters captured"
         )
+    if handoff_counts:
+        lines.extend(["", "## Reduced Handoff Probes", ""])
+        for workload, counts in handoff_counts.items():
+            lines.append(
+                f"- `{workload}`: `REMOTE_RC {counts.get('remote_rc', 'n/a')}`, "
+                f"`trace_loop_count {counts.get('trace_loop_count', 0)}`, "
+                f"`trace_handoff_count {counts.get('trace_handoff_count', 0)}`, "
+                f"`lua_intrace_return_count {counts.get('lua_intrace_return_count', 0)}`, "
+                f"`lua_lower_frame_retf_count {counts.get('lua_lower_frame_retf_count', 0)}`, "
+                f"`lua_lleave_count {counts.get('lua_lleave_count', 0)}`"
+            )
     lines.extend(["", "## Artifacts", ""])
     lines.extend(
         [
@@ -857,6 +952,8 @@ def render_summary(
             f"- Raw logs: `{output_dir / 'raw'}`",
         ]
     )
+    if handoff_counts:
+        lines.append(f"- Reduced handoff logs: `{output_dir / 'raw' / 'handoff'}`")
     return "\n".join(lines) + "\n"
 
 
@@ -886,10 +983,12 @@ def main() -> int:
     trace_dir = raw_dir / "trace-counts"
     perf_dir = raw_dir / "perf-stat"
     check_dir = raw_dir / "checks"
+    handoff_dir = raw_dir / "handoff"
     output_dir.mkdir(parents=True, exist_ok=True)
     trace_dir.mkdir(parents=True, exist_ok=True)
     perf_dir.mkdir(parents=True, exist_ok=True)
     check_dir.mkdir(parents=True, exist_ok=True)
+    handoff_dir.mkdir(parents=True, exist_ok=True)
 
     commit = restamp.current_commit()
     host_info = restamp.collect_host_info(host)
@@ -954,6 +1053,10 @@ def main() -> int:
             name: run_trace_count(host, repo, remote_tmp, trace_dir, name)
             for name in config["trace_scripts"].keys()
         }
+        handoff_counts = {
+            name: run_handoff_probe(host, repo, remote_tmp, handoff_dir, name)
+            for name in config.get("handoff_scripts", {}).keys()
+        }
         perf_stats = {
             name: run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core)
             for name in config["trace_scripts"].keys()
@@ -981,6 +1084,7 @@ def main() -> int:
         }
         write_json(output_dir / "metadata.json", metadata)
         write_json(output_dir / "trace-counts.json", trace_counts)
+        write_json(output_dir / "handoff-counts.json", handoff_counts)
         write_json(output_dir / "perf-stat.json", perf_stats)
         write_json(output_dir / "runtime-metrics.json", runtime_metrics)
         write_json(output_dir / "perf-metrics.json", perf_metrics)
@@ -999,6 +1103,7 @@ def main() -> int:
             focused_records=focused_records,
             focused_joff_records=focused_joff_records,
             trace_counts=trace_counts,
+            handoff_counts=handoff_counts,
             perf_stats=perf_stats,
             runtime_metrics=runtime_metrics,
             perf_metrics=perf_metrics,
