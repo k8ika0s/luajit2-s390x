@@ -350,6 +350,21 @@ non-causal probe effects. The current state is cleaner:
         normalize-every-result contract
       - if this line reopens, the next honest family is a deeper
         normalized-result / int32-home design, not more local opcode swaps
+      - first clean `kdz` classifier for that deeper family is now in:
+        [20260401-kdz-bitops-int32home-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-int32home-audit/summary.md)
+      - corrected `asm_bnorm32()` read:
+        - `chain-binary`: `1337` total, `1146` pure bitop-to-bitop carry sites,
+          `174` tail sites that first leave the chain through `ADD`
+        - `source-binary`: `189` total, all still feed later bitops
+        - `source-shift`: `763` total, all still feed later bitops
+        - `source-unary`: `382` total, all still feed later bitops
+      - the only named first non-bitop consumer in the hot probe is op `41`
+        (`ADD`), hit `190` times
+      - the next honest backend family is therefore narrower than generic
+        opcode replacement:
+        carry a normalized int32/result-home through the bitop chain and only
+        pay the boundary normalize where the chain leaves into integer
+        arithmetic
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
