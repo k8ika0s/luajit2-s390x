@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-03-31 20:20:45 PDT
+Last updated: 2026-03-31 21:05:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -44,6 +44,18 @@ non-causal probe effects. The current state is cleaner:
   the branchy loops collapse back to the same closed loop-clone ladder
 - the next queued performance workstream is broader JIT throughput work
   unless a new helper-boundary storage/materialization seam can be named first
+- the broader-throughput queue is now explicit instead of implied:
+  - first target:
+    [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+  - second target:
+    [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
+  - [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
+    stays out of this queue because it would re-entangle iterator behavior via
+    `pairs()`
+- the branch now has a checked-in broader-throughput helper at
+  [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+  so broader JIT-on families can be restamped under the same tracked-file,
+  direct-`src/` rebuild contract instead of ad hoc local runs
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
@@ -510,6 +522,19 @@ That narrows the queue again:
    demonstrably different from the already-closed `lj_vm_next` and dynamic
    `HREF` surfaces
 2. otherwise the next live workstream is broader JIT throughput work
+
+That broader-throughput queue is now grounded as:
+
+1. [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+   first, because it stresses arg-bank, call, return, and `select()` / vararg
+   flow without reopening the closed iterator or dispatch mechanisms
+2. [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
+   second, as a helper-light compiled-body control that can separate exit-heavy
+   red from pure backend throughput red
+3. [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
+   is intentionally not the next target because its `pairs(map)` loop would
+   reintroduce iterator behavior into a queue that is supposed to be outside
+   the frozen iterator family
 
 ## What Has Not Been Proven Yet
 
