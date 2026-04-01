@@ -192,16 +192,23 @@ Next exact target:
   owner/exit win on this seam, or closes the family if it only reproduces the
   earlier branch-hostile classifier behavior
 
-Active gated experiment now in tree:
+First narrow reuse/adoption experiment from this seam is now rejected:
 
 - `LUAJIT_S390X_HOTSIDE_REUSE_LOOP_CHILD`
-  - reuses an already-existing equivalent child loop on the late `exit 0`
-    `FORL` / `JFORI` seam by patching the current parent exit directly to that
-    child
-  - this is intentionally narrower than `CANON_EQUIV`, `CANON_CHILD`, or
-    `SHARE_EQUIV`
-  - current validation is local build/smoke only
-  - no native `kdz` structural or perf claim is attached yet
+  - exact attempt:
+    - patch a late `exit 0` self-loop parent directly to an already-existing
+      equivalent child loop
+    - skip recording another equivalent side trace
+  - why it was worth testing:
+    - narrower than `CANON_EQUIV`, `CANON_CHILD`, or `SHARE_EQUIV`
+    - directly targeted the known `cand` + `child` late seam
+  - clean `kdz` structural gate:
+    - focused `numeric_loop_trace.lua`
+    - `timeout 20`
+    - `REMOTE_RC=124`
+  - decision:
+    - reject before perf
+    - do not keep the gate in-tree
 
 ## Frozen Iterator Baseline
 

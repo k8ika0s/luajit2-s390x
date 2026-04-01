@@ -388,21 +388,27 @@ The next exact target from here is therefore:
   real owner/exit win on this seam instead of just collapsing traffic into one
   reused site
 
-That experiment is now checked in behind:
+That first narrow reuse/adoption experiment is now rejected:
 
 - `LUAJIT_S390X_HOTSIDE_REUSE_LOOP_CHILD`
-  - exact shape:
+  - intended shape:
     - late `exit 0`
     - self-loop `BC_JMP` parent
     - `prevop = BC_JFORI`
     - earlier equivalent candidate plus existing child already found
-  - action:
+  - intended action:
     - patch the current parent exit directly to the existing child loop target
     - mark the current hot-side counter done
     - skip recording another equivalent child trace
-  - current status:
-    - local build and smoke only
-    - no native `kdz` structural proof or perf result yet
+  - structural gate result on clean `kdz`:
+    - focused `numeric_loop_trace.lua`
+    - `timeout 20`
+    - `REMOTE_RC=124`
+  - decision:
+    - reject immediately
+    - do not keep the gate in the tree
+    - the dispatch family is still open, but this direct child-retarget path is
+      not safe from the current seam
 
 ## What Has Not Been Proven Yet
 
