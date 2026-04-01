@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 13:21:11 PDT
+Last updated: 2026-04-01 13:44:15 PDT
 
 ## Scope
 
@@ -89,12 +89,53 @@ Current clean-`kdz` broader-throughput frontier:
   - the low32-home / normalized-result contract note is parked design context,
     not the active main-line queue:
     [docs/s390x/low32-home-contract.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/low32-home-contract.md)
-  - the live target is now a generic throughput loop-clone / exit family:
+  - the live target is now a narrower hotside policy family on that generic
+    throughput loop-clone surface:
     - `int_add_phi_only` as the smallest reproducer
     - `logical_chain_tail_add` as the value-tail sibling
     - `bitops_mix` as the larger mixed logic/add reproducer
   - do not reopen low32-home prototype work until a finite compiled-body family
     exists again under the corrected validator
+- first real policy candidate on that family:
+  - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1` plus
+    `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1`
+  - smallest reproducer artifact:
+    [20260401-kdz-hotside-share-equiv-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-share-equiv-audit/summary.md)
+  - `int_add_phi_only`:
+    - baseline `hot 0.000786`, `TRACE_START 21`, `TEXIT_COUNT 4001`,
+      `TRACEINFO_COUNT 27`
+    - `SHARE_EQUIV` alone `hot 0.000659`, `TRACE_START 100`,
+      `TEXIT_COUNT 300`, `TRACEINFO_COUNT 106`
+    - `CANON_EQUIV + SHARE_EQUIV` `hot 0.000341`, `TRACE_START 3`,
+      `TEXIT_COUNT 4001`, `TRACEINFO_COUNT 9`
+    - `CANON_CHILD + SHARE_EQUIV` `hot 0.000407`, `TRACE_START 4`,
+      `TEXIT_COUNT 4001`, `TRACEINFO_COUNT 10`
+  - focused read:
+    - `SHARE_EQUIV` alone wins by accelerating new trace formation
+    - the combined canon/share policy wins differently: it collapses actual
+      trace population while preserving the throughput gain
+- clean `kdz` sibling validation:
+  - artifact:
+    [20260401-kdz-hotside-canon-share-family-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-family-check/summary.md)
+  - `logical_chain_tail_add`
+    - baseline `hot 0.008741`, `TRACE_START 41`, `TEXIT_COUNT 7981`
+    - candidate `hot 0.002683`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - `bitops_mix`
+    - baseline `hot 0.008902`, `TRACE_START 41`, `TEXIT_COUNT 7981`
+    - candidate `hot 0.002968`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+- first `zkd0` screen:
+  - artifact:
+    [20260401-zkd0-hotside-canon-share-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-check/summary.md)
+  - `logical_chain_tail_add`: baseline `0.018642`, candidate `0.005414`
+  - `bitops_mix`: baseline `0.009459`, candidate `0.004000`
+  - after tracked-file resync and rebuild, structural counts match `kdz`:
+    `TRACE_START 41 -> 2`, `TEXIT_COUNT 7981 -> 8000`
+- queue correction:
+  - the next honest question is not “can we lower `TEXIT_COUNT`?”
+  - it is “why does the canon/share policy win while exit totals stay flat or
+    slightly higher?”
+  - the next structural target is the tiny stable trace set under the combined
+    policy, not `SHARE_EQUIV` alone and not backend low32-home work
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)

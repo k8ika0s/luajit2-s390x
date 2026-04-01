@@ -10272,3 +10272,70 @@ Next hash target
     - the next honest target is generic throughput loop-clone / exit behavior,
       starting with `int_add_phi_only` as the smallest reproducer and
       `logical_chain_tail_add` / `bitops_mix` as the aligned siblings
+
+- Timestamp: `2026-04-01 13:44:15 PDT`
+- Generic throughput hotside queue now has a real promotable candidate:
+  `CANON_EQUIV + SHARE_EQUIV`
+  - smallest-reproducer artifact:
+    [20260401-kdz-hotside-share-equiv-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-share-equiv-audit/summary.md)
+  - `int_add_phi_only` focused `kdz` read:
+    - baseline:
+      - `hot 0.000786`
+      - `TRACE_START 21`
+      - `TEXIT_COUNT 4001`
+      - `TRACEINFO_COUNT 27`
+    - `SHARE_EQUIV` alone:
+      - `hot 0.000659`
+      - `TRACE_START 100`
+      - `TEXIT_COUNT 300`
+      - `TRACEINFO_COUNT 106`
+      - focused parent `24 exit 0` proof shows:
+        - `phase=share-done ... target=199`
+        - immediately followed by `phase=start ... snapcount=200`
+    - `CANON_EQUIV + SHARE_EQUIV`:
+      - `hot 0.000341`
+      - `TRACE_START 3`
+      - `TEXIT_COUNT 4001`
+      - `TRACEINFO_COUNT 9`
+    - `CANON_CHILD + SHARE_EQUIV`:
+      - `hot 0.000407`
+      - `TRACE_START 4`
+      - `TEXIT_COUNT 4001`
+      - `TRACEINFO_COUNT 10`
+  - methodology correction:
+    - the apparent mismatch between trace counter totals and `-jv` trace lines
+      is expected
+    - the reduced probes call
+      [trace_counter_capture_lite()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/helpers/testlib.lua),
+      which installs its own `jit.attach("trace")` handler and therefore
+      replaces the `-jv` trace logger after warmup
+    - so `-jv` lines only show the pre-capture traces; `TRACEINFO_COUNT`
+      confirms the later trace population
+  - clean `kdz` sibling validation:
+    - artifact:
+      [20260401-kdz-hotside-canon-share-family-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-family-check/summary.md)
+    - `logical_chain_tail_add`
+      - baseline `hot 0.008741`, `TRACE_START 41`, `TEXIT_COUNT 7981`
+      - candidate `hot 0.002683`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - `bitops_mix`
+      - baseline `hot 0.008902`, `TRACE_START 41`, `TEXIT_COUNT 7981`
+      - candidate `hot 0.002968`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - first `zkd0` screen:
+    - artifact:
+      [20260401-zkd0-hotside-canon-share-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-check/summary.md)
+    - first trace probes returned `REMOTE_RC=1` only because the clean repo
+      still had an older
+      [tests/s390x/helpers/testlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/helpers/testlib.lua)
+      without `trace_counter_capture_lite()`
+    - after tracked-file resync and rebuild, structural counts matched `kdz`:
+      - `TRACE_START 41 -> 2`
+      - `TEXIT_COUNT 7981 -> 8000`
+    - hot medians also improved materially:
+      - `logical_chain_tail_add`: `0.018642 -> 0.005414`
+      - `bitops_mix`: `0.009459 -> 0.004000`
+  - queue correction:
+    - the live question is no longer “can hotside share reduce exits?”
+    - it is “why does `CANON_EQUIV + SHARE_EQUIV` win by collapsing trace
+      population even while aggregate exits stay flat or slightly higher?”
+    - the next honest target is the stable tiny-trace-set shape under that
+      combined policy, not `SHARE_EQUIV` alone and not backend low32-home work
