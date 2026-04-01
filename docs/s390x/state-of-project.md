@@ -204,11 +204,21 @@ One more corrected `kdz` rerun tightened that read:
     already exposed by the earlier focused `ITERN_FOCUS` probes
   - not a distinct later child-link or runtime-owner family
 
-So the next honest decision point is narrower:
+Subagent forensics, the mature-control diff, and the direct code read now all
+agree on the exact first divergence:
 
-- only reopen this owner-selection line if there is a cut that is genuinely
-  different from the already rejected first-side lazy-key classifiers
-- otherwise stop reopening this family and move to a different mechanism
+- `lj_record_next()` already has the helper result
+- array synthesizes a visible numeric key from the successor index
+- non-array/hash intentionally leaves the visible key unloaded
+- `rec_itern()` then immediately forks on `if (!tref_isnil(ix.key))`
+- so the first-side hash failure is still the same payload-vs-nil /
+  unloaded-visible-key family already tested and rejected
+
+That closes this owner-selection line again on the current tree:
+
+- do not reopen it unless there is a cut that is genuinely different from the
+  rejected first-side lazy-key classifiers
+- otherwise move to a different mechanism or ship the current freeze point
 
 ## What Has Not Been Proven Yet
 

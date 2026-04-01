@@ -8612,3 +8612,39 @@ Next hash target
     - therefore the next valid cut, if any, must be demonstrably different
       from the already rejected first-side lazy-key classifiers
     - otherwise this family should be closed again
+
+- Timestamp: `2026-03-31 17:05:15 PDT`
+- Three-track closure on the first-side owner seam:
+  - inputs:
+    - exact first-side owner-seam forensics against the frozen baseline
+    - mature-control structural diff against the recorded x86_64 control note
+    - microarchitecture gatekeeper filter against the current reject pile
+  - converged result:
+    - the first differing decision is still in `rec_itern()`, after
+      `lj_record_next()` already has the helper result
+    - array reaches the payload path because `lj_record_next()` synthesizes a
+      visible numeric key from the successor index
+    - non-array/hash reaches the nil path because the visible key is
+      intentionally left unloaded
+    - `rec_itern()` immediately forks on `if (!tref_isnil(ix.key))`, so the
+      first-side hash failure is still the same payload-vs-nil /
+      unloaded-visible-key family
+  - supporting code points:
+    - non-array/hash leaves `ix->key = 0` on success:
+      - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2567)
+    - array synthesizes the visible key from the successor index:
+      - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2573)
+    - `rec_itern()` payload-vs-nil fork:
+      - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1402)
+      - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1476)
+  - mature-control read:
+    - the first real divergence is still payload-vs-nil, not a later
+      stop-target or runtime-owner adoption difference
+  - gatekeeper read:
+    - this is not a new owner-selection target
+    - it is the already rejected first-side lazy-key family in different
+      clothing
+  - decision:
+    - close the first-side owner-selection family again on the current tree
+    - do not code another override here unless a future cut is demonstrably
+      different from the rejected first-side lazy-key classifiers
