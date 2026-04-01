@@ -107,6 +107,61 @@ static int asm_s390x_bitop_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_bnorm_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_BNORM_LOG") != NULL);
+  return enabled;
+}
+
+static int asm_s390x_is_bitop_op(IROp op)
+{
+  switch (op) {
+  case IR_BNOT: case IR_BSWAP:
+  case IR_BAND: case IR_BOR: case IR_BXOR:
+  case IR_BSHL: case IR_BSHR: case IR_BSAR:
+  case IR_BROL: case IR_BROR:
+    return 1;
+  default:
+    return 0;
+  }
+}
+
+static void asm_s390x_bnorm_log(ASMState *as, IRIns *ir, Reg dest)
+{
+  IRIns *lir;
+  IRIns *rir;
+  if (!asm_s390x_bnorm_log_enabled() || !asm_s390x_is_bitop_op(ir->o))
+    return;
+  lir = IR(ir->op1);
+  rir = irref_isk(ir->op2) ? NULL : IR(ir->op2);
+  fprintf(stderr,
+	  "S390X_BNORM curins=%d ir=%d op=%d type=%d dest=%d leftref=%d leftop=%d lefttype=%d leftbitop=%d leftint=%d leftu32=%d left64=%d rightref=%d rightop=%d righttype=%d rightbitop=%d rightint=%d rightu32=%d right64=%d selfint=%d selfu32=%d self64=%d\n",
+	  (int)(as->curins - REF_BIAS),
+	  (int)((ir - as->ir) - REF_BIAS),
+	  (int)ir->o,
+	  (int)irt_type(ir->t),
+	  (int)dest,
+	  (int)(ir->op1 - REF_BIAS),
+	  (int)lir->o,
+	  (int)irt_type(lir->t),
+	  asm_s390x_is_bitop_op(lir->o),
+	  (int)irt_isinteger(lir->t),
+	  (int)irt_isu32(lir->t),
+	  (int)irt_is64(lir->t),
+	  irref_isk(ir->op2) ? -1 : (int)(ir->op2 - REF_BIAS),
+	  rir ? (int)rir->o : -1,
+	  rir ? (int)irt_type(rir->t) : -1,
+	  rir ? asm_s390x_is_bitop_op(rir->o) : 0,
+	  rir ? (int)irt_isinteger(rir->t) : 0,
+	  rir ? (int)irt_isu32(rir->t) : 0,
+	  rir ? (int)irt_is64(rir->t) : 0,
+	  (int)irt_isinteger(ir->t),
+	  (int)irt_isu32(ir->t),
+	  (int)irt_is64(ir->t));
+}
+
 static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
 				Reg dest, Reg left, Reg right, int rightisk)
 {
@@ -1421,6 +1476,7 @@ static void asm_equal(ASMState *as, IRIns *ir)
 }
 static void asm_bnorm32(ASMState *as, IRIns *ir, Reg dest)
 {
+  asm_s390x_bnorm_log(as, ir, dest);
   if (irt_isu32(ir->t))
     emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, dest));
   else

@@ -9451,3 +9451,30 @@ Next hash target
   - next exact target:
     - prove whether one narrow normalization-state / int32-home experiment is
       justified before opening any backend optimization patch
+
+- Timestamp: `2026-04-01 05:00:00 PDT`
+- Focused `asm_bnorm32()` audit confirms repeated normalization on the hot
+  `bitops_mix` producer chain
+  - relevant source:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L77)
+      new `LUAJIT_S390X_BNORM_LOG` gate
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1474)
+      `asm_bnorm32()`
+  - focused artifact bundle:
+    - [20260401-kdz-bnorm-log-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bnorm-log-audit)
+  - clean `kdz` result:
+    - the focused hot run logged `84` `S390X_BNORM` sites
+    - exact split:
+      - `42` sites normalize unary/shift nodes fed directly from the original
+        source integer or loop-carried arithmetic
+      - `42` sites normalize binary chain nodes where both operands are already
+        prior bitops
+    - all logged sites remain `IRT_INT`; this is not a 64-bit widening seam
+  - implication:
+    - the live backend question is now narrow and concrete
+    - the s390x backend is demonstrably re-normalizing an already-int32 chain
+      in the binary half of the hot path
+  - next exact target:
+    - prove whether one narrow normalization-state or int32-home experiment can
+      safely skip some of those chain-node `asm_bnorm32()` calls before opening
+      any optimization patch

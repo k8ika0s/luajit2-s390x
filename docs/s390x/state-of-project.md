@@ -261,6 +261,19 @@ non-causal probe effects. The current state is cleaner:
       `bitops_mix`
     - and only then decide whether one narrow normalization-state / int32-home
       experiment is justified
+  - focused `asm_bnorm32()` audit now says the chain really is paying repeated
+    normalization on prior bitop results:
+    - artifact root:
+      - [20260401-kdz-bnorm-log-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bnorm-log-audit)
+    - clean `kdz` focused run logged `84` `S390X_BNORM` sites
+    - the split is exact:
+      - `42` sites normalize unary/shift nodes fed directly from the original
+        int source or loop-carried arithmetic
+      - `42` sites normalize binary chain nodes where both inputs are already
+        prior bitops
+    - so the next exact target is no longer “is normalization happening?”
+    - it is whether one narrow normalization-state experiment can safely avoid
+      re-normalizing those already-int32 binary chain nodes
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
