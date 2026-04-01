@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 16:41:00 PDT
+Last updated: 2026-03-31 18:23:33 PDT
 
 ## Scope
 
@@ -11,9 +11,10 @@ was frozen into three lanes:
 - Lane B: promotable recorder-side iterator perf only
 - Lane C: parked bridge and continuation research only
 
-The current performance frontier is Lane B only. The bridge and continuation
-line is parked unless the clean no-probe iterator baseline regresses
-semantically again.
+The active performance frontier is no longer iterator-only. Iterator is frozen
+at the current Lane A + Lane B checkpoint unless a genuinely new seam appears
+outside the reject pile. The next queued workstream is dispatch/side-exit on
+the same clean-host contract. The bridge and continuation line stays parked.
 
 ## Authoritative Validation Surfaces
 
@@ -58,6 +59,97 @@ Checked-in truth-pack helper:
   - smaller non-resume owner-selection probes for the same three loops
   - `jit.attach("trace")` and `jit.attach("texit")` counts after warmup
   - `perf stat` capture when the host supports those events
+
+Checked-in dispatch truth-pack helper:
+
+- [tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+  now owns the queued dispatch/side-exit evidence pack
+- it reuses the same tracked-file sync and direct `src/` rebuild path, then
+  captures:
+  - `dispatch_trace` JIT-on and `-joff` medians
+  - focused hot medians for `numeric_loop`, `side_exit_loop`, and
+    `hotexit_loop`
+  - `jit.attach("trace")` and `jit.attach("texit")` counts after warmup
+  - `-jdump=ism` IR+mcode for the focused loops
+  - focused runtime `JLOOP_EXIT`, `HOTSIDE_FOCUS`, and recorder
+    `SIDE_FOCUS` logs for the dominant seam
+  - `perf stat` when the host supports those events
+
+## Queued Dispatch / Side-Exit Frontier
+
+Current `kdz` dispatch hot medians from the active truth pack:
+
+- `numeric_loop/hot`
+  - JIT-on `0.642036`
+  - `-joff` `0.002168`
+  - gap `+0.639868s`
+  - ratio `296.14x`
+- `side_exit_loop/hot`
+  - JIT-on `0.155224`
+  - `-joff` `0.004739`
+  - gap `+0.150485s`
+  - ratio `32.75x`
+- `hotexit_loop/hot`
+  - JIT-on `0.380652`
+  - `-joff` `0.005653`
+  - gap `+0.374999s`
+  - ratio `67.34x`
+
+Focused runtime read on the same branch tip:
+
+- `numeric_loop` after warmup:
+  - `TRACE_START 10`
+  - `TRACE_STOP 10`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 2001`
+  - `TEXIT_HIST 1:0=142,2:0=1,3:0=200,4:0=200,5:0=200,6:0=200,7:0=200,8:0=200,9:0=200,10:0=200,11:0=200,12:0=58`
+- `side_exit_loop` after warmup:
+  - `TRACE_START 11`
+  - `TRACE_STOP 11`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 2001`
+- current `kdz` still reports `perf stat` hardware counters as:
+  - `<not supported>`
+
+The key read is that the branch-free numeric loop already reproduces the same
+pathology. This is not primarily a loop-body branchiness problem.
+
+## Dispatch Seam Attribution
+
+The active seam on the frozen dispatch baseline is now mechanically pinned:
+
+- root `trace 1` starts at `BC_FORL` and stops as a loop
+- the hot seam is `trace 1 exit 0`
+- focused runtime logs show the hot-side replay at:
+  - `pc = BC_MODVN`
+  - `prevop = BC_JFORI`
+  - `snappc = BC_MODVN`
+  - `parent_startop = BC_FORL`
+- focused recorder logs show the first side trace enters as:
+  - `parent=1 exit=0`
+  - `startop = BC_JMP`
+  - `startpc == pc == snappc`
+  - `parent_snapnent = 0`
+- after `sidecheck`, that trace is still on the same bare body-entry state
+
+Current named seam:
+
+- `loop-body-entry-after-JFORI`
+
+Current read:
+
+- the hot failure is in the generic `FORL` / `JFORI` loop-entry path
+- hot-side duplication is downstream of that seam
+- this is not an iterator seam, not bridge/continuation machinery, and not a
+  late backend lowering opportunity
+
+One hotside-classifier is already closed here:
+
+- `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1` does not fix the problem
+- on the focused numeric probe it collapses the observed exit traffic into one
+  reused site:
+  - `7:0=160743`
+- that is not a real owner/materialization win
 
 ## Frozen Iterator Baseline
 
