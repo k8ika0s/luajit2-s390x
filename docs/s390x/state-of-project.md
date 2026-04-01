@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 13:21:11 PDT
+Last updated: 2026-04-01 13:44:15 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -117,13 +117,61 @@ non-causal probe effects. The current state is cleaner:
     remains as a parked design note, not an active implementation queue
   - do not reopen `W32_HOME` / low32-home prototype work until a finite
     compiled-body family exists again under the corrected validator
-  - the next honest target is a generic hotloop self-loop clone / exit family
-    on throughput microbenchmarks, starting with:
-    - `int_add_phi_only` as the smallest reproducer
-    - `logical_chain_tail_add` as the value-tail sibling
-    - `bitops_mix` as the larger mixed logic/add family
-      - or closure of `bitops_mix` as a local family and redirect to the
-        fallback integer-result queue
+  - the current live target is now narrower than “generic hotloop loop-clone /
+    exit behavior”
+  - the first promotable policy candidate on that family is the existing
+    hotside gate pair:
+    - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1`
+    - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1`
+  - clean `kdz` proof on the smallest reproducer:
+    - artifact:
+      [20260401-kdz-hotside-share-equiv-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-share-equiv-audit/summary.md)
+    - `int_add_phi_only` baseline:
+      - `hot 0.000786`
+      - `TRACE_START 21`
+      - `TEXIT_COUNT 4001`
+      - `TRACEINFO_COUNT 27`
+    - `SHARE_EQUIV` alone:
+      - `hot 0.000659`
+      - `TRACE_START 100`
+      - `TEXIT_COUNT 300`
+      - `TRACEINFO_COUNT 106`
+      - focused logs prove `phase=share-done ... target=199` immediately
+        followed by `phase=start ... snapcount=200`
+    - `CANON_EQUIV + SHARE_EQUIV`:
+      - `hot 0.000341`
+      - `TRACE_START 3`
+      - `TEXIT_COUNT 4001`
+      - `TRACEINFO_COUNT 9`
+    - `CANON_CHILD + SHARE_EQUIV`:
+      - `hot 0.000407`
+      - `TRACE_START 4`
+      - `TEXIT_COUNT 4001`
+      - `TRACEINFO_COUNT 10`
+  - clean `kdz` sibling validation:
+    - artifact:
+      [20260401-kdz-hotside-canon-share-family-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-family-check/summary.md)
+    - `logical_chain_tail_add`:
+      - baseline `hot 0.008741`, `TRACE_START 41`, `TEXIT_COUNT 7981`
+      - candidate `hot 0.002683`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - `bitops_mix`:
+      - baseline `hot 0.008902`, `TRACE_START 41`, `TEXIT_COUNT 7981`
+      - candidate `hot 0.002968`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - first `zkd0` screen:
+    - artifact:
+      [20260401-zkd0-hotside-canon-share-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-check/summary.md)
+    - `logical_chain_tail_add`: baseline `0.018642`, candidate `0.005414`
+    - `bitops_mix`: baseline `0.009459`, candidate `0.004000`
+    - after tracked-file resync and rebuild, the structural counts match `kdz`:
+      `TRACE_START 41 -> 2`, `TEXIT_COUNT 7981 -> 8000`
+  - current queue correction:
+    - the active question is no longer “can hotside reuse reduce exits?”
+    - it is “why does `CANON_EQUIV + SHARE_EQUIV` win by collapsing trace
+      population even while aggregate exit counts stay flat or slightly
+      higher?”
+    - the next honest target is the stable tiny-trace-set shape under that
+      combined policy, not more low32-home work and not `SHARE_EQUIV` by
+      itself
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
