@@ -10464,3 +10464,65 @@ Next hash target
   - queue correction:
     - the next honest target is broader family validation from this dedicated
       gate, not more loop-flurry root-cause work and not low32-home reopening
+
+- Timestamp: `2026-04-01 15:06:10 PDT`
+- The broader candidate matrix now covers the remaining active reduced
+  throughput seam too: `logical_chain_tail_store`
+  - clean `kdz` candidate artifact:
+    [20260401-kdz-logical_chain_tail_store-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_store-hotside_canon_share-truth-pack)
+    - `chain_tail_store/hot`: JIT-on `0.002800`, `-joff` `0.002016`
+    - `TRACE_START 2`, `TRACE_STOP 2`, `TRACE_ABORT 0`, `TEXIT_COUNT 8000`
+    - `asm_bnorm32()` sites collapse from `994` on the old baseline family
+      read to `168` here because the clone ladder is gone and only the early
+      canonical seam is being observed
+  - same-host `zkd0` A/B is also now checked in:
+    - baseline:
+      [20260401-zkd0-logical_chain_tail_store-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_store-baseline-truth-pack)
+      - `chain_tail_store/hot`: JIT-on `0.009260`, `-joff` `0.002135`
+      - `TRACE_START 42`, `TEXIT_COUNT 7983`
+    - candidate:
+      [20260401-zkd0-logical_chain_tail_store-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_store-hotside_canon_share-truth-pack)
+      - `chain_tail_store/hot`: JIT-on `0.003955`, `-joff` `0.002297`
+      - `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - read:
+    - the dedicated gate now holds across every active reduced throughput
+      surface in the current queue:
+      - `int_add_phi_only`
+      - `logic_add_phi_noboundary`
+      - `logical_chain_tail_add`
+      - `logical_chain_tail_store`
+      - `bitops_mix`
+    - the mechanism remains the same one already pinned:
+      - exits still happen every trip
+      - the win comes from preventing hotcount migration up the equivalent
+        parent clone ladder
+      - the trace set collapses to the early canonical seam
+  - queue correction:
+    - the next honest target is no longer another reduced-seam validation
+    - it is broader suite validation and promotion criteria for the dedicated
+      gate from this helper-backed single surface
+
+- Timestamp: `2026-04-01 15:10:25 PDT`
+- The helper-backed `zkd0` add-tail A/B now closes the last manual-only gap on
+  the larger reduced siblings
+  - baseline:
+    [20260401-zkd0-logical_chain_tail_add-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_add-baseline-truth-pack)
+    - `chain_tail_add/hot`: JIT-on `0.016437`, `-joff` `0.002933`
+    - `TRACE_START 41`, `TRACE_STOP 41`, `TEXIT_COUNT 7981`
+  - candidate:
+    [20260401-zkd0-logical_chain_tail_add-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_add-hotside_canon_share-truth-pack)
+    - `chain_tail_add/hot`: JIT-on `0.003722`, `-joff` `0.003899`
+    - `TRACE_START 2`, `TRACE_STOP 2`, `TEXIT_COUNT 8000`
+  - read:
+    - the dedicated gate now has helper-backed coverage for the full active
+      reduced throughput queue on `kdz`, and same-host A/B on the two larger
+      `zkd0` siblings (`logical_chain_tail_add`, `logical_chain_tail_store`)
+    - the mechanism still matches the pinned flurry explanation:
+      - hotcount migration up the equivalent-parent clone ladder is suppressed
+      - the trace set collapses to the early canonical seam
+      - exits remain live, so the win is trace-population control rather than
+        exit elimination
+  - queue correction:
+    - stop spending turns on reduced candidate matrix filling
+    - the next honest target is promotion criteria and broader suite
+      validation for `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
