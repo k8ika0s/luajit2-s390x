@@ -110,32 +110,84 @@ Current implementation reality splits into three buckets:
 
 ### Already available and usable
 
-- current 64-bit logical and arithmetic lowering already used by the backend
-- current 64-bit compare lowering already used at hard boundaries
-- ordinary GPR allocation and existing loop `PHI` lowering
+The current emitter/back end already has these wired and in active use:
+
+- register moves and normalizers:
+  - `LGR`
+  - `LGFR`
+  - `LLGFR`
+- 64-bit logical and arithmetic ops:
+  - `AGR`
+  - `SGR`
+  - `NGR`
+  - `OGR`
+  - `XGR`
+- compare forms already used at hard boundaries:
+  - `CGR`
+  - `CLGR`
+  - `CGHI`
+- shift/rotate/byte-swap paths already used by the safe family:
+  - `SLLK`
+  - `SRLK`
+  - `SRAK`
+  - `SLLG`
+  - `SRLG`
+  - `SRAG`
+  - `RLL`
+  - `LRVR`
+- memory boundary forms already wired:
+  - `LLGF`
+  - `STY`
+  - `STG`
+
+That means a first prototype does not need another blind opcode-swap family.
+The current backend can already carry the low word through the safe family with
+existing 64-bit ops, provided the contract says the upper 32 bits are
+unobservable until a hard boundary forces normalization.
 
 ### Available in the ISA but not yet a safe contract surface here
 
-- word-based logical and arithmetic instruction forms
-- high-word / word-home instruction forms
-- register-storage boundary forms that may be useful once the contract is
-  explicit
+Code review of the current emitter shows no wired 32-bit RR logical/arithmetic
+or compare family for this contract. The ISA may offer narrower or high-word
+alternatives, but they are not honest drop-ins under the current mechanism:
 
-These are architecture opportunities, not immediate drop-in swaps. The earlier
+- 32-bit RR logical/arithmetic forms
+- 32-bit compare forms
+- high-word / word-home instruction forms
+- register-storage boundary forms that may become profitable once the contract
+  is explicit
+
+These remain architecture opportunities, not immediate fixes. The earlier
 opcode-swap and local skip experiments already showed that using narrower forms
 without a stronger state model is not promotable.
 
 ### Missing or not yet wired in the emitter/backend contract
 
+The actual missing pieces are semantic and lowering-wide:
+
 - a backend-wide notion that a value is still `W32_HOME`
-- emitter support and lowering rules that preserve that state across the safe
-  family
+- lowering rules that preserve that state across the safe family
 - explicit normalization hooks at every hard boundary
+- snapshot/restore handling that never exposes `W32_HOME` as if it were
+  `W64_NORM`
 
 For the current queue, helper and call interaction are hard boundaries rather
 than the main optimization surface. `bitops_mix` is compiled-body dominated, so
 preserved-GPR strategy is secondary here; the primary problem is the backend
 result-state contract, not helper ABI traffic.
+
+## Prototype Implication
+
+The first honest prototype, if this family stays open, should be:
+
+- stateful `W32_HOME` carry across the safe family using the current 64-bit
+  emitter surface
+- no new local opcode-swap branch
+- no new compare-consumer branch
+- explicit normalize only at the named hard boundaries
+
+If that stateful prototype cannot stay finite under the reduced trace
+validator, the family should close before any wider emitter work.
 
 ## Non-Goals
 
