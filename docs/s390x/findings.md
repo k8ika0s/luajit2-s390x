@@ -10340,7 +10340,7 @@ Next hash target
     - the next honest target is the stable tiny-trace-set shape under that
       combined policy, not `SHARE_EQUIV` alone and not backend low32-home work
 
-- Timestamp: `2026-04-01 13:56:32 PDT`
+- Timestamp: `2026-04-01 14:08:29 PDT`
 - The generic throughput exit flurry is now mechanically narrowed on the
   smallest reproducer
   - mechanism artifact:
@@ -10377,3 +10377,54 @@ Next hash target
     - the next honest target is to decide whether this pair should become one
       dedicated policy/gate and then validate it beyond the current throughput
       surfaces
+
+- Timestamp: `2026-04-01 13:56:32 PDT`
+- The combined canon/share throughput fix is now promoted to one dedicated
+  gate and survives the focused host checks
+  - code:
+    [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - new gate:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+  - clean `kdz` focused validation:
+    - artifact:
+      [20260401-kdz-hotside-canon-share-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-gate-check/summary.md)
+    - `int_add_phi_only`
+      - `hot 0.000349`
+      - `TRACE_START 3`
+      - `TRACE_STOP 3`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 4001`
+    - `logical_chain_tail_add`
+      - `hot 0.003015`
+      - `TRACE_START 2`
+      - `TRACE_STOP 2`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 8000`
+    - `bitops_mix`
+      - `hot 0.003064`
+      - `TRACE_START 2`
+      - `TRACE_STOP 2`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 8000`
+  - `zkd0` screen:
+    - artifact:
+      [20260401-zkd0-hotside-canon-share-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-gate-check/summary.md)
+    - `logical_chain_tail_add`
+      - `hot 0.003333`
+      - `TRACE_START 2`
+      - `TEXIT_COUNT 8000`
+    - `bitops_mix`
+      - `hot 0.004170`
+      - `TRACE_START 2`
+      - `TEXIT_COUNT 8000`
+  - read:
+    - the new single gate preserves the same small trace-set shape as the old
+      dual-env pair
+    - the repeated exit seam is unchanged, which is expected
+    - the improvement still comes from stopping hotcount migration up later
+      equivalent parents
+  - queue correction:
+    - the live throughput candidate is now the dedicated single gate
+    - the next honest target is helper integration and broader candidate
+      validation, not more root-cause digging on the already-explained exit
+      flurry

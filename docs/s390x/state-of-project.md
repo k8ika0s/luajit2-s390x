@@ -189,6 +189,27 @@ non-causal probe effects. The current state is cleaner:
     - the next honest target is no longer “find the cause of the flurry”
     - it is whether to promote this combined policy into one dedicated gate and
       validate it more broadly as the current throughput fix candidate
+  - dedicated-gate promotion pass:
+    - code:
+      [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - new gate:
+      - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - clean `kdz` focused validation:
+      - artifact:
+        [20260401-kdz-hotside-canon-share-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-gate-check/summary.md)
+      - `int_add_phi_only`: `hot 0.000349`, `TRACE_START 3`, `TEXIT_COUNT 4001`
+      - `logical_chain_tail_add`: `hot 0.003015`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+      - `bitops_mix`: `hot 0.003064`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - `zkd0` screen:
+      - artifact:
+        [20260401-zkd0-hotside-canon-share-gate-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-canon-share-gate-check/summary.md)
+      - `logical_chain_tail_add`: `hot 0.003333`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+      - `bitops_mix`: `hot 0.004170`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - queue correction:
+      - the current throughput candidate is now the single dedicated gate, not
+        the old ad hoc env pair
+      - the next honest target is broader candidate validation and helper
+        integration, not more root-cause fishing and not low32-home reopening
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
