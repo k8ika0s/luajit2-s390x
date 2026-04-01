@@ -9008,3 +9008,35 @@ Next hash target
     - queueing rule from here:
       - any new helper-boundary work must name a fresh seam first
       - otherwise move to broader JIT throughput families
+
+- Timestamp: `2026-03-31 21:05:00 PDT`
+- Broader-throughput queue is now explicit and has a checked-in restamp path:
+  - new helper:
+    - [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+  - current supported families:
+    - [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+    - [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
+  - why this is the next queue:
+    - iterator is frozen at the Lane A + Lane B checkpoint
+    - the dispatch loop-clone mechanism is closed
+    - the first helper-boundary follow-up did not name a new seam
+  - target order:
+    - `vararg_paths` first because it stresses arg-bank, call, return, and
+      `select()` / vararg flow without reopening the closed iterator or
+      dispatch families
+    - `bitops_mix` second as a helper-light compiled-body control
+  - explicit non-target:
+    - [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
+      is not the next family because its `pairs(map)` loop would drag iterator
+      behavior back into a queue that is supposed to sit outside the frozen
+      iterator mechanism
+  - scope of the new helper:
+    - reuses tracked-file sync only
+    - reuses direct `src/` rebuild only
+    - captures full-family JIT-on and `-joff` medians
+    - captures focused hot-only medians, trace/texit counts, and `perf stat`
+      when available
+  - current status:
+    - helper added locally and validated for syntax/smoke only
+    - no new authoritative `kdz` or `zkd0` family restamp is claimed yet from
+      this note

@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 20:20:45 PDT
+Last updated: 2026-03-31 21:05:00 PDT
 
 ## Scope
 
@@ -21,6 +21,17 @@ helper-boundary follow-up is also now classified and did not expose a new
 surface. The next queued workstream is broader JIT throughput work unless a
 new helper-boundary storage/materialization seam can be named first. The
 bridge and continuation line stays parked.
+
+That broader-throughput queue is now explicit:
+
+1. [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+   is first because it pressures arg-bank, call, return, and `select()` /
+   vararg flow without reusing the closed iterator or dispatch seams
+2. [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
+   is second as a backend-heavy compiled-body control
+3. [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
+   stays out of this queue because `pairs(map)` would drag iterator behavior
+   back into a family that is supposed to sit outside the frozen iterator line
 
 ## Authoritative Validation Surfaces
 
@@ -80,6 +91,21 @@ Checked-in dispatch truth-pack helper:
   - focused runtime `JLOOP_EXIT`, `HOTSIDE_FOCUS`, and recorder
     `SIDE_FOCUS` logs for the dominant seam
   - `perf stat` when the host supports those events
+
+Checked-in broader-throughput truth-pack helper:
+
+- [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+  now owns the first broader-throughput restamp path
+- current supported families:
+  - `vararg_paths`
+  - `bitops_mix`
+- it reuses the same tracked-file sync and direct `src/` rebuild path, then
+  captures:
+  - full-family JIT-on and `-joff` medians
+  - focused hot-only medians
+  - `jit.attach("trace")` and `jit.attach("texit")` counts after warmup
+  - `perf stat` when the host supports those events
+  - raw smoke, trace-count, and perf-stat logs
 
 ## Queued Dispatch / Side-Exit Frontier
 
@@ -296,6 +322,18 @@ Updated queue:
 
 1. any new helper-boundary work must name a fresh seam first
 2. otherwise move to broader JIT throughput families
+
+The first two broader-throughput targets are now fixed:
+
+1. `vararg_paths`
+2. `bitops_mix`
+
+That order is intentional:
+
+- `vararg_paths` is the first ABI-sensitive throughput family that avoids the
+  closed iterator and dispatch seams
+- `bitops_mix` is the first helper-light control for telling exit-heavy red
+  from pure compiled-body red
 
 ## Frozen Iterator Baseline
 
