@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 13:44:15 PDT
+Last updated: 2026-04-01 14:33:30 PDT
 
 ## Scope
 
@@ -156,8 +156,28 @@ Current clean-`kdz` broader-throughput frontier:
   - the root-cause question is answered on this mechanism
   - the live candidate surface is now the dedicated single gate, not the old
     ad hoc env pair
-  - the next honest target is broader candidate validation and helper
-    integration
+  - helper integration is now complete in
+    [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+    via `--candidate hotside_canon_share`
+  - helper-backed `kdz` candidate artifacts:
+    - [20260401-kdz-int_add_phi_only-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-int_add_phi_only-hotside_canon_share-truth-pack)
+      - `add_phi_only/hot`: JIT-on `0.000350`, `-joff` `0.000032`,
+        `TRACE_START 3`, `TEXIT_COUNT 4001`
+    - [20260401-kdz-logic_add_phi_noboundary-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logic_add_phi_noboundary-hotside_canon_share-truth-pack)
+      - `logic_add_phi_noboundary/hot`: JIT-on `0.002619`, `-joff`
+        `0.002159`, `TRACE_START 5`, `TRACE_ABORT 2`, `TEXIT_COUNT 4001`
+    - [20260401-kdz-logical_chain_tail_add-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-hotside_canon_share-truth-pack)
+      - `chain_tail_add/hot`: JIT-on `0.003052`, `-joff` `0.002541`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - [20260401-kdz-bitops_mix-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-hotside_canon_share-truth-pack)
+      - `mix_bits/hot`: JIT-on `0.003084`, `-joff` `0.002168`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - helper-backed `zkd0` screen:
+    - [20260401-zkd0-bitops_mix-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-bitops_mix-hotside_canon_share-truth-pack)
+      - `mix_bits/hot`: JIT-on `0.004230`, `-joff` `0.002933`,
+        `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - the next honest target is broader candidate validation from this
+    helper-backed single gate
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
