@@ -9566,3 +9566,36 @@ Next hash target
     - audit whether any valid backend-wide 32-bit ALU/logical lowering path
       exists for `int` results on s390x before opening another code
       experiment
+
+- Timestamp: `2026-04-01 05:30:28 PDT`
+- Emitter audit says the broader integer-result contract does not currently
+  have an existing 32-bit register-op escape hatch
+  - relevant source:
+    - [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h#L97)
+      active opcode definitions
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1491)
+      `asm_bitop_logic()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1341)
+      `asm_add()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1635)
+      `asm_sub()`
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h#L1710)
+      `asm_mul()`
+  - source result:
+    - the active emitter definitions include only the 64-bit register forms
+      used in the hot paths:
+      - `AGR`, `SGR`, `NGR`, `OGR`, `XGR`, `MSGFR`
+    - there are no wired 32-bit register `AR` / `SR` / `NR` / `OR` / `XR`
+      forms sitting unused behind the current assembler selection logic
+    - so there is no remaining honest “pick a better existing opcode” move on
+      this backend surface
+  - implication:
+    - if this family stays open, it is no longer a bitops-local or opcode-swap
+      experiment
+    - it becomes a broader backend capability question: whether to introduce a
+      real 32-bit integer-result lowering surface at all
+    - if that is out of scope for the current line, `bitops_mix` should be
+      closed as a local family instead of taking more narrow experiments
+  - next exact target:
+    - decide whether to open one explicit backend-wide 32-bit lowering design
+      family, or close `bitops_mix` and redirect again
