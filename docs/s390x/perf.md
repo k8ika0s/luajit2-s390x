@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-03-31 20:08:12 PDT
+Last updated: 2026-03-31 20:20:45 PDT
 
 ## Scope
 
@@ -16,9 +16,11 @@ at the current Lane A + Lane B checkpoint unless a genuinely new seam appears
 outside the reject pile. The first dispatch/side-exit loop-clone queue has now
 also been classified and closed on the current mechanism. The follow-up
 dispatch-adjacent side-exit pass did not expose a second seam; the branchy
-loops collapse back to the same closed loop-clone ladder. The next queued
-workstream is helper-boundary storage/materialization audit work where the
-s390x ABI may still help. The bridge and continuation line stays parked.
+loops collapse back to the same closed loop-clone ladder. The first
+helper-boundary follow-up is also now classified and did not expose a new
+surface. The next queued workstream is broader JIT throughput work unless a
+new helper-boundary storage/materialization seam can be named first. The
+bridge and continuation line stays parked.
 
 ## Authoritative Validation Surfaces
 
@@ -268,6 +270,32 @@ Next queued redirect:
 
 1. helper-boundary storage/materialization audits where the ABI may help
 2. only then broader JIT throughput families
+
+The first helper-boundary follow-up from that redirect is now classified:
+
+- surface:
+  - [hotexit_update_preinterned.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/hotexit_update_preinterned.lua)
+  - artifact:
+    - [20260331-kdz-href-helper-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-href-helper-audit)
+- clean `kdz` result:
+  - `TRACE_start iter=2 tr=1`
+  - `TRACE_start iter=21 tr=2 otr=1 oex=2`
+  - `TRACE_start iter=20 tr=3 otr=1 oex=0`
+  - `TRACE_start iter=101 tr=4 otr=3 oex=3`
+  - `TRACEINFO tr=1 link=1 type=loop`
+  - `TRACEINFO tr=2 link=1 type=root`
+  - `TRACEINFO tr=3 link=3 type=loop`
+  - `TRACEINFO tr=4 link=0 type=stitch`
+- interpretation:
+  - the existing helper-backed dynamic `HREF` update path is structurally
+    converged on the current tree
+  - it does not expose a new broken helper-boundary family and does not reopen
+    the older mixed-update hot-exit line
+
+Updated queue:
+
+1. any new helper-boundary work must name a fresh seam first
+2. otherwise move to broader JIT throughput families
 
 ## Frozen Iterator Baseline
 

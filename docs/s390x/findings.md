@@ -8970,3 +8970,41 @@ Next hash target
     - next queued redirect:
       - helper-boundary storage/materialization audits where the ABI may help
       - only then broader JIT throughput families
+
+- Timestamp: `2026-03-31 20:20:45 PDT`
+- Helper-boundary follow-up, existing dynamic `HREF` hot-exit surface is structurally green:
+  - authoritative clean-host audit:
+    - [20260331-kdz-href-helper-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260331-kdz-href-helper-audit)
+  - target script:
+    - [hotexit_update_preinterned.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/hotexit_update_preinterned.lua)
+  - why this was the first helper-boundary follow-up:
+    - dynamic `HREF` is still helper-backed on s390x in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - older native findings showed real hot-exit path sensitivity around the
+      helper-backed mixed preinterned update loop
+  - clean `kdz` result on the current branch tip:
+    - the run terminates cleanly (`rc=0`)
+    - it reports the expected converged trace chain:
+      - `TRACE_start iter=2 tr=1`
+      - `TRACE_stop iter=3 tr=1`
+      - `TRACE_start iter=21 tr=2 otr=1 oex=2`
+      - `TRACE_stop iter=20 tr=2`
+      - `TRACE_start iter=20 tr=3 otr=1 oex=0`
+      - `TRACE_stop iter=21 tr=3`
+      - `TRACE_start iter=101 tr=4 otr=3 oex=3`
+      - `TRACE_stop iter=101 tr=4`
+    - final traceinfo also matches the expected converged shape:
+      - `tr=1 link=1 type=loop`
+      - `tr=2 link=1 type=root`
+      - `tr=3 link=3 type=loop`
+      - `tr=4 link=0 type=stitch`
+    - final result is stable:
+      - `done 81 100`
+  - decision:
+    - the current helper-backed dynamic `HREF` update path is not a newly
+      broken family
+    - this audit does not expose a new helper-boundary storage/materialization
+      seam worth opening
+    - queueing rule from here:
+      - any new helper-boundary work must name a fresh seam first
+      - otherwise move to broader JIT throughput families
