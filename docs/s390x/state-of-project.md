@@ -163,6 +163,37 @@ non-causal probe effects. The current state is cleaner:
       `ADD` plus `PHI`
     - `ASTORE`, guard/compare (`LE`), helper, and other noncarry consumers stay
       as hard boundaries until proven otherwise
+- the first native `kdz` pass on that `ADD`/`PHI` carry gate is now rejected:
+  - artifact:
+    [20260401-kdz-low32home-addphi-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-addphi-check/summary.md)
+  - clean-host result:
+    - `logical_chain_tail_add`: gated median `0.007441`
+    - `logical_chain_tail_store`: gated median `0.006737`
+    - the proof scripts terminated cleanly:
+      - `proof_add`: `REMOTE_RC=0`, `skip_count=2`
+      - `proof_store`: `REMOTE_RC=0`, `skip_count=0`
+    - but both reduced trace probes timed out:
+      - `chain_tail_add`: `REMOTE_RC=124`
+      - `chain_tail_store`: `REMOTE_RC=124`
+  - result:
+    - source returned to the non-behavior baseline after the host check
+    - this exact low32-home `ADD`/`PHI` carry gate is closed on the current
+      mechanism
+    - the remaining backend choice is now narrower:
+      - either a fuller stateful low32-home / normalized-result contract that
+        keeps the reduced trace probes finite and normalizes before any
+        guard/compare, helper/call, store, or snapshot-visible exit boundary
+      - or closure of the `bitops_mix` backend family too
+  - design read:
+    - safe internal carry family on the current lowering surface is only:
+      - bitop logic/unary/shift/rotate
+      - plain non-guard integer `ADD`
+      - loop `PHI` when both incoming arms stay in the same family
+    - hard boundaries remain:
+      - guard/compare sites
+      - helper/call boundaries
+      - store consumers such as `ASTORE`
+      - snapshot-visible exit/restore paths
 - the first native `kdz` pass on that new queue is now enough to name the next
   live family:
   - `vararg_paths` is not just mildly red; it is a real JIT-on cliff,
