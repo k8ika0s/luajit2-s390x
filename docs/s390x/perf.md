@@ -114,6 +114,17 @@ Current clean-`kdz` broader-throughput frontier:
     - `SHARE_EQUIV` alone wins by accelerating new trace formation
     - the combined canon/share policy wins differently: it collapses actual
       trace population while preserving the throughput gain
+  - mechanism artifact:
+    [20260401-kdz-hotside-canon-share-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-mechanism/summary.md)
+  - mechanism read:
+    - `SHARE_EQUIV` alone still reaches late `parent=24 exit=0` and primes
+      that late parent straight to `hotexit - 1`, then immediately starts a
+      new trace there
+    - the combined canon/share policy does not lower total exits on this
+      reproducer
+    - instead, the warmed measured run no longer reaches `parent=24` at all
+    - it keeps paying the same repeated `exit 0` seam on early `parent=4`,
+      which is why `TEXIT_COUNT` stays flat while trace population collapses
 - clean `kdz` sibling validation:
   - artifact:
     [20260401-kdz-hotside-canon-share-family-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-canon-share-family-check/summary.md)
