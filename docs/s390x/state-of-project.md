@@ -380,6 +380,32 @@ non-causal probe effects. The current state is cleaner:
           promotable
         - if this family stays open, the next cut has to preserve a real
           int32-home/result state, not just skip `LGFR` at candidate producers
+      - first low32-home logical-subchain variant is now also rejected:
+        [20260401-kdz-bitops-low32home-subchain-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-bitops-low32home-subchain-check/summary.md)
+      - implementation shape:
+        - only `band` / `bor` / `bxor`
+        - only classifier-proven carry and `ADD`-tail nodes
+        - 32-bit `LR` / `NR` / `OR` / `XR` low32-home lowering, no internal
+          post-op normalize on those nodes
+      - clean `kdz` result:
+        - first focused pass was ambiguous:
+          - baseline `mix_bits/hot 0.008784`
+          - gated `mix_bits/hot 0.008609`
+        - but the no-rebuild rerun flipped negative:
+          - baseline `mix_bits/hot 0.008312`
+          - gated `mix_bits/hot 0.008749`
+      - structural read:
+        - the reduced gated check terminated cleanly
+        - the new path did fire:
+          - `logic32carry 21`
+          - `logic32tail 2`
+        - the focused trace-count script still timed out in both baseline and
+          gated forms, so it did not provide a usable structural discriminator
+      - result:
+        - source is back on the non-behavior baseline
+        - this exact low32-home logical-subchain variant is not promotable
+        - any remaining backend line here has to be a deeper consumer-side
+          normalized-result / int32-home design, or this family should close
 - a checkpoint branch now exists for the frozen implementation baseline:
   - `k8ika0s/s390x-jit-on-freeze-20260331`
 - the default branch posture from here is to ship Lane A plus Lane B unless a
