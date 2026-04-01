@@ -276,7 +276,11 @@ Corrected finite owner-selection rerun on `kdz`:
     problem
   - it is the same first-side nil-descendant / unloaded-visible-key family
     already exposed by the earlier focused hash seam probes
-  - so any next cut must be genuinely different from those rejected
+  - subagent forensics and the mature-control diff both pin the first
+    divergence earlier, at the `rec_itern()` payload-vs-nil fork on `ix.key`
+    after the helper result already exists
+  - so this family is closed again on the current tree
+  - any future cut must be genuinely different from those rejected
     first-side lazy-key classifiers
 
 ## What Is Rejected
