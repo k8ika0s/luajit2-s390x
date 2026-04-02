@@ -32,6 +32,43 @@ CANDIDATE_ENVS: dict[str, dict[str, str]] = {
     },
 }
 
+CANDIDATE_SCOPE: dict[str, dict[str, Any]] = {
+    "hotside_canon_share_uget_looproot": {
+        "summary": (
+            "Scoped to the repeated exit=0 / BC_UGET / BC_JMP / loop-root seam. "
+            "Use reduced UGET/looproot siblings, be_helpers, ffi_calls, "
+            "retconst_loop, retlast_loop, and mixed_loop as promotion evidence. "
+            "Keep sum_loop out of promotion evidence because the parked nested-"
+            "callee vararg frontier still dominates it. Treat dispatch_trace, "
+            "iterator_table, mixed_ffi, ffi_cdata, int_add_phi_only, and "
+            "logic_add_phi_noboundary as out of scope on the current mechanism."
+        ),
+        "workloads": {
+            "add_phi_only": "out_of_scope",
+            "logic_add_phi_noboundary": "out_of_scope",
+            "chain_tail_add": "promotion_evidence",
+            "chain_tail_store": "promotion_evidence",
+            "mix_bits": "promotion_evidence",
+            "number_helper_loop": "promotion_evidence",
+            "be_pack_loop": "promotion_evidence",
+            "direct_abs": "promotion_evidence",
+            "stored_abs": "promotion_evidence",
+            "retconst_loop": "promotion_evidence",
+            "retlast_loop": "promotion_evidence",
+            "mixed_loop": "promotion_evidence",
+            "sum_loop": "same_seam_but_dominated",
+            "mixed_ffi_loop": "out_of_scope",
+            "pair_loop": "out_of_scope",
+            "mixed_width_loop": "out_of_scope",
+            "pairs_sum": "out_of_scope",
+            "pairs_array_sum": "out_of_scope",
+            "numeric_loop": "out_of_scope",
+            "side_exit_loop": "out_of_scope",
+            "hotexit_loop": "out_of_scope",
+        },
+    },
+}
+
 
 def load_ir_op_names() -> dict[int, str]:
     names: dict[int, str] = {}
@@ -1590,6 +1627,8 @@ def render_summary(
     joff_index = perf_index(joff_records)
     focused_on_index = perf_index(focused_records)
     focused_off_index = perf_index(focused_joff_records)
+    candidate_scope = CANDIDATE_SCOPE.get(candidate, {})
+    workload_scope = candidate_scope.get("workloads", {})
     lines = [
         f"# {family} Truth Pack",
         "",
@@ -1611,10 +1650,26 @@ def render_summary(
         "",
         f"- {config['selection_reason']}",
         "",
+    ]
+    if candidate_scope:
+        lines.extend(
+            [
+                "## Candidate Scope",
+                "",
+                f"- {candidate_scope['summary']}",
+            ]
+        )
+        hot_workloads = [hot_key.split("/", 1)[0] for hot_key in config["hot_cases"]]
+        for workload in hot_workloads:
+            status = workload_scope.get(workload)
+            if status:
+                lines.append(f"- `{workload}` scope: `{status}`")
+        lines.append("")
+    lines.extend([
         "## Build And Smoke",
         "",
         f"- `jit.status()`: `{jit_status}`",
-    ]
+    ])
     for workload, output in check_results.items():
         lines.append(f"- `{workload}` check: `{output}`")
     lines.extend(["", "## Benchmark Medians", ""])

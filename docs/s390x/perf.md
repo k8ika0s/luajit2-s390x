@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 17:29:59 PDT
+Last updated: 2026-04-01 17:41:37 PDT
 
 ## Latest Matrix
 
@@ -370,10 +370,54 @@ Current clean-`kdz` broader-throughput frontier:
         - `iterator_table` still regresses:
           - `pairs_sum/hot`: `0.068483 -> 0.076181`
           - `pairs_array_sum/hot`: `0.066698 -> 0.084550`
+      - broader scope proof now makes the promotion boundary explicit on
+        clean `kdz`:
+        [20260401-kdz-hotside-uget-looproot-promotion-scope](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-promotion-scope/summary.md)
+        - same-seam positives:
+          - `retconst_loop`: `match_count 15858`
+          - `retlast_loop`: `match_count 15858`
+          - `sum_loop`: `match_count 15858`
+          - `mixed_loop`: `match_count 15858`
+        - zero-hit non-targets:
+          - `mixed_ffi_loop`: `match_count 0`
+          - `pair_loop`: `match_count 0`
+          - `mixed_width_loop`: `match_count 0`
+          - `pairs_sum`: `match_count 0`
+          - `pairs_array_sum`: `match_count 0`
+      - representative `zkd0` confirmation matches:
+        [20260401-zkd0-hotside-uget-looproot-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-uget-looproot-promotion-scope-check/summary.md)
+        - `retconst_loop`: `match_count 15858`
+        - `mixed_loop`: `match_count 15858`
+        - `mixed_ffi_loop`: `match_count 0`
+        - `pairs_sum`: `match_count 0`
+      - promotion scope is now:
+        - in-scope candidate slice:
+          - reduced `UGET`/looproot siblings
+          - `be_helpers`
+          - `ffi_calls`
+          - `retconst_loop`
+          - `retlast_loop`
+          - `mixed_loop`
+        - same-seam but not promotion evidence:
+          - `sum_loop`
+            - same seam hit, but still dominated by the parked nested-callee
+              vararg frontier
+        - out of scope on the current mechanism:
+          - `dispatch_trace`
+          - `iterator_table`
+          - `mixed_ffi`
+          - `ffi_cdata`
+          - `int_add_phi_only`
+      - that scope is now also codified in
+        [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+        so helper-backed candidate summaries report:
+        - `promotion_evidence`
+        - `same_seam_but_dominated`
+        - `out_of_scope`
       - so the next honest target is no longer broader-suite promotion for
         `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
-      - it is helper-backed reduced-family restamp and exact promotion
-        boundary for the `UGET`/looproot seam only
+      - it is using that scoped helper surface for any promotion decision or
+        additional host screens
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
