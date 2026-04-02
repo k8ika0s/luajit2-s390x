@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 18:00:01 PDT
+Last updated: 2026-04-01 18:11:14 PDT
 
 ## Latest Matrix
 
@@ -21,10 +21,10 @@ matrix until they are backfilled.
 | 2026-04-01 16:25:27 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.340611` | `0.002162` | `157.54x` |
 | 2026-04-01 16:25:27 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.531437` | `0.004577` | `116.11x` |
 | 2026-04-01 16:25:27 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.612595` | `0.005580` | `109.78x` |
-| 2026-04-01 16:25:27 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.023723` | `0.019272` | `1.23x` |
-| 2026-04-01 16:25:27 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.008225` | `0.002248` | `3.66x` |
-| 2026-04-01 16:25:27 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.017482` | `0.010079` | `1.73x` |
-| 2026-04-01 16:25:27 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.012540` | `0.007001` | `1.79x` |
+| 2026-04-01 18:11:14 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.023346` | `0.018789` | `1.24x` |
+| 2026-04-01 18:11:14 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.008169` | `0.002285` | `3.58x` |
+| 2026-04-01 18:06:31 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.018044` | `0.009995` | `1.81x` |
+| 2026-04-01 18:06:31 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.012581` | `0.006919` | `1.82x` |
 | 2026-04-01 16:25:27 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.027964` | `0.027969` | `1.00x` |
 | 2026-04-01 16:25:27 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.137179` | `0.017319` | `7.92x` |
 | 2026-04-01 17:53:04 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.001660` | `0.000591` | `2.81x` |
@@ -45,10 +45,10 @@ matrix until they are backfilled.
 | 2026-04-01 16:39:41 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.681747` | `0.002604` | `261.81x` |
 | 2026-04-01 16:39:41 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.097901` | `0.005207` | `210.85x` |
 | 2026-04-01 16:39:41 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.352638` | `0.007836` | `172.62x` |
-| 2026-04-01 16:39:41 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.026545` | `0.023417` | `1.13x` |
-| 2026-04-01 16:39:41 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.009826` | `0.002649` | `3.71x` |
-| 2026-04-01 16:39:41 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.028492` | `0.014099` | `2.02x` |
-| 2026-04-01 16:39:41 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.018633` | `0.012526` | `1.49x` |
+| 2026-04-01 18:07:17 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.051882` | `0.039644` | `1.31x` |
+| 2026-04-01 18:07:17 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.015573` | `0.003520` | `4.42x` |
+| 2026-04-01 18:07:15 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.039104` | `0.024293` | `1.61x` |
+| 2026-04-01 18:07:15 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.041040` | `0.019167` | `2.14x` |
 | 2026-04-01 16:39:41 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.045325` | `0.045030` | `1.01x` |
 | 2026-04-01 16:39:41 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.366784` | `0.024836` | `14.77x` |
 | 2026-04-01 17:55:45 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003574` | `0.000849` | `4.21x` |
@@ -414,9 +414,19 @@ Current clean-`kdz` broader-throughput frontier:
         - `promotion_evidence`
         - `same_seam_but_dominated`
         - `out_of_scope`
-      - helper-backed in-scope truth packs now close the promotion call for
-        the non-dominated slice:
+      - helper-backed host-pair truth packs now cover the full non-dominated
+        scoped slice:
         - `kdz`
+          - [20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `number_helper_loop/hot`: `0.008169` vs `-joff 0.002285`,
+              `TRACE_START 6`, `TEXIT_COUNT 64001`
+            - `be_pack_loop/hot`: `0.023346` vs `-joff 0.018789`,
+              `TRACE_START 6`, `TEXIT_COUNT 64001`
+          - [20260401-kdz-ffi_calls-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-ffi_calls-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `direct_abs/hot`: `0.018044` vs `-joff 0.009995`,
+              `TRACE_START 5`, `TEXIT_COUNT 80001`
+            - `stored_abs/hot`: `0.012581` vs `-joff 0.006919`,
+              `TRACE_START 5`, `TEXIT_COUNT 80001`
           - [20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
             - `retlast_loop/hot`: `0.003093` vs `-joff 0.002025`, `TRACE_START 5`
             - `retconst_loop/hot`: `0.001660` vs `-joff 0.000591`, `TRACE_START 5`
@@ -426,6 +436,16 @@ Current clean-`kdz` broader-throughput frontier:
             - `mixed_loop/hot`: `0.036412` vs `-joff 0.003764`,
               `TRACE_START 102`, `TEXIT_COUNT 195722`
         - `zkd0`
+          - [20260401-zkd0-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `number_helper_loop/hot`: `0.015573` vs `-joff 0.003520`,
+              `TRACE_START 6`, `TEXIT_COUNT 64001`
+            - `be_pack_loop/hot`: `0.051882` vs `-joff 0.039644`,
+              `TRACE_START 6`, `TEXIT_COUNT 64001`
+          - [20260401-zkd0-ffi_calls-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-ffi_calls-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `direct_abs/hot`: `0.039104` vs `-joff 0.024293`,
+              `TRACE_START 5`, `TEXIT_COUNT 80001`
+            - `stored_abs/hot`: `0.041040` vs `-joff 0.019167`,
+              `TRACE_START 5`, `TEXIT_COUNT 80001`
           - [20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
             - `retlast_loop/hot`: `0.012619` vs `-joff 0.003196`, `TRACE_START 5`
             - `retconst_loop/hot`: `0.003574` vs `-joff 0.000849`, `TRACE_START 5`
@@ -448,9 +468,9 @@ Current clean-`kdz` broader-throughput frontier:
           `int_add_phi_only`, and `logic_add_phi_noboundary` out of this
           candidate surface
       - the next honest target is no longer deciding whether this filtered
-        gate has a promotable slice
-      - it is additional suite coverage for that already-scoped slice,
-        not host-pair completion inside the current in-scope families
+        gate has a promotable slice or filling host-pair gaps inside it
+      - it is selective promotion planning for this fully helper-backed
+        candidate slice
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
