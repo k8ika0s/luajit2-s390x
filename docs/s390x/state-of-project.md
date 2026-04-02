@@ -2694,10 +2694,42 @@ Current owner map contract:
   - queue correction:
     - the inherited GC64 integer `SLOAD` replay/typecheck seam is directly
       remediated
-    - this is not yet a full perf win because the repeated flurry advances to
-      a later `BC_TGETS` header family
-    - the next honest target is exact attribution of that later `TGETS` seam,
-      not more inherited-int extraction work
+    - this is not yet a full perf win because the real helper workload still
+      has a later steady header seam
+    - exact next-seam attribution remained open
+
+- Timestamp: `2026-04-02 14:20:46 PDT`
+- Post-repair exact-taken attribution corrects the next-seam read again
+  - real helper workload exact-taken proof:
+    [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
+    - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+    - dominant seam remains `trace 7 exit 0` at restored `BC_UGET`
+    - exact taken guard is now:
+      - `curins 3`
+      - `IR SLOAD`
+      - `op1 4`
+      - `op2 36`
+      - `sload_int ofs 16 extra 20`
+    - so the live post-repair seam on the real helper workload is the
+      inherited numeric-for index/current-value `SLOAD`, not a `BC_TGETS`
+      guard
+  - reduced helper-variant split after the repair:
+    [20260402-kdz-postrepair-helper-variant-only](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-postrepair-helper-variant-only/summary.md)
+    - original helper form:
+      - `number_helper_literal_stop`: `TRACE_START 1`, `TEXIT_COUNT 399`
+      - exact taken guard remains the carried-state `SLOAD #2 T`
+    - local helper form:
+      - `number_helper_local_tobit`: `TRACE_START 1`, `TEXIT_COUNT 0`
+    - arg helper form:
+      - `number_helper_arg_tobit`: `TRACE_START 2`, `TEXIT_COUNT 0`
+    - pure-add sibling under the repaired default is no longer part of this
+      helper-header slice; it explodes into trace population and aborts with
+      table overflow
+  - queue correction:
+    - the next honest target is helper-form interaction with the inherited
+      numeric-for index/current-value `SLOAD` seam
+    - not generic `TGETS`
+    - not more inherited-int extraction work
 
 ### After that
 
