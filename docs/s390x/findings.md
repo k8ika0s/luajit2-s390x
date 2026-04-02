@@ -11450,3 +11450,25 @@ Next hash target
     - it is the earlier numeric-`for` header `LE` guard on the promoted slice
     - do not reopen low32-home, iterator, dispatch, helper-header, or generic
       hotside-population work from this result
+
+- Timestamp: `2026-04-02 10:32:11 PDT`
+- The earlier numeric-`for` header `LE` seam is now mapped semantically, not
+  just as an IR shape
+  - proof chain:
+    - [20260402-kdz-number-helper-guardmark-attribution-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v3/summary.md)
+    - [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+    - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h#L234)
+    - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1088)
+  - dump form:
+    - `0001 int SLOAD #5 RI`
+    - `0002 > int LE 0001 +2147483646`
+  - semantic read:
+    - bytecode starts the numeric `for` at `FORI A=2`
+    - `FORL_STOP` is `A+1`
+    - in this workload, that stop slot is the source-level `n`
+    - `rec_for_check(...)` consumes that stop before the loop body forms
+  - queue correction:
+    - the live promoted-slice seam is now the numeric `for` stop/range guard
+      on `n`
+    - the carried-`total` and numeric-index `SLOAD`s remain secondary shared
+      header seams
