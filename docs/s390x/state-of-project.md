@@ -553,7 +553,9 @@ non-causal probe effects. The current state is cleaner:
                   is now the checked-in first-enable boundary for this gate
               - next honest target from this queue:
                 - promotion-core-only validation and rollout criteria from that
-                  checked-in boundary, not more slice discovery
+                  checked-in boundary, driven through
+                  [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py),
+                  not more slice discovery
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

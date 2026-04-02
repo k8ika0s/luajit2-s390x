@@ -503,6 +503,8 @@ Current clean-`kdz` broader-throughput frontier:
           now pins the first enable set and deferred slices explicitly
       - next honest target:
         - promotion-core-only validation and rollout criteria from that note,
+          using
+          [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py),
           not more family coverage inside the same seam
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:

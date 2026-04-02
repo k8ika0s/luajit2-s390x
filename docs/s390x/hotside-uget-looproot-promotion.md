@@ -99,3 +99,6 @@ Immediate rollout shape:
 - keep `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as an explicit candidate surface
 - validate and restamp only against `promotion_core`
 - carry the secondary slice as supporting same-seam evidence, not as an enable criterion
+- use [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py)
+  to run the first-enable slice without drifting back into secondary or
+  out-of-scope families

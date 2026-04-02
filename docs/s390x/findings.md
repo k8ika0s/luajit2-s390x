@@ -10999,3 +10999,18 @@ Next hash target
     - the next honest target is promotion-core-only validation and rollout
       criteria from that explicit boundary
     - it is no longer more slice discovery or more family classification work
+
+- Timestamp: `2026-04-01 18:57:41 PDT`
+- Promotion-core-only validation now has a dedicated runner instead of relying
+  on ad hoc family-by-family invocations
+  - new helper:
+    - [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py)
+  - current behavior:
+    - resolves the first-enable slice from the checked-in candidate scope
+    - rejects requests for families outside that slice
+    - can drive candidate-only or baseline-plus-candidate restamps for the
+      explicit first enable set
+  - queue correction:
+    - the next pass from this mechanism should use that runner
+    - do not drift back into `promotion_secondary`, dominated vararg, or
+      out-of-scope families while validating the first promotion surface
