@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 17:29:59 PDT
+Last updated: 2026-04-01 17:41:37 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -425,9 +425,57 @@ non-causal probe effects. The current state is cleaner:
                   - `op=BC_UGET`
                   - `startop=BC_JMP`
                   - `root_startop=BC_FORL`
-              - so the next honest target is no longer host-pair mechanism
-                confirmation for this filtered gate
-              - it is promotion-scope criteria from this one named seam instead
+              - broader scope proof now closes the remaining ambiguity on
+                `kdz`:
+                [20260401-kdz-hotside-uget-looproot-promotion-scope](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-promotion-scope/summary.md)
+                - same-seam positive families:
+                  - `retconst_loop`: `match_count 15858`
+                  - `retlast_loop`: `match_count 15858`
+                  - `sum_loop`: `match_count 15858`
+                  - `mixed_loop`: `match_count 15858`
+                - zero-hit non-targets:
+                  - `mixed_ffi_loop`: `match_count 0`
+                  - `pair_loop`: `match_count 0`
+                  - `mixed_width_loop`: `match_count 0`
+                  - `pairs_sum`: `match_count 0`
+                  - `pairs_array_sum`: `match_count 0`
+              - representative `zkd0` confirmation now matches that read:
+                [20260401-zkd0-hotside-uget-looproot-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-uget-looproot-promotion-scope-check/summary.md)
+                - same-seam positives:
+                  - `retconst_loop`: `match_count 15858`
+                  - `mixed_loop`: `match_count 15858`
+                - zero-hit non-targets:
+                  - `mixed_ffi_loop`: `match_count 0`
+                  - `pairs_sum`: `match_count 0`
+              - promotion scope is now explicit:
+                - in-scope candidate slice:
+                  - reduced `UGET`/looproot siblings
+                  - `be_helpers`
+                  - `ffi_calls`
+                  - `vararg_paths/retconst_loop`
+                  - `vararg_paths/retlast_loop`
+                  - `mixed_noffi/mixed_loop`
+                - same-seam but not promotion evidence:
+                  - `vararg_paths/sum_loop`
+                    - it still hits the same seam, but the nested-callee
+                      vararg frontier remains dominant and it stays far from
+                      `-joff`
+                - out of scope on the current mechanism:
+                  - `dispatch_trace`
+                  - `iterator_table`
+                  - `mixed_ffi`
+                  - `ffi_cdata`
+                  - plain `int_add_phi_only`
+              - that scope is now also codified in
+                [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+                so helper-backed candidate summaries report:
+                - `promotion_evidence`
+                - `same_seam_but_dominated`
+                - `out_of_scope`
+              - so the next honest target is no longer scope discovery or
+                helper codification
+              - it is using that scoped helper surface for any promotion
+                decision or additional host screens
                 of mixed-family heuristics
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:

@@ -10803,3 +10803,44 @@ Next hash target
     - the filtered gate now has one named activation family across both hosts
     - the next honest target is promotion-scope criteria from that seam, not
       more mechanism discovery
+
+- Timestamp: `2026-04-01 17:41:37 PDT`
+- Promotion-scope proof now closes the remaining filtered-gate ambiguity
+  - clean `kdz` broader-scope artifact:
+    [20260401-kdz-hotside-uget-looproot-promotion-scope](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-promotion-scope/summary.md)
+  - representative `zkd0` confirmation:
+    [20260401-zkd0-hotside-uget-looproot-promotion-scope-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-uget-looproot-promotion-scope-check/summary.md)
+  - same-seam positives on `kdz`:
+    - `retconst_loop`: `match_count 15858`
+    - `retlast_loop`: `match_count 15858`
+    - `sum_loop`: `match_count 15858`
+    - `mixed_loop`: `match_count 15858`
+  - representative host-pair positives:
+    - `retconst_loop` on `zkd0`: `match_count 15858`
+    - `mixed_loop` on `zkd0`: `match_count 15858`
+  - zero-hit non-targets:
+    - `mixed_ffi_loop`: `match_count 0` on both hosts
+    - `pair_loop`: `match_count 0` on `kdz`
+    - `mixed_width_loop`: `match_count 0` on `kdz`
+    - `pairs_sum`: `match_count 0` on both hosts
+    - `pairs_array_sum`: `match_count 0` on `kdz`
+  - queue correction:
+    - the filtered gate is now scoped to one explicit candidate slice:
+      - reduced `UGET`/looproot siblings
+      - `be_helpers`
+      - `ffi_calls`
+      - `retconst_loop`
+      - `retlast_loop`
+      - `mixed_loop`
+    - `sum_loop` stays out of promotion evidence even though it hits the same
+      seam, because the parked nested-callee vararg frontier still dominates
+    - `mixed_ffi`, `ffi_cdata`, `iterator_table`, `dispatch_trace`, and plain
+      `int_add_phi_only` stay out of scope on the current mechanism
+    - that candidate slice is now also codified in
+      [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+      so helper-backed summaries report:
+      - `promotion_evidence`
+      - `same_seam_but_dominated`
+      - `out_of_scope`
+    - the next honest target is to use that scoped helper surface for any
+      promotion decision or additional host screens
