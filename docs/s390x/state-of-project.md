@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 21:45:51 PDT
+Last updated: 2026-04-01 22:10:32 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -54,6 +54,9 @@ non-causal probe effects. The current state is cleaner:
   [tools/s390x/build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
   so the promoted-default `promotion_core` families can be classified by
   dominant `trace`/`texit` pair instead of only aggregate `TEXIT_COUNT`
+  - that helper now also supports reduced iteration overrides and extra env
+    passthrough, so focused runtime exit attribution can be captured without
+    reopening the full 64k/80k hot runs
 - the iterator lane is now frozen at the current checkpoint unless a genuinely
   new seam appears outside the reject pile
 - the next live seam inside the promoted-default throughput slice is now pinned
@@ -73,11 +76,35 @@ non-causal probe effects. The current state is cleaner:
       the front-most remaining seam there is not a helper call boundary
     - `direct_abs` keeps `CALLXS` in the hot loop body, so it stays the
       call-decorated sibling, not the clean first attribution target
+  - reduced runtime exit attribution on clean `kdz` now pins the exact steady
+    seam for both representative workloads:
+    - artifact:
+      [20260401-kdz-core-exit-attribution-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-reduced/summary.md)
+    - both `number_helper_loop` and `direct_abs` still converge to the same
+      reduced dominant site:
+      - `TRACE_START 5`
+      - `TEXIT_COUNT 801`
+      - dominant `trace 7 exit 0` x `257`
+    - existing `lj_trace_exit()` logging proves that repeated site resumes at:
+      - `pc op=45`
+      - `snapop=45`
+      - `snapcount=0`
+      - `snapref=32769`
+    - `op=45` is `BC_UGET`, matching the filtered hotside seam in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - queue correction:
+      - the remaining promotion-core red is not a generic helper/call exit
+        family
+      - on the clean first target, `number_helper_loop`, the steady seam is the
+        front `BC_UGET` upvalue/identity-guard region for `bit.tobit`
+      - `direct_abs` reaches the same steady `BC_UGET` seam even though its
+        loop body also contains `CALLXS`, so the call boundary is not the
+        defining front-most mechanism
   - queue correction:
     - the remaining red is no longer hotside population churn on this slice
     - the next honest target is direct `trace 7 exit 0` attribution on
-      `number_helper_loop`, with `direct_abs` kept as the call-decorated
-      comparison path
+      `number_helper_loop`, then recorder/runtime explanation of why that
+      `BC_UGET` seam stays live every trip under the promoted default
 - the first dispatch/side-exit loop-clone queue has now also been classified
   and closed on the current mechanism
 - the follow-up dispatch-adjacent side-exit pass did not expose a second seam;

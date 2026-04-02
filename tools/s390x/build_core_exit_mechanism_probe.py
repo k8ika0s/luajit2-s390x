@@ -90,7 +90,7 @@ end
 run(20); run(20); run(20)
 local trace_cap = testlib.trace_counter_capture()
 local texit_cap = testlib.texit_counter_capture()
-print("RESULT", run(64000))
+print("RESULT", run({iterations}))
 trace_cap.stop()
 texit_cap.stop()
 print("TRACE_START", trace_cap.start)
@@ -129,7 +129,7 @@ end
 run(20); run(20); run(20)
 local trace_cap = testlib.trace_counter_capture()
 local texit_cap = testlib.texit_counter_capture()
-print("RESULT", run(64000))
+print("RESULT", run({iterations}))
 trace_cap.stop()
 texit_cap.stop()
 print("TRACE_START", trace_cap.start)
@@ -165,7 +165,7 @@ end
 run(20); run(20); run(20)
 local trace_cap = testlib.trace_counter_capture()
 local texit_cap = testlib.texit_counter_capture()
-print("RESULT", run(80000))
+print("RESULT", run({iterations}))
 trace_cap.stop()
 texit_cap.stop()
 print("TRACE_START", trace_cap.start)
@@ -202,7 +202,7 @@ end
 run(20); run(20); run(20)
 local trace_cap = testlib.trace_counter_capture()
 local texit_cap = testlib.texit_counter_capture()
-print("RESULT", run(80000))
+print("RESULT", run({iterations}))
 trace_cap.stop()
 texit_cap.stop()
 print("TRACE_START", trace_cap.start)
@@ -289,8 +289,9 @@ def dominant_hist(hist: dict[str, int]) -> dict[str, Any] | None:
     return {"key": key, "count": count}
 
 
-def render_lua_script(template: str) -> str:
+def render_lua_script(template: str, iterations: int) -> str:
     return template.format(
+        iterations=iterations,
         emit_hist=emit_hist_lua().rstrip(),
         emit_traceinfo=emit_traceinfo_lua().rstrip(),
     )
@@ -314,11 +315,13 @@ def run_probe(
     extra_env: dict[str, str],
     capture_dump: bool,
     dump_flags: str,
+    iterations_override: int | None,
 ) -> dict[str, Any]:
     config = WORKLOADS[workload]
     remote_name = f"{workload}.lua"
     remote_script_path = f"/tmp/{remote_name}"
-    script_text = render_lua_script(config["script"])
+    iterations = iterations_override or int(config["iterations"])
+    script_text = render_lua_script(config["script"], iterations)
     restamp.run_remote_command(
         host,
         f"""
@@ -379,7 +382,7 @@ rm -f {shlex.quote(remote_script_path)}
     return {
         "workload": workload,
         "family": config["family"],
-        "iterations": config["iterations"],
+        "iterations": iterations,
         "counts": scalars,
         "trace_hist": trace_hist,
         "texit_hist": texit_hist,
@@ -473,7 +476,32 @@ def parse_args() -> argparse.Namespace:
         default="is",
         help="Dump flags to pass to -jdump when --capture-dump is used (default: is).",
     )
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        help="Override the configured iteration count for all selected workloads.",
+    )
+    parser.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Extra environment variable to set for the remote probe process.",
+    )
     return parser.parse_args()
+
+
+def parse_env_overrides(items: list[str]) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for item in items:
+        if "=" not in item:
+            raise SystemExit(f"invalid --env entry {item!r}; expected KEY=VALUE")
+        key, value = item.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise SystemExit(f"invalid --env entry {item!r}; missing KEY")
+        overrides[key] = value
+    return overrides
 
 
 def main() -> int:
@@ -493,6 +521,7 @@ def main() -> int:
     restamp.build_remote_repo(args.host, repo, raw_dir)
 
     extra_env = dict(CANDIDATE_ENVS[args.candidate])
+    extra_env.update(parse_env_overrides(args.env))
     results = [
         run_probe(
             host=args.host,
@@ -502,6 +531,7 @@ def main() -> int:
             extra_env=extra_env,
             capture_dump=args.capture_dump,
             dump_flags=args.dump_flags,
+            iterations_override=args.iterations,
         )
         for workload in workloads
     ]

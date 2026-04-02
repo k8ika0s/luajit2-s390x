@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 21:45:51 PDT
+Last updated: 2026-04-01 22:10:32 PDT
 
 ## Latest Matrix
 
@@ -156,6 +156,28 @@ That read is narrower than the older “helper-heavy” / “FFI-heavy” labels
   - the front-most remaining payer is one stable loop exit, but the clean
     first attribution target is now `number_helper_loop`, because it removes
     the call-boundary complication that still exists in `direct_abs`
+
+Reduced runtime exit attribution on clean `kdz` now pins that stable loop exit
+to the same exact bytecode seam in both representative workloads:
+
+- [20260401-kdz-core-exit-attribution-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-reduced/summary.md)
+  - `number_helper_loop`:
+    - `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 801`
+    - dominant texit: `7:0` x `257`
+    - runtime exit log: `trace 7 exit 0` resumes at `pc op=45`,
+      `snapop=45`, `snapcount=0`
+  - `direct_abs`:
+    - `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 801`
+    - dominant texit: `7:0` x `257`
+    - runtime exit log: `trace 7 exit 0` also resumes at `pc op=45`,
+      `snapop=45`, `snapcount=0`
+- `op=45` is `BC_UGET`, which matches the exact filtered hotside seam in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+- queue correction:
+  - the promoted-default core red is not front-most call/FFI exit churn
+  - the remaining steady seam is the front `BC_UGET` re-entry / guard region
+  - on `number_helper_loop`, that is the clean upvalue/identity-guard prefix
+    for `bit.tobit`, not a helper call boundary
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 

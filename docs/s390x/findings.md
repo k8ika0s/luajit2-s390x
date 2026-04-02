@@ -11182,3 +11182,37 @@ Next hash target
       attribution on `number_helper_loop`
     - `direct_abs` stays the call-decorated sibling for comparison, not the
       first attribution target
+
+- Timestamp: `2026-04-01 22:10:32 PDT`
+- Reduced runtime exit attribution now pins the exact steady promotion-core
+  seam on clean `kdz`
+  - artifact:
+    [20260401-kdz-core-exit-attribution-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-reduced/summary.md)
+  - helper update:
+    [tools/s390x/build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
+    now supports reduced iteration overrides plus extra env passthrough, so
+    focused `lj_trace_exit()` logging can be captured without reopening the
+    full hot runs
+  - reduced representative runs (`iterations=800`,
+    `LUAJIT_S390X_EXIT_LOG=1`) both complete cleanly:
+    - `number_helper_loop`: `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 801`, dominant `7:0` x `257`
+    - `direct_abs`: `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 801`, dominant `7:0` x `257`
+  - runtime exit logs pin the repeated site for both workloads to the same
+    exact resumed bytecode seam:
+    - `trace 7 exit 0`
+    - `pc op=45`
+    - `snapop=45`
+    - `snapcount=0`
+    - `snapref=32769`
+  - `op=45` is `BC_UGET`, matching the filtered hotside seam already encoded
+    in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - queue correction:
+    - the remaining promotion-core red is not a generic call/FFI boundary
+      problem
+    - on the clean first target, `number_helper_loop`, the steady seam is the
+      front `BC_UGET` upvalue / identity-guard region for `bit.tobit`
+    - `direct_abs` reaches the same steady `BC_UGET` seam even though its loop
+      body still contains `CALLXS`, so the call boundary is not the defining
+      front-most mechanism
