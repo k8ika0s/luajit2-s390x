@@ -137,6 +137,39 @@ So the signed/arithmetic extraction idea is directionally right for the
 inherited integer-`SLOAD` typecheck itself, but the remaining failure is the
 numeric-`for` replay materialization contract after that check starts passing.
 
+## VM Contract Mismatch
+
+The next source read narrows that replay-materialization problem again.
+
+On s390x, the VM integer `FORI/FORL` fast path in
+[vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc#L4331) is explicitly a 32-bit value path:
+
+- `lg RB, FOR_IDX`
+- `checkint RB`
+- `ar RB, ITYPE`
+- `setint RB`
+- `stg RB, FOR_IDX`
+- `stg RB, FOR_EXT`
+
+So the VM contract for the hot integer loop body is not “use the inherited
+tagged slot as-is”. It is “prove integer type, clear the tag into the working
+register, do 32-bit arithmetic, then retag for storage”.
+
+The repaired trace that still fails on the second hot run does not reach a
+stable version of that contract. It passes the inherited integer `SLOAD`
+typecheck, then repeatedly dies at:
+
+- `trace 1 exit 0`
+- `guardmark=0xe`
+- `curins 14`
+- `0014 > int MULOV 0003 +65537`
+- `0003 = int SLOAD #4 TI`
+
+So the current live problem is now narrower than tag extraction by itself:
+the inherited numeric-`for` replay value is still not re-materialized as the
+same cleared 32-bit arithmetic input that the VM fast path uses before the
+header multiply/add chain.
+
 ## Hard Boundaries
 
 Do not reopen:
@@ -147,4 +180,5 @@ Do not reopen:
 - iterator / dispatch / bridge / vararg families
 
 This is now a narrow GC64 inherited numeric-`for` replay-materialization
-problem, not just a tag-extraction problem.
+problem: restore the VM-style cleared 32-bit arithmetic contract before the
+header multiply path, not just the tag-extraction compare.
