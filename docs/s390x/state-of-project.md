@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 07:12:08 PDT
+Last updated: 2026-04-02 10:18:43 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -219,38 +219,54 @@ non-causal probe effects. The current state is cleaner:
                 - `op1=3` therefore maps to top-frame slot `1`
                 - on `number_helper_loop`, top-frame slot `1` is the
                   loop-carried `total`
-            - cross-check against the existing no-helper sibling now sharpens
-              the next seam further:
+          - exact runtime guard attribution now sharpens the ordering inside
+            that header cluster:
+            - artifact:
+              [20260402-kdz-number-helper-guardmark-attribution-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v3/summary.md)
+            - on the real promoted workload, the dominant runtime failure
+              inside `trace 7 exit 0` is:
+              - `curins=2`
+              - `IR=LE`
+              - dump form: `int LE 0001 +2147483646`
+            - the reduced no-helper sibling keeps that same front-most exact
+              failure:
+              - artifact:
+                [20260402-kdz-pure-add-first-guard-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-first-guard-attribution/summary.md)
+              - first repeated reduced exit cluster also lands on
+                `guardmark=0x2`
+              - restored header marker shifts to `BC_MULVN`, but the first
+                exact runtime failure stays the same early `LE`
+            - queue correction:
+              - the front-most exact runtime seam on the promoted slice is not
+                the carried-`total` reload
+              - it is the earlier numeric-`for` header `LE` guard
+              - the carried-`total` `SLOAD ofs=8 extra=12` remains the first
+                shared `sload_int` seam across reducers, but it is now second
+                in exact runtime failure order
+              - do not open code until that `LE` guard is mapped cleanly to
+                the loop-header state it is stabilizing
+            - shared `sload_int` cross-check still matters, but it is now
+              explicitly secondary:
               - the pure-add reducer still reaches its first `sload_int`
                 earlier in the ordered cluster at `curins=5`
-              - but it carries the same logged `SLOAD` signature:
+              - it keeps the same logged `SLOAD` signature:
                 `ofs=8`, `extra=12`
-              - that reduced sibling has the same bytecode slot layout at the
-                loop header, so its first shared `SLOAD ofs=8 extra=12` is the
-                same carried `total` lane
+              - that reduced sibling therefore keeps the same carried `total`
+                reload as the first shared `sload_int` seam
               - the later exact-by-`curins` shared `sload_int`
-                (`curins=3`, `ofs=16`, `extra=20`) is still present, but it is
-                now second in the ordered shared seam, not first
-              - semantic mapping for that second seam is now pinned too:
-                - `op1=4` maps to top-frame slot `2`
-                - on both the real workload and the pure-add reducer,
-                  top-frame slot `2` is the numeric `for` index state
+                (`curins=3`, `ofs=16`, `extra=20`) is still present and maps to
+                the numeric `for` index state
             - current queue correction:
-              - the next honest family is shared header-state stabilization on
-                the loop-carried `total` reload at the restored header seam
-              - the numeric `for` index `SLOAD` is now explicitly the second
-                shared seam, not the front-most one
-              - current runtime exit logs still collapse the whole `SNAP #0`
-                header cluster into one exit stub, so the exact first failing
-                guard inside that cluster is still unresolved
+              - the next honest family is no longer shared header-state
+                stabilization on the carried `total` reload
+              - it is exact attribution and then stabilization of the earlier
+                numeric-`for` header `LE` guard
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - header-state attribution around the first ordered shared
-            `sload_int` signature:
-            - `SLOAD`
-            - `ofs=8`
-            - `extra=12`
+          - exact semantic attribution of the early numeric-`for` header
+            `LE` guard:
+            - dump form: `int LE 0001 +2147483646`
           - use `number_helper_loop` as the real workload and the pure-add
             reducer as the no-helper sibling
         - x64 control status is now explicit:

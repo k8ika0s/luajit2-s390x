@@ -11420,3 +11420,33 @@ Next hash target
       unresolved
     - do not open code until the `total` reload is reduced from “live reload”
       to the exact first reason it still fails every trip
+
+- Timestamp: `2026-04-02 10:18:43 PDT`
+- Exact runtime guard attribution on the promoted slice now corrects the
+  earlier “carried total is front-most” read
+  - proof artifacts:
+    - [20260402-kdz-number-helper-guardmark-attribution-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v3/summary.md)
+    - [20260402-kdz-pure-add-first-guard-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-first-guard-attribution/summary.md)
+  - real workload:
+    - dominant runtime failure inside `trace 7 exit 0` is `guardmark=0x2`
+    - exact runtime guard:
+      - `curins=2`
+      - `IR=LE`
+      - dump form: `int LE 0001 +2147483646`
+  - no-helper sibling:
+    - the first repeated reduced exit cluster also lands on `guardmark=0x2`
+    - restored header marker shifts from `BC_UGET` to `BC_MULVN`
+    - the first exact runtime guard still stays the same early `LE`
+  - ordering correction:
+    - the carried-`total` reload (`SLOAD ofs=8 extra=12`) remains the first
+      shared `sload_int` seam across reducers
+    - but it is not the first exact runtime failure
+    - the exact first runtime failure is the earlier numeric-`for` header
+      `LE` guard that precedes both the carried-`total` and numeric-index
+      `SLOAD`s
+  - queue correction:
+    - the next live seam is no longer “carried total reload at restored
+      `SNAP #0`”
+    - it is the earlier numeric-`for` header `LE` guard on the promoted slice
+    - do not reopen low32-home, iterator, dispatch, helper-header, or generic
+      hotside-population work from this result

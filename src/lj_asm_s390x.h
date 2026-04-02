@@ -83,6 +83,14 @@ static int asm_s390x_guard_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_guardmark_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_GUARDMARK") != NULL);
+  return enabled;
+}
+
 static int asm_s390x_call_log_enabled(void)
 {
   static int enabled = -1;
@@ -1222,13 +1230,24 @@ static void asm_guardcc(ASMState *as, int cc)
 {
   MCode *target = asm_exitstub_addr(as, as->snapno);
   MCode *p = as->mcp;
+  int32_t mark = (int32_t)(as->curins - REF_BIAS);
   lj_asm_s390x_guard_log(as, cc, target, p, 0);
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->loopinv = 1;
     lj_asm_s390x_guard_log(as, cc, target, p, 1);
     *p = S390X_INS_BRC(CC_AL, (int32_t)(((char *)target - (char *)p) >> 1));
+    if (asm_s390x_guardmark_enabled()) {
+      emit_store32ofs(as, RID_TMP, RID_DISPATCH,
+		      emit_gl_ofs(tmptv2) + (LJ_BE ? 4 : 0));
+      emit_loadi(as, RID_TMP, mark);
+    }
     emit_condbranch(as, (S390XCC)asm_guardcc_invert(cc), p);
     return;
+  }
+  if (asm_s390x_guardmark_enabled()) {
+    emit_store32ofs(as, RID_TMP, RID_DISPATCH,
+		    emit_gl_ofs(tmptv2) + (LJ_BE ? 4 : 0));
+    emit_loadi(as, RID_TMP, mark);
   }
   emit_condbranch(as, (S390XCC)cc, target);
 }
