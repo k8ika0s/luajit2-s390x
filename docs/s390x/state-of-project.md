@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 22:10:32 PDT
+Last updated: 2026-04-01 23:04:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -92,6 +92,33 @@ non-causal probe effects. The current state is cleaner:
       - `snapref=32769`
     - `op=45` is `BC_UGET`, matching the filtered hotside seam in
       [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - the exact `BC_UGET` meaning is now pinned for the clean first target:
+      - in
+        [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua),
+        the loop body is `bit.tobit(total + i * 65537)`
+      - trace IR shows the front prefix as:
+        - `fun SLOAD #0`
+        - `i64 UREFO ... #0`
+        - `tab ULOAD`
+        - `HREFK "tobit"`
+        - `fun HLOAD`
+        - `fun EQ ... bit.tobit`
+      - so `BC_UGET` is loading the `bit` module upvalue table, not the
+        `bit.tobit` callee directly; the callee resolution happens in the
+        following `HREFK/HLOAD` identity-guard prefix
+    - reduced baseline comparison now closes the mechanism split:
+      - artifact:
+        [20260401-kdz-core-exit-attribution-baseline-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-baseline-reduced/summary.md)
+      - baseline and promoted default keep the same `BC_UGET` seam
+      - what changes is only which equivalent loop clone accumulates the exits:
+        - baseline reduced dominant site: `trace 6 exit 0` x `200`
+        - promoted-default reduced dominant site: `trace 7 exit 0` x `257`
+      - queue correction:
+        - the promoted default is collapsing the clone-parent walk
+        - it is not changing the actual per-iteration exit seam
+        - the remaining live question is why the front `BC_UGET` / upvalue +
+          `tobit` identity-guard prefix still sits outside the stable loop
+          body every trip
     - queue correction:
       - the remaining promotion-core red is not a generic helper/call exit
         family
