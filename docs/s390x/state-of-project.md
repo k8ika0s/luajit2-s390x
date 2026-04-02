@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 14:42:26 PDT
+Last updated: 2026-04-02 15:03:17 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -2795,8 +2795,32 @@ Current owner map contract:
       converge on the same inherited current numeric-for-value `SLOAD` lane
       behind that `MOV`
     - the next honest target is therefore exact stack-visible helper/value
-      replay under the promoted slice at that shifted current-value `SLOAD`,
-      not more helper-lookup attribution and not another localization attempt
+      replay under the promoted slice at that shifted current-value `SLOAD`
+
+- Timestamp: `2026-04-02 15:03:17 PDT`
+- Reduced slot-state follow-up closes the localized rematerialization split
+  - artifact:
+    [20260402-kdz-dynamic-local-slotlog](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog/summary.md)
+  - repeated seam stays:
+    - `trace 1 exit 0`
+    - restored `pc op=18`, `snapop=18`
+    - exact taken `guardmark=0x3`
+    - `curins=3`, `IR=SLOAD`, `op1=5`, `op2=36`
+  - but the replayed loop state at that seam is already coherent:
+    - live current value register `r11` advances `0x3`, `0x4`, `0x5`, ...
+    - carried `total` dump `r3tv q0` stays a valid boxed GC64 int and advances
+      consistently:
+      - `0xfff9000000060006`
+      - `0xfff90000000a000a`
+      - `0xfff90000000f000f`
+      - `0xfff9000000150015`
+  - queue correction:
+    - this is no longer a missing-rematerialization theory
+    - the localized helper/value replay state is already live and progressing
+    - the next honest target is the inherited integer `SLOAD`
+      replay/typecheck contract on that live current-value lane
+    - not imported-helper lookup
+    - not another helper-localization attempt
 
 ### After that
 
