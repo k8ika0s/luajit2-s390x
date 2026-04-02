@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 16:13:50 PDT
+Last updated: 2026-04-01 16:39:41 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -364,14 +364,32 @@ non-causal probe effects. The current state is cleaner:
                 - `pairs_sum/hot`: `0.090623`
                 - `pairs_array_sum/hot`: `0.102340`
             - current queue correction:
-              - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` is now the
-                active selective-promotion candidate
-              - unlike the unfiltered dedicated gate, it preserves the main
-                throughput win while bringing frozen iterator back to roughly
-                baseline on `kdz` and better-than-baseline on `zkd0`
-              - the next honest target is broader suite validation and helper
-                integration for this filtered gate, not more speculative scope
-                fences
+              - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` did clear
+                the reduced seam proof and it remains the active selective
+                hotside candidate on that exact `UGET`/looproot family
+              - helper support now exists in
+                [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+                as `--candidate hotside_canon_share_uget_looproot`
+              - but the first clean `kdz` broader-suite restamp closes broad
+                promotion:
+                [20260401-kdz-hotside-uget-looproot-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-broader-suite-check/summary.md)
+                - reduced-family win is still real elsewhere
+                - broader families do not carry:
+                  - `dispatch_trace/numeric_loop`: `0.341080 -> 0.340611`
+                  - `mixed_ffi/mixed_ffi_loop`: `0.059399 -> 0.059215`
+                  - `ffi_cdata/mixed_width_loop`: `0.027778 -> 0.027964`
+                  - `vararg_paths/sum_loop`: `1.207311 -> 0.675950`
+                    but still remains extremely red vs `-joff 0.005150`
+                - frozen iterator still regresses:
+                  - `pairs_sum/hot`: `0.068483 -> 0.076181`
+                  - `pairs_array_sum/hot`: `0.066698 -> 0.084550`
+              - early `zkd0` broader rows do not contradict that narrower read:
+                - `dispatch_trace/numeric_loop`: `0.646129 -> 0.681747`
+                - `be_helpers/number_helper_loop`: `1.029361 -> 0.009826`
+              - so the next honest target is no longer broader promotion for
+                this filtered gate
+              - it is helper-backed reduced-family restamp and an explicit
+                promotion boundary for the `UGET`/looproot seam only
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

@@ -1,6 +1,63 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 16:13:50 PDT
+Last updated: 2026-04-01 16:39:41 PDT
+
+## Latest Matrix
+
+These tables list the latest hot-path rows with matching JIT-on and `-joff`
+artifacts. `Updated` is the timestamp of the artifact that produced the row.
+Rows without a paired `-joff` restamp are intentionally left out of the top
+matrix until they are backfilled.
+
+### kdz
+
+| Updated | Path | Surface | JIT-on | `-joff` | On/Off |
+| --- | --- | --- | ---: | ---: | ---: |
+| 2026-04-01 14:30:28 PDT | `add_phi_only/hot` | `hotside_canon_share` | `0.000350` | `0.000032` | `10.94x` |
+| 2026-04-01 14:32:40 PDT | `logic_add_phi_noboundary/hot` | `hotside_canon_share` | `0.002619` | `0.002159` | `1.21x` |
+| 2026-04-01 14:24:29 PDT | `chain_tail_add/hot` | `hotside_canon_share` | `0.003052` | `0.002541` | `1.20x` |
+| 2026-04-01 15:02:12 PDT | `chain_tail_store/hot` | `hotside_canon_share` | `0.002800` | `0.002016` | `1.39x` |
+| 2026-04-01 14:26:05 PDT | `mix_bits/hot` | `hotside_canon_share` | `0.003084` | `0.002168` | `1.42x` |
+| 2026-04-01 16:25:27 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.340611` | `0.002162` | `157.54x` |
+| 2026-04-01 16:25:27 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.531437` | `0.004577` | `116.11x` |
+| 2026-04-01 16:25:27 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.612595` | `0.005580` | `109.78x` |
+| 2026-04-01 16:25:27 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.023723` | `0.019272` | `1.23x` |
+| 2026-04-01 16:25:27 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.008225` | `0.002248` | `3.66x` |
+| 2026-04-01 16:25:27 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.017482` | `0.010079` | `1.73x` |
+| 2026-04-01 16:25:27 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.012540` | `0.007001` | `1.79x` |
+| 2026-04-01 16:25:27 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.027964` | `0.027969` | `1.00x` |
+| 2026-04-01 16:25:27 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.137179` | `0.017319` | `7.92x` |
+| 2026-04-01 16:25:27 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.001694` | `0.000575` | `2.95x` |
+| 2026-04-01 16:25:27 PDT | `retlast_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003123` | `0.002194` | `1.42x` |
+| 2026-04-01 16:25:27 PDT | `sum_loop/hot` | `hotside_canon_share_uget_looproot` | `0.675950` | `0.005150` | `131.25x` |
+| 2026-04-01 16:25:27 PDT | `mixed_ffi_loop/hot` | `hotside_canon_share_uget_looproot` | `0.059215` | `0.012404` | `4.77x` |
+| 2026-04-01 16:25:27 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.036721` | `0.003776` | `9.72x` |
+| 2026-04-01 16:25:27 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot` | `0.076181` | `0.005021` | `15.17x` |
+| 2026-04-01 16:25:27 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot` | `0.084550` | `0.003708` | `22.80x` |
+
+### zkd0
+
+| Updated | Path | Surface | JIT-on | `-joff` | On/Off |
+| --- | --- | --- | ---: | ---: | ---: |
+| 2026-04-01 15:10:05 PDT | `chain_tail_add/hot` | `hotside_canon_share` | `0.004495` | `0.002299` | `1.96x` |
+| 2026-04-01 15:03:55 PDT | `chain_tail_store/hot` | `hotside_canon_share` | `0.003920` | `0.002555` | `1.53x` |
+| 2026-04-01 14:28:37 PDT | `mix_bits/hot` | `hotside_canon_share` | `0.004083` | `0.003036` | `1.34x` |
+| 2026-04-01 16:39:41 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.681747` | `0.002604` | `261.81x` |
+| 2026-04-01 16:39:41 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.097901` | `0.005207` | `210.85x` |
+| 2026-04-01 16:39:41 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.352638` | `0.007836` | `172.62x` |
+| 2026-04-01 16:39:41 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.026545` | `0.023417` | `1.13x` |
+| 2026-04-01 16:39:41 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.009826` | `0.002649` | `3.71x` |
+| 2026-04-01 16:39:41 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.028492` | `0.014099` | `2.02x` |
+| 2026-04-01 16:39:41 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.018633` | `0.012526` | `1.49x` |
+| 2026-04-01 16:39:41 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.045325` | `0.045030` | `1.01x` |
+| 2026-04-01 16:39:41 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.366784` | `0.024836` | `14.77x` |
+| 2026-04-01 16:39:41 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.002048` | `0.000663` | `3.09x` |
+| 2026-04-01 16:39:41 PDT | `retlast_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003591` | `0.002389` | `1.50x` |
+| 2026-04-01 16:39:41 PDT | `sum_loop/hot` | `hotside_canon_share_uget_looproot` | `1.499405` | `0.005568` | `269.29x` |
+| 2026-04-01 16:39:41 PDT | `mixed_ffi_loop/hot` | `hotside_canon_share_uget_looproot` | `0.081518` | `0.015637` | `5.21x` |
+| 2026-04-01 16:39:41 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.043420` | `0.004553` | `9.54x` |
+| 2026-04-01 16:39:41 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot` | `0.083802` | `0.005672` | `14.78x` |
+| 2026-04-01 16:39:41 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot` | `0.087370` | `0.004307` | `20.29x` |
 
 ## Scope
 
@@ -11,35 +68,33 @@ was frozen into three lanes:
 - Lane B: promotable recorder-side iterator perf only
 - Lane C: parked bridge and continuation research only
 
-The active performance frontier is no longer iterator-only. Iterator is frozen
-at the current Lane A + Lane B checkpoint unless a genuinely new seam appears
-outside the reject pile. The first dispatch/side-exit loop-clone queue has now
-also been classified and closed on the current mechanism. The follow-up
-dispatch-adjacent side-exit pass did not expose a second seam; the branchy
-loops collapse back to the same closed loop-clone ladder. The first
-helper-boundary follow-up is also now classified and did not expose a new
-surface. The next queued workstream is broader JIT throughput work unless a
-new helper-boundary storage/materialization seam can be named first. The
-bridge and continuation line stays parked.
+Iterator is still frozen at the current Lane A + Lane B checkpoint unless a
+genuinely new seam appears outside the reject pile. Dispatch loop-clone work
+on the old mechanism stays closed. The current live hotside policy candidate is
+the filtered gate:
 
-That broader-throughput queue is now explicit:
+- `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
 
-1. [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua)
-   is the active broader-throughput family
-2. [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua)
-   is the first reduced seam isolator for the bitop chain when the first
-   non-bitop consumer is exactly one `ADD`
-3. [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua)
-   is the store/compare twin for the same chain
-4. [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
-   is parked for this cycle because the front-most `sum_loop` split is now
-   classified as the normal nested-callee `BC_JFORI -> existing loop` root-stop
-   on the current mechanism, not a narrower fresh recorder seam
-   The matching reduced `x64` control probe is not available locally or in the
-   checked-in artifacts, so that comparison remains open but non-blocking.
-5. [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
-   stays out of this queue because `pairs(map)` would drag iterator behavior
-   back into a family that is supposed to sit outside the frozen iterator line
+That gate is now clearly narrower than the old global
+`LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` surface:
+
+- it still wins on the reduced `UGET`/looproot throughput family
+- it no longer carries as a broader-suite promotion candidate on `kdz`
+- it does not carry as a broader-suite promotion candidate on either host
+- `zkd0` completes the same narrower read:
+  - dispatch stays catastrophically far from `-joff`
+  - helper-heavy and call-heavy families can improve sharply
+  - `sum_loop` remains extremely red even when it improves
+  - iterator is no longer the main regression driver there, but it is still
+    far from `-joff`
+
+So the active queue is no longer “broader gate promotion”. It is:
+
+1. helper-backed restamp and promotion-boundary work for the reduced
+   `UGET`/looproot family
+2. exact scope criteria for where the filtered hotside gate is promotable
+3. only after that, any new broader throughput seam outside the filtered
+   `UGET`/looproot mechanism
 
 Current clean-`kdz` broader-throughput frontier:
 
@@ -261,8 +316,24 @@ Current clean-`kdz` broader-throughput frontier:
     - queue correction:
       - the active candidate is now the filtered gate, not the global
         `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` surface
-      - the next honest target is broader suite validation and helper support
-        for `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+      - helper support now exists via
+        [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+        as `--candidate hotside_canon_share_uget_looproot`
+      - but the first clean `kdz` broader-suite restamp closes broad
+        promotion for this gate:
+        [20260401-kdz-hotside-uget-looproot-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-broader-suite-check/summary.md)
+        - `dispatch_trace/numeric_loop`: `0.341080 -> 0.340611`
+        - `mixed_ffi/mixed_ffi_loop`: `0.059399 -> 0.059215`
+        - `ffi_cdata/mixed_width_loop`: `0.027778 -> 0.027964`
+        - `vararg_paths/sum_loop`: `1.207311 -> 0.675950`, still far from
+          `-joff 0.005150`
+        - `iterator_table` still regresses:
+          - `pairs_sum/hot`: `0.068483 -> 0.076181`
+          - `pairs_array_sum/hot`: `0.066698 -> 0.084550`
+      - so the next honest target is no longer broader-suite promotion for
+        `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+      - it is helper-backed reduced-family restamp and exact promotion
+        boundary for the `UGET`/looproot seam only
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
