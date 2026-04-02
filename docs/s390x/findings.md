@@ -12182,3 +12182,22 @@ Next hash target
       numeric-for index/current-value `SLOAD` seam
     - not generic `TGETS`
     - not another inherited-int extraction variant
+
+- Timestamp: `2026-04-02 14:31:00 PDT`
+- Dynamic helper localization fails the first real workload gate
+  - reduced helper-variant split remains useful evidence:
+    - original helper literal-stop form keeps exits
+    - local/arg reduced forms reach `TEXIT_COUNT 0`
+  - but clean `kdz` dynamic local-helper form is not promotable:
+    [20260402-kdz-dynamic-helper-localization-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-helper-localization-check/raw/number_helper_loop_local_tobit.stderr.log)
+    - `RESULT -149783296`
+    - `TRACE_START 321`
+    - `TRACE_STOP 321`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 64001`
+    - then `table overflow`
+  - closure:
+    - helper localization is evidence only on this slice
+    - it is not a promotable remediation family on the real workload
+    - the next honest target remains the dynamic helper-form interaction with
+      the inherited numeric-for index/current-value `SLOAD` seam

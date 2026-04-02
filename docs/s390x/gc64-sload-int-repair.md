@@ -392,3 +392,29 @@ So the next honest frontier is narrower than either old theory:
 - specifically: explain why the helper-form `bit.tobit` header interaction
   keeps the inherited numeric-for index/current-value `SLOAD` seam live,
   while local/arg helper forms eliminate exits entirely
+
+That reduced-only clue is not directly promotable yet.
+
+Clean `kdz` dynamic localization check:
+
+- artifact:
+  [20260402-kdz-dynamic-helper-localization-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-helper-localization-check/raw/number_helper_loop_local_tobit.stderr.log)
+- real `n=64000` local-helper form:
+  - `RESULT -149783296`
+  - `TRACE_START 321`
+  - `TRACE_STOP 321`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 64001`
+  - then aborts with `table overflow`
+
+So the reduced helper-localization split is evidence only:
+
+- it proves the imported helper header matters
+- it does **not** by itself define a promotable remediation family on the real
+  workload
+
+That keeps the next honest target where it belongs:
+
+- exact dynamic helper-form interaction with the inherited numeric-for
+  index/current-value `SLOAD` seam
+- not “just localize the helper”

@@ -2731,6 +2731,26 @@ Current owner map contract:
     - not generic `TGETS`
     - not more inherited-int extraction work
 
+- Timestamp: `2026-04-02 14:31:00 PDT`
+- Dynamic helper localization is evidence-only, not a promotable fix
+  - reduced `kdz` helper variants still show the important split:
+    - original helper literal-stop form keeps exits
+    - local/arg reduced forms reach `TEXIT_COUNT 0`
+  - but clean `kdz` dynamic local-helper form fails the first real bar:
+    - artifact:
+      [20260402-kdz-dynamic-helper-localization-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-helper-localization-check/raw/number_helper_loop_local_tobit.stderr.log)
+    - `RESULT -149783296`
+    - `TRACE_START 321`
+    - `TRACE_STOP 321`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 64001`
+    - then `table overflow`
+  - queue correction:
+    - helper localization is a useful reduced probe
+    - it is not a promotable remediation family on the real workload
+    - the next honest target remains the dynamic helper-form interaction that
+      keeps the inherited numeric-for index/current-value `SLOAD` seam live
+
 ### After that
 
 There are only two realistic outcomes:

@@ -2346,6 +2346,19 @@ So the next exact target is helper-form interaction with the inherited
 numeric-for index/current-value `SLOAD` seam, not another inherited GC64
 integer extraction variant and not generic `TGETS`.
 
+Dynamic helper localization does not clear the promotion bar on the real
+workload:
+
+- [20260402-kdz-dynamic-helper-localization-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-helper-localization-check/raw/number_helper_loop_local_tobit.stderr.log)
+  - `number_helper_loop_local_tobit`
+  - `RESULT -149783296`
+  - `TRACE_START 321`, `TRACE_STOP 321`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+  - ends with `table overflow`
+
+So the reduced local/arg zero-exit split is evidence only. The next exact
+target stays on the dynamic helper-form interaction with the inherited
+numeric-for index/current-value `SLOAD` seam.
+
 ## Relationship To Other Docs
 
 - High-level status:
