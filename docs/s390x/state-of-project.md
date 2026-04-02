@@ -2593,6 +2593,45 @@ Current owner map contract:
       next live seam is the shifted post-constantization guard family, not a
       direct recorder const-init repair
 
+- Timestamp: `2026-04-02 13:44:40 PDT`
+- Clean isolated literal-stop probe corrects the mixed-log reading on the
+  shifted seam
+  - artifact:
+    [20260402-kdz-number-helper-literal-stop-exact-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-literal-stop-exact-seam/summary.md)
+  - clean `kdz` reduced literal-stop sibling under the promoted default:
+    - `TRACE_START 1`
+    - `TRACE_STOP 1`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 400`
+    - dominant texit `7:0=400`
+    - dominant exit still restores at `BC_UGET`:
+      - `op 45`
+      - `snapop 45`
+      - `snapnent 0`
+  - exact runtime guard on that dominant seam:
+    - `curins=13`
+    - `IR=SLOAD`
+    - `op1=2`
+    - `op2=4`
+    - `sload_int ofs=0 extra=4`
+  - exact semantic mapping from the same trace IR:
+    - `TRACE 1` for the isolated sibling shows:
+      - `0001 int SLOAD #3 I`
+      - `0012 int MULOV 0001 +65537`
+      - `0013 int SLOAD #2 T`
+      - `0016 int ADD 0013 0012`
+    - so the shifted exact runtime failure is the carried `total` reload,
+      not a helper-header lookup guard
+  - correction:
+    - the earlier mixed `guardmark=0xd` / `GGET` read from the broad
+      `fori-const-init-v1` artifact was a later alternating family in mixed
+      logs, not the steady literal-stop seam
+  - queue correction:
+    - once hidden `STOP`/`STEP` are constantized, the live shifted seam is
+      still restored `SNAP #0` replay/typecheck on stack-visible carried state
+    - the next honest target is carried-`total` replay/materialization under
+      the promoted default, not helper-header stabilization
+
 ### After that
 
 There are only two realistic outcomes:

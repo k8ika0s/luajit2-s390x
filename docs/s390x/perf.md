@@ -2235,12 +2235,34 @@ seam:
   argument `n`
 - a literal-stop sibling (`for i = 1, 400 do`) constantizes both hidden
   `STOP` and `STEP`
-- the repeated exit flurry still survives on that literal-stop sibling, but it
-  shifts off the old dynamic-form mark and onto a later guard (`guardmark=0xd`)
+- the repeated exit flurry still survives on that literal-stop sibling
+- a clean isolated literal-stop probe now pins the steady shifted seam:
+  - artifact:
+    [20260402-kdz-number-helper-literal-stop-exact-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-literal-stop-exact-seam/summary.md)
+  - `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 400`
+  - dominant texit `7:0=400`
+  - dominant exit still restores at:
+    - `op 45`
+    - `snapop 45`
+    - `snapnent 0`
+  - exact runtime guard:
+    - `guardmark=0xd`
+    - `curins 13`
+    - `IR SLOAD`
+    - `op1 2`
+    - `op2 4`
+    - `sload_int ofs 0 extra 4`
+  - in the isolated trace IR, that guard is:
+    - `0013 > int SLOAD #2 T`
+    - immediately before the carried-total add
+  - so the shifted steady seam is the carried `total` reload, not a helper
+    lookup guard
+- the earlier mixed `guardmark=0xd` / `GGET` read was a later alternating
+  family inside a broad artifact, not the steady literal-stop seam
 
 So the next seam is no longer “can recorder constantize numeric-for header
-constants?” It is the later header/body guard family exposed after that
-constantization.
+constants?” It is the carried-`total` replay/typecheck family exposed after
+that constantization.
 
 ## Relationship To Other Docs
 
