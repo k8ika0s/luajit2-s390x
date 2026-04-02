@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 05:55:27 PDT
+Last updated: 2026-04-02 06:39:29 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -44,6 +44,15 @@ non-causal probe effects. The current state is cleaner:
   - conclusion:
     - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT` remains a scoped
       throughput policy, not a frozen-family promotion
+    - that scoped throughput policy should now be treated as the active
+      shipping-throughput default for `promotion_core` only:
+      - `promotion_secondary` is carry-forward evidence only
+      - `same_seam_but_dominated` stays excluded
+      - frozen iterator and frozen dispatch stay out of scope
+      - explicit baseline / opt-out remains
+        `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+      - pinned host-pair summary:
+        [20260402-hotside-promotion-core-host-pair](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-hotside-promotion-core-host-pair/summary.md)
 - the measurement helpers are now hardened enough to close the authoritative
   `zkd0` fence cleanly:
   - tracked-file sync retries once on transient `zkd0` transport failure
@@ -183,11 +192,31 @@ non-causal probe effects. The current state is cleaner:
           - the surviving shared candidates are now:
             - `sload_int` on the loop-carried header state
             - arithmetic overflow guards as the weaker arithmetic fallback
+          - exact reduced attribution is now tight enough to choose the first
+            shared live family:
+            - the first shared surviving guard after helper-specific lookup
+              guards are removed is `sload_int`
+            - overflow survives only on the pure-add sibling as the weaker
+              arithmetic fallback
+            - current queue correction:
+              - the next honest family is shared header-state stabilization
+                around `sload_int`
+              - not more helper-header rewriting
+              - not another backend low32-home reopening
         - next honest target:
           - header-state attribution around the shared `sload_int` /
             arithmetic-overflow guard family
           - use `number_helper_loop` as the real workload and the pure-add
             reducer as the no-helper sibling
+        - x64 control status is now explicit:
+          - there is still no checked-in mature x64 reduced runner for this
+            seam
+          - ad hoc Rosetta x64 control is conceptually feasible on this
+            workstation, but a direct `arch -x86_64 make -C src ...` still
+            selects the arm64 VM build and fails in `vm_arm64.dasc`
+          - queue correction:
+            - treat mature x64 reduced control as a tooling gap for now
+            - do not stall the s390x seam read on that missing runner
     - queue correction:
       - the remaining promotion-core red is not a generic helper/call exit
         family
@@ -196,6 +225,8 @@ non-causal probe effects. The current state is cleaner:
           form
         - the same reduced exit ladder persists when the header moves to
           `BC_MOV` and then `BC_MULVN`
+      - the first shared live guard family across those reduced forms is now
+        pinned as `sload_int`
       - `direct_abs` stays the call-decorated sibling, but the clean first
         target is now the generic header-guard family visible in
         `number_helper_loop`

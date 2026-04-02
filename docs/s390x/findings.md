@@ -11330,3 +11330,34 @@ Next hash target
       arithmetic-overflow family
     - use `number_helper_loop` as the real workload and the pure-add reducer
       as the no-helper sibling
+
+- Timestamp: `2026-04-02 06:39:29 PDT`
+- The filtered envless default is now pinned as the active shipping-throughput
+  slice for `promotion_core`
+  - pinned host-pair summary:
+    [20260402-hotside-promotion-core-host-pair](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-hotside-promotion-core-host-pair/summary.md)
+  - status:
+    - `promotion_core`: active shipping-throughput default
+    - `promotion_secondary`: carry-forward evidence only
+    - `same_seam_but_dominated`: excluded
+    - frozen iterator / frozen dispatch: out of scope
+    - opt-out baseline remains:
+      `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+  - exact reduced header-seam attribution now sharpens the live family:
+    - the first shared surviving guard after helper-specific lookup guards are
+      removed is `sload_int`
+    - arithmetic overflow survives only as the weaker fallback on the pure-add
+      sibling
+    - queue correction:
+      - the next honest family is shared header-state stabilization around
+        `sload_int`
+      - not more helper-header rewriting
+      - not more hotside-population work
+      - not another low32-home reopening
+  - x64 control status:
+    - there is still no checked-in mature x64 reduced runner for this seam
+    - ad hoc Rosetta x64 control is conceptually feasible, but a direct
+      `arch -x86_64 make -C src ...` on this workstation still selects the
+      arm64 VM build and fails in `vm_arm64.dasc`
+    - treat x64 reduced control as a tooling gap for now, not as a reason to
+      block the s390x seam read
