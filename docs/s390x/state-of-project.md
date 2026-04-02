@@ -245,8 +245,8 @@ non-causal probe effects. The current state is cleaner:
                 exact runtime failure stays on the same early inherited
                 `sload_int`
             - queue correction:
-              - the front-most exact runtime seam on the promoted slice is the
-                inherited `sload_int` on `IR=SLOAD #4 TI`
+              - the first shared marked header seam on the promoted slice is
+                the inherited `sload_int` on `IR=SLOAD #4 TI`
               - on this GC64 build, `op1=4` maps to top-frame slot `2`, which
                 is the numeric `for` index state on this workload
               - `op2=36` is `IRSLOAD_TYPECHECK|IRSLOAD_INHERIT`, so this guard
@@ -257,27 +257,28 @@ non-causal probe effects. The current state is cleaner:
               - `trace 7 exit 0` is still a `snapnent=0` header exit, so this
                 guard is validating live interpreter frame state at restored
                 `SNAP #0`, not a later restored snapshot payload
-              - the numeric-`for` stop/range `LE` on `n` remains in the same
-                header cluster, but it is now second in exact runtime failure
-                order
-              - the carried-`total` `SLOAD ofs=8 extra=12` is still present as
-                a later shared header guard, but it is no longer the first
-                exact repeated failure
+              - focused slot logging now shows that restored top-frame slot `2`
+                is already int-tagged at the repeated exit point, so this mark
+                is not yet enough to prove `curins=3` is the literal failing
+                compare
+              - the numeric-`for` stop/range `LE` on `n` and the later carried
+                `total` `SLOAD ofs=8 extra=12` both remain inside the same
+                merged header cluster
             - current queue correction:
               - the next honest family is no longer shared header-state
                 stabilization on the carried `total` reload
-              - and it is no longer the numeric-`for` stop/range `LE` guard on
-                `n`
-              - it is exact attribution and then stabilization of the earlier
-                inherited numeric-`for` index `sload_int` guard at restored
-                `SNAP #0`
+              - and it is no longer a cleanly pinned exact guard on either the
+                inherited `sload_int` or the stop-bound `LE`
+              - it is exact in-cluster guard-order attribution inside the
+                merged restored-`SNAP #0` numeric-`for` header
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - explain why the inherited numeric-`for` index reload fails every
-            trip on the promoted slice:
-            - exact runtime guard: `IR=SLOAD #4 TI`
-            - backend signature: `sload_int ofs=16 extra=20`
+          - disambiguate the first literal failing guard inside the merged
+            restored-`SNAP #0` numeric-`for` header cluster:
+            - first shared marked seam: `IR=SLOAD #4 TI`
+            - competing later guard in the same cluster:
+              `int LE 0001 +2147483646`
             - recorder contract: hidden `FORL_IDX` with
               `TYPECHECK|INHERIT`
           - use `number_helper_loop` as the real workload and the pure-add
