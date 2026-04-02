@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 10:18:43 PDT
+Last updated: 2026-04-02 10:32:11 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -245,6 +245,20 @@ non-causal probe effects. The current state is cleaner:
                 in exact runtime failure order
               - do not open code until that `LE` guard is mapped cleanly to
                 the loop-header state it is stabilizing
+            - exact semantic mapping is now pinned too:
+              - trace dump shows:
+                - `0001 int SLOAD #5 RI`
+                - `0002 > int LE 0001 +2147483646`
+              - bytecode in
+                [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+                starts the numeric `for` at `FORI A=2`
+              - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h#L234) defines `FORL_STOP` as `A+1`
+              - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1088) loads that stop slot before the loop body and
+                [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1096) runs `rec_for_check(...)`
+              - in this workload, `A+1` is the source-level `n`
+              - so the exact front-most runtime failure is the numeric `for`
+                stop/range guard on `n`, not the carried `total` and not the
+                numeric index reload
             - shared `sload_int` cross-check still matters, but it is now
               explicitly secondary:
               - the pure-add reducer still reaches its first `sload_int`
@@ -264,8 +278,8 @@ non-causal probe effects. The current state is cleaner:
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - exact semantic attribution of the early numeric-`for` header
-            `LE` guard:
+          - stabilization or reduction of the numeric `for` stop/range guard
+            on `n`:
             - dump form: `int LE 0001 +2147483646`
           - use `number_helper_loop` as the real workload and the pure-add
             reducer as the no-helper sibling

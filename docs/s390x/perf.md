@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 10:18:43 PDT
+Last updated: 2026-04-02 10:32:11 PDT
 
 ## Latest Matrix
 
@@ -270,11 +270,16 @@ Exact runtime guard attribution now sharpens that further:
   - first repeated reduced exit cluster also lands on `guardmark=0x2`
   - restored header marker moves to `BC_MULVN`, but the first exact runtime
     failure stays the same early `LE`
+- semantic meaning:
+  - dump form is `int LE 0001 +2147483646`
+  - `0001` is `SLOAD #5`, the numeric `for` stop slot loaded before the loop
+    body
+  - in [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua), that stop is the source-level `n`
 
 So the current promoted-slice red is no longer best described as the
 carried-`total` reload seam. The carried-`total` `SLOAD ofs=8 extra=12`
 remains the first shared `sload_int` seam across reducers, but the front-most
-exact runtime failure is the earlier numeric-`for` header `LE` guard.
+exact runtime failure is the earlier numeric-`for` stop/range `LE` guard.
 
 Shared `sload_int` attribution remains useful, but it is now explicitly
 secondary:
