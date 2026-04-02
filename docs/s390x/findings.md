@@ -11700,3 +11700,43 @@ Next hash target
       side-trace path
     - the next honest target stays inside restored numeric-for replay /
       typecheck semantics on the inherited hidden `STEP` seam
+
+- Timestamp: `2026-04-02 10:25:32 PDT`
+- The live promoted-slice seam is now pinned as a s390x-specific GC64 integer
+  `SLOAD` typecheck mismatch on inherited hidden `STEP`
+  - artifact:
+    - [20260402-kdz-number-helper-sloadmap-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sloadmap-v1/summary.md)
+  - source aid:
+    - [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - new debug-only env gate:
+      `LUAJIT_S390X_SLOADMAP_LOG=1`
+  - exact real-workload read:
+    - repeated exact-taken guard stays `guardmark=0x3`
+    - exact guard stays:
+      - `curins=3`
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+      - `kind=sload_int`
+      - `ofs=16`
+      - `extra=20`
+    - compiler/runtime map now ties that guard to the emitted compare:
+      - `tmp = slot64 >> 47`
+      - `expected = ((uint32_t)LJ_TISNUM >> 15)` -> `0x1ffff`
+      - `CGR tmp, expected`
+    - repeated taken runtime payload on the real reduced helper workload
+      shows the mismatch directly:
+      - live shifted tag: `0x1fff2`
+      - expected constant: `0x1ffff`
+  - cross-backend contrast:
+    - [lj_asm_x86.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_x86.h)
+      and
+      [lj_asm_arm64.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_arm64.h)
+      compare against the GC64 high-word int-tag form
+      (`LJ_TISNUM << 15` / upper 32 bits), not the s390x-shifted constant
+  - queue correction:
+    - this is now narrower than generic numeric-for replay/header wording
+    - the live seam is the inherited hidden-`STEP` integer typecheck itself
+    - the old direct-tag swap remains rejected on correctness
+    - the next honest target is a narrow design-first repair for the s390x
+      GC64 integer-`SLOAD` typecheck contract at this seam

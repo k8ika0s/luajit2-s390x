@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 10:02:00 PDT
+Last updated: 2026-04-02 10:25:32 PDT
 
 ## Latest Matrix
 
@@ -357,6 +357,33 @@ Direct shifted-tag repair is now closed on the current mechanism:
   - the live seam stays the inherited numeric-for hidden-control
     replay/header contract at restored `SNAP #0`, not “swap in the exact GC64
     int tag and ship it”
+
+Exact backend mismatch is now pinned on the real workload:
+
+- [20260402-kdz-number-helper-sloadmap-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sloadmap-v1/summary.md)
+  - env-gated `asm_sload()` register-map logging in
+    [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    now ties the exact-taken guard to the emitted compare shape
+  - current s390x integer `SLOAD` typecheck lowering at the live seam is:
+    - `tmp = slot64`
+    - `tmp >>= 47`
+    - `expected = ((uint32_t)LJ_TISNUM >> 15)` -> `0x1ffff`
+    - `CGR tmp, expected`
+  - repeated taken values on the real reduced helper workload are:
+    - live shifted tag: `0x1fff2`
+    - expected constant: `0x1ffff`
+  - cross-backend contrast:
+    - [lj_asm_x86.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_x86.h)
+      and
+      [lj_asm_arm64.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_arm64.h)
+      compare against the GC64 high-word int-tag form
+      (`LJ_TISNUM << 15` / upper 32 bits), not the s390x-shifted constant
+- queue correction:
+  - the remaining promoted-slice seam is now best described as the s390x GC64
+    inherited integer-`SLOAD` typecheck on hidden `STEP`
+  - not generic helper-header replay
+  - not root-`FORI` constructor choice
+  - not a promotable direct-tag swap on the current mechanism
 
 Shared `sload_int` attribution remains useful, but it is now explicitly
 secondary:
