@@ -108,6 +108,36 @@ end
 """
 
 
+def emit_counter_lua(*, enabled: bool) -> str:
+    if not enabled:
+        return """\
+local function start_counters()
+  return nil, nil
+end
+
+local function stop_counters() end
+"""
+    return """\
+local function start_counters()
+  local trace_cap = testlib.trace_counter_capture()
+  local texit_cap = testlib.texit_counter_capture()
+  return trace_cap, texit_cap
+end
+
+local function stop_counters(trace_cap, texit_cap)
+  trace_cap.stop()
+  texit_cap.stop()
+  print("TRACE_START", trace_cap.start)
+  print("TRACE_STOP", trace_cap.stop_count)
+  print("TRACE_ABORT", trace_cap.abort)
+  print("TRACE_TOTAL", trace_cap.total)
+  print("TEXIT_COUNT", texit_cap.total)
+  emit_hist("TRACE_HIST", trace_cap.hist)
+  emit_hist("TEXIT_HIST", texit_cap.hist)
+end
+"""
+
+
 WORKLOADS: dict[str, dict[str, Any]] = {
     "number_helper_loop": {
         "family": "be_helpers",
@@ -122,6 +152,7 @@ jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
 {emit_traceir}
+{emit_counter}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -130,18 +161,9 @@ local function run(n)
   return bit.tobit(total)
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap, texit_cap = start_counters()
 print("RESULT", run({iterations}))
-trace_cap.stop()
-texit_cap.stop()
-print("TRACE_START", trace_cap.start)
-print("TRACE_STOP", trace_cap.stop_count)
-print("TRACE_ABORT", trace_cap.abort)
-print("TRACE_TOTAL", trace_cap.total)
-print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
+stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
 """,
@@ -159,6 +181,7 @@ jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
 {emit_traceir}
+{emit_counter}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -171,18 +194,9 @@ local function run(n)
   return bit.tobit(total)
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap, texit_cap = start_counters()
 print("RESULT", run({iterations}))
-trace_cap.stop()
-texit_cap.stop()
-print("TRACE_START", trace_cap.start)
-print("TRACE_STOP", trace_cap.stop_count)
-print("TRACE_ABORT", trace_cap.abort)
-print("TRACE_TOTAL", trace_cap.total)
-print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
+stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
 """,
@@ -201,6 +215,7 @@ jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
 {emit_traceir}
+{emit_counter}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -209,18 +224,9 @@ local function run(n)
   return total
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap, texit_cap = start_counters()
 print("RESULT", run({iterations}))
-trace_cap.stop()
-texit_cap.stop()
-print("TRACE_START", trace_cap.start)
-print("TRACE_STOP", trace_cap.stop_count)
-print("TRACE_ABORT", trace_cap.abort)
-print("TRACE_TOTAL", trace_cap.total)
-print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
+stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
 """,
@@ -240,6 +246,7 @@ jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
 {emit_traceir}
+{emit_counter}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -248,18 +255,9 @@ local function run(n)
   return total
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap, texit_cap = start_counters()
 print("RESULT", run({iterations}))
-trace_cap.stop()
-texit_cap.stop()
-print("TRACE_START", trace_cap.start)
-print("TRACE_STOP", trace_cap.stop_count)
-print("TRACE_ABORT", trace_cap.abort)
-print("TRACE_TOTAL", trace_cap.total)
-print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
+stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
 """,
@@ -277,6 +275,7 @@ jit.opt.start("hotloop=1", "hotexit=1")
 {emit_hist}
 {emit_traceinfo}
 {emit_traceir}
+{emit_counter}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -285,18 +284,9 @@ local function run(n)
   return bit.tobit(total)
 end
 run(20); run(20); run(20)
-local trace_cap = testlib.trace_counter_capture()
-local texit_cap = testlib.texit_counter_capture()
+local trace_cap, texit_cap = start_counters()
 print("RESULT", run({iterations}))
-trace_cap.stop()
-texit_cap.stop()
-print("TRACE_START", trace_cap.start)
-print("TRACE_STOP", trace_cap.stop_count)
-print("TRACE_ABORT", trace_cap.abort)
-print("TRACE_TOTAL", trace_cap.total)
-print("TEXIT_COUNT", texit_cap.total)
-emit_hist("TRACE_HIST", trace_cap.hist)
-emit_hist("TEXIT_HIST", texit_cap.hist)
+stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
 """,
@@ -577,12 +567,13 @@ def dominant_hist(hist: dict[str, int]) -> dict[str, Any] | None:
     return {"key": key, "count": count}
 
 
-def render_lua_script(template: str, iterations: int) -> str:
+def render_lua_script(template: str, iterations: int, *, counters_enabled: bool) -> str:
     return template.format(
         iterations=iterations,
         emit_hist=emit_hist_lua().rstrip(),
         emit_traceinfo=emit_traceinfo_lua().rstrip(),
         emit_traceir=emit_traceir_lua().rstrip(),
+        emit_counter=emit_counter_lua(enabled=counters_enabled).rstrip(),
     )
 
 
@@ -610,7 +601,11 @@ def run_probe(
     remote_name = f"{workload}.lua"
     remote_script_path = f"/tmp/{remote_name}"
     iterations = iterations_override or int(config["iterations"])
-    script_text = render_lua_script(config["script"], iterations)
+    script_text = render_lua_script(
+        config["script"],
+        iterations,
+        counters_enabled=not bool(extra_env.get("LUAJIT_S390X_PROBE_NO_COUNTERS")),
+    )
     restamp.run_remote_command(
         host,
         f"""
@@ -727,11 +722,16 @@ def render_summary(
             counts = result["counts"]
             dominant_texit = result["dominant_texit"]
             dominant_traceinfo = result["dominant_traceinfo"]
-            lines.append(
-                f"- `{result['workload']}`: `TRACE_START {counts.get('TRACE_START', 0)}`, "
-                f"`TRACE_STOP {counts.get('TRACE_STOP', 0)}`, `TRACE_ABORT {counts.get('TRACE_ABORT', 0)}`, "
-                f"`TEXIT_COUNT {counts.get('TEXIT_COUNT', 0)}`"
-            )
+            if counts:
+                lines.append(
+                    f"- `{result['workload']}`: `TRACE_START {counts.get('TRACE_START', 0)}`, "
+                    f"`TRACE_STOP {counts.get('TRACE_STOP', 0)}`, `TRACE_ABORT {counts.get('TRACE_ABORT', 0)}`, "
+                    f"`TEXIT_COUNT {counts.get('TEXIT_COUNT', 0)}`"
+                )
+            else:
+                lines.append(
+                    f"- `{result['workload']}`: counter hooks disabled; using raw `S390X_EXIT`/`TRACEIR` artifacts only"
+                )
             if dominant_texit:
                 lines.append(
                     f"- `{result['workload']}` dominant texit: `{dominant_texit['key']}` x `{dominant_texit['count']}`"
@@ -835,6 +835,11 @@ def parse_args() -> argparse.Namespace:
         metavar="KEY=VALUE",
         help="Extra environment variable to set for the remote probe process.",
     )
+    parser.add_argument(
+        "--no-counters",
+        action="store_true",
+        help="Do not install Lua trace/texit counter callbacks inside the probe script.",
+    )
     return parser.parse_args()
 
 
@@ -869,6 +874,8 @@ def main() -> int:
 
     extra_env = dict(CANDIDATE_ENVS[args.candidate])
     extra_env.update(parse_env_overrides(args.env))
+    if args.no_counters:
+        extra_env["LUAJIT_S390X_PROBE_NO_COUNTERS"] = "1"
     results = [
         run_probe(
             host=args.host,
