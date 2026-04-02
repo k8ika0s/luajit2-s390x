@@ -2354,6 +2354,44 @@ replay. The next honest target is the helper return-to-caller continuation
 after that warmed overflow loop, specifically the `RETF` / lower-frame return
 handoff, not the later print stitch.
 
+The next two reduced controls close that further.
+
+- direct `RETF` probe on `kdz`:
+  - `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-runtime-contract/raw`
+  - two-call-site reducer still gives:
+    - `WARM 132610`
+    - `SECOND 25535`
+  - `TRACE 4` really does specialize to one lower-frame caller PC and then
+    exit when the later call site returns:
+    - recorder `frame_pc=0x...6b70`
+    - runtime taken exit carries `r2=0x...6b70`, `r11=0x...6b7c`
+  - local bytecode listing explains the `0xc` gap as the two top-level call
+    sites:
+    - `warm = run(64000)`
+    - `second = run(40000)`
+- stable-callsite control on `kdz`:
+  - `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-single-callsite-loop/raw`
+  - same-caller-site loop still fails:
+    - `RESULT 25535`
+  - but the seam moves past direct `RETF` and into the caller loop header:
+    - `TRACE 4` contains:
+      - `p64 RETF`
+      - `int SLOAD #6 RI`
+      - `int SLOAD #5 TI`
+      - `int ADD`
+      - `int LE`
+    - exact taken exit is:
+      - `trace 4 exit 2`
+      - restored `pc op=76`
+      - `guardmark=0x11`
+
+So the current post-repair read is:
+
+- polymorphic lower-frame return PCs create a real `RETF` side seam
+- but stable-callsite replay still fails
+- the live family has moved into the caller numeric-for header after return,
+  not generic `RETF` alone
+
 Reduced helper variants after the repair show the seam is helper-form
 specific:
 

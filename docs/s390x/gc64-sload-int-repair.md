@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 15:43:56 PDT
+Last updated: 2026-04-02 17:19:00 PDT
 
 ## Live Seam
 
@@ -571,3 +571,77 @@ That keeps the next honest target where it belongs:
   current numeric-for-value lane
 - not imported-helper lookup attribution
 - not “just localize the helper”
+
+## RETF Callsite Split
+
+The next return-contract slice closes one wrong generalization.
+
+- artifact:
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-runtime-contract/raw`
+- in the two-call-site no-print-mid reducer, `TRACE 4` really is specialized to
+  one lower-frame return PC and then re-entered from another:
+  - recorder side:
+    - `site=lua_lower_frame_retf trace=4 ... frame_pc=0x...6b70`
+  - backend side:
+    - `S390X_RETF trace=4 curins=13 delta=4`
+  - exact taken runtime exit:
+    - `trace 4 exit 0`
+    - `guardmark=0xd`
+    - `r2=0x...6b70`
+    - `r11=0x...6b7c`
+- the local bytecode listing for that reducer explains the `0xc` gap:
+  - top-level call sites are:
+    - `0013 CALL 2 2 2` for `warm = run(64000)`
+    - `0016 CALL 3 2 2` for `second = run(40000)`
+  - so `0x...6b70` and `0x...6b7c` are distinct caller continuation PCs three
+    bytecodes apart
+
+So this is now explicit:
+
+- direct `RETF` mismatch is real on polymorphic lower-frame return PCs
+- but it is a side seam in the two-call-site reducer
+- it is not yet sufficient to explain the whole post-repair wrong-result path
+
+## Stable-Callsite Control
+
+The same-call-site loop control closes the next ambiguity.
+
+- artifact:
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-single-callsite-loop/raw`
+- probe shape:
+  - `drive(n, reps)` calls `run(n)` twice from the same `FORL` caller site
+  - result is still wrong:
+    - `RESULT 25535`
+- but the failing seam moves past the direct `RETF` mismatch:
+  - `TRACE 4` still contains:
+    - `0013 > p64 RETF ...`
+  - after that handoff it records the caller loop header:
+    - `0014    int SLOAD  #6    RI`
+    - `0015 >  int SLOAD  #5    TI`
+    - `0016    int ADD    0015  +1`
+    - `0017 >  int LE     0016  0014`
+  - the exact taken runtime exit is:
+    - `trace 4 exit 2`
+    - restored `pc op=76`
+    - `guardmark=0x11`
+  - `TRACE 5` then starts from `4/2`, not from a failed `RETF`
+
+This changes the live read materially:
+
+- stabilizing the caller return PC does not make the wrong-result path go away
+- once `RETF` is no longer the first failing point, the live seam moves into
+  the caller numeric-for header after return
+- the active post-repair family is therefore:
+  - lower-frame return into a caller loop
+  - then inherited caller `FORI/FORL` state (`SLOAD #5/#6`, `ADD`, `LE`)
+  - not generic `RETF` alone
+
+## Current Honest Target
+
+The next exact target is now narrower again:
+
+- map the caller numeric-for header contract after a successful lower-frame
+  return on the post-repair path
+- use the stable-callsite loop as the clean control
+- keep the polymorphic `RETF` mismatch as evidence-only, not the primary live
+  remediation target

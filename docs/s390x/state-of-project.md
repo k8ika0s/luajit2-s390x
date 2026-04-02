@@ -2902,6 +2902,38 @@ Current owner map contract:
       continuation after the warmed overflow loop
     - not the later print path
 
+- Timestamp: `2026-04-02 17:19:00 PDT`
+- The post-repair return seam is now split cleanly into one side seam and one
+  live caller seam
+  - direct return-contract probe on `kdz`:
+    - `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-runtime-contract/raw`
+    - `TRACE 4` really does specialize `RETF` to one lower-frame caller PC and
+      then re-enter from another:
+      - recorder `frame_pc=0x...6b70`
+      - taken runtime exit carries `r2=0x...6b70`, `r11=0x...6b7c`
+    - local bytecode listing closes the meaning of that `0xc` gap:
+      - top-level `warm = run(64000)` call site
+      - top-level `second = run(40000)` call site
+  - stable-callsite control on `kdz`:
+    - `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-single-callsite-loop/raw`
+    - `drive(n, reps)` calls `run(n)` twice from the same caller `FORL` site
+    - result is still wrong: `RESULT 25535`
+    - but the seam moves past direct `RETF`:
+      - `TRACE 4` contains `RETF`
+      - then caller-loop state:
+        - `SLOAD #6 RI`
+        - `SLOAD #5 TI`
+        - `ADD`
+        - `LE`
+      - exact taken exit is `trace 4 exit 2`, restored `pc op=76`,
+        `guardmark=0x11`
+  - queue correction:
+    - polymorphic lower-frame return PCs create a real `RETF` side seam
+    - but the stable-callsite control proves the live post-repair bug moves
+      into the caller numeric-for header after return
+    - the next honest target is the caller `FORI/FORL` state contract after a
+      successful lower-frame return, not generic `RETF`
+
 ### After that
 
 There are only two realistic outcomes:
