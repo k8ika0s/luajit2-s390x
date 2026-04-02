@@ -421,6 +421,7 @@ typedef enum {
 static int lj_record_s390x_stop_log_enabled(void);
 static void lj_record_s390x_ir_log(jit_State *J, TraceLink linktype, TraceNo lnk);
 static int lj_record_s390x_mark_nil_desc_done_enabled(void);
+static int lj_record_s390x_fori_arg_log_enabled(void);
 
 /* Canonicalize slots: convert integers to numbers. */
 static void canonicalize_slots(jit_State *J)
@@ -565,17 +566,57 @@ static TRef fori_conv(jit_State *J, TRef tr, IRType t)
   return tr;
 }
 
+static int fori_inherited_ref(jit_State *J, TRef tr)
+{
+  IRRef ref = tref_ref(tr);
+  IRIns *ir;
+  if (!ref || irref_isk(ref))
+    return 0;
+  ir = IR(ref);
+  if (ir->o == IR_CONV) {
+    ref = ir->op1;
+    if (!ref || irref_isk(ref))
+      return 0;
+    ir = IR(ref);
+  }
+  UNUSED(J);
+  return ir->o == IR_SLOAD && (ir->op2 & IRSLOAD_INHERIT);
+}
+
 /* Peek before FORI to find a const initializer. Otherwise load from slot. */
 static TRef fori_arg(jit_State *J, const BCIns *fori, BCReg slot,
 		     IRType t, int mode)
 {
   TRef tr = J->base[slot];
+  TRef kinit = 0;
+  BCReg ra = bc_a(*fori);
+  int log_hidden = (lj_record_s390x_fori_arg_log_enabled() &&
+		    slot > ra+FORL_IDX && slot <= ra+FORL_STEP);
+  if (log_hidden)
+    kinit = find_kinit(J, fori, slot, t);
   if (tr) {
     tr = fori_conv(J, tr, t);
   } else {
-    tr = find_kinit(J, fori, slot, t);
+    tr = kinit;
+    if (!tr)
+      tr = find_kinit(J, fori, slot, t);
     if (!tr)
       tr = fori_load(J, slot, t, mode);
+  }
+  if (lj_record_s390x_fori_arg_log_enabled()) {
+    IRRef baseref = tref_ref(J->base[slot]);
+    IRRef outref = tref_ref(tr);
+    fprintf(stderr,
+	    "S390X_FORI_ARG trace=%u parent=%u exit=%u startop=%u forop=%u slot=%u t=%u mode=%u base_ref=%u base_inherit=%u kinit_present=%u kinit_is_k=%u out_ref=%u out_k=%u\n",
+	    (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	    (unsigned int)J->exitno, (unsigned int)bc_op(J->cur.startins),
+	    (unsigned int)bc_op(*fori), (unsigned int)slot, (unsigned int)t,
+	    (unsigned int)mode, (unsigned int)(baseref - REF_BIAS),
+	    (unsigned int)fori_inherited_ref(J, J->base[slot]),
+	    (unsigned int)(kinit != 0),
+	    (unsigned int)tref_isk(kinit),
+	    (unsigned int)(outref - REF_BIAS),
+	    (unsigned int)tref_isk(tr));
   }
   return tr;
 }
@@ -738,6 +779,14 @@ static int lj_record_s390x_jfori_interp_handoff_enabled(void)
   static int enabled = -1;
   if (enabled == -1)
     enabled = (getenv("LUAJIT_S390X_JFORI_INTERP_HANDOFF") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_fori_arg_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_FORI_ARG_LOG") != NULL);
   return enabled;
 }
 

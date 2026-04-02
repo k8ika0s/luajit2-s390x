@@ -2567,9 +2567,31 @@ Current owner map contract:
     - direct `JFORI` root-linking was a real secondary correctness blocker once
       the inherited integer `SLOAD` typecheck started passing
     - it is not the primary steady-state exit payer on the promoted slice
-    - the next live seam is still stack-visible/current-value materialization
+  - the next live seam is still stack-visible/current-value materialization
       for the inherited visible numeric-for value at restored `SNAP #0`, not
       another `JFORI` population tweak
+
+- Timestamp: `2026-04-02 16:05:00 PDT`
+- The next recorder/header slice splits the dynamic numeric-for seam cleanly
+  - focused `fori_arg()` proof on clean `kdz`:
+    - on the real `number_helper_loop` path, hidden numeric-for `STEP` is
+      already constantized during recording
+    - hidden numeric-for `STOP` is not; it stays inherited from the runtime
+      stop argument `n`
+    - so the current dynamic seam is not “constant `STEP` replay failed”
+      and not “the recorder forgot a const initializer for both hidden args”
+  - literal-stop sibling:
+    - a reduced helper variant with `for i = 1, 400 do` constantizes both
+      hidden `STOP` and hidden `STEP`
+    - the repeated exit flurry still survives there
+    - but it shifts off the old dynamic-form mark and onto a later guard:
+      `guardmark=0xd`
+  - queue correction:
+    - inherited hidden `STOP` replay is the front-most dynamic header seam
+    - it is not the whole payer by itself
+    - stabilizing `STOP`/`STEP` only exposes a later header/body guard, so the
+      next live seam is the shifted post-constantization guard family, not a
+      direct recorder const-init repair
 
 ### After that
 

@@ -188,6 +188,23 @@ That means:
 - the remaining live problem is the inherited visible numeric-for current-value
   contract at restored `SNAP #0`, not another `JFORI` population tweak
 
+## Recorder/Header Split
+
+The next reduced recorder slice corrects the header picture again:
+
+- on the real `number_helper_loop` path, `fori_arg()` already constantizes
+  hidden `STEP`
+- hidden `STOP` does not constantize there, because it is the runtime stop
+  argument `n`
+- a literal-stop sibling (`for i = 1, 400 do`) does constantize both hidden
+  `STOP` and hidden `STEP`
+- but the repeated exit flurry still survives there and shifts to a later
+  guard (`guardmark=0xd`)
+
+So a direct recorder const-init repair is not the next honest fix. The dynamic
+form’s inherited hidden-`STOP` replay is front-most, but stabilizing it only
+exposes a later header/body guard family.
+
 ## Hard Boundaries
 
 Do not reopen:
