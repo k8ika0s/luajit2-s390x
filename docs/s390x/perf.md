@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 23:22:00 PDT
+Last updated: 2026-04-01 23:58:00 PDT
 
 ## Latest Matrix
 
@@ -197,6 +197,26 @@ to the same exact bytecode seam in both representative workloads:
       first side trace from the same header snapshot
     - the first clone therefore inherits the same loop shape as the root,
       rather than a deeper arithmetic-only body
+  - source-backed start-point rule now confirms there is no generic deeper
+    entry on the current mechanism:
+    - [lj_snap_restore()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L1196) returns the restored `snap_pc`
+    - [lj_trace_exit()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L3197) forwards that `pc` to
+      [trace_hotside()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L2941)
+    - [trace_hotside()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L3055) starts the side trace with `lj_trace_ins(J, pc)`
+    - [lj_record_setup()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3833) then copies that `pc` into the new side
+      trace's `startpc`
+    - `resumepc` setup in [trace_save()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L1902) only changes how an already-saved
+      child later re-enters; it does not let the first clone start later than
+      the restored snapshot
+  - reduced exit attribution narrows the remaining red to the pre-snapshot
+    header guard cluster:
+    - [20260401-kdz-core-exit-attribution-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-reduced/summary.md)
+    - dominant `exit 0` reports:
+      - `pc op=BC_UGET`
+      - `snapop=BC_UGET`
+      - `snapnent=0`
+    - so the hot seam is still inside the front `UGET/TGETS/HLOAD/fun EQ`
+      guard prefix, before any snapshot-carried state exists
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 23:22:00 PDT
+Last updated: 2026-04-01 23:58:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -128,6 +128,29 @@ non-causal probe effects. The current state is cleaner:
           - that is why the first clone (`trace 4`) has the same loop shape as
             the root (`nins 28`, `nexit 4`) instead of peeling deeper into the
             arithmetic body
+        - source-backed mechanism now explains why the first clone must be born
+          there on the current generic path:
+          - [lj_snap_restore()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L1196) returns `snap_pc(&map[snap->nent])`
+          - [lj_trace_exit()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L3197) passes that restored `pc` straight into
+            [trace_hotside()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L2941)
+          - [trace_hotside()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L3028) then flips to `LJ_TRACE_START` and calls
+            `lj_trace_ins(J, pc)` with that same restored header `pc`
+          - [lj_record_setup()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3833) copies `J->pc` into `J->startpc` for side traces and
+            sets `startins=BC_JMP`
+          - current `resumepc` machinery in
+            [trace_save()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c#L1902)
+            only affects execution of an already-saved child trace; it does not
+            provide a generic way to start recording later than the restored
+            snapshot PC
+        - reduced exit logger now narrows the live red again:
+          - [20260401-kdz-core-exit-attribution-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-reduced/summary.md)
+          - dominant `exit 0` is not happening after any snapshot-carried state
+            materializes
+          - it is a `snapnent=0` exit at the restored `BC_UGET` PC
+          - queue correction:
+            - the live question is now the exact guard inside the
+              pre-snapshot `UGET -> TGETS -> HLOAD/fun EQ` header cluster
+            - not the arithmetic tail and not a post-snapshot loop body seam
     - queue correction:
       - the remaining promotion-core red is not a generic helper/call exit
         family
