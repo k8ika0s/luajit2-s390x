@@ -2317,8 +2317,34 @@ So this slice is now in the right state:
 - but the throughput family is still slower than `-joff` because the repeated
   flurry survives on a later `BC_TGETS` seam
 
-That makes the next exact target the later `TGETS` seam, not another inherited
-GC64 integer `SLOAD` variant.
+That first post-repair next-step read needed one correction. Exact-taken
+guardmark proof on the real helper workload shows the dominant steady seam is
+still an inherited numeric-for index/current-value `SLOAD`, not a `TGETS`
+guard:
+
+- [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
+  - `number_helper_loop`: `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+  - dominant exact-taken guard:
+    - `curins 3`
+    - `IR SLOAD`
+    - `op1 4`
+    - `op2 36`
+    - `sload_int ofs 16 extra 20`
+
+Reduced helper variants after the repair show the seam is helper-form
+specific:
+
+- [20260402-kdz-postrepair-helper-variant-only](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-postrepair-helper-variant-only/summary.md)
+  - original helper form:
+    - `number_helper_literal_stop`: `TRACE_START 1`, `TEXIT_COUNT 399`
+  - local helper form:
+    - `number_helper_local_tobit`: `TRACE_START 1`, `TEXIT_COUNT 0`
+  - arg helper form:
+    - `number_helper_arg_tobit`: `TRACE_START 2`, `TEXIT_COUNT 0`
+
+So the next exact target is helper-form interaction with the inherited
+numeric-for index/current-value `SLOAD` seam, not another inherited GC64
+integer extraction variant and not generic `TGETS`.
 
 ## Relationship To Other Docs
 

@@ -346,14 +346,49 @@ Clean `zkd0` reduced screen:
   - `TEXIT_COUNT 64001`
   - no correctness regression on the z14 screen
 
-So the direct target is now answered:
+So the direct target is now answered, but one follow-on read needed correction:
 
 - the inherited GC64 integer `SLOAD` replay/typecheck seam was real
-- the paired GC64 repair clears that seam on both the isolated literal-stop
-  reducer and the real helper workload
-- but this is not a full throughput fix, because the steady exit flurry simply
-  advances to the next later header family (`BC_TGETS`) instead of vanishing
+- the paired GC64 repair clears the earlier carried-`total` inherited-int
+  `SLOAD` seam and keeps the real helper workload correctness-stable
+- but this is not a full throughput fix
 
-That means the next honest frontier is not more inherited-int extraction work.
-It is exact attribution of the later `TGETS` seam that becomes front-most after
-the GC64 integer `SLOAD` repair starts holding.
+The first post-repair theory was that the steady seam had advanced to a later
+`BC_TGETS` family. Exact-taken guardmark proof on the real workload corrects
+that:
+
+- real helper workload with exact-taken marks:
+  [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
+  - dominant repeated seam remains:
+    - `trace 7 exit 0`
+    - restored `pc op=45`
+    - `snapop=45`
+    - `snapnent=0`
+  - exact taken runtime guard is:
+    - `curins 3`
+    - `ir SLOAD`
+    - `op1 4`
+    - `op2 36`
+    - `sload_int ofs 16 extra 20`
+  - that is the inherited numeric-for index/current-value `SLOAD`, not a
+    `TGETS` guard
+
+Reduced helper variants after the repair close the helper-specific split:
+
+- artifact:
+  [20260402-kdz-postrepair-helper-variant-only](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-postrepair-helper-variant-only/summary.md)
+- original helper form:
+  - `number_helper_literal_stop`: `TRACE_START 1`, `TEXIT_COUNT 399`
+  - exact taken guard still lands on the carried-state `SLOAD #2 T`
+- moving `tobit` into a local:
+  - `number_helper_local_tobit`: `TRACE_START 1`, `TEXIT_COUNT 0`
+- passing `tobit` as an argument:
+  - `number_helper_arg_tobit`: `TRACE_START 2`, `TEXIT_COUNT 0`
+
+So the next honest frontier is narrower than either old theory:
+
+- not more inherited-int extraction work
+- not generic `TGETS` attribution
+- specifically: explain why the helper-form `bit.tobit` header interaction
+  keeps the inherited numeric-for index/current-value `SLOAD` seam live,
+  while local/arg helper forms eliminate exits entirely

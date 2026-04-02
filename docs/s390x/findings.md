@@ -12147,6 +12147,38 @@ Next hash target
     - the inherited GC64 integer `SLOAD` replay/typecheck seam is directly
       remediated
     - this is not a full throughput fix because the repeated flurry survives
-      on a later `BC_TGETS` seam
-    - the next honest target is exact attribution of that later `TGETS`
-      family, not another inherited-int extraction variant
+      on a later steady header seam
+    - exact next-seam attribution stayed open
+
+- Timestamp: `2026-04-02 14:20:46 PDT`
+- Post-repair exact-taken proof corrects the next-seam family on the real
+  helper workload
+  - exact-taken artifact:
+    [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
+  - clean `kdz` real helper read:
+    - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+    - dominant seam remains `trace 7 exit 0` at restored `BC_UGET`
+    - exact taken runtime guard is:
+      - `curins 3`
+      - `IR SLOAD`
+      - `op1 4`
+      - `op2 36`
+      - `sload_int ofs 16 extra 20`
+    - so the live post-repair steady seam is the inherited numeric-for
+      index/current-value `SLOAD`, not a `TGETS` guard
+  - reduced helper-variant split:
+    [20260402-kdz-postrepair-helper-variant-only](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-postrepair-helper-variant-only/summary.md)
+    - original helper form:
+      - `number_helper_literal_stop`: `TRACE_START 1`, `TEXIT_COUNT 399`
+      - exact taken guard remains the carried-state `SLOAD #2 T`
+    - local helper form:
+      - `number_helper_local_tobit`: `TRACE_START 1`, `TEXIT_COUNT 0`
+    - arg helper form:
+      - `number_helper_arg_tobit`: `TRACE_START 2`, `TEXIT_COUNT 0`
+    - pure-add sibling under the repaired default is now out of this family:
+      it explodes into trace population and aborts with table overflow
+  - queue correction:
+    - the next honest target is helper-form interaction with the inherited
+      numeric-for index/current-value `SLOAD` seam
+    - not generic `TGETS`
+    - not another inherited-int extraction variant
