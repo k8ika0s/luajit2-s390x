@@ -11296,3 +11296,37 @@ Next hash target
       `UGET -> TGETS -> HLOAD/fun EQ` prefix
     - it is not the arithmetic tail and not any post-snapshot carried-state
       boundary
+
+- Timestamp: `2026-04-02 05:55:27 PDT`
+- Reduced header variants now close the helper-only reading on clean `kdz`
+  - artifact:
+    [20260402-kdz-uget-header-variant-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-uget-header-variant-audit/summary.md)
+  - original helper form:
+    - restored hot seam starts at `BC_UGET` (`45`)
+    - reduced ladder still runs through `trace 7 exit 0`
+  - moving `tobit` into a local inside `run()` or into a function argument:
+    - shifts the restored hot seam to `BC_MOV` (`18`)
+    - keeps the same reduced `exit 0` ladder alive
+  - removing the per-iteration `tobit` call entirely:
+    - shifts the restored hot seam again to `BC_MULVN` (`24`)
+    - still keeps the same reduced `exit 0` ladder alive
+  - queue correction:
+    - the remaining promotion-core flurry is not specific to the
+      `bit -> "tobit"` lookup/identity header
+    - the live family is a generic `SNAP #0` header-guard failure that
+      survives helper, local/arg, and pure-add reduced forms
+  - `LUAJIT_S390X_GUARD_LOG=1` narrows the shared candidates:
+    - original helper `snap=0` guard set:
+      - `curins=17,15,14,13,12,10,8,7,3,2`
+    - pure-add reducer `snap=0` guard set:
+      - `curins=6,5,4,3,2`
+    - helper-specific `vload_addr` / lookup guards fall away with the reduced
+      forms
+    - the shared surviving guard kinds are:
+      - `sload_int`
+      - arithmetic overflow guards
+  - next honest target:
+    - header-state attribution around the shared `sload_int` /
+      arithmetic-overflow family
+    - use `number_helper_loop` as the real workload and the pure-add reducer
+      as the no-helper sibling

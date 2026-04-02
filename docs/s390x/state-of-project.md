@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 23:58:00 PDT
+Last updated: 2026-04-02 05:55:27 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -148,17 +148,57 @@ non-causal probe effects. The current state is cleaner:
             materializes
           - it is a `snapnent=0` exit at the restored `BC_UGET` PC
           - queue correction:
-            - the live question is now the exact guard inside the
-              pre-snapshot `UGET -> TGETS -> HLOAD/fun EQ` header cluster
-            - not the arithmetic tail and not a post-snapshot loop body seam
+            - the live question is now the exact guard inside the whole
+              pre-`SNAP #1` / `SNAP #0` header cluster
+            - the restored `BC_UGET` site is only the first marker for the
+              original helper form, not proof that the failing guard is the
+              helper-lookup chain itself
+        - reduced header variants on clean `kdz` now close the old
+          helper-specific reading:
+          - artifact:
+            [20260402-kdz-uget-header-variant-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-uget-header-variant-audit/summary.md)
+          - when `bit.tobit` is moved from the outer helper/header form into:
+            - a local inside `run()`, or
+            - a function argument, or
+            - removed from the loop entirely in a pure-add reducer
+          - the same reduced `exit 0` clone ladder still survives
+          - the restored hot seam just moves with the first op in the reduced
+            header:
+            - helper form: `BC_UGET` (`45`)
+            - local/arg form: `BC_MOV` (`18`)
+            - pure-add form: `BC_MULVN` (`24`)
+          - queue correction:
+            - the remaining promotion-core red is not a helper-only
+              `bit -> "tobit"` lookup seam
+            - it is a generic `SNAP #0` header-guard family that survives even
+              after the helper lookup chain is removed
+        - existing `LUAJIT_S390X_GUARD_LOG=1` now narrows the cross-reducer
+          candidates further:
+          - original helper `snap=0` guard set:
+            `curins=17,15,14,13,12,10,8,7,3,2`
+          - pure-add reducer `snap=0` guard set:
+            `curins=6,5,4,3,2`
+          - helper-specific `vload_addr` / lookup guards disappear with the
+            reduced forms
+          - the surviving shared candidates are now:
+            - `sload_int` on the loop-carried header state
+            - arithmetic overflow guards as the weaker arithmetic fallback
+        - next honest target:
+          - header-state attribution around the shared `sload_int` /
+            arithmetic-overflow guard family
+          - use `number_helper_loop` as the real workload and the pure-add
+            reducer as the no-helper sibling
     - queue correction:
       - the remaining promotion-core red is not a generic helper/call exit
         family
-      - on the clean first target, `number_helper_loop`, the steady seam is the
-        front `BC_UGET` upvalue/identity-guard region for `bit.tobit`
-      - `direct_abs` reaches the same steady `BC_UGET` seam even though its
-        loop body also contains `CALLXS`, so the call boundary is not the
-        defining front-most mechanism
+      - the old helper-specific `BC_UGET` reading is now closed:
+        - `BC_UGET` is only the first restored marker for the original helper
+          form
+        - the same reduced exit ladder persists when the header moves to
+          `BC_MOV` and then `BC_MULVN`
+      - `direct_abs` stays the call-decorated sibling, but the clean first
+        target is now the generic header-guard family visible in
+        `number_helper_loop`
   - queue correction:
     - the remaining red is no longer hotside population churn on this slice
     - the next honest target is direct `trace 7 exit 0` attribution on
