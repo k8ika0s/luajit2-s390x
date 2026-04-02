@@ -12298,3 +12298,30 @@ Next hash target
       replay/typecheck contract on that live current numeric-for-value lane
     - not imported-helper lookup
     - not another rematerialization theory
+
+- Timestamp: `2026-04-02 15:03:17 PDT`
+- Current-`HEAD` slot logger proves the localized seam is firing on the correct
+  live current-value slot
+  - artifact:
+    [20260402-kdz-dynamic-local-slotlog-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog-v2/summary.md)
+  - repeated seam still maps to:
+    - `curins=3`
+    - `IR=SLOAD`
+    - `op1=5`
+    - `op2=36`
+    - `ofs=24`
+  - `S390X_SLOADMAP` shows that lane compiled with `base=12`
+  - the runtime exit dump for the same seam shows `r12 == L->base`
+  - `S390X_SLOT` then proves the physical loaded lane is live and correct:
+    - `baseslot=2`, so `op1=5 -> idx=3`
+    - `idx=3` is a valid boxed int and advances:
+      - `0xfff9000000000003`
+      - `0xfff9000000000004`
+      - `0xfff9000000000005`
+      - ...
+  - queue correction:
+    - the localized seam is no longer a stale-slot or missing-store-back read
+    - the inherited integer `SLOAD` replay/typecheck is firing on the correct
+      live current-value slot
+    - the next honest target is the exact compiled typecheck/lowering on that
+      lane

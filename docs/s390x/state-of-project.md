@@ -2822,6 +2822,32 @@ Current owner map contract:
     - not imported-helper lookup
     - not another helper-localization attempt
 
+- Timestamp: `2026-04-02 15:03:17 PDT`
+- Current-`HEAD` slot logger proves the localized seam is firing on the correct
+  live current-value slot
+  - artifact:
+    [20260402-kdz-dynamic-local-slotlog-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog-v2/summary.md)
+  - `S390X_SLOADMAP` for the repeated seam:
+    - `curins=3`
+    - `op1=5`
+    - `ofs=24`
+    - `base=12`
+  - the runtime exit dump for the same seam shows `r12 == L->base`
+  - the slot logger then proves `op1=5` is reading the right live slot:
+    - `baseslot=2`, so `op1=5 -> idx=3`
+    - `S390X_SLOT idx=3` is a valid boxed int and advances:
+      - `0xfff9000000000003`
+      - `0xfff9000000000004`
+      - `0xfff9000000000005`
+      - ...
+  - queue correction:
+    - the live localized seam is no longer a stale-slot or missing-store-back
+      theory
+    - the inherited integer `SLOAD` replay/typecheck is firing on the correct
+      live current-value slot
+    - the next honest target is the exact compiled typecheck/lowering on that
+      lane
+
 ### After that
 
 There are only two realistic outcomes:

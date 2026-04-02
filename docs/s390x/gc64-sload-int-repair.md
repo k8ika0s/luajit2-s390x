@@ -506,6 +506,31 @@ The live question is narrower:
 - not imported-helper lookup
 - not another rematerialization theory
 
+The follow-up current-`HEAD` slot-logger run makes that sharper still:
+
+- artifact:
+  [20260402-kdz-dynamic-local-slotlog-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog-v2/summary.md)
+- the exact failing inherited lane is still:
+  - `curins=3`
+  - `IR=SLOAD`
+  - `op1=5`
+  - `op2=36`
+  - `ofs=24`
+- `S390X_SLOADMAP` now shows that lane is compiled off the normal stack base:
+  - `base=12`
+  - runtime exit dump shows `r12 == L->base`
+- and `S390X_SLOT` proves the physical slot at that base/offset is good:
+  - `baseslot=2`, so `op1=5` maps to `idx=3`
+  - `S390X_SLOT idx=3` is a valid boxed int on every repeated exit:
+    - `0xfff9000000000003`
+    - `0xfff9000000000004`
+    - `0xfff9000000000005`
+    - ...
+
+So the remaining localized seam is no longer “maybe stale slot, maybe missing
+store-back”. The inherited integer `SLOAD` replay/typecheck is firing on the
+correct live current-value slot.
+
 That keeps the next honest target where it belongs:
 
 - exact inherited integer `SLOAD` replay/typecheck contract at that shifted

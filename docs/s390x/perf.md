@@ -2416,6 +2416,23 @@ So the live localized seam is not missing current-value rematerialization. It
 is the inherited integer `SLOAD` replay/typecheck contract still firing on a
 live current numeric-for value lane.
 
+Current-`HEAD` slot logging now makes that stronger:
+
+- [20260402-kdz-dynamic-local-slotlog-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog-v2/summary.md)
+- `S390X_SLOADMAP` for the repeated seam shows:
+  - `curins=3`
+  - `op1=5`
+  - `ofs=24`
+  - `base=12`
+- the runtime exit dump for the same seam shows `r12 == L->base`
+- the slot logger then proves the loaded lane is the correct live slot:
+  - `baseslot=2`, so `op1=5 -> idx=3`
+  - `S390X_SLOT idx=3` is a valid boxed int and advances
+    `3, 4, 5, ...`
+
+So this is no longer a stale-slot theory. The inherited integer `SLOAD`
+typecheck is firing on the correct live current-value slot.
+
 ## Relationship To Other Docs
 
 - High-level status:
