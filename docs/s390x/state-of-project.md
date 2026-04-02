@@ -222,65 +222,64 @@ non-causal probe effects. The current state is cleaner:
           - exact runtime guard attribution now sharpens the ordering inside
             that header cluster:
             - artifact:
-              [20260402-kdz-number-helper-guardmark-attribution-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v3/summary.md)
+              [20260402-kdz-number-helper-guardmark-attribution-v5](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v5/summary.md)
             - on the real promoted workload, the dominant runtime failure
               inside `trace 7 exit 0` is:
-              - `curins=2`
-              - `IR=LE`
-              - dump form: `int LE 0001 +2147483646`
+              - `curins=3`
+              - `IR=SLOAD`
+              - `op1=4`
+              - `op2=36`
+              - `sload_int ofs=16 extra=20 cc=6`
             - the reduced no-helper sibling keeps that same front-most exact
               failure:
               - artifact:
-                [20260402-kdz-pure-add-first-guard-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-first-guard-attribution/summary.md)
-              - first repeated reduced exit cluster also lands on
-                `guardmark=0x2`
+                [20260402-kdz-number-helper-guardmark-attribution-v4](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v4/raw/pure_add_reducer.stderr.log)
+              - first repeated reduced exit cluster lands on
+                `guardmark=0x3`
+              - matching early guard log on the reduced sibling:
+                - `kind=sload_int`
+                - `curins=3`
+                - `ofs=16`
+                - `extra=20`
               - restored header marker shifts to `BC_MULVN`, but the first
-                exact runtime failure stays the same early `LE`
+                exact runtime failure stays on the same early inherited
+                `sload_int`
             - queue correction:
-              - the front-most exact runtime seam on the promoted slice is not
-                the carried-`total` reload
-              - it is the earlier numeric-`for` header `LE` guard
-              - the carried-`total` `SLOAD ofs=8 extra=12` remains the first
-                shared `sload_int` seam across reducers, but it is now second
-                in exact runtime failure order
-              - do not open code until that `LE` guard is mapped cleanly to
-                the loop-header state it is stabilizing
-            - exact semantic mapping is now pinned too:
-              - trace dump shows:
-                - `0001 int SLOAD #5 RI`
-                - `0002 > int LE 0001 +2147483646`
-              - bytecode in
-                [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
-                starts the numeric `for` at `FORI A=2`
-              - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h#L234) defines `FORL_STOP` as `A+1`
-              - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1088) loads that stop slot before the loop body and
-                [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1096) runs `rec_for_check(...)`
-              - in this workload, `A+1` is the source-level `n`
-              - so the exact front-most runtime failure is the numeric `for`
-                stop/range guard on `n`, not the carried `total` and not the
-                numeric index reload
-            - shared `sload_int` cross-check still matters, but it is now
-              explicitly secondary:
-              - the pure-add reducer still reaches its first `sload_int`
-                earlier in the ordered cluster at `curins=5`
-              - it keeps the same logged `SLOAD` signature:
-                `ofs=8`, `extra=12`
-              - that reduced sibling therefore keeps the same carried `total`
-                reload as the first shared `sload_int` seam
-              - the later exact-by-`curins` shared `sload_int`
-                (`curins=3`, `ofs=16`, `extra=20`) is still present and maps to
-                the numeric `for` index state
+              - the front-most exact runtime seam on the promoted slice is the
+                inherited `sload_int` on `IR=SLOAD #4 TI`
+              - on this GC64 build, `op1=4` maps to top-frame slot `2`, which
+                is the numeric `for` index state on this workload
+              - `op2=36` is `IRSLOAD_TYPECHECK|IRSLOAD_INHERIT`, so this guard
+                is explicitly revalidated on exits and side traces
+              - in recorder terms, this is the hidden narrowed `FORL_IDX`
+                reload created by `rec_for_loop(...)`, not the source-level
+                helper header and not the carried `total`
+              - `trace 7 exit 0` is still a `snapnent=0` header exit, so this
+                guard is validating live interpreter frame state at restored
+                `SNAP #0`, not a later restored snapshot payload
+              - the numeric-`for` stop/range `LE` on `n` remains in the same
+                header cluster, but it is now second in exact runtime failure
+                order
+              - the carried-`total` `SLOAD ofs=8 extra=12` is still present as
+                a later shared header guard, but it is no longer the first
+                exact repeated failure
             - current queue correction:
               - the next honest family is no longer shared header-state
                 stabilization on the carried `total` reload
+              - and it is no longer the numeric-`for` stop/range `LE` guard on
+                `n`
               - it is exact attribution and then stabilization of the earlier
-                numeric-`for` header `LE` guard
+                inherited numeric-`for` index `sload_int` guard at restored
+                `SNAP #0`
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - stabilization or reduction of the numeric `for` stop/range guard
-            on `n`:
-            - dump form: `int LE 0001 +2147483646`
+          - explain why the inherited numeric-`for` index reload fails every
+            trip on the promoted slice:
+            - exact runtime guard: `IR=SLOAD #4 TI`
+            - backend signature: `sload_int ofs=16 extra=20`
+            - recorder contract: hidden `FORL_IDX` with
+              `TYPECHECK|INHERIT`
           - use `number_helper_loop` as the real workload and the pure-add
             reducer as the no-helper sibling
         - x64 control status is now explicit:

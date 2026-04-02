@@ -11472,3 +11472,49 @@ Next hash target
       on `n`
     - the carried-`total` and numeric-index `SLOAD`s remain secondary shared
       header seams
+
+- Timestamp: `2026-04-02 08:26:48 PDT`
+- Guardmark runtime ordering is now corrected, and that invalidates the
+  earlier exact-guard `LE` attribution
+  - source fix:
+    - [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - `asm_guardcc()` now emits the conditional branch first in source order
+      under `LUAJIT_S390X_GUARDMARK`, so the mark write executes before a taken
+      guard exits through the shared stub
+  - corrected real-workload artifact:
+    - [20260402-kdz-number-helper-guardmark-attribution-v5](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v5/summary.md)
+  - corrected read on `number_helper_loop`:
+    - dominant repeated seam is still `trace 7 exit 0`
+    - dominant runtime `guardmark` is now `curins=3`
+    - exact runtime guard is:
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+      - `kind=sload_int`
+      - `ofs=16`
+      - `extra=20`
+  - corrected no-helper cross-check:
+    - [20260402-kdz-number-helper-guardmark-attribution-v4](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v4/raw/pure_add_reducer.stderr.log)
+    - the first repeated reduced pure-add cluster also lands on
+      `guardmark=0x3`
+    - the matching early guard log is the same inherited
+      `sload_int curins=3 ofs=16 extra=20`
+  - semantic correction:
+    - the front-most exact runtime seam is not the numeric `for` stop/range
+      `LE` on `n`
+    - it is the inherited numeric-`for` index reload `IR=SLOAD #4 TI`
+    - on this GC64 build, `op1=4` maps to top-frame slot `2`, which is the
+      numeric `for` index state on `number_helper_loop`
+    - `op2=36` is `IRSLOAD_TYPECHECK|IRSLOAD_INHERIT`, so this guard is
+      intentionally revalidated on exits and side traces
+    - this makes the live seam the hidden narrowed `FORL_IDX` reload from
+      `rec_for_loop(...)`, not the helper header and not the carried `total`
+    - `snapnent=0` remains true on the dominant exit, so this guard is
+      validating live interpreter frame state at restored `SNAP #0`, not a
+      later restored snapshot payload
+  - queue correction:
+    - the next honest target is no longer the stop-bound `LE` seam on `n`
+    - it is exact attribution of why the inherited numeric-`for` index
+      `sload_int` guard fails every trip on the promoted slice
+    - do not reopen low32-home, helper-header, iterator, dispatch, or generic
+      hotside-population work from this correction
