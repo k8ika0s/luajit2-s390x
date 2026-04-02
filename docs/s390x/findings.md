@@ -10887,3 +10887,30 @@ Next hash target
   - next target:
     - additional suite coverage for that already-scoped candidate slice, not
       another promotion-boundary rediscovery pass
+
+- Timestamp: `2026-04-01 18:11:14 PDT`
+- The filtered `UGET`/looproot candidate slice is now helper-backed end to end
+  on the non-dominated host-pair set
+  - new `kdz` helper-backed family packs:
+    - [20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+      - `number_helper_loop/hot`: `0.008169` vs `-joff 0.002285`,
+        `TRACE_START 6`, `TEXIT_COUNT 64001`
+      - `be_pack_loop/hot`: `0.023346` vs `-joff 0.018789`,
+        `TRACE_START 6`, `TEXIT_COUNT 64001`
+    - [20260401-kdz-ffi_calls-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-ffi_calls-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+      - `direct_abs/hot`: `0.018044` vs `-joff 0.009995`,
+        `TRACE_START 5`, `TEXIT_COUNT 80001`
+      - `stored_abs/hot`: `0.012581` vs `-joff 0.006919`,
+        `TRACE_START 5`, `TEXIT_COUNT 80001`
+  - completed `zkd0` host-pair mates:
+    - [20260401-zkd0-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+      - `number_helper_loop/hot`: `0.015573` vs `-joff 0.003520`
+      - `be_pack_loop/hot`: `0.051882` vs `-joff 0.039644`
+    - [20260401-zkd0-ffi_calls-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-ffi_calls-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+      - `direct_abs/hot`: `0.039104` vs `-joff 0.024293`
+      - `stored_abs/hot`: `0.041040` vs `-joff 0.019167`
+  - queue correction:
+    - the active filtered candidate is no longer waiting on family coverage
+      inside the scoped slice
+    - the next honest target is selective promotion planning from this fully
+      helper-backed surface, not more slice backfill
