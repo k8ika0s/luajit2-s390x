@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 23:04:00 PDT
+Last updated: 2026-04-01 23:22:00 PDT
 
 ## Latest Matrix
 
@@ -186,6 +186,17 @@ to the same exact bytecode seam in both representative workloads:
       - promoted default: `trace 7 exit 0`
     - the promoted default collapses the equivalent-parent ladder; it does not
       remove the restored `UGET bit -> TGETS "tobit"` header seam
+  - focused first-clone proof now explains why the seam survives:
+    - [20260401-kdz-core-exit-hotside-focus-parent1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-hotside-focus-parent1/summary.md)
+    - on the first hot source (`parent=1 exit=0`), hotside sees:
+      - `pc=snappc`
+      - `op=snapop=BC_UGET`
+      - `cand=0`
+      - `child=0`
+    - it simply counts that restored header seam to `hotexit` and starts the
+      first side trace from the same header snapshot
+    - the first clone therefore inherits the same loop shape as the root,
+      rather than a deeper arithmetic-only body
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 

@@ -11236,3 +11236,29 @@ Next hash target
     - the promoted default improves performance here by collapsing the
       equivalent-parent walk onto one canonical owner
     - it does not change the restored `UGET/TGETS` header seam itself
+
+- Timestamp: `2026-04-01 23:22:00 PDT`
+- Focused hotside proof now pins the first clone birth on the same restored
+  header seam
+  - artifact:
+    [20260401-kdz-core-exit-hotside-focus-parent1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-hotside-focus-parent1/summary.md)
+  - reduced `number_helper_loop` with `parent=1 exit=0` focus and
+    `iterations=200` shows:
+    - dominant texit still `1:0`
+    - first clone is `trace 4`
+    - `trace 1` and `trace 4` have the same loop metadata:
+      - `linktype loop`
+      - `nins 28`
+      - `nexit 4`
+  - focused hotside logs show the early source is not being canonicalized or
+    redirected:
+    - `pc=snappc`
+    - `op=snapop=BC_UGET`
+    - `cand=0`
+    - `child=0`
+    - `nchild=0`
+  - queue correction:
+    - the first clone is born directly from the restored `UGET/TGETS` header
+      snapshot
+    - there is still no mechanism here that peels past that header into a
+      deeper arithmetic-only loop body

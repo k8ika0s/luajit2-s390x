@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 23:04:00 PDT
+Last updated: 2026-04-01 23:22:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -116,9 +116,18 @@ non-causal probe effects. The current state is cleaner:
       - queue correction:
         - the promoted default is collapsing the clone-parent walk
         - it is not changing the actual per-iteration exit seam
-        - the remaining live question is why the front `BC_UGET` / upvalue +
-          `tobit` identity-guard prefix still sits outside the stable loop
-          body every trip
+        - focused first-clone proof now shows why the seam persists:
+          - on the first hot source (`parent=1 exit=0`), there is no
+            equivalent candidate and no child yet (`cand=0`, `child=0`)
+          - the restored snapshot remains the same header PC:
+            - `pc=snappc`
+            - `op=snapop=BC_UGET`
+            - `startop=BC_JMP`
+          - hotside counting simply runs to `hotexit` on that restored header
+            and starts the first side trace from the same `UGET` seam
+          - that is why the first clone (`trace 4`) has the same loop shape as
+            the root (`nins 28`, `nexit 4`) instead of peeling deeper into the
+            arithmetic body
     - queue correction:
       - the remaining promotion-core red is not a generic helper/call exit
         family
