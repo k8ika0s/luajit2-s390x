@@ -12561,3 +12561,12 @@ Next hash target
     - the remaining helper performance seam is broader snapshot/header replay
       on the inherited visible `FORL_IDX` current-value lane, not another copy
       of the same extraction bug
+    - that lane remains guarded by design on `number_helper_loop`:
+      - [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+        only drops `IRSLOAD_TYPECHECK` when the narrowed numeric-for state is
+        fully compile-time clean
+      - `number_helper_loop(n)` keeps hidden `STOP` as runtime `n`, so
+        `irref_isk(stop)` is false
+      - that leaves `tc = IRSLOAD_TYPECHECK`, and the recorder emits the
+        visible current-value lane as `IRSLOAD_INHERIT | IRSLOAD_TYPECHECK`
+      - exactly the observed `op2=36`
