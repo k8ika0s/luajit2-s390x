@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 19:56:12 PDT
+Last updated: 2026-04-01 20:20:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -566,6 +566,54 @@ non-causal probe effects. The current state is cleaner:
                   `promotion action: eligible_first_enable_set`
                 - all runner-produced reduced trace probes completed with
                   `REMOTE_RC 0` on both `kdz` and `zkd0`
+              - helper fence wave:
+                - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+                  and
+                  [tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+                  now accept explicit candidate selection:
+                  - `baseline` uses
+                    `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+                  - `hotside_canon_share_uget_looproot_default` uses the
+                    envless promoted default
+                - clean `kdz` frozen-family read is now pinned from those
+                  helper-backed packs:
+                  - iterator:
+                    [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201055-kdz-baseline-iterator-truth-pack/summary.md)
+                    vs
+                    [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201051-kdz-hotside_canon_share_uget_looproot_default-iterator-truth-pack/summary.md)
+                    - `pairs_sum/hot`: `0.062376 -> 0.058992`
+                    - `pairs_array_sum/hot`: `0.072711 -> 0.064010`
+                    - trace/exit shape unchanged:
+                      - `hash_value`: `TRACE_START 10`, `TRACE_ABORT 9`,
+                        `TEXIT_COUNT 960000`
+                      - `hash_key`: `TRACE_START 10`, `TRACE_ABORT 9`,
+                        `TEXIT_COUNT 640000`
+                      - `array_value`: `TRACE_START 11`, `TRACE_ABORT 10`,
+                        `TEXIT_COUNT 960000`
+                    - interpretation:
+                      - promoted default is effectively inert on the frozen
+                        iterator seam and does not reopen the old regression
+                        line on `kdz`
+                  - dispatch:
+                    [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201441-kdz-baseline-dispatch-truth-pack/summary.md)
+                    vs
+                    [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201748-kdz-hotside_canon_share_uget_looproot_default-dispatch-truth-pack/summary.md)
+                    - `numeric_loop/hot`: `0.683002 -> 0.684303`
+                    - `side_exit_loop/hot`: `0.373787 -> 0.382921`
+                    - `hotexit_loop/hot`: `0.532836 -> 0.536542`
+                    - trace/exit shape unchanged:
+                      - `numeric_loop`: `TRACE_START 12`, `TRACE_ABORT 0`,
+                        `TEXIT_COUNT 2001`
+                      - `side_exit_loop`: `TRACE_START 12`, `TRACE_ABORT 0`,
+                        `TEXIT_COUNT 2001`
+                      - `hotexit_loop`: `TRACE_START 11`, `TRACE_ABORT 0`,
+                        `TEXIT_COUNT 2001`
+                    - interpretation:
+                      - promoted default is also effectively inert on the
+                        frozen dispatch seam on `kdz`
+                - queue correction:
+                  - the next honest fence target is now `zkd0`, not another
+                    hotside seam rediscovery pass
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

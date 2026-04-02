@@ -316,6 +316,13 @@ def run_remote_command(host: str, script: str, *, stdout_path: pathlib.Path, std
     return proc
 
 
+def remote_extra_env_prefix(extra_env: dict[str, str] | None = None) -> str:
+    if not extra_env:
+        return ""
+    parts = [f"{key}={shlex.quote(value)}" for key, value in sorted(extra_env.items())]
+    return "env " + " ".join(parts) + " "
+
+
 def fetch_remote_file(host: str, remote_path: str) -> str:
     proc = run_ssh_script(
         host,
@@ -346,9 +353,12 @@ make -C src -j4
 
 
 def run_jit_status(host: str, repo: str, raw_dir: pathlib.Path) -> str:
+    extra_env_prefix = remote_extra_env_prefix(None)
     script = f"""
 set -euo pipefail
-{remote_luajit_cmd(repo=repo, pin_core=None, args=["-e", "local a,b,c=jit.status(); print(a,b,c)"])}
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+{extra_env_prefix}./src/luajit -e 'local a,b,c=jit.status(); print(a,b,c)'
 """
     proc = run_remote_command(
         host,
@@ -360,12 +370,16 @@ set -euo pipefail
     return proc.stdout.strip()
 
 
-def run_oneshot_checks(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path) -> dict[str, str]:
+def run_oneshot_checks(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path,
+                       extra_env: dict[str, str] | None = None) -> dict[str, str]:
     results: dict[str, str] = {}
+    extra_env_prefix = remote_extra_env_prefix(extra_env)
     for count in ("20", "2000", "200000"):
         script = f"""
 set -euo pipefail
-{remote_luajit_cmd(repo=repo, pin_core=None, args=[f"{remote_tmp}/oneshot_iter.lua", count])}
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+{extra_env_prefix}./src/luajit {shlex.quote(f"{remote_tmp}/oneshot_iter.lua")} {shlex.quote(count)}
 """
         proc = run_remote_command(
             host,
@@ -377,7 +391,9 @@ set -euo pipefail
         results[count] = proc.stdout.strip()
     script = f"""
 set -euo pipefail
-{remote_luajit_cmd(repo=repo, pin_core=None, args=["-joff", f"{remote_tmp}/oneshot_iter.lua", "200000"])}
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+{extra_env_prefix}./src/luajit -joff {shlex.quote(f"{remote_tmp}/oneshot_iter.lua")} 200000
 """
     proc = run_remote_command(
         host,
@@ -401,16 +417,18 @@ def run_iterator_bench(
     samples: int,
     warmup: int,
     joff: bool,
+    extra_env: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     json_name = "joff.jsonl" if joff else "jit-on.jsonl"
     remote_json = f"{remote_tmp}/{json_name}"
     luajit_args = ["-joff", BENCH_FILE] if joff else [BENCH_FILE]
+    extra_env_prefix = remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 rm -f {shlex.quote(remote_json)}
-{remote_env_prefix(jsonl_path=remote_json, samples=samples, warmup=warmup)} {f"taskset -c {pin_core} " if pin_core is not None else ""}./src/luajit {' '.join(shlex.quote(arg) for arg in luajit_args)}
+{remote_env_prefix(jsonl_path=remote_json, samples=samples, warmup=warmup)} {extra_env_prefix}{f"taskset -c {pin_core} " if pin_core is not None else ""}./src/luajit {' '.join(shlex.quote(arg) for arg in luajit_args)}
 """
     run_remote_command(
         host,
@@ -425,10 +443,14 @@ rm -f {shlex.quote(remote_json)}
     return parse_jsonl_records(local_json)
 
 
-def run_micro(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> str:
+def run_micro(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+              extra_env: dict[str, str] | None = None) -> str:
+    extra_env_prefix = remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
-{remote_luajit_cmd(repo=repo, pin_core=None, args=[f"{remote_tmp}/{name}.lua"])}
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+{extra_env_prefix}./src/luajit {shlex.quote(f"{remote_tmp}/{name}.lua")}
 """
     proc = run_remote_command(
         host,
@@ -440,12 +462,14 @@ set -euo pipefail
     return proc.stdout.strip()
 
 
-def run_owner_logs(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> None:
+def run_owner_logs(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+                   extra_env: dict[str, str] | None = None) -> None:
+    extra_env_prefix = remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-env LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit {shlex.quote(f"{remote_tmp}/{name}.lua")}
+env LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 {extra_env_prefix}./src/luajit {shlex.quote(f"{remote_tmp}/{name}.lua")}
 """
     run_remote_command(
         host,
@@ -456,12 +480,14 @@ env LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit {shlex.quote(f"
     )
 
 
-def run_ir_dump(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> None:
+def run_ir_dump(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+                extra_env: dict[str, str] | None = None) -> None:
+    extra_env_prefix = remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-./src/luajit -jdump=ir {shlex.quote(f"{remote_tmp}/{name}.lua")}
+{extra_env_prefix}./src/luajit -jdump=ir {shlex.quote(f"{remote_tmp}/{name}.lua")}
 """
     run_remote_command(
         host,

@@ -20,6 +20,12 @@ import restamp_iterator_perf as restamp
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
+CANDIDATE_ENVS: dict[str, dict[str, str]] = {
+    "baseline": {
+        "LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT": "1",
+    },
+    "hotside_canon_share_uget_looproot_default": {},
+}
 MICRO_NAMES = ("hash_value", "hash_key", "array_value")
 FOCUSED_ITERATIONS = 80000
 FOCUSED_VISIBLE_ITEMS = {
@@ -963,16 +969,18 @@ def run_focused_bench(
     samples: int,
     warmup: int,
     joff: bool,
+    extra_env: dict[str, str] | None = None,
 ) -> list[dict[str, object]]:
     mode = "focused-jit-on" if not joff else "focused-joff"
     remote_json = f"{remote_tmp}/{mode}.jsonl"
     luajit_cmd = f"{f'taskset -c {pin_core} ' if pin_core is not None else ''}./src/luajit {'-joff ' if joff else ''}{shlex.quote(f'{remote_tmp}/focused_bench.lua')}"
+    extra_env_prefix = restamp.remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 rm -f {shlex.quote(remote_json)}
-{restamp.remote_env_prefix(jsonl_path=remote_json, samples=samples, warmup=warmup)} {luajit_cmd}
+{restamp.remote_env_prefix(jsonl_path=remote_json, samples=samples, warmup=warmup)} {extra_env_prefix}{luajit_cmd}
 """
     restamp.run_remote_command(
         host,
@@ -987,12 +995,14 @@ rm -f {shlex.quote(remote_json)}
     return restamp.parse_jsonl_records(local_json)
 
 
-def run_mcode_dump(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> None:
+def run_mcode_dump(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+                   extra_env: dict[str, str] | None = None) -> None:
+    extra_env_prefix = restamp.remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-./src/luajit -jdump=ism {shlex.quote(f"{remote_tmp}/{name}.lua")}
+{extra_env_prefix}./src/luajit -jdump=ism {shlex.quote(f"{remote_tmp}/{name}.lua")}
 """
     restamp.run_remote_command(
         host,
@@ -1003,12 +1013,14 @@ export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
     )
 
 
-def run_trace_count(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> dict[str, int | str]:
+def run_trace_count(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+                    extra_env: dict[str, str] | None = None) -> dict[str, int | str]:
+    extra_env_prefix = restamp.remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
+{extra_env_prefix}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
 """
     proc = restamp.run_remote_command(
         host,
@@ -1020,8 +1032,10 @@ export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
     return parse_key_value_lines(proc.stdout)
 
 
-def run_perf_stat(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str, pin_core: int | None) -> dict[str, object]:
+def run_perf_stat(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+                  pin_core: int | None, extra_env: dict[str, str] | None = None) -> dict[str, object]:
     taskset = f"taskset -c {pin_core} " if pin_core is not None else ""
+    extra_env_prefix = restamp.remote_extra_env_prefix(extra_env)
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
@@ -1030,7 +1044,7 @@ if ! command -v perf >/dev/null 2>&1; then
   echo "PERF_STATUS unavailable:perf-not-found"
   exit 0
 fi
-perf stat -x, -e cycles,instructions,branches,branch-misses -- {taskset}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
+perf stat -x, -e cycles,instructions,branches,branch-misses -- {extra_env_prefix}{taskset}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
 """
     proc = restamp.run_ssh_script(host, script)
     write_text(raw_dir / f"{name}.stdout.log", proc.stdout)
@@ -1055,9 +1069,13 @@ perf stat -x, -e cycles,instructions,branches,branch-misses -- {taskset}./src/lu
     return {"status": "ok", "counters": counters}
 
 
-def run_owner_selection_log(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str) -> None:
+def run_owner_selection_log(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+                            extra_env: dict[str, str] | None = None) -> None:
+    env_map = dict(OWNER_SELECTION_ENV)
+    if extra_env:
+        env_map.update(extra_env)
     env_prefix = "env " + " ".join(
-        f"{key}={shlex.quote(value)}" for key, value in OWNER_SELECTION_ENV.items()
+        f"{key}={shlex.quote(value)}" for key, value in env_map.items()
     )
     script = f"""
 set -euo pipefail
@@ -1346,6 +1364,7 @@ def render_summary(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a focused iterator truth pack from the frozen baseline.")
     parser.add_argument("--host", choices=restamp.HOST_LABELS, required=True)
+    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="baseline")
     parser.add_argument("--repo", help="Remote clean repo path. Defaults to the authoritative repo for the selected host.")
     parser.add_argument("--output-dir", help="Local artifact output directory. Defaults under artifacts/s390x/truth-packs.")
     parser.add_argument("--pin-core", type=int, default=restamp.DEFAULT_PIN_CORE)
@@ -1359,9 +1378,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     host = args.host
+    candidate = args.candidate
+    candidate_env = CANDIDATE_ENVS[candidate]
     repo = args.repo or restamp.AUTHORITATIVE_REPOS[host]
     timestamp = dt.datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
-    output_dir = pathlib.Path(args.output_dir).expanduser().resolve() if args.output_dir else (DEFAULT_OUTPUT_ROOT / f"{timestamp}-{host}-frozen-baseline").resolve()
+    output_dir = pathlib.Path(args.output_dir).expanduser().resolve() if args.output_dir else (DEFAULT_OUTPUT_ROOT / f"{timestamp}-{host}-{candidate}-iterator-truth-pack").resolve()
     raw_dir = output_dir / "raw"
     owner_dir = raw_dir / "owner"
     owner_selection_dir = raw_dir / "owner-selection"
@@ -1386,11 +1407,11 @@ def main() -> int:
         prepare_truth_scripts(host, remote_tmp)
         restamp.build_remote_repo(host, repo, raw_dir)
         jit_status = restamp.run_jit_status(host, repo, raw_dir)
-        oneshot_results = restamp.run_oneshot_checks(host, repo, remote_tmp, raw_dir)
+        oneshot_results = restamp.run_oneshot_checks(host, repo, remote_tmp, raw_dir, candidate_env)
         micro_results = {
-            "hash_value": restamp.run_micro(host, repo, remote_tmp, raw_dir, "hash_value"),
-            "hash_key": restamp.run_micro(host, repo, remote_tmp, raw_dir, "hash_key"),
-            "array_value": restamp.run_micro(host, repo, remote_tmp, raw_dir, "array_value"),
+            "hash_value": restamp.run_micro(host, repo, remote_tmp, raw_dir, "hash_value", candidate_env),
+            "hash_key": restamp.run_micro(host, repo, remote_tmp, raw_dir, "hash_key", candidate_env),
+            "array_value": restamp.run_micro(host, repo, remote_tmp, raw_dir, "array_value", candidate_env),
         }
         restamp.validate_results(
             host=host,
@@ -1409,6 +1430,7 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=False,
+            extra_env=candidate_env,
         )
         iterator_joff = restamp.run_iterator_bench(
             host=host,
@@ -1420,6 +1442,7 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=True,
+            extra_env=candidate_env,
         )
         (output_dir / "jit-on.jsonl").rename(output_dir / "iterator-jit-on.jsonl")
         (output_dir / "joff.jsonl").rename(output_dir / "iterator-joff.jsonl")
@@ -1433,6 +1456,7 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=False,
+            extra_env=candidate_env,
         )
         focused_joff_records = run_focused_bench(
             host=host,
@@ -1443,17 +1467,18 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=True,
+            extra_env=candidate_env,
         )
         trace_counts: dict[str, dict[str, int | str]] = {}
         perf_stats: dict[str, dict[str, object]] = {}
         owner_selection_analysis: dict[str, dict[str, object]] = {}
         dump_analysis: dict[str, dict[str, object]] = {}
         for name in MICRO_NAMES:
-            restamp.run_owner_logs(host, repo, remote_tmp, owner_dir, name)
-            run_owner_selection_log(host, repo, remote_tmp, owner_selection_dir, name)
-            run_mcode_dump(host, repo, remote_tmp, dump_dir, name)
-            trace_counts[name] = run_trace_count(host, repo, remote_tmp, trace_dir, name)
-            perf_stats[name] = run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core)
+            restamp.run_owner_logs(host, repo, remote_tmp, owner_dir, name, candidate_env)
+            run_owner_selection_log(host, repo, remote_tmp, owner_selection_dir, name, candidate_env)
+            run_mcode_dump(host, repo, remote_tmp, dump_dir, name, candidate_env)
+            trace_counts[name] = run_trace_count(host, repo, remote_tmp, trace_dir, name, candidate_env)
+            perf_stats[name] = run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core, candidate_env)
             owner_selection_analysis[name] = parse_owner_selection_details(owner_selection_dir / f"{name}.stderr.log")
             dump_analysis[name] = parse_dump_details(dump_dir / f"{name}.stdout.log")
         perf_metrics = derive_perf_metrics(trace_counts, perf_stats)
@@ -1468,6 +1493,8 @@ def main() -> int:
             "git_commit": commit,
             "freeze_branch": args.freeze_branch,
             "host_label": host,
+            "candidate": candidate,
+            "candidate_env": candidate_env,
             "hostname": host_info.get("HOSTNAME_FQDN", host),
             "host_shortname": host_info.get("HOSTNAME_SHORT", host),
             "machine_type": host_info.get("MACHINE_TYPE", ""),
