@@ -11617,3 +11617,51 @@ Next hash target
     - the next honest target stays the inherited numeric-`for`
       replay/header contract at restored `SNAP #0`
     - do not promote the direct shifted-tag compare repair
+
+- Timestamp: `2026-04-02 09:31:00 PDT`
+- The promoted-slice numeric-for header seam has a corrected slot attribution
+  on `number_helper_loop`
+  - slot map artifact:
+    - [20260402-kdz-number-helper-fori-slot-map](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-fori-slot-map/summary.md)
+  - bytecode fact:
+    - `FORI/FORL A=2`
+    - hidden slots are:
+      - slot `2` = `IDX`
+      - slot `3` = `STOP`
+      - slot `4` = `STEP`
+      - slot `5` = visible `EXT`
+  - correction to the active seam read:
+    - `IR=SLOAD #4 TI` / `ofs=16 extra=20` is hidden `STEP`, not hidden
+      `IDX`
+    - `sload_int ofs=8 extra=12` is hidden `STOP`, not carried `total`
+  - queue correction:
+    - the active promoted-slice seam is a numeric-for hidden control-slot
+      replay family
+    - the front-most exact-taken marker on the real workload is hidden
+      `STEP`
+    - the later `LE` on `n` remains secondary
+    - any next design or patch must target hidden-control replay semantics,
+      not the previously misnamed `FORL_IDX` seam
+
+- Timestamp: `2026-04-02 09:42:00 PDT`
+- The front promoted-slice `STEP` seam is inherited from root `FORI`, not
+  freshly created by hot `FORL` replay
+  - recorder path:
+    - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    - `rec_for(..., isforl=0)` loads `IDX/STOP/STEP` with generic `sload()`
+    - generic `sload()` always emits `IRSLOAD_TYPECHECK`
+  - hot-side contrast:
+    - `rec_for_loop(...)` uses `fori_arg(..., mode=IRSLOAD_INHERIT+...)` for
+      `STOP` and `STEP`
+    - that path does not create a fresh `IRSLOAD_TYPECHECK` for those hidden
+      control slots
+  - snapshot path:
+    - [lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c)
+    - `lj_snap_replay()` recreates inherited parent `IR_SLOAD` refs for side
+      traces
+  - queue correction:
+    - the repeated promoted-slice front seam is inherited root-`FORI`
+      control-slot replay
+    - not a fresh hot `FORL` side-trace load
+    - the next honest target is therefore root-header stabilization or replay
+      semantics on that inherited hidden `STEP` slot
