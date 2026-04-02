@@ -12041,3 +12041,45 @@ Next hash target
     - inherited hidden `STOP` replay is only the front-most dynamic seam
     - once `STOP`/`STEP` are stabilized, the live payer becomes a later
       header/body guard family
+
+- Timestamp: `2026-04-02 13:44:40 PDT`
+- Clean literal-stop reproducer corrects the mixed post-constantization read
+  - artifact:
+    [20260402-kdz-number-helper-literal-stop-exact-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-literal-stop-exact-seam/summary.md)
+  - isolated sibling shape:
+    - `for i = 1, 400 do`
+    - `total = bit.tobit(total + i * 65537)`
+    - no inherited dynamic `STOP`
+  - clean `kdz` promoted-default read:
+    - `TRACE_START 1`
+    - `TRACE_STOP 1`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 400`
+    - dominant texit `7:0=400`
+    - dominant runtime seam:
+      - `trace 7 exit 0`
+      - restored `pc op=45`
+      - `snapop=45`
+      - `snapnent=0`
+  - exact runtime guard on that dominant seam:
+    - `guardmark=0xd`
+    - `curins=13`
+    - `IR=SLOAD`
+    - `op1=2`
+    - `op2=4`
+    - `sload_int ofs=0 extra=4`
+  - exact semantic mapping from the same trace IR:
+    - `TRACE 1` shows the shifted guard sits on:
+      - `0013 > int SLOAD #2 T`
+      - immediately before `0016  + int ADD 0013 0012`
+    - the shifted first failure is therefore the carried `total` reload,
+      not a helper-header `GGET` / `TGETS` guard
+  - correction:
+    - the earlier `guardmark=0xd` / `BC_GGET` reading came from a mixed,
+      later alternating family inside the broad `fori-const-init-v1` logs
+    - it is not the steady literal-stop seam
+  - queue correction:
+    - post-constantization the live family is still restored `SNAP #0`
+      replay/typecheck on stack-visible carried state
+    - the next honest target is carried-`total` replay/materialization under
+      the promoted default, not helper-header stabilization
