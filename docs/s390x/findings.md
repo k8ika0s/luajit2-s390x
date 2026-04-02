@@ -11518,3 +11518,34 @@ Next hash target
       `sload_int` guard fails every trip on the promoted slice
     - do not reopen low32-home, helper-header, iterator, dispatch, or generic
       hotside-population work from this correction
+
+- Timestamp: `2026-04-02 08:26:48 PDT`
+- Focused slot logging now tightens that correction one step further
+  - focused reduced artifact:
+    - [20260402-kdz-number-helper-slotlog-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-slotlog-v1/summary.md)
+  - repeated reduced exit state at `trace 1 exit 0`:
+    - restored `pc op=45` (`BC_UGET`)
+    - `snapnent=0`
+    - dominant runtime `guardmark=0x3`
+    - exact marked guard still decodes to
+      `IR=SLOAD #4 TI` / `sload_int ofs=16 extra=20`
+  - slot-state read at that same repeated exit:
+    - base slot `1` carries the running `total`
+    - base slot `2` carries the numeric `for` index
+    - base slot `3` carries the stop bound `n`
+    - base slot `4` carries the constant step `1`
+    - base slots `2`, `3`, and `4` are already int-tagged at the repeated exit
+      point
+  - correction:
+    - this means `guardmark=0x3` is good evidence that the inherited
+      `FORL_IDX` `sload_int` sits at the front of the live header cluster
+    - but it is not yet enough to prove that `curins=3` is the literal failing
+      compare
+    - the later stop-bound `LE` on `n` remains a live competing failure inside
+      the same merged restored-`SNAP #0` cluster
+  - queue correction:
+    - the next honest target is exact in-cluster guard-order attribution inside
+      the merged restored-`SNAP #0` numeric-`for` header
+    - not more helper-header rewriting
+    - not more hotside population work
+    - not another low32-home reopening

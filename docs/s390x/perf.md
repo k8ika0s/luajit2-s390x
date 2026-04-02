@@ -276,8 +276,7 @@ Exact runtime guard attribution now sharpens that further:
   - restored header marker moves to `BC_MULVN`, but the first exact runtime
     failure stays on the same inherited `sload_int`
 - semantic meaning:
-  - this is `IR=SLOAD #4 TI`, not the later carried `total` reload and not the
-    earlier stop-bound `LE`
+  - this is the first shared marked header guard, `IR=SLOAD #4 TI`
   - on this GC64 build, `op1=4` maps to top-frame slot `2`
   - on `number_helper_loop`, that slot is the numeric `for` index state
   - `op2=36` is `IRSLOAD_TYPECHECK|IRSLOAD_INHERIT`, so the guard is
@@ -286,11 +285,16 @@ Exact runtime guard attribution now sharpens that further:
     not the visible helper header or the carried accumulator
   - `snapnent=0` remains true on the dominant exit, so this guard is checking
     live interpreter frame state at restored `SNAP #0`
+  - focused slot logging on the same reduced seam shows that restored slot is
+    already int-tagged at the repeated exit point, so `guardmark=0x3` is not
+    yet enough to prove this is the literal failing compare
 
 So the current promoted-slice red is no longer best described as the
-carried-`total` reload seam or the numeric `for` stop/range `LE` seam. The
-front-most exact runtime failure is now the inherited numeric-`for` index
-`sload_int` guard (`ofs=16 extra=20`).
+carried-`total` reload seam. But the exact first failing guard inside the
+merged restored-`SNAP #0` numeric-`for` header cluster is still unresolved:
+the leading marked seam is the inherited numeric-`for` index `sload_int`
+guard (`ofs=16 extra=20`), while the later stop-bound `LE` on `n` remains a
+live competing failure in the same cluster.
 
 Shared `sload_int` attribution remains useful, but it is now explicitly
 secondary:
