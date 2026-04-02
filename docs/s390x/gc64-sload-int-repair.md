@@ -300,3 +300,60 @@ So the current best source-backed read is:
   numeric-for state the VM would have established before `BC_UGET`
 - `TRACE 1` then consumes the inherited numeric-for value too early, and on
   the bad path it is already stale/high
+
+## Direct Remediation Result
+
+The direct inherited integer `SLOAD` seam is now narrowed enough to treat the
+paired repair as the active GC64 default on s390x:
+
+- signed/arithmetic GC64 integer `SLOAD` extraction is default-on on GC64 with
+  opt-out `LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD=1`
+- the matching `JFORI` interpreter handoff is also default-on on GC64 with
+  opt-out `LUAJIT_S390X_DISABLE_JFORI_INTERP_HANDOFF=1`
+- the old opt-in envs remain valid compatibility aliases:
+  - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+  - `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+
+Clean `kdz` reduced rechecks after promoting that pair:
+
+- literal-stop sibling:
+  [20260402-kdz-literal-stop-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-literal-stop-paired-default-check/summary.md)
+  - `TRACE_START 1`
+  - `TRACE_STOP 1`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 399`
+  - old carried-`total` exact-taken `guardmark=0xd` seam no longer repeats
+  - repeated exits now run with `guardmark=0` and later logs show the steady
+    family has moved forward into a `BC_TGETS` seam
+- real helper workload:
+  [20260402-kdz-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-paired-default-check/summary.md)
+  - `TRACE_START 6`
+  - `TRACE_STOP 5`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 64001`
+  - workload remains correctness-stable under the envless default pair
+  - dominant repeated seam is still restored `SNAP #0` at `BC_UGET`, but the
+    old exact-taken inherited-int `SLOAD` failure is gone and later logs again
+    show the steady failure family shifted forward into `BC_TGETS`
+
+Clean `zkd0` reduced screen:
+
+- real helper workload:
+  [20260402-zkd0-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-number-helper-paired-default-check/summary.md)
+  - `TRACE_START 6`
+  - `TRACE_STOP 5`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 64001`
+  - no correctness regression on the z14 screen
+
+So the direct target is now answered:
+
+- the inherited GC64 integer `SLOAD` replay/typecheck seam was real
+- the paired GC64 repair clears that seam on both the isolated literal-stop
+  reducer and the real helper workload
+- but this is not a full throughput fix, because the steady exit flurry simply
+  advances to the next later header family (`BC_TGETS`) instead of vanishing
+
+That means the next honest frontier is not more inherited-int extraction work.
+It is exact attribution of the later `TGETS` seam that becomes front-most after
+the GC64 integer `SLOAD` repair starts holding.

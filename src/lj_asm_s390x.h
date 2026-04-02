@@ -103,8 +103,11 @@ static int asm_s390x_guardmark_taken_enabled(void)
 static int asm_s390x_gc64_signed_int_sload_enabled(void)
 {
   static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_GC64_SIGNED_INT_SLOAD") != NULL);
+  if (enabled == -1) {
+    const char *opt_in = getenv("LUAJIT_S390X_GC64_SIGNED_INT_SLOAD");
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD");
+    enabled = ((LJ_GC64 && opt_out == NULL) || opt_in != NULL);
+  }
   return enabled;
 }
 

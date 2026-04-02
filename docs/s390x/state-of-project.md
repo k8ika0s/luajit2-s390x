@@ -2663,6 +2663,42 @@ Current owner map contract:
     - not helper-header stabilization
     - not another stack-state rematerialization theory
 
+- Timestamp: `2026-04-02 14:08:30 PDT`
+- Direct GC64 inherited-int replay repair is now promoted as the active GC64
+  default pair on s390x
+  - source change:
+    - signed/arithmetic GC64 integer `SLOAD` extraction defaults on under
+      `LJ_GC64`, with opt-out
+      `LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD=1`
+    - matching `JFORI` interpreter handoff defaults on under `LJ_GC64`, with
+      opt-out `LUAJIT_S390X_DISABLE_JFORI_INTERP_HANDOFF=1`
+    - old opt-in envs remain as compatibility aliases
+  - clean `kdz` literal-stop reducer:
+    - artifact:
+      [20260402-kdz-literal-stop-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-literal-stop-paired-default-check/summary.md)
+    - `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 399`
+    - old carried-`total` inherited-int `SLOAD` seam no longer repeats
+    - repeated exits advance into a later `BC_TGETS` family
+  - clean `kdz` real helper workload:
+    - artifact:
+      [20260402-kdz-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-paired-default-check/summary.md)
+    - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+    - no correctness failure under the envless pair
+    - front-most inherited-int `SLOAD` failure is gone; the steady flurry is
+      now later than that seam
+  - clean `zkd0` reduced screen:
+    - artifact:
+      [20260402-zkd0-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-number-helper-paired-default-check/summary.md)
+    - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+    - no z14 correctness regression on the real workload
+  - queue correction:
+    - the inherited GC64 integer `SLOAD` replay/typecheck seam is directly
+      remediated
+    - this is not yet a full perf win because the repeated flurry advances to
+      a later `BC_TGETS` header family
+    - the next honest target is exact attribution of that later `TGETS` seam,
+      not more inherited-int extraction work
+
 ### After that
 
 There are only two realistic outcomes:

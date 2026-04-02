@@ -777,8 +777,11 @@ static int lj_record_s390x_looplink_payload_desc_enabled(void)
 static int lj_record_s390x_jfori_interp_handoff_enabled(void)
 {
   static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JFORI_INTERP_HANDOFF") != NULL);
+  if (enabled == -1) {
+    const char *opt_in = getenv("LUAJIT_S390X_JFORI_INTERP_HANDOFF");
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_JFORI_INTERP_HANDOFF");
+    enabled = ((LJ_GC64 && opt_out == NULL) || opt_in != NULL);
+  }
   return enabled;
 }
 
