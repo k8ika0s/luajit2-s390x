@@ -256,6 +256,65 @@ emit_traceinfo(32)
 emit_traceir(32)
 """,
     },
+    "number_helper_loop_local_tobit": {
+        "family": "be_helpers",
+        "iterations": 64000,
+        "label": "NUMBER_HELPER_LOOP_LOCAL_TOBIT",
+        "script": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run(n)
+  local total = 0
+  local tobit = bit.tobit
+  for i = 1, n do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+run(20); run(20); run(20)
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run({iterations}))
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "number_helper_loop_arg_tobit": {
+        "family": "be_helpers",
+        "iterations": 64000,
+        "label": "NUMBER_HELPER_LOOP_ARG_TOBIT",
+        "script": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run(n, tobit)
+  local total = 0
+  for i = 1, n do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+run(20, bit.tobit); run(20, bit.tobit); run(20, bit.tobit)
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run({iterations}, bit.tobit))
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
     "be_pack_loop": {
         "family": "be_helpers",
         "iterations": 64000,
