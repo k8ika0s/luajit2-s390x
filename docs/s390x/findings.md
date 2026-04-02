@@ -11900,3 +11900,24 @@ Next hash target
       contract after that typecheck starts passing
     - do not reopen low32-home, iterator, dispatch, vararg, or generic
       hotside-population work from this seam
+
+- Timestamp: `2026-04-02 12:39:12 PDT`
+- The next source slice pins the remaining GC64 replay bug as a VM/JIT
+  numeric-`for` contract mismatch, not another compare-constant problem
+  - VM contract on s390x:
+    - [vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc#L4337) loads `FOR_IDX`
+    - `checkint RB` clears the tag in the working register
+    - the loop body then does 32-bit `ar RB, ITYPE`
+    - `setint RB` re-tags the result before storing back to `FOR_IDX` and
+      `FOR_EXT`
+  - repaired trace failure on the same workload:
+    - the inherited integer `SLOAD` typecheck starts passing
+    - the repeated second-hot failure is still `trace 1 exit 0`,
+      `guardmark=0xe`
+    - `guardmark=0xe` is `curins 14`, `int MULOV 0003 +65537`
+    - `0003` is `int SLOAD #4 TI`
+  - queue correction:
+    - the live question is no longer “what tag compare should this use?”
+    - it is “why replay after the inherited typecheck does not re-materialize
+      the same cleared 32-bit numeric-for value that the VM fast path uses
+      before arithmetic”

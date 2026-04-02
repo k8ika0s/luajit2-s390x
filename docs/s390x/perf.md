@@ -2123,6 +2123,11 @@ Current queue correction:
     - `0003` is `int SLOAD #4 TI`
     - runtime state at that seam is packed numeric-`for` replay, not a plain
       loop index
+  - source-side contract correction:
+    - the VM integer `FORI/FORL` fast path on s390x is explicitly
+      `checkint -> 32-bit add -> setint -> store`
+    - so the remaining seam is now the replay materialization path before the
+      header `MULOV`, not the tag compare by itself
 
 ## Promotable Patch Gate
 

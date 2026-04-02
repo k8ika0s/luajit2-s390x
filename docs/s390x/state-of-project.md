@@ -2505,6 +2505,14 @@ Current owner map contract:
   - repeated runtime state at that seam is packed numeric-`for` replay
     (`r11=0x8001`, `r12=0xffffffff80018001`, then incrementing), not a plain
     loop index
+- source-side contract read:
+  - the VM integer `FORI/FORL` fast path in
+    [vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc#L4331)
+    is explicitly `checkint -> 32-bit add -> setint -> store`
+  - so the next live question is not another type-compare tweak
+  - it is why replay after the inherited `SLOAD` typecheck still does not
+    re-materialize that same cleared 32-bit numeric-for value before the
+    header `MULOV`
 
 ### After that
 
