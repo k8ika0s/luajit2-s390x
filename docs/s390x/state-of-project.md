@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 15:03:17 PDT
+Last updated: 2026-04-02 15:43:56 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -2847,6 +2847,60 @@ Current owner map contract:
       live current-value slot
     - the next honest target is the exact compiled typecheck/lowering on that
       lane
+
+- Timestamp: `2026-04-02 15:34:18 PDT`
+- The direct signed-expected GC64 repair is now closed as a rejected classifier
+  and the branch source remains on baseline
+  - reduced classifiers carried:
+    - [20260402-kdz-dynamic-local-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-after-signed-expected-fix/summary.md)
+    - [20260402-kdz-number-helper-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-after-signed-expected-fix/summary.md)
+  - real helper truth-pack failed:
+    - [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/raw/jit-on.stderr.log)
+    - `number_helper_loop/hot: expected 1323881804, got 34304`
+  - current narrowed read:
+    - first long hot run is correct
+    - second long hot run in the same process is wrong
+    - the break only appears at larger reruns
+    - direct second-run counters on `kdz` are tiny:
+      - `TRACE_START 3`
+      - `TRACE_STOP 2`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 2`
+    - `-jv` two-run proof moves the live seam to:
+      - `TRACE 2 (1/0)` overflow side loop
+      - then `TRACE 3` fallback/interpreter
+      - side-loop body is `num CONV -> num MUL -> int TOBIT -> int ADD`
+  - queue correction:
+    - the inherited integer `SLOAD` mismatch was real
+    - the signed-expected compare fix is directionally right but unsafe
+    - the next honest target is the warm-built overflow-side-loop continuation
+      seam on the real helper workload, not the old inherited `SLOAD` lane
+
+- Timestamp: `2026-04-02 15:43:56 PDT`
+- The warmed post-repair seam is now pinned one step later than the raw
+  overflow loop itself
+  - artifact:
+    [20260402-kdz-signedfix-two-run-noprint-mid](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-signedfix-two-run-noprint-mid/summary.md)
+  - two-run no-print-mid result:
+    - `WARM 132610`
+    - `SECOND 25535`
+  - exact trace chain:
+    - `TRACE 1`: main int loop
+    - `TRACE 2 (1/2)`: overflow side path, `stop -> 1`
+    - `TRACE 3 (1/0)`: warmed overflow loop
+    - `TRACE 4 (3/3)`: return-side continuation at
+      `return bit.tobit(total)`, `stop -> 1`
+    - `TRACE 5 (4/0)`: later stitch into `print`
+    - exact narrowed return seam:
+      - `trace 4 exit 0`
+      - `guardmark=0xd`
+      - in `TRACE 4` IR that is `curins 13`
+      - `0013 > p64 RETF ...`
+  - queue correction:
+    - the bad second-run result is already born before the console stitch
+    - the next honest target is the helper lower-frame return (`RETF`)
+      continuation after the warmed overflow loop
+    - not the later print path
 
 ### After that
 
