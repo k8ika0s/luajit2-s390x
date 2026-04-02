@@ -2392,6 +2392,27 @@ So the current post-repair read is:
 - the live family has moved into the caller numeric-for header after return,
   not generic `RETF` alone
 
+The next caller-loop slot-state slice closes that further:
+
+- [20260402-kdz-caller-forl-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-caller-forl-seam/raw)
+  - exact taken exit on the stable-callsite control:
+    - `trace 4 exit 2`
+    - restored `pc op=76`
+    - `guardmark=0x11`
+  - local bytecode listing identifies `op=76` as the caller `FORL` in
+    `drive(n, reps)`
+  - slot-state at that exact exit is coherent for the caller loop:
+    - caller `idx=3 -> 2`
+    - caller `stop=4 -> 2`
+    - caller `step=5 -> 1`
+    - caller visible current/ext `idx=6 -> 2`
+  - but the caller-visible result slot is already wrong:
+    - caller `out idx=2 -> 25535`
+
+So the stable-callsite post-repair failure is no longer honestly described as
+caller loop-state corruption. The wrong value is already in the returned result
+slot when the normal caller `FORL` exit happens.
+
 Reduced helper variants after the repair show the seam is helper-form
 specific:
 

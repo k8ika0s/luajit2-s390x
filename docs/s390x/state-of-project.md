@@ -2934,6 +2934,32 @@ Current owner map contract:
     - the next honest target is the caller `FORI/FORL` state contract after a
       successful lower-frame return, not generic `RETF`
 
+- Timestamp: `2026-04-02 17:42:00 PDT`
+- Stable-callsite slot-state probe proves the caller loop state is coherent and
+  the wrong value is already in the caller-visible result slot
+  - artifact:
+    `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-caller-forl-seam/raw`
+  - exact taken exit on the stable-callsite control:
+    - `trace 4 exit 2`
+    - restored `pc op=76`
+    - `guardmark=0x11`
+  - local bytecode listing identifies `op=76` as the caller `FORL` in
+    `drive(n, reps)`
+  - slot dump at that exact exit:
+    - caller `out` slot is already wrong:
+      - `idx=2 -> 25535`
+    - caller loop state is otherwise coherent:
+      - `idx=3 -> 2`
+      - `idx=4 -> 2`
+      - `idx=5 -> 1`
+      - `idx=6 -> 2`
+  - queue correction:
+    - the stable-callsite failure is not bad caller `FORL` state
+    - the wrong value is already in the caller-visible result slot when the
+      normal loop exit happens
+    - the next honest target is return-value handoff from the warmed overflow
+      path into the lower frame, not generic caller loop-state replay
+
 ### After that
 
 There are only two realistic outcomes:
