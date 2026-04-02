@@ -213,19 +213,36 @@ non-causal probe effects. The current state is cleaner:
                 - `op2=4`
                 - `ofs=8`
                 - `extra=12`
+              - semantic mapping is now pinned:
+                - this target is on a GC64 build (`LJ_FR2=1`)
+                - `IR_SLOAD.op1` is `baseslot + slot`
+                - `op1=3` therefore maps to top-frame slot `1`
+                - on `number_helper_loop`, top-frame slot `1` is the
+                  loop-carried `total`
             - cross-check against the existing no-helper sibling now sharpens
               the next seam further:
               - the pure-add reducer still reaches its first `sload_int`
                 earlier in the ordered cluster at `curins=5`
               - but it carries the same logged `SLOAD` signature:
                 `ofs=8`, `extra=12`
+              - that reduced sibling has the same bytecode slot layout at the
+                loop header, so its first shared `SLOAD ofs=8 extra=12` is the
+                same carried `total` lane
               - the later exact-by-`curins` shared `sload_int`
                 (`curins=3`, `ofs=16`, `extra=20`) is still present, but it is
                 now second in the ordered shared seam, not first
+              - semantic mapping for that second seam is now pinned too:
+                - `op1=4` maps to top-frame slot `2`
+                - on both the real workload and the pure-add reducer,
+                  top-frame slot `2` is the numeric `for` index state
             - current queue correction:
-              - the next honest family is shared header-state stabilization
-                around the first ordered `sload_int` / `SLOAD ofs=8 extra=12`
-                seam
+              - the next honest family is shared header-state stabilization on
+                the loop-carried `total` reload at the restored header seam
+              - the numeric `for` index `SLOAD` is now explicitly the second
+                shared seam, not the front-most one
+              - current runtime exit logs still collapse the whole `SNAP #0`
+                header cluster into one exit stub, so the exact first failing
+                guard inside that cluster is still unresolved
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:

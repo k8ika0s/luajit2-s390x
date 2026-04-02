@@ -275,13 +275,27 @@ candidate set:
       - `op2=4`
       - `ofs=8`
       - `extra=12`
+    - semantic source is now pinned:
+      - this target is on a GC64 build (`LJ_FR2=1`)
+      - `IR_SLOAD.op1` is `baseslot + slot`
+      - `op1=3` maps to top-frame slot `1`
+      - on `number_helper_loop`, top-frame slot `1` is the loop-carried
+        `total`
   - cross-reducer comparison now separates “first ordered shared seam” from
     “later exact-by-curins shared seam”:
     - pure-add reducer first `sload_int`: `curins=5`, same `ofs=8 extra=12`
+    - that reduced sibling has the same header slot layout, so its first
+      shared `ofs=8 extra=12` seam is the same carried `total` reload
     - later exact-by-curins shared `sload_int`: `curins=3`, `ofs=16 extra=20`
+    - the later shared seam is now semantically pinned too:
+      - `op1=4` maps to top-frame slot `2`
+      - on both forms, that is the numeric `for` index state
   - the next honest target is shared header-state stabilization around the
-    first ordered `SLOAD ofs=8 extra=12` seam, not more helper-identity seam
-    hunting
+    loop-carried `total` reload at the restored header seam, not more
+    helper-identity seam hunting
+  - current runtime exit logs still merge the whole `SNAP #0` header cluster
+    into one stub, so the exact first failing guard inside that cluster is not
+    yet singled out
 
 x64 control status:
 

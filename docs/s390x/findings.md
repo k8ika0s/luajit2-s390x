@@ -11387,3 +11387,36 @@ Next hash target
       arm64 VM build and fails in `vm_arm64.dasc`
     - treat x64 reduced control as a tooling gap for now, not as a reason to
       block the s390x seam read
+
+- Timestamp: `2026-04-02 08:14:00 PDT`
+- The first shared `SLOAD ofs=8 extra=12` seam is now mapped to a named header
+  state source, not just a backend signature
+  - proof components:
+    - [20260402-kdz-number-helper-sload-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sload-attribution/summary.md)
+    - [20260402-kdz-uget-header-variant-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-uget-header-variant-audit/summary.md)
+    - [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+  - mapping:
+    - this target is on a GC64 build, so `LJ_FR2=1`
+    - `IR_SLOAD.op1` is recorded as `baseslot + slot`
+    - `asm_sload()` lowers `ofs = 8 * (op1 - 2)`
+    - the first shared seam `ofs=8` therefore means `op1=3`
+    - on GC64, `op1=3` maps to top-frame slot `1`
+    - in `number_helper_loop`, top-frame slot `1` is the loop-carried `total`
+  - no-helper sibling cross-check:
+    - the reduced pure-add form has the same numeric-`for` header layout
+    - its first shared `sload_int` is still `ofs=8 extra=12`
+    - so the same first shared seam is the carried `total` reload there too
+  - second shared seam:
+    - the later shared `SLOAD ofs=16 extra=20` means `op1=4`
+    - on GC64, `op1=4` maps to top-frame slot `2`
+    - in both the real workload and the pure-add reducer, top-frame slot `2` is
+      the numeric `for` index state
+  - queue correction:
+    - the front-most live `promotion_core` seam is now the loop-carried
+      `total` reload at restored `SNAP #0`
+    - the numeric `for` index reload is explicitly second
+    - current runtime exit logs still merge the whole `SNAP #0` cluster into
+      one stub, so the exact first failing guard inside that cluster is still
+      unresolved
+    - do not open code until the `total` reload is reduced from “live reload”
+      to the exact first reason it still fails every trip
