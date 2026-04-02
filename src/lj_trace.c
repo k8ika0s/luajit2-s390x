@@ -716,11 +716,14 @@ static int lj_trace_s390x_hotside_focus_exit(void)
   return exitno;
 }
 
+static int lj_trace_s390x_hotside_uget_looproot_enabled(void);
+
 static int lj_trace_s390x_hotside_canon_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_CANON_EQUIV") != NULL ||
+    enabled = (lj_trace_s390x_hotside_uget_looproot_enabled() ||
+	       getenv("LUAJIT_S390X_HOTSIDE_CANON_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
   return enabled;
@@ -738,7 +741,8 @@ static int lj_trace_s390x_hotside_share_equiv_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_SHARE_EQUIV") != NULL ||
+    enabled = (lj_trace_s390x_hotside_uget_looproot_enabled() ||
+	       getenv("LUAJIT_S390X_HOTSIDE_SHARE_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
   return enabled;
@@ -755,8 +759,12 @@ static int lj_trace_s390x_hotside_event_log_enabled(void)
 static int lj_trace_s390x_hotside_uget_looproot_enabled(void)
 {
   static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
+  if (enabled == -1) {
+    if (getenv("LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL)
+      enabled = 0;
+    else
+      enabled = 1;
+  }
   return enabled;
 }
 

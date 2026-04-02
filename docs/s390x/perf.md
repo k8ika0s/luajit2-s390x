@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 19:33:29 PDT
+Last updated: 2026-04-01 19:56:12 PDT
 
 ## Latest Matrix
 
@@ -15,16 +15,16 @@ matrix until they are backfilled.
 | --- | --- | --- | ---: | ---: | ---: |
 | 2026-04-01 17:07:40 PDT | `add_phi_only/hot` | `hotside_canon_share_uget_looproot` | `0.000664` | `0.000020` | `33.20x` |
 | 2026-04-01 14:32:40 PDT | `logic_add_phi_noboundary/hot` | `hotside_canon_share` | `0.002619` | `0.002159` | `1.21x` |
-| 2026-04-01 19:33:29 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot` | `0.003159` | `0.002179` | `1.45x` |
-| 2026-04-01 19:33:29 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot` | `0.004013` | `0.002055` | `1.95x` |
-| 2026-04-01 19:33:29 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot` | `0.003161` | `0.002167` | `1.46x` |
+| 2026-04-01 19:56:12 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot_default` | `0.003212` | `0.002104` | `1.53x` |
+| 2026-04-01 19:56:12 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot_default` | `0.002907` | `0.002036` | `1.43x` |
+| 2026-04-01 19:56:12 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot_default` | `0.003182` | `0.002086` | `1.53x` |
 | 2026-04-01 16:25:27 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.340611` | `0.002162` | `157.54x` |
 | 2026-04-01 16:25:27 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.531437` | `0.004577` | `116.11x` |
 | 2026-04-01 16:25:27 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.612595` | `0.005580` | `109.78x` |
-| 2026-04-01 19:33:29 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.023493` | `0.018916` | `1.24x` |
-| 2026-04-01 19:33:29 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.008174` | `0.002219` | `3.68x` |
-| 2026-04-01 19:33:29 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.017762` | `0.010465` | `1.70x` |
-| 2026-04-01 19:33:29 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.012694` | `0.007100` | `1.79x` |
+| 2026-04-01 19:56:12 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.023744` | `0.018831` | `1.26x` |
+| 2026-04-01 19:56:12 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.008341` | `0.002267` | `3.68x` |
+| 2026-04-01 19:56:12 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.017982` | `0.010090` | `1.78x` |
+| 2026-04-01 19:56:12 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.013056` | `0.006895` | `1.89x` |
 | 2026-04-01 16:25:27 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.027964` | `0.027969` | `1.00x` |
 | 2026-04-01 16:25:27 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.137179` | `0.017319` | `7.92x` |
 | 2026-04-01 17:53:04 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.001660` | `0.000591` | `2.81x` |
@@ -39,16 +39,16 @@ matrix until they are backfilled.
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |
 | --- | --- | --- | ---: | ---: | ---: |
-| 2026-04-01 19:33:29 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot` | `0.003809` | `0.002765` | `1.38x` |
-| 2026-04-01 19:33:29 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot` | `0.004255` | `0.002160` | `1.97x` |
-| 2026-04-01 19:33:29 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot` | `0.003910` | `0.002292` | `1.71x` |
+| 2026-04-01 19:56:12 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot_default` | `0.004231` | `0.002338` | `1.81x` |
+| 2026-04-01 19:56:12 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot_default` | `0.003796` | `0.002276` | `1.67x` |
+| 2026-04-01 19:56:12 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot_default` | `0.004088` | `0.003184` | `1.28x` |
 | 2026-04-01 16:39:41 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.681747` | `0.002604` | `261.81x` |
 | 2026-04-01 16:39:41 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.097901` | `0.005207` | `210.85x` |
 | 2026-04-01 16:39:41 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.352638` | `0.007836` | `172.62x` |
-| 2026-04-01 19:33:29 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot` | `0.029533` | `0.022805` | `1.30x` |
-| 2026-04-01 19:33:29 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot` | `0.009936` | `0.003641` | `2.73x` |
-| 2026-04-01 19:33:29 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot` | `0.022978` | `0.013733` | `1.67x` |
-| 2026-04-01 19:33:29 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.018288` | `0.009494` | `1.93x` |
+| 2026-04-01 19:56:12 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.031455` | `0.026039` | `1.21x` |
+| 2026-04-01 19:56:12 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.012384` | `0.002873` | `4.31x` |
+| 2026-04-01 19:56:12 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.024177` | `0.012092` | `2.00x` |
+| 2026-04-01 19:56:12 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.016539` | `0.008667` | `1.91x` |
 | 2026-04-01 16:39:41 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.045325` | `0.045030` | `1.01x` |
 | 2026-04-01 16:39:41 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.366784` | `0.024836` | `14.77x` |
 | 2026-04-01 17:55:45 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003574` | `0.000849` | `4.21x` |
@@ -481,8 +481,10 @@ Current clean-`kdz` broader-throughput frontier:
             - `mixed_loop/hot`: `0.079668` vs `-joff 0.006760`,
               `TRACE_START 102`, `TEXIT_COUNT 195722`
       - promotion decision:
-        - treat `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as the
-          active scoped throughput candidate for:
+        - treat the envless filtered seam as the active promoted/default
+          scoped throughput surface, with
+          `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` kept as a
+          compatibility alias, for:
           - `promotion_core` workloads as the immediate promotion surface
           - `promotion_secondary` workloads as carry-forward same-seam evidence,
             not the first promotion bar
@@ -502,9 +504,9 @@ Current clean-`kdz` broader-throughput frontier:
         - [hotside-uget-looproot-promotion.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/hotside-uget-looproot-promotion.md)
           now pins the first enable set and deferred slices explicitly
       - next honest target:
-        - promotion-core-only rollout decision from that note, now that
+        - broader rollout criteria from that note, now that
           [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py),
-          has completed the full host-pair wave on the first-enable slice
+          has completed the full host-pair wave on the envless promoted default
       - runner-backed read:
         - all core families still stamp `promotion_core`
         - all core families still stamp `eligible_first_enable_set`

@@ -1,9 +1,12 @@
 # Filtered Hotside Promotion Plan
 
-Last updated: 2026-04-01 18:57:41 PDT
+Last updated: 2026-04-01 19:56:12 PDT
 
-This note defines the first enable boundary for
-`LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`.
+This note defines the first enable boundary for the promoted filtered hotside
+policy. The promoted/default surface is the envless s390x path. The old env
+gate `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` remains as a
+compatibility alias. The baseline/opt-out path is
+`LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`.
 
 ## Mechanism
 
@@ -96,9 +99,10 @@ Required before any broader promotion:
 - no fallback to the older global canon/share gate
 
 Immediate rollout shape:
-- keep `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as an explicit candidate surface
+- treat the filtered seam as the default promoted s390x hotside surface
+- use `baseline` only as the explicit opt-out path
 - validate and restamp only against `promotion_core`
 - carry the secondary slice as supporting same-seam evidence, not as an enable criterion
 - use [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py)
-  to run the first-enable slice without drifting back into secondary or
-  out-of-scope families
+  to run the first-enable slice on the promoted envless default without
+  drifting back into secondary or out-of-scope families

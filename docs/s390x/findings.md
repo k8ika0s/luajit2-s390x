@@ -11032,3 +11032,30 @@ Next hash target
   - queue correction:
     - the next honest target from this mechanism is no longer validation
     - it is the actual rollout/promotion decision for the core slice
+
+- Timestamp: `2026-04-01 19:56:12 PDT`
+- The filtered seam is now validated on the envless promoted/default path, not
+  just through the old opt-in alias
+  - code change:
+    - [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      now treats the filtered `UGET`/looproot hotside policy as the default
+      s390x path
+    - explicit opt-out baseline:
+      `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+    - legacy compatibility alias kept:
+      `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+  - helper change:
+    - [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+      now treats `baseline` as the explicit opt-out
+    - [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py)
+      now defaults to the envless promoted surface
+  - host-pair result:
+    - the full `promotion_core` slice completed cleanly on `kdz` and `zkd0`
+      through the envless default
+    - every summary still stamped `promotion_core` and
+      `eligible_first_enable_set`
+    - reduced trace probes remained finite with `REMOTE_RC 0`
+  - queue correction:
+    - this mechanism is no longer just a candidate gate
+    - the next honest target is broader rollout criteria and then the next
+      remaining seam that keeps JIT slower than `-joff`
