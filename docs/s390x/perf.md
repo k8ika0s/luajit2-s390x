@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 10:32:11 PDT
+Last updated: 2026-04-02 09:18:00 PDT
 
 ## Latest Matrix
 
@@ -285,16 +285,47 @@ Exact runtime guard attribution now sharpens that further:
     not the visible helper header or the carried accumulator
   - `snapnent=0` remains true on the dominant exit, so this guard is checking
     live interpreter frame state at restored `SNAP #0`
-  - focused slot logging on the same reduced seam shows that restored slot is
-    already int-tagged at the repeated exit point, so `guardmark=0x3` is not
-    yet enough to prove this is the literal failing compare
+  - stricter taken-only marking on the real workload now closes that gap:
+    - [20260402-kdz-number-helper-guardmark-taken-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-taken-v1/summary.md)
+    - dominant `trace 7 exit 0` still lands on `guardmark=0x3`
+    - exact taken guard stays:
+      - `curins=3`
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+      - `sload_int ofs=16 extra=20`
+  - focused slot logging still matters for interpretation:
+    - restored top-frame slot `2` is already int-tagged at the repeated exit
+      point
+    - so the live question is no longer “which guard is first?”
+    - it is “why does the inherited `FORL_IDX` typecheck still fail every
+      trip at restored `SNAP #0`?”
 
 So the current promoted-slice red is no longer best described as the
-carried-`total` reload seam. But the exact first failing guard inside the
-merged restored-`SNAP #0` numeric-`for` header cluster is still unresolved:
-the leading marked seam is the inherited numeric-`for` index `sload_int`
-guard (`ofs=16 extra=20`), while the later stop-bound `LE` on `n` remains a
-live competing failure in the same cluster.
+carried-`total` reload seam. On the real workload, the first literal taken
+guard in the merged restored-`SNAP #0` numeric-`for` header cluster is now
+the inherited numeric-`for` index `sload_int` guard (`IR=SLOAD #4 TI`,
+`ofs=16 extra=20`). The later stop-bound `LE` on `n` remains present in the
+same cluster, but it is no longer the front-most competing failure on the
+real workload.
+
+Direct shifted-tag repair is now closed on the current mechanism:
+
+- reduced no-helper sibling:
+  [20260402-kdz-pure-add-tagfix-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-tagfix-v1/summary.md)
+  - after replacing the inherited integer `SLOAD` compare with the exact GC64
+    shifted int tag, the old reducer flurry mostly disappears:
+    `TRACE_START 8`, `TEXIT_COUNT 6`
+- real helper workload:
+  [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/raw/jit-on.stderr.log)
+  - the same direct repair is not semantically safe on the real promoted
+    helper path:
+    `number_helper_loop/hot: expected 1323881804, got 34304`
+- queue correction:
+  - the raw tag mismatch at `IR=SLOAD #4 TI` is informative, but it is not a
+    standalone promotable fix
+  - the live seam stays the inherited `FORL_IDX` replay/header contract at
+    restored `SNAP #0`, not “swap in the exact GC64 int tag and ship it”
 
 Shared `sload_int` attribution remains useful, but it is now explicitly
 secondary:
@@ -318,11 +349,14 @@ secondary:
 
 Current queue correction:
 
-- the next live seam on the promoted slice is the earlier numeric-`for`
-  header `LE` guard
+- the next live seam on the promoted slice is the inherited numeric-`for`
+  replay/header contract around `FORL_IDX`, with the later `LE` on `n`
+  remaining secondary on the real workload
 - the carried-`total` reload stays relevant as the first shared `sload_int`
   seam across reducers, but it is no longer the front-most exact runtime
   failure
+- the direct GC64 shifted-tag repair for inherited integer `SLOAD` is now
+  rejected on the current mechanism
 - do not reopen helper-header, low32-home, or generic hotside-population work
   from this result
 

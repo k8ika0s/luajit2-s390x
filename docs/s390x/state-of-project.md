@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 10:32:11 PDT
+Last updated: 2026-04-02 09:18:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -257,30 +257,70 @@ non-causal probe effects. The current state is cleaner:
               - `trace 7 exit 0` is still a `snapnent=0` header exit, so this
                 guard is validating live interpreter frame state at restored
                 `SNAP #0`, not a later restored snapshot payload
-              - focused slot logging now shows that restored top-frame slot `2`
-                is already int-tagged at the repeated exit point, so this mark
-                is not yet enough to prove `curins=3` is the literal failing
-                compare
-              - the numeric-`for` stop/range `LE` on `n` and the later carried
-                `total` `SLOAD ofs=8 extra=12` both remain inside the same
-                merged header cluster
+              - the stricter taken-only guardmark path on the real workload
+                now closes that ambiguity:
+                - artifact:
+                  [20260402-kdz-number-helper-guardmark-taken-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-taken-v1/summary.md)
+                - repeated dominant exits on `trace 7 exit 0` still land on
+                  `guardmark=0x3`
+                - the dominant exact-taken runtime guard is still:
+                  - `curins=3`
+                  - `IR=SLOAD`
+                  - `op1=4`
+                  - `op2=36`
+                  - `kind=sload_int`
+                  - `ofs=16`
+                  - `extra=20`
+              - queue correction:
+                - on the real promoted workload, the first literal taken guard
+                  inside the merged restored-`SNAP #0` numeric-`for` header is
+                  the inherited `FORL_IDX` `sload_int`
+                - the later stop-bound `LE` on `n` is still present in the
+                  same cluster, but it is no longer the front-most competing
+                  failure on the real workload
+              - the remaining live question is now narrower:
+                explain why that inherited numeric-`for` index typecheck
+                still fails every trip even though restored slot logging
+                shows the corresponding interpreter slot already int-tagged
+              - attempted fix boundary:
+                - direct GC64 shifted-tag repair for the inherited integer
+                  `SLOAD` compare is now closed as a promotable family
+                - reduced no-helper artifact:
+                  [20260402-kdz-pure-add-tagfix-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-tagfix-v1/summary.md)
+                  shows the old flurry almost vanishing:
+                  `TRACE_START 8`, `TEXIT_COUNT 6`
+                - real helper workload artifact:
+                  [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/raw/jit-on.stderr.log)
+                  fails validation on clean `kdz`:
+                  `number_helper_loop/hot: expected 1323881804, got 34304`
+                - queue correction:
+                  - the raw tag mismatch at `IR=SLOAD #4 TI` is real
+                  - but swapping in the exact GC64 shifted int tag is not
+                    sufficient to preserve the inherited `FORL_IDX` replay
+                    contract on the promoted helper family
+                  - treat that direct compare repair as rejected on the current
+                    mechanism
             - current queue correction:
               - the next honest family is no longer shared header-state
                 stabilization on the carried `total` reload
-              - and it is no longer a cleanly pinned exact guard on either the
-                inherited `sload_int` or the stop-bound `LE`
-              - it is exact in-cluster guard-order attribution inside the
-                merged restored-`SNAP #0` numeric-`for` header
+              - and it is no longer generic in-cluster guard-order
+                attribution between the inherited `sload_int` and stop-bound
+                `LE`
+              - it is exact failure attribution for the inherited
+                `FORL_IDX` `sload_int` on the restored `SNAP #0` header
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - disambiguate the first literal failing guard inside the merged
-            restored-`SNAP #0` numeric-`for` header cluster:
-            - first shared marked seam: `IR=SLOAD #4 TI`
-            - competing later guard in the same cluster:
-              `int LE 0001 +2147483646`
+          - explain why the inherited `FORL_IDX` replay/typecheck contract
+            still fails at the restored `SNAP #0` header on the promoted slice:
+            - exact-taken guard on the real workload: `IR=SLOAD #4 TI`
             - recorder contract: hidden `FORL_IDX` with
               `TYPECHECK|INHERIT`
+            - rejected direct repair:
+              exact GC64 shifted-tag compare for that inherited integer
+              `SLOAD`
+            - competing later `LE` on `n` remains secondary on the real
+              workload
           - use `number_helper_loop` as the real workload and the pure-add
             reducer as the no-helper sibling
         - x64 control status is now explicit:

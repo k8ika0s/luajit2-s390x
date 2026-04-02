@@ -11549,3 +11549,71 @@ Next hash target
     - not more helper-header rewriting
     - not more hotside population work
     - not another low32-home reopening
+
+- Timestamp: `2026-04-02 08:48:05 PDT`
+- The exact-taken reduced guardmark path now closes the first-failing-guard
+  ambiguity on the real promoted workload
+  - source change:
+    - [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - new debug-only `LUAJIT_S390X_GUARDMARK_TAKEN=1` path in `asm_guardcc()`
+      writes the mark only on the taken branch path for normal guards
+  - real-workload artifact:
+    - [20260402-kdz-number-helper-guardmark-taken-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-taken-v1/summary.md)
+  - corrected read on `number_helper_loop`:
+    - dominant repeated seam is still `trace 7 exit 0`
+    - dominant exact-taken `guardmark` is still `curins=3` x `257`
+    - exact taken runtime guard is:
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+      - `kind=sload_int`
+      - `ofs=16`
+      - `extra=20`
+  - semantic correction:
+    - on the real promoted workload, the first literal taken guard inside the
+      merged restored-`SNAP #0` numeric-`for` header is the inherited
+      `FORL_IDX` typecheck (`IR=SLOAD #4 TI`)
+    - the later stop-bound `LE` on `n` remains in the same cluster, but it is
+      not the front-most taken guard on the real workload
+  - no-helper sibling status:
+    - the earlier reduced pure-add raw logs still match the same front marker:
+      `guardmark=0x3` with the same inherited
+      `sload_int curins=3 ofs=16 extra=20`
+    - but there is not yet a clean completed exact-taken reducer artifact for
+      that sibling, so it remains supporting evidence rather than a second
+      exact-taken proof
+  - queue correction:
+    - the next honest target is no longer disambiguation between the inherited
+      `sload_int` and the later stop-bound `LE`
+    - it is direct attribution of why the inherited numeric-`for` index
+      typecheck still fails every trip at restored `SNAP #0`, even though
+      slot logging shows the corresponding interpreter slot already int-tagged
+
+- Timestamp: `2026-04-02 09:18:00 PDT`
+- Direct GC64 shifted-tag repair for the inherited integer `SLOAD` compare is
+  now rejected on the current mechanism
+  - source change stayed local only:
+    - [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact-taken guardmark support remains useful and stays in-tree
+    - the direct shifted-tag compare change was reverted after validation
+  - why the candidate looked credible:
+    - runtime payload capture on the failing real seam showed the restored
+      GC64 int TValue carrying shifted tag `0x1fff2`
+    - the current inherited integer `SLOAD` compare on s390x was loading
+      `((uint32_t)LJ_TISNUM >> 15)`, i.e. `0x1ffff`
+  - reduced no-helper result:
+    - [20260402-kdz-pure-add-tagfix-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-tagfix-v1/summary.md)
+    - the old header flurry mostly disappeared:
+      `TRACE_START 8`, `TEXIT_COUNT 6`
+  - real helper workload result:
+    - [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/raw/jit-on.stderr.log)
+    - clean `kdz` validation failed on correctness:
+      `number_helper_loop/hot: expected 1323881804, got 34304`
+  - queue correction:
+    - the raw tag mismatch at `IR=SLOAD #4 TI` is real evidence
+    - but swapping in the exact GC64 shifted int tag is not sufficient to
+      preserve the inherited `FORL_IDX` replay contract on the promoted helper
+      family
+    - the next honest target stays the inherited numeric-`for`
+      replay/header contract at restored `SNAP #0`
+    - do not promote the direct shifted-tag compare repair
