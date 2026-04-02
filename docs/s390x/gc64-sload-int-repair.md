@@ -232,3 +232,36 @@ typecheck”. It is:
 - identify where the VM-style numeric-for state is supposed to be rebuilt on
   that path
 - and why it is not rebuilt before `TRACE 1` consumes `SLOAD #4`
+
+## Likely Missing Rematerialization Point
+
+The next source read points at one specific handoff shape.
+
+In
+[rec_for(..., isforl=0)](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1127),
+the entry-path recording for `FORI/JFORI`:
+
+- loads or constifies `IDX/STOP/STEP`
+- sets `FORL_EXT = FORL_IDX`
+- emits the enter/leave guard
+
+But on that path it does not emit the VM-style integer-loop update that the
+interpreter performs in `FORI/FORL`:
+
+- clear the current integer working value
+- add `STEP`
+- mirror the updated value into both hidden `IDX` and visible `EXT`
+
+That is consistent with the tiny `TRACE 2` shape on the real workload:
+
+- only `n` range checks survive as IR
+- then the trace stops `-> 1`
+
+So the current best source-backed read is:
+
+- the second-run bad path is a `FORI/JFORI` entry trace handing off directly to
+  the existing loop trace
+- that handoff is likely proving loop entry without rebuilding the same
+  numeric-for state the VM would have established before `BC_UGET`
+- `TRACE 1` then consumes the inherited numeric-for value too early, and on
+  the bad path it is already stale/high

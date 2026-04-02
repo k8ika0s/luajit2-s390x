@@ -2142,6 +2142,11 @@ Current queue correction:
     - it is “the handoff into trace 1 is still not rebuilding the numeric-for
       index/current-value state the way VM `FORI/FORL` does before trace 1
       consumes it”
+    - current best source candidate:
+      [rec_for(..., isforl=0)](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1127)
+      can prove loop entry and stop into the compiled loop, but it does not
+      emit the VM-style integer update/store mirror that would rebuild
+      `IDX/EXT` before the handoff
 
 ## Promotable Patch Gate
 

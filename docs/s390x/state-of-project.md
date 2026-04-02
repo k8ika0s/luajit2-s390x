@@ -2528,6 +2528,11 @@ Current owner map contract:
 - next honest target:
   - identify where that function-entry handoff is supposed to rematerialize
     VM-style numeric-for state before linking into `TRACE 1`
+  - the current best source-backed candidate is
+    [rec_for(..., isforl=0)](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1127):
+    it proves loop entry and can stop into the existing loop trace, but it
+    does not emit the VM-style `idx = idx + step`, retag/store, and `EXT`
+    mirror before that handoff
   - do not reopen low32-home, helper-header lookup, iterator, dispatch, or
     generic hotside population work
 

@@ -11959,3 +11959,31 @@ Next hash target
       to rebuild VM-style numeric-for state before linking into `TRACE 1`
     - not another tag-compare tweak
     - not another low32-home, iterator, dispatch, or generic hotside pass
+
+- Timestamp: `2026-04-02 13:18:00 PDT`
+- The next source slice identifies the likely missing rematerialization point
+  on the second-run bad path
+  - source path:
+    - [rec_for(..., isforl=0)](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1127)
+    - on the `FORI/JFORI` entry path it:
+      - loads or constifies `IDX/STOP/STEP`
+      - sets `FORL_EXT = FORL_IDX`
+      - emits the enter/leave guard
+    - but it does not emit the VM-style integer loop update/store mirror that
+      [vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc#L4331)
+      performs before the loop body:
+      - clear working integer value
+      - add `STEP`
+      - retag/store hidden `IDX`
+      - mirror visible `EXT`
+  - workload tie-in:
+    - the tiny `TRACE 2` root on the real workload only keeps the `n`
+      range checks, then stops `-> 1`
+    - that matches an entry trace proving loop entry and handing off straight
+      to the existing loop trace
+  - queue correction:
+    - the current best read is that the second-run bug is not “trace 1 body
+      arithmetic is wrong by itself”
+    - it is “the `FORI/JFORI` entry handoff can reach trace 1 without
+      rebuilding the VM-style numeric-for `IDX/EXT` state that trace 1
+      assumes”
