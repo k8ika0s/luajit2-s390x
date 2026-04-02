@@ -11740,3 +11740,67 @@ Next hash target
     - the old direct-tag swap remains rejected on correctness
     - the next honest target is a narrow design-first repair for the s390x
       GC64 integer-`SLOAD` typecheck contract at this seam
+
+- Timestamp: `2026-04-02 10:33:14 PDT`
+- The exact s390x GC64 integer-`SLOAD` mismatch is now corrected from “wrong
+  tag constant” to “wrong signedness of tag extraction”
+  - design boundary note:
+    - [gc64-sload-int-repair.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/gc64-sload-int-repair.md)
+  - source-backed correction:
+    - [lj_obj.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_obj.h)
+      defines GC64 `itype(o)` as `((uint32_t)((o)->it64 >> 47))`
+    - because `it64` is signed, that is an arithmetic shift
+    - current s390x integer `SLOAD` lowering in
+      [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      uses logical `SRLG ... 47` before comparing
+      against `((uint32_t)LJ_TISNUM >> 15)`
+  - numeric proof from the live seam:
+    - GC64 int TValue sample from the real workload:
+      `0xfff9000000060006`
+    - arithmetic `>> 47` -> `0xfffffff2`
+    - logical `>> 47` -> `0x1fff2`
+    - `LJ_TISNUM` -> `0xfffffff2`
+    - current s390x expected constant -> `0x1ffff`
+  - queue correction:
+    - the front seam is now a bad extraction contract, not just a bad
+      constant choice
+    - the next honest candidate is a narrow signed/GC64-consistent integer
+      `SLOAD` repair on the promoted slice
+    - do not reopen raw tag swaps or broader replay families
+
+- Timestamp: `2026-04-02 10:38:00 PDT`
+- The first signed/arithmetic-extraction repair prototype is rejected on the
+  real helper workload
+  - candidate stayed local only and was reverted after validation:
+    - [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - attempted gate:
+      `LUAJIT_S390X_GC64_INT_SLOAD_ASHIFT=1`
+    - change:
+      - integer `SLOAD` typecheck used arithmetic `SRAG ... 47`
+      - compared against signed `LJ_TISNUM`
+  - why it was worth trying:
+    - it matches the GC64 `itype()` signed extraction contract in
+      [lj_obj.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_obj.h)
+    - it fixes the exact `0x1fff2` vs `0x1ffff` mismatch on the live seam
+  - reduced no-helper result:
+    - [20260402-kdz-gc64-int-sload-ashift-pure-add-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-pure-add-v1/summary.md)
+    - structurally good:
+      `TRACE_START 8`, `TRACE_STOP 8`, `TRACE_ABORT 0`, `TEXIT_COUNT 6`
+  - real helper result:
+    - [20260402-kdz-gc64-int-sload-ashift-number-helper-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-number-helper-v1/summary.md)
+    - rejected:
+      `RC=139`
+    - the run moves off the old repeated `guardmark=0x3` seam, but does not
+      converge safely
+    - last observed reduced crash surface from the raw stderr log:
+      - `trace 6 exit 0`
+      - `op 15`
+      - `snapop 15`
+      - `snapnent 0`
+      - `guardmark 0`
+  - queue correction:
+    - signed extraction is directionally relevant
+    - but the naive integer-`SLOAD` swap is not semantically safe on the real
+      helper workload
+    - the next honest target is the downstream state transition that goes bad
+      once the hidden-`STEP` typecheck starts passing

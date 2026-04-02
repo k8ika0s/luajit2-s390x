@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 10:25:32 PDT
+Last updated: 2026-04-02 10:38:00 PDT
 
 ## Latest Matrix
 
@@ -384,6 +384,26 @@ Exact backend mismatch is now pinned on the real workload:
   - not generic helper-header replay
   - not root-`FORI` constructor choice
   - not a promotable direct-tag swap on the current mechanism
+  - the sharper source correction is signed extraction:
+    - GC64 `itype()` in
+      [lj_obj.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_obj.h)
+      uses arithmetic shift on signed `it64`
+    - s390x integer `SLOAD` lowering in
+      [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      currently uses logical `SRLG ... 47`
+    - that is why the real workload sees `0x1fff2` where the GC64 contract
+      expects `0xfffffff2`
+  - design boundary:
+    [gc64-sload-int-repair.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/gc64-sload-int-repair.md)
+  - first signed-extraction prototype is rejected on the real helper path:
+    - [20260402-kdz-gc64-int-sload-ashift-number-helper-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-number-helper-v1/summary.md)
+    - no-helper sibling still looks structurally good:
+      [20260402-kdz-gc64-int-sload-ashift-pure-add-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-pure-add-v1/summary.md)
+    - real helper workload fails with `RC=139` after moving beyond the old
+      repeated `guardmark=0x3` seam
+    - next queue:
+      explain the downstream bad state after the hidden-`STEP` typecheck
+      begins to pass, not another naive compare swap
 
 Shared `sload_int` attribution remains useful, but it is now explicitly
 secondary:

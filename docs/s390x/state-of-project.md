@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 10:25:32 PDT
+Last updated: 2026-04-02 10:38:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -365,9 +365,35 @@ non-causal probe effects. The current state is cleaner:
                     numeric-for replay/header wording
                   - it is the s390x GC64 inherited integer-`SLOAD` typecheck
                     on hidden `STEP`
+                  - the sharper source correction is that this is a signedness
+                    bug in the backend extraction contract:
+                    - GC64 `itype()` in
+                      [lj_obj.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_obj.h)
+                      uses arithmetic shift on signed `it64`
+                    - current s390x integer `SLOAD` lowering in
+                      [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+                      uses logical `SRLG ... 47`
+                    - that is why the live extracted tag is `0x1fff2` instead
+                      of the GC64-consistent `0xfffffff2`
+                  - design boundary note:
+                    [gc64-sload-int-repair.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/gc64-sload-int-repair.md)
                   - the next honest target is a narrow design-first repair for
                     that typecheck contract, not more root-`FORI` surgery and
                     not another raw direct-tag swap
+                  - first signed-extraction prototype is now rejected:
+                    - artifact:
+                      [20260402-kdz-gc64-int-sload-ashift-number-helper-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-number-helper-v1/summary.md)
+                    - reduced no-helper sibling under the same gate stays
+                      finite and collapses hard
+                    - real helper workload fails with `RC=139` after moving
+                      past the old `guardmark=0x3` seam
+                    - queue correction:
+                      - signed extraction is directionally relevant
+                      - but the naive integer-`SLOAD` swap is not semantically
+                        safe on the real helper path
+                      - the next honest target is the downstream state that
+                        goes bad once the inherited hidden-`STEP` typecheck
+                        starts passing
             - current queue correction:
               - the next honest family is no longer shared header-state
                 stabilization on the carried `total` reload
