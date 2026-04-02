@@ -11014,3 +11014,21 @@ Next hash target
     - the next pass from this mechanism should use that runner
     - do not drift back into `promotion_secondary`, dominated vararg, or
       out-of-scope families while validating the first promotion surface
+
+- Timestamp: `2026-04-01 19:33:29 PDT`
+- The dedicated promotion-core runner has now completed a clean host-pair wave
+  on the full first-enable slice
+  - runner:
+    - [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py)
+  - host-pair result:
+    - `kdz`: `bitops_mix`, `logical_chain_tail_add`,
+      `logical_chain_tail_store`, `be_helpers`, and `ffi_calls` completed
+      through the runner
+    - `zkd0`: the same five families completed through the runner
+  - summary invariants stayed intact on every runner-produced candidate pack:
+    - `family scope status: promotion_core`
+    - `promotion action: eligible_first_enable_set`
+    - reduced trace probes returned `REMOTE_RC 0`
+  - queue correction:
+    - the next honest target from this mechanism is no longer validation
+    - it is the actual rollout/promotion decision for the core slice
