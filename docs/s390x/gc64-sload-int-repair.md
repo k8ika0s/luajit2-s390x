@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 17:19:00 PDT
+Last updated: 2026-04-02 17:42:00 PDT
 
 ## Live Seam
 
@@ -645,3 +645,44 @@ The next exact target is now narrower again:
 - use the stable-callsite loop as the clean control
 - keep the polymorphic `RETF` mismatch as evidence-only, not the primary live
   remediation target
+
+## Caller FORL Slot-State Correction
+
+The next caller-loop slot-state probe closes one more wrong theory.
+
+- artifact:
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-caller-forl-seam/raw`
+- on the stable-callsite loop, the exact taken runtime exit is:
+  - `trace 4 exit 2`
+  - restored `pc op=76`
+  - `guardmark=0x11`
+- local bytecode listing identifies `op=76` as the caller `FORL` in
+  `drive(n, reps)`:
+  - caller bytecode:
+    - `0005 FORI 3 => 0011`
+    - `0010 FORL 3 => 0006`
+
+The slot-state dump at that exact `FORL` exit is coherent:
+
+- `idx=2` (caller `out`) is wrong:
+  - `0xfff90000000063bf`
+  - value `25535`
+- caller loop state itself is consistent with a normal second-iteration exit:
+  - `idx=3` -> `2`
+  - `idx=4` -> `2`
+  - `idx=5` -> `1`
+  - `idx=6` -> `2`
+
+So this closes the broader caller-loop theory:
+
+- the stable-callsite seam is not “bad caller `FORL` state”
+- the caller numeric-for header is coherent at the taken exit
+- the wrong value is already sitting in the caller-visible result slot when the
+  loop exits
+
+That moves the live post-repair target one step again:
+
+- return-value handoff from the warmed overflow path into the lower-frame
+  caller-visible result slot
+- not generic `RETF`
+- not generic caller `FORL` state
