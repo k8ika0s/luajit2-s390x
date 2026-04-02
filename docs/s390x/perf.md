@@ -2275,6 +2275,51 @@ So the next seam is no longer “can recorder constantize numeric-for header
 constants?” It is the inherited GC64 integer `SLOAD` replay/typecheck family
 on valid restored carried state exposed after that constantization.
 
+## GC64 Repair Promotion
+
+The direct inherited-int replay repair is now the active GC64 default pair on
+s390x:
+
+- signed/arithmetic GC64 integer `SLOAD` extraction defaults on with opt-out
+  `LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD=1`
+- matching `JFORI` interpreter handoff defaults on with opt-out
+  `LUAJIT_S390X_DISABLE_JFORI_INTERP_HANDOFF=1`
+- old opt-in envs remain valid aliases
+
+Reduced host checks for the direct target:
+
+- `kdz` literal-stop reducer:
+  [20260402-kdz-literal-stop-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-literal-stop-paired-default-check/summary.md)
+  - `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 399`
+  - old carried-`total` exact inherited-int `SLOAD` seam no longer repeats
+  - repeated exits advance into a later `BC_TGETS` family
+- `kdz` real helper workload:
+  [20260402-kdz-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-paired-default-check/summary.md)
+  - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+  - correctness-stable under the envless pair
+- `zkd0` real helper workload:
+  [20260402-zkd0-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-number-helper-paired-default-check/summary.md)
+  - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+  - no z14 correctness regression on the reduced real-workload screen
+
+Helper-backed `kdz` family restamp after the promotion:
+
+- `be_helpers`:
+  [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - `number_helper_loop/hot`: JIT-on `0.008089s`, `-joff` `0.002261s`
+  - `be_pack_loop/hot`: JIT-on `0.023811s`, `-joff` `0.018838s`
+  - both remain `exit-dominated`
+
+So this slice is now in the right state:
+
+- direct inherited-int replay/typecheck failure is fixed
+- workload correctness is preserved on both hosts
+- but the throughput family is still slower than `-joff` because the repeated
+  flurry survives on a later `BC_TGETS` seam
+
+That makes the next exact target the later `TGETS` seam, not another inherited
+GC64 integer `SLOAD` variant.
+
 ## Relationship To Other Docs
 
 - High-level status:
