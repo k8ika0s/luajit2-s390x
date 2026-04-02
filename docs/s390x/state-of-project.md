@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 18:57:41 PDT
+Last updated: 2026-04-01 19:33:29 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -552,10 +552,18 @@ non-causal probe effects. The current state is cleaner:
                 - [hotside-uget-looproot-promotion.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/hotside-uget-looproot-promotion.md)
                   is now the checked-in first-enable boundary for this gate
               - next honest target from this queue:
-                - promotion-core-only validation and rollout criteria from that
-                  checked-in boundary, driven through
+                - promotion-core-only rollout decision from that checked-in
+                  boundary, now that the dedicated runner has completed the
+                  full host-pair wave through
                   [build_hotside_promotion_slice.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_hotside_promotion_slice.py),
                   not more slice discovery
+              - runner-backed host-pair read:
+                - every core family summary now stamps
+                  `family scope status: promotion_core`
+                - every core family summary now stamps
+                  `promotion action: eligible_first_enable_set`
+                - all runner-produced reduced trace probes completed with
+                  `REMOTE_RC 0` on both `kdz` and `zkd0`
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
