@@ -10983,3 +10983,19 @@ Next hash target
     - promote `promotion_core` first
     - keep `promotion_secondary` as carry-forward same-seam evidence
     - keep `sum_loop` out of the enable set
+
+- Timestamp: `2026-04-01 18:57:41 PDT`
+- The filtered `UGET`/looproot candidate now has a checked-in first-enable
+  boundary instead of only scattered restamps
+  - new note:
+    - [hotside-uget-looproot-promotion.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/hotside-uget-looproot-promotion.md)
+  - the helper also now stamps family-level scope status directly into truth
+    packs:
+    - `promotion_core` -> `eligible_first_enable_set`
+    - `promotion_secondary` -> `carry_forward_only`
+    - `same_seam_but_dominated` -> `exclude_from_enable_set`
+    - mixed secondary plus dominated tails -> `keep_family_out_of_first_enable_set`
+  - immediate effect:
+    - the next honest target is promotion-core-only validation and rollout
+      criteria from that explicit boundary
+    - it is no longer more slice discovery or more family classification work

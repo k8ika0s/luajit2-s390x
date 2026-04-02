@@ -70,6 +70,53 @@ CANDIDATE_SCOPE: dict[str, dict[str, Any]] = {
     },
 }
 
+PROMOTION_CLASS_ORDER = {
+    "promotion_core": 0,
+    "promotion_secondary": 1,
+    "same_seam_but_dominated": 2,
+    "out_of_scope": 3,
+    "unclassified": 4,
+}
+
+
+def scope_status_for_workload(candidate: str, workload: str) -> str:
+    candidate_scope = CANDIDATE_SCOPE.get(candidate, {})
+    workload_scope = candidate_scope.get("workloads", {})
+    return str(workload_scope.get(workload, "unclassified"))
+
+
+def family_scope_summary(candidate: str, config: dict[str, Any]) -> dict[str, Any]:
+    hot_workloads = [hot_key.split("/", 1)[0] for hot_key in config["hot_cases"]]
+    statuses = {workload: scope_status_for_workload(candidate, workload) for workload in hot_workloads}
+    unique_statuses = sorted(
+        set(statuses.values()),
+        key=lambda status: (PROMOTION_CLASS_ORDER.get(status, 99), status),
+    )
+    if unique_statuses == ["promotion_core"]:
+        family_status = "promotion_core"
+        promotion_action = "eligible_first_enable_set"
+    elif unique_statuses == ["promotion_secondary"]:
+        family_status = "promotion_secondary"
+        promotion_action = "carry_forward_only"
+    elif unique_statuses == ["same_seam_but_dominated"]:
+        family_status = "same_seam_but_dominated"
+        promotion_action = "exclude_from_enable_set"
+    elif unique_statuses == ["out_of_scope"]:
+        family_status = "out_of_scope"
+        promotion_action = "exclude_from_candidate"
+    elif unique_statuses == ["promotion_secondary", "same_seam_but_dominated"]:
+        family_status = "secondary_with_dominated_tail"
+        promotion_action = "keep_family_out_of_first_enable_set"
+    else:
+        family_status = "mixed_scope"
+        promotion_action = "manual_review"
+    return {
+        "hot_workloads": hot_workloads,
+        "workload_statuses": statuses,
+        "family_status": family_status,
+        "promotion_action": promotion_action,
+    }
+
 
 def load_ir_op_names() -> dict[int, str]:
     names: dict[int, str] = {}
@@ -2028,7 +2075,8 @@ def render_summary(
     focused_on_index = perf_index(focused_records)
     focused_off_index = perf_index(focused_joff_records)
     candidate_scope = CANDIDATE_SCOPE.get(candidate, {})
-    workload_scope = candidate_scope.get("workloads", {})
+    scope_summary = family_scope_summary(candidate, config)
+    workload_scope = scope_summary["workload_statuses"]
     lines = [
         f"# {family} Truth Pack",
         "",
@@ -2057,10 +2105,11 @@ def render_summary(
                 "## Candidate Scope",
                 "",
                 f"- {candidate_scope['summary']}",
+                f"- family scope status: `{scope_summary['family_status']}`",
+                f"- promotion action: `{scope_summary['promotion_action']}`",
             ]
         )
-        hot_workloads = [hot_key.split("/", 1)[0] for hot_key in config["hot_cases"]]
-        for workload in hot_workloads:
+        for workload in scope_summary["hot_workloads"]:
             status = workload_scope.get(workload)
             if status:
                 lines.append(f"- `{workload}` scope: `{status}`")
@@ -2184,6 +2233,7 @@ def main() -> int:
     candidate = args.candidate
     candidate_env = CANDIDATE_ENVS[candidate]
     config = FAMILY_CONFIGS[family]
+    scope_summary = family_scope_summary(candidate, config)
     host = args.host
     repo = args.repo or restamp.AUTHORITATIVE_REPOS[host]
     output_dir = (
@@ -2293,6 +2343,9 @@ def main() -> int:
             "family": family,
             "candidate": candidate,
             "candidate_env": candidate_env,
+            "family_scope_status": scope_summary["family_status"],
+            "promotion_action": scope_summary["promotion_action"],
+            "hot_workload_scope": scope_summary["workload_statuses"],
             "focus_label": config["focus_label"],
             "selection_reason": config["selection_reason"],
             "host": host,
