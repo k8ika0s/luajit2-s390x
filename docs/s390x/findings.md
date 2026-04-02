@@ -12083,3 +12083,35 @@ Next hash target
       replay/typecheck on stack-visible carried state
     - the next honest target is carried-`total` replay/materialization under
       the promoted default, not helper-header stabilization
+
+- Timestamp: `2026-04-02 13:57:00 PDT`
+- Literal-stop slot log closes the rematerialization split on the shifted seam
+  - artifact:
+    [20260402-kdz-number-helper-literal-stop-slotlog](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-literal-stop-slotlog/summary.md)
+  - exact repeated seam remains:
+    - `trace 1 exit 0` then later `trace 7 exit 0`
+    - restored `pc op=45`
+    - exact taken `guardmark=0xd`
+    - exact runtime guard:
+      - `curins=13`
+      - `IR=SLOAD`
+      - `op1=2`
+      - `op2=4`
+      - `sload_int ofs=0 extra=4`
+  - slot-state proof at that same exit:
+    - `S390X_SLOT idx=0 itype=-14 u64=0xfff9000000030003`
+    - low word `0x00030003` is the expected carried `total = 3 * 65537`
+    - nearby loop state is also coherent:
+      - `idx=1 -> 3`
+      - `idx=2 -> 400`
+      - `idx=3 -> 1`
+  - correction:
+    - the carried `total` is already restored into the frame as a valid
+      integer TValue when the exact `SLOAD #2 T` guard fires
+    - so the shifted seam is not best explained as missing carried-`total`
+      rematerialization
+  - queue correction:
+    - the next live family is the inherited GC64 integer `SLOAD`
+      typecheck/extraction contract on valid restored int slots
+    - not helper-header stabilization
+    - not another stack-state rematerialization theory

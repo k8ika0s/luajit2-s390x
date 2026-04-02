@@ -2632,6 +2632,37 @@ Current owner map contract:
     - the next honest target is carried-`total` replay/materialization under
       the promoted default, not helper-header stabilization
 
+- Timestamp: `2026-04-02 13:57:00 PDT`
+- Literal-stop slot logging closes the rematerialization-vs-typecheck split
+  - artifact:
+    [20260402-kdz-number-helper-literal-stop-slotlog](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-literal-stop-slotlog/summary.md)
+  - focused `kdz` read at the repeated `guardmark=0xd` seam:
+    - dominant runtime guard is still:
+      - `curins=13`
+      - `IR=SLOAD`
+      - `op1=2`
+      - `op2=4`
+      - `sload_int ofs=0 extra=4`
+    - slot dump at that same exit shows the restored carried state is already
+      int-tagged and numerically sane:
+      - `idx=0` `itype=-14` `u64=0xfff9000000030003`
+      - that low word is `0x00030003`, which is the correct carried
+        `total = 3 * 65537`
+      - nearby numeric-for state is also coherent:
+        - `idx=1` `u64=...00000003`
+        - `idx=2` `u64=...00000190`
+        - `idx=3` `u64=...00000001`
+  - correction:
+    - the shifted seam is no longer best described as missing carried-`total`
+      rematerialization
+    - the carried `total` is already present in the restored frame as an
+      integer TValue
+  - queue correction:
+    - the live question is now the inherited GC64 integer `SLOAD`
+      typecheck/extraction contract on valid restored int slots
+    - not helper-header stabilization
+    - not another stack-state rematerialization theory
+
 ### After that
 
 There are only two realistic outcomes:

@@ -2259,10 +2259,21 @@ seam:
     lookup guard
 - the earlier mixed `guardmark=0xd` / `GGET` read was a later alternating
   family inside a broad artifact, not the steady literal-stop seam
+- a focused slot-log follow-up closes the rematerialization question:
+  - artifact:
+    [20260402-kdz-number-helper-literal-stop-slotlog](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-literal-stop-slotlog/summary.md)
+  - at the exact repeated `guardmark=0xd` seam:
+    - restored carried `total` is already present as a valid int TValue:
+      - `S390X_SLOT idx=0 itype=-14 u64=0xfff9000000030003`
+      - low word `0x00030003` matches the expected carried total
+    - nearby loop state is also coherent (`3`, `400`, `1`)
+  - so the shifted seam is not “missing carried-total rematerialization”
+  - it points back to the inherited GC64 integer `SLOAD`
+    typecheck/extraction contract on valid restored int slots
 
 So the next seam is no longer “can recorder constantize numeric-for header
-constants?” It is the carried-`total` replay/typecheck family exposed after
-that constantization.
+constants?” It is the inherited GC64 integer `SLOAD` replay/typecheck family
+on valid restored carried state exposed after that constantization.
 
 ## Relationship To Other Docs
 
