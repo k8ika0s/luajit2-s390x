@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 10:02:00 PDT
+Last updated: 2026-04-02 10:25:32 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -337,6 +337,37 @@ non-causal probe effects. The current state is cleaner:
                     contract on the promoted helper family
                   - treat that direct compare repair as rejected on the current
                     mechanism
+              - exact backend mismatch is now source-backed on the real
+                workload:
+                - artifact:
+                  [20260402-kdz-number-helper-sloadmap-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sloadmap-v1/summary.md)
+                - env-gated compiler/runtime map in
+                  [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+                  now ties the exact-taken guard to the emitted compare regs
+                - current s390x integer `SLOAD` typecheck lowering is:
+                  - `tmp = slot64`
+                  - `tmp >>= 47`
+                  - `expected = ((uint32_t)LJ_TISNUM >> 15)`
+                  - `CGR tmp, expected`
+                - on the real reduced helper workload, the repeated taken
+                  values at the live seam are:
+                  - live shifted tag: `0x1fff2`
+                  - expected constant: `0x1ffff`
+                - cross-backend contrast:
+                  - [lj_asm_x86.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_x86.h)
+                    and
+                    [lj_asm_arm64.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_arm64.h)
+                    compare against the GC64 high-word int-tag form
+                    (`LJ_TISNUM << 15` / upper 32 bits), not the
+                    s390x-shifted `0x1ffff` constant
+                - queue correction:
+                  - the live promoted-slice seam is now narrower than generic
+                    numeric-for replay/header wording
+                  - it is the s390x GC64 inherited integer-`SLOAD` typecheck
+                    on hidden `STEP`
+                  - the next honest target is a narrow design-first repair for
+                    that typecheck contract, not more root-`FORI` surgery and
+                    not another raw direct-tag swap
             - current queue correction:
               - the next honest family is no longer shared header-state
                 stabilization on the carried `total` reload

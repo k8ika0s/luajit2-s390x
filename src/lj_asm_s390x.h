@@ -796,6 +796,14 @@ static int asm_s390x_sload_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_sloadmap_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_SLOADMAP_LOG") != NULL);
+  return enabled;
+}
+
 static int asm_s390x_stack_restore_log_enabled(void)
 {
   static int enabled = -1;
@@ -3038,15 +3046,30 @@ dotypecheck:
     if (ra_hasreg(dest))
       rset_clear(tallow, dest);
     Reg tmp = ra_scratch(as, tallow);
+    Reg expected = RID_NONE;
     if (ir->op2 & IRSLOAD_KEYINDEX) {
-      Reg expected = ra_scratch(as, rset_exclude(tallow, tmp));
+      expected = ra_scratch(as, rset_exclude(tallow, tmp));
+      if (asm_s390x_sloadmap_log_enabled()) {
+	fprintf(stderr,
+		"S390X_SLOADMAP curins=%d ref=%d kind=keyindex op1=%d op2=0x%x ofs=%d vofs=%d base=%d dest=%d tmp=%d expected=%d\n",
+		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
+		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
+		(int)base, (int)dest, (int)tmp, (int)expected);
+      }
       asm_s390x_guard_log(as, "sload_keyindex", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
       emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_KEYINDEX >> 15));
       emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
     } else if (irt_isinteger(t)) {
-      Reg expected = ra_scratch(as, rset_exclude(tallow, tmp));
+      expected = ra_scratch(as, rset_exclude(tallow, tmp));
+      if (asm_s390x_sloadmap_log_enabled()) {
+	fprintf(stderr,
+		"S390X_SLOADMAP curins=%d ref=%d kind=int op1=%d op2=0x%x ofs=%d vofs=%d base=%d dest=%d tmp=%d expected=%d\n",
+		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
+		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
+		(int)base, (int)dest, (int)tmp, (int)expected);
+      }
       asm_s390x_guard_log(as, "sload_int", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
@@ -3054,6 +3077,13 @@ dotypecheck:
       emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
     } else if (irt_isnum(t)) {
       Reg limit = ra_scratch(as, rset_exclude(tallow, tmp));
+      if (asm_s390x_sloadmap_log_enabled()) {
+	fprintf(stderr,
+		"S390X_SLOADMAP curins=%d ref=%d kind=num op1=%d op2=0x%x ofs=%d vofs=%d base=%d dest=%d tmp=%d expected=%d\n",
+		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
+		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
+		(int)base, (int)dest, (int)tmp, (int)limit);
+      }
       asm_s390x_guard_log(as, "sload_num", ir, CC_HI, ofs, vofs);
       asm_guardcc(as, CC_HI);
       emit_u32(as, S390X_INS_RXE(S390XI_CLGR, tmp, limit));
