@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 22:10:32 PDT
+Last updated: 2026-04-01 23:04:00 PDT
 
 ## Latest Matrix
 
@@ -178,6 +178,14 @@ to the same exact bytecode seam in both representative workloads:
   - the remaining steady seam is the front `BC_UGET` re-entry / guard region
   - on `number_helper_loop`, that is the clean upvalue/identity-guard prefix
     for `bit.tobit`, not a helper call boundary
+  - reduced baseline comparison now closes the mechanism split:
+    - [20260401-kdz-core-exit-attribution-baseline-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-baseline-reduced/summary.md)
+    - baseline and promoted default restore to the same `BC_UGET` header seam
+    - only the dominant owning loop clone changes:
+      - baseline: `trace 6 exit 0`
+      - promoted default: `trace 7 exit 0`
+    - the promoted default collapses the equivalent-parent ladder; it does not
+      remove the restored `UGET bit -> TGETS "tobit"` header seam
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 

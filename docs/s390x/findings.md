@@ -11216,3 +11216,23 @@ Next hash target
     - `direct_abs` reaches the same steady `BC_UGET` seam even though its loop
       body still contains `CALLXS`, so the call boundary is not the defining
       front-most mechanism
+
+- Timestamp: `2026-04-01 23:04:00 PDT`
+- Reduced baseline vs promoted-default attribution closes the remaining
+  mechanism split on clean `kdz`
+  - artifact:
+    [20260401-kdz-core-exit-attribution-baseline-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-baseline-reduced/summary.md)
+  - baseline and promoted default restore to the same `BC_UGET` loop-header
+    seam in `number_helper_loop`
+    - baseline dominant texit: `trace 6 exit 0`
+    - promoted-default dominant texit: `trace 7 exit 0`
+  - the bytecode and reduced dump agree on the front prefix in
+    [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua):
+    - `UGET bit`
+    - `TGETS "tobit"`
+    - arithmetic
+    - `CALL`
+  - queue correction:
+    - the promoted default improves performance here by collapsing the
+      equivalent-parent walk onto one canonical owner
+    - it does not change the restored `UGET/TGETS` header seam itself
