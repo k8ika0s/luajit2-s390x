@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 17:42:00 PDT
+Last updated: 2026-04-02 18:12:00 PDT
 
 ## Live Seam
 
@@ -731,6 +731,58 @@ Focused mechanism under the pair:
   - restored `BC_UGET`
   - first `sload_int`: `curins 15`, `IR=SLOAD`, `op1=3`, `ofs=8`,
     `extra=12`
+
+Source-backed semantic map for that remaining header family is now tighter:
+
+- `curins 15 / op1=3 / ofs=8` is the loop-carried `total`
+- it is emitted by the ordinary stack specialization path in
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  through `getslot() -> sload()`, not by a special numeric-for helper path
+- it remains present on side traces because snapshot replay recreates live
+  stack-visible lanes as inherited/parent `IR_SLOAD`
+  in [lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c)
+
+That first surviving `sload_int` is not the same thing as the first literal
+taken guard on the live helper path:
+
+- the exact-taken guard on the promoted helper slice remains the later
+  inherited current numeric-for value lane:
+  - `curins 3`
+  - `IR=SLOAD`
+  - `op1=4`
+  - `op2=36`
+  - `ofs=16`
+  - `extra=20`
+- artifact:
+  [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
+
+That exact-taken current-value lane is also source-backed now:
+
+- `op1=4 / op2=36` is the visible numeric-for current value created in
+  [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+- it comes from:
+  - `idx = fori_load(J, ra+FORL_IDX, t, IRSLOAD_INHERIT + tc + ...)`
+- and `op2=36` is exactly:
+  - `IRSLOAD_INHERIT`
+  - `IRSLOAD_TYPECHECK`
+- the recorder then reuses that same lane as the loop-visible current value:
+  - `J->base[ra+FORL_IDX] = idx = emitir(IR_ADD, idx, step)` when the loop
+    body advances
+  - `J->base[ra+FORL_EXT] = idx`
+
+So the live performance seam is no longer just “an inherited stack `SLOAD`”.
+It is the inherited visible `FORL_IDX` replay/typecheck contract on the
+restored header path.
+
+Cross-backend audit also sharpens the interpretation:
+
+- the signed-vs-logical GC64 integer-tag extraction issue was genuinely
+  s390x-specific
+- x86/x64 and arm64 use the normal GC64 canonical tag-half compare and do not
+  have a matching signed-int-sload repair branch
+- so the pair closes one real s390x correctness bug, but the surviving
+  performance seam is broader snapshot/header replay rather than a second copy
+  of the same extraction bug
 
 So the old lower-frame return-value failure is stale for the current pair. The
 pair is correctness-positive, but on the active helper slice it is effectively

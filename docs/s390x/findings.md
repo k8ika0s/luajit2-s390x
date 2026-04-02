@@ -12506,3 +12506,58 @@ Next hash target
       active helper perf seam
     - the live perf frontier stays the same steady header-guard family under
       the promoted default
+
+- Timestamp: `2026-04-02 18:12:00 PDT`
+- The first surviving `SLOAD` on the current helper seam is now mapped
+  semantically and separated from the exact-taken guard
+  - focused pair mechanism:
+    - [20260402-kdz-number-helper-optinpair-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-optinpair-mechanism/summary.md)
+    - dominant seam still:
+      - `trace 7 exit 0`
+      - restored `BC_UGET`
+      - first surviving `sload_int`:
+        - `curins 15`
+        - `IR=SLOAD`
+        - `op1=3`
+        - `ofs=8`
+        - `extra=12`
+  - source-backed meaning:
+    - `op1=3` is the loop-carried `total`
+    - it is emitted by the ordinary `getslot() -> sload()` path in
+      [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    - it remains present on side traces because snapshot replay recreates live
+      stack-visible lanes as inherited/parent `IR_SLOAD` in
+      [lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c)
+  - exact-taken distinction:
+    - the first surviving `sload_int` is not the first literal taken guard on
+      the live helper path
+    - the exact-taken guard remains the later inherited current numeric-for
+      value lane:
+      - `curins 3`
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+      - `ofs=16`
+      - `extra=20`
+    - artifact:
+      [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
+  - source-backed creation path:
+    - `op1=4 / op2=36` is the visible numeric-for current-value lane created
+      by [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      through:
+      - `idx = fori_load(J, ra+FORL_IDX, t, IRSLOAD_INHERIT + tc + ...)`
+    - `op2=36` therefore matches exactly:
+      - `IRSLOAD_INHERIT`
+      - `IRSLOAD_TYPECHECK`
+    - the recorder then reuses that lane as the visible current loop value:
+      - `J->base[ra+FORL_IDX] = idx = emitir(IR_ADD, idx, step)`
+      - `J->base[ra+FORL_EXT] = idx`
+  - backend comparison:
+    - the signed-vs-logical GC64 integer-tag extraction difference is
+      s390x-specific
+    - x86/x64 and arm64 do not have a matching signed-int-sload repair path
+  - closure:
+    - the GC64 pair fixed one real s390x-specific correctness issue
+    - the remaining helper performance seam is broader snapshot/header replay
+      on the inherited visible `FORL_IDX` current-value lane, not another copy
+      of the same extraction bug
