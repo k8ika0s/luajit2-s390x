@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 18:11:14 PDT
+Last updated: 2026-04-01 18:33:00 PDT
 
 ## Latest Matrix
 
@@ -411,11 +411,20 @@ Current clean-`kdz` broader-throughput frontier:
       - that scope is now also codified in
         [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
         so helper-backed candidate summaries report:
-        - `promotion_evidence`
+        - `promotion_core`
+        - `promotion_secondary`
         - `same_seam_but_dominated`
         - `out_of_scope`
       - helper-backed host-pair truth packs now cover the full non-dominated
-        scoped slice:
+        scoped slice, which now splits cleanly into:
+        - `promotion_core`
+          - reduced `UGET`/looproot siblings
+          - `be_helpers`
+          - `ffi_calls`
+        - `promotion_secondary`
+          - `retconst_loop`
+          - `retlast_loop`
+          - `mixed_loop`
         - `kdz`
           - [20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
             - `number_helper_loop/hot`: `0.008169` vs `-joff 0.002285`,
@@ -457,20 +466,17 @@ Current clean-`kdz` broader-throughput frontier:
       - promotion decision:
         - treat `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as the
           active scoped throughput candidate for:
-          - reduced `UGET`/looproot siblings
-          - `be_helpers`
-          - `ffi_calls`
-          - `retconst_loop`
-          - `retlast_loop`
-          - `mixed_loop`
+          - `promotion_core` workloads as the immediate promotion surface
+          - `promotion_secondary` workloads as carry-forward same-seam evidence,
+            not the first promotion bar
         - keep `sum_loop` out of promotion evidence
         - keep `dispatch_trace`, `iterator_table`, `mixed_ffi`, `ffi_cdata`,
           `int_add_phi_only`, and `logic_add_phi_noboundary` out of this
           candidate surface
       - the next honest target is no longer deciding whether this filtered
         gate has a promotable slice or filling host-pair gaps inside it
-      - it is selective promotion planning for this fully helper-backed
-        candidate slice
+      - it is selective promotion planning from this helper-backed split:
+        core promotion first, secondary same-seam carry-forward second
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)

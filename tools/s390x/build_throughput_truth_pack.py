@@ -36,26 +36,27 @@ CANDIDATE_SCOPE: dict[str, dict[str, Any]] = {
     "hotside_canon_share_uget_looproot": {
         "summary": (
             "Scoped to the repeated exit=0 / BC_UGET / BC_JMP / loop-root seam. "
-            "Use reduced UGET/looproot siblings, be_helpers, ffi_calls, "
-            "retconst_loop, retlast_loop, and mixed_loop as promotion evidence. "
-            "Keep sum_loop out of promotion evidence because the parked nested-"
-            "callee vararg frontier still dominates it. Treat dispatch_trace, "
-            "iterator_table, mixed_ffi, ffi_cdata, int_add_phi_only, and "
-            "logic_add_phi_noboundary as out of scope on the current mechanism."
+            "Treat reduced UGET/looproot siblings, be_helpers, and ffi_calls as "
+            "core promotion evidence. Carry retconst_loop, retlast_loop, and "
+            "mixed_loop as same-seam secondary evidence. Keep sum_loop out of "
+            "promotion evidence because the parked nested-callee vararg frontier "
+            "still dominates it. Treat dispatch_trace, iterator_table, mixed_ffi, "
+            "ffi_cdata, int_add_phi_only, and logic_add_phi_noboundary as out of "
+            "scope on the current mechanism."
         ),
         "workloads": {
             "add_phi_only": "out_of_scope",
             "logic_add_phi_noboundary": "out_of_scope",
-            "chain_tail_add": "promotion_evidence",
-            "chain_tail_store": "promotion_evidence",
-            "mix_bits": "promotion_evidence",
-            "number_helper_loop": "promotion_evidence",
-            "be_pack_loop": "promotion_evidence",
-            "direct_abs": "promotion_evidence",
-            "stored_abs": "promotion_evidence",
-            "retconst_loop": "promotion_evidence",
-            "retlast_loop": "promotion_evidence",
-            "mixed_loop": "promotion_evidence",
+            "chain_tail_add": "promotion_core",
+            "chain_tail_store": "promotion_core",
+            "mix_bits": "promotion_core",
+            "number_helper_loop": "promotion_core",
+            "be_pack_loop": "promotion_core",
+            "direct_abs": "promotion_core",
+            "stored_abs": "promotion_core",
+            "retconst_loop": "promotion_secondary",
+            "retlast_loop": "promotion_secondary",
+            "mixed_loop": "promotion_secondary",
             "sum_loop": "same_seam_but_dominated",
             "mixed_ffi_loop": "out_of_scope",
             "pair_loop": "out_of_scope",
