@@ -262,8 +262,26 @@ candidate set:
 - queue correction:
   - the first shared live family is now pinned as `sload_int`
   - arithmetic overflow remains the weaker fallback on the pure-add sibling
-  - the next honest target is shared header-state stabilization around
-    `sload_int`, not more helper-identity seam hunting
+  - clean reduced `number_helper_loop` attribution on the promoted default now
+    pins the real dominant exit cluster:
+    - [20260402-kdz-number-helper-sload-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sload-attribution/summary.md)
+    - dominant seam: `trace 7 exit 0`
+    - dominant guard order:
+      `25,22,20,17,15,14,13,12,10,8,7,3,2`
+    - first `sload_int` on the real workload:
+      - `curins=15`
+      - `IR=SLOAD`
+      - `op1=3`
+      - `op2=4`
+      - `ofs=8`
+      - `extra=12`
+  - cross-reducer comparison now separates “first ordered shared seam” from
+    “later exact-by-curins shared seam”:
+    - pure-add reducer first `sload_int`: `curins=5`, same `ofs=8 extra=12`
+    - later exact-by-curins shared `sload_int`: `curins=3`, `ofs=16 extra=20`
+  - the next honest target is shared header-state stabilization around the
+    first ordered `SLOAD ofs=8 extra=12` seam, not more helper-identity seam
+    hunting
 
 x64 control status:
 

@@ -67,6 +67,42 @@ end
 """
 
 
+def emit_traceir_lua() -> str:
+    return """\
+local vmdef = require("jit.vmdef")
+
+local function ir_op_name(ot)
+  local idx = math.floor(ot / 256) * 6
+  return (string.sub(vmdef.irnames, idx + 1, idx + 6):gsub("%s+$", ""))
+end
+
+local function emit_traceir(limit)
+  local util = require("jit.util")
+  for tr = 1, limit do
+    local info = util.traceinfo(tr)
+    if info then
+      for ins = 0, (tonumber(info.nins) or 0) - 1 do
+        local mode, ot, op1, op2, prev = util.traceir(tr, ins)
+        print(
+          string.format(
+            "TRACEIR tr=%d ins=%d op=%s ot=%d mode=%d op1=%d op2=%d prev=%d",
+            tr,
+            ins,
+            ir_op_name(ot),
+            tonumber(ot) or -1,
+            tonumber(mode) or -1,
+            tonumber(op1) or -1,
+            tonumber(op2) or -1,
+            tonumber(prev) or -1
+          )
+        )
+      end
+    end
+  end
+end
+"""
+
+
 WORKLOADS: dict[str, dict[str, Any]] = {
     "number_helper_loop": {
         "family": "be_helpers",
@@ -80,6 +116,7 @@ testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
+{emit_traceir}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -101,6 +138,7 @@ print("TEXIT_COUNT", texit_cap.total)
 emit_hist("TRACE_HIST", trace_cap.hist)
 emit_hist("TEXIT_HIST", texit_cap.hist)
 emit_traceinfo(32)
+emit_traceir(32)
 """,
     },
     "be_pack_loop": {
@@ -115,6 +153,7 @@ testlib.enable_repo_jit_modules()
 jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
+{emit_traceir}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -140,6 +179,7 @@ print("TEXIT_COUNT", texit_cap.total)
 emit_hist("TRACE_HIST", trace_cap.hist)
 emit_hist("TEXIT_HIST", texit_cap.hist)
 emit_traceinfo(32)
+emit_traceir(32)
 """,
     },
     "direct_abs": {
@@ -155,6 +195,7 @@ ffi.cdef[[ int abs(int x); ]]
 jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
+{emit_traceir}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -176,6 +217,7 @@ print("TEXIT_COUNT", texit_cap.total)
 emit_hist("TRACE_HIST", trace_cap.hist)
 emit_hist("TEXIT_HIST", texit_cap.hist)
 emit_traceinfo(32)
+emit_traceir(32)
 """,
     },
     "stored_abs": {
@@ -192,6 +234,7 @@ local cabs = ffi.C.abs
 jit.opt.start("hotloop=1")
 {emit_hist}
 {emit_traceinfo}
+{emit_traceir}
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -213,9 +256,31 @@ print("TEXIT_COUNT", texit_cap.total)
 emit_hist("TRACE_HIST", trace_cap.hist)
 emit_hist("TEXIT_HIST", texit_cap.hist)
 emit_traceinfo(32)
+emit_traceir(32)
 """,
     },
 }
+
+
+TRACEIR_RE = re.compile(
+    r"^TRACEIR tr=(?P<tr>\d+) ins=(?P<ins>\d+) op=(?P<op>\S+) ot=(?P<ot>-?\d+) "
+    r"mode=(?P<mode>-?\d+) op1=(?P<op1>-?\d+) op2=(?P<op2>-?\d+) prev=(?P<prev>-?\d+)$"
+)
+GUARD_STUB_RE = re.compile(
+    r"^S390X_GUARD curins=(?P<curins>-?\d+) snap=(?P<snap>\d+) loopsnap=(?P<loopsnap>\d+) "
+    r"cc=(?P<cc>-?\d+) loopinv=(?P<loopinv>\d+) p=(?P<patchpoint>\S+) target=(?P<target>\S+) invmcp=(?P<invmcp>\S+)$"
+)
+GUARD_KIND_RE = re.compile(
+    r"^S390X_GUARD kind=(?P<kind>\S+) curins=(?P<curins>-?\d+) ir=(?P<ir>-?\d+) op=(?P<op>-?\d+) "
+    r"type=(?P<type>-?\d+) cc=(?P<cc>-?\d+) ofs=(?P<ofs>-?\d+) extra=(?P<extra>-?\d+)$"
+)
+EXIT_RE = re.compile(
+    r"^S390X_EXIT phase=(?P<phase>\S+) trace=(?P<trace>\d+) exit=(?P<exit>\d+) .* op=(?P<op>\d+) "
+    r"snapcount=(?P<snapcount>\d+) snapref=(?P<snapref>\d+) snapnent=(?P<snapnent>\d+)"
+)
+EXIT_SNAP_RE = re.compile(
+    r"^S390X_EXIT_SNAP trace=(?P<trace>\d+) exit=(?P<exit>\d+) snappc=(?P<snappc>\S+) snapop=(?P<snapop>\d+)(?P<rest>.*)$"
+)
 
 
 def parse_hist_line(line: str, prefix: str) -> dict[str, int]:
@@ -282,6 +347,170 @@ def parse_traceinfo(text: str) -> dict[int, dict[str, Any]]:
     return traceinfo
 
 
+def parse_traceir(text: str) -> dict[int, dict[int, dict[str, Any]]]:
+    traceir: dict[int, dict[int, dict[str, Any]]] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not (m := TRACEIR_RE.match(line)):
+            continue
+        try:
+            traceno = int(m.group("tr"))
+            ins = int(m.group("ins"))
+            ot = int(m.group("ot"))
+            mode = int(m.group("mode"))
+            op1 = int(m.group("op1"))
+            op2 = int(m.group("op2"))
+            prev = int(m.group("prev"))
+        except ValueError:
+            continue
+        traceir.setdefault(traceno, {})[ins] = {
+            "tr": traceno,
+            "ins": ins,
+            "op": m.group("op"),
+            "ot": ot,
+            "mode": mode,
+            "op1": op1,
+            "op2": op2,
+            "prev": prev,
+        }
+    return traceir
+
+
+def dedupe_entries(entries: list[dict[str, Any]], keys: list[str]) -> list[dict[str, Any]]:
+    seen = set()
+    result = []
+    for entry in entries:
+        marker = tuple(entry.get(key) for key in keys)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        result.append(entry)
+    return result
+
+
+def parse_exit_guard_clusters(stderr_text: str) -> list[dict[str, Any]]:
+    pending_stubs: list[dict[str, Any]] = []
+    pending_kinds: list[dict[str, Any]] = []
+    clusters: list[dict[str, Any]] = []
+    last_exit: dict[str, Any] | None = None
+    for lineno, raw_line in enumerate(stderr_text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        if (m := GUARD_KIND_RE.match(line)):
+            pending_kinds.append(
+                {
+                    "line": lineno,
+                    "kind": m.group("kind"),
+                    "curins": int(m.group("curins")),
+                    "ir": int(m.group("ir")),
+                    "op": int(m.group("op")),
+                    "type": int(m.group("type")),
+                    "cc": int(m.group("cc")),
+                    "ofs": int(m.group("ofs")),
+                    "extra": int(m.group("extra")),
+                }
+            )
+            continue
+        if (m := GUARD_STUB_RE.match(line)):
+            pending_stubs.append(
+                {
+                    "line": lineno,
+                    "curins": int(m.group("curins")),
+                    "snap": int(m.group("snap")),
+                    "loopsnap": int(m.group("loopsnap")),
+                    "cc": int(m.group("cc")),
+                    "loopinv": int(m.group("loopinv")),
+                    "patchpoint": m.group("patchpoint"),
+                    "target": m.group("target"),
+                    "invmcp": m.group("invmcp"),
+                }
+            )
+            continue
+        if (m := EXIT_RE.match(line)):
+            if m.group("phase") != "exit":
+                continue
+            cluster = {
+                "line": lineno,
+                "trace": int(m.group("trace")),
+                "exit": int(m.group("exit")),
+                "op": int(m.group("op")),
+                "snapcount": int(m.group("snapcount")),
+                "snapref": int(m.group("snapref")),
+                "snapnent": int(m.group("snapnent")),
+                "guard_stubs": pending_stubs[:],
+                "guard_kinds": pending_kinds[:],
+            }
+            clusters.append(cluster)
+            pending_stubs = []
+            pending_kinds = []
+            last_exit = cluster
+            continue
+        if (m := EXIT_SNAP_RE.match(line)):
+            if (
+                last_exit
+                and last_exit["trace"] == int(m.group("trace"))
+                and last_exit["exit"] == int(m.group("exit"))
+            ):
+                last_exit["snappc"] = m.group("snappc")
+                last_exit["snapop"] = int(m.group("snapop"))
+    return clusters
+
+
+def summarize_dominant_exit_cluster(
+    *,
+    dominant_texit: dict[str, Any] | None,
+    traceir: dict[int, dict[int, dict[str, Any]]],
+    guard_clusters: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not dominant_texit:
+        return None
+    match = re.match(r"^(?P<trace>\d+):(?P<exit>\d+)$", dominant_texit["key"])
+    if not match:
+        return None
+    trace_no = int(match.group("trace"))
+    exit_no = int(match.group("exit"))
+    matching = [cluster for cluster in guard_clusters if cluster["trace"] == trace_no and cluster["exit"] == exit_no]
+    if not matching:
+        return {"trace": trace_no, "exit": exit_no, "samples": 0}
+    exemplar = matching[0]
+    stubs = dedupe_entries(
+        exemplar["guard_stubs"],
+        ["curins", "snap", "loopsnap", "cc", "patchpoint", "target"],
+    )
+    guard_sequence = []
+    first_sload = None
+    for stub in stubs:
+        curins = int(stub["curins"])
+        kinds = dedupe_entries(
+            [entry for entry in exemplar["guard_kinds"] if int(entry["curins"]) == curins],
+            ["kind", "curins", "ir", "op", "type", "cc", "ofs", "extra"],
+        )
+        item = {
+            "curins": curins,
+            "stub": stub,
+            "trace_ir": traceir.get(trace_no, {}).get(curins),
+            "guard_kinds": kinds,
+        }
+        guard_sequence.append(item)
+        if first_sload is None and any(kind.get("kind") == "sload_int" for kind in kinds):
+            first_sload = item
+    return {
+        "trace": trace_no,
+        "exit": exit_no,
+        "samples": len(matching),
+        "op": exemplar.get("op"),
+        "snapop": exemplar.get("snapop"),
+        "snapcount": exemplar.get("snapcount"),
+        "snapref": exemplar.get("snapref"),
+        "snapnent": exemplar.get("snapnent"),
+        "snappc": exemplar.get("snappc"),
+        "guard_curins": [item["curins"] for item in guard_sequence],
+        "guard_sequence": guard_sequence,
+        "first_sload_guard": first_sload,
+    }
+
+
 def dominant_hist(hist: dict[str, int]) -> dict[str, Any] | None:
     if not hist:
         return None
@@ -294,6 +523,7 @@ def render_lua_script(template: str, iterations: int) -> str:
         iterations=iterations,
         emit_hist=emit_hist_lua().rstrip(),
         emit_traceinfo=emit_traceinfo_lua().rstrip(),
+        emit_traceir=emit_traceir_lua().rstrip(),
     )
 
 
@@ -372,6 +602,8 @@ rm -f {shlex.quote(remote_script_path)}
     texit_hist = parse_hist_line(next((line for line in stdout.splitlines() if line.startswith("TEXIT_HIST")), "TEXIT_HIST"), "TEXIT_HIST")
     scalars = parse_scalar_lines(stdout)
     traceinfo = parse_traceinfo(stdout)
+    traceir = parse_traceir(stdout)
+    guard_clusters = parse_exit_guard_clusters(proc.stderr)
     dominant_texit = dominant_hist(texit_hist)
     dominant_trace = dominant_hist(trace_hist)
     dominant_traceinfo = None
@@ -379,6 +611,11 @@ rm -f {shlex.quote(remote_script_path)}
         match = re.match(r"^(\d+):(\d+)$", dominant_texit["key"])
         if match:
             dominant_traceinfo = traceinfo.get(int(match.group(1)))
+    dominant_exit_cluster = summarize_dominant_exit_cluster(
+        dominant_texit=dominant_texit,
+        traceir=traceir,
+        guard_clusters=guard_clusters,
+    )
     return {
         "workload": workload,
         "family": config["family"],
@@ -390,6 +627,7 @@ rm -f {shlex.quote(remote_script_path)}
         "dominant_texit": dominant_texit,
         "dominant_traceinfo": dominant_traceinfo,
         "traceinfo": traceinfo,
+        "dominant_exit_cluster": dominant_exit_cluster,
     }
 
 
@@ -443,6 +681,34 @@ def render_summary(
                     f"`link {dominant_traceinfo['link']}`, `linktype {dominant_traceinfo['linktype']}`, "
                     f"`nins {dominant_traceinfo['nins']}`, `nexit {dominant_traceinfo['nexit']}`"
                 )
+            dominant_exit_cluster = result.get("dominant_exit_cluster")
+            if dominant_exit_cluster and dominant_exit_cluster.get("samples"):
+                lines.append(
+                    f"- `{result['workload']}` dominant exit cluster: "
+                    f"`trace {dominant_exit_cluster['trace']} exit {dominant_exit_cluster['exit']}`, "
+                    f"`op {dominant_exit_cluster.get('op')}`, `snapop {dominant_exit_cluster.get('snapop')}`, "
+                    f"`snapnent {dominant_exit_cluster.get('snapnent')}`, "
+                    f"`samples {dominant_exit_cluster.get('samples')}`"
+                )
+                lines.append(
+                    f"- `{result['workload']}` dominant guard curins: "
+                    f"`{','.join(str(curins) for curins in dominant_exit_cluster.get('guard_curins', []))}`"
+                )
+                first_sload = dominant_exit_cluster.get("first_sload_guard")
+                if first_sload:
+                    ir = first_sload.get("trace_ir") or {}
+                    kind_bits = []
+                    for kind in first_sload.get("guard_kinds", []):
+                        if kind.get("kind") == "sload_int":
+                            kind_bits.append(
+                                f"ofs {kind.get('ofs')} extra {kind.get('extra')} cc {kind.get('cc')}"
+                            )
+                    kind_text = ", ".join(kind_bits) if kind_bits else "kind detail unavailable"
+                    lines.append(
+                        f"- `{result['workload']}` first `sload_int`: "
+                        f"`curins {first_sload['curins']}`, `ir {ir.get('op', 'unknown')}`, "
+                        f"`op1 {ir.get('op1', 'unknown')}`, `op2 {ir.get('op2', 'unknown')}`, `{kind_text}`"
+                    )
         lines.append("")
     lines.extend(
         [

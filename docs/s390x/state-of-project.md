@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 06:39:29 PDT
+Last updated: 2026-04-02 07:12:08 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -198,14 +198,42 @@ non-causal probe effects. The current state is cleaner:
               guards are removed is `sload_int`
             - overflow survives only on the pure-add sibling as the weaker
               arithmetic fallback
+            - clean reduced `number_helper_loop` attribution on the promoted
+              default now pins the first ordered `sload_int` inside the real
+              dominant exit cluster:
+              - artifact:
+                [20260402-kdz-number-helper-sload-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sload-attribution/summary.md)
+              - dominant runtime seam stays `trace 7 exit 0`
+              - dominant guard order is now machine-readably pinned:
+                `25,22,20,17,15,14,13,12,10,8,7,3,2`
+              - first `sload_int` on the real workload is:
+                - `curins=15`
+                - `IR=SLOAD`
+                - `op1=3`
+                - `op2=4`
+                - `ofs=8`
+                - `extra=12`
+            - cross-check against the existing no-helper sibling now sharpens
+              the next seam further:
+              - the pure-add reducer still reaches its first `sload_int`
+                earlier in the ordered cluster at `curins=5`
+              - but it carries the same logged `SLOAD` signature:
+                `ofs=8`, `extra=12`
+              - the later exact-by-`curins` shared `sload_int`
+                (`curins=3`, `ofs=16`, `extra=20`) is still present, but it is
+                now second in the ordered shared seam, not first
             - current queue correction:
               - the next honest family is shared header-state stabilization
-                around `sload_int`
+                around the first ordered `sload_int` / `SLOAD ofs=8 extra=12`
+                seam
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - header-state attribution around the shared `sload_int` /
-            arithmetic-overflow guard family
+          - header-state attribution around the first ordered shared
+            `sload_int` signature:
+            - `SLOAD`
+            - `ofs=8`
+            - `extra=12`
           - use `number_helper_loop` as the real workload and the pure-add
             reducer as the no-helper sibling
         - x64 control status is now explicit:
@@ -226,7 +254,8 @@ non-causal probe effects. The current state is cleaner:
         - the same reduced exit ladder persists when the header moves to
           `BC_MOV` and then `BC_MULVN`
       - the first shared live guard family across those reduced forms is now
-        pinned as `sload_int`
+        pinned as `sload_int`, and the ordered first shared signature is now
+        pinned one step further as `SLOAD ofs=8 extra=12`
       - `direct_abs` stays the call-decorated sibling, but the clean first
         target is now the generic header-guard family visible in
         `number_helper_loop`

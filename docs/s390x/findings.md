@@ -11348,9 +11348,35 @@ Next hash target
       removed is `sload_int`
     - arithmetic overflow survives only as the weaker fallback on the pure-add
       sibling
+    - clean reduced `number_helper_loop` attribution on the promoted default
+      now pins the first ordered `sload_int` on the real dominant exit seam:
+      - artifact:
+        [20260402-kdz-number-helper-sload-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sload-attribution/summary.md)
+      - dominant runtime seam:
+        - `trace 7 exit 0`
+        - `snapop=45`
+        - `snapnent=0`
+      - dominant ordered guard cluster:
+        - `25,22,20,17,15,14,13,12,10,8,7,3,2`
+      - first `sload_int` on the real workload:
+        - `curins=15`
+        - `IR=SLOAD`
+        - `op1=3`
+        - `op2=4`
+        - `ofs=8`
+        - `extra=12`
+    - the existing no-helper sibling keeps the same first shared `SLOAD`
+      signature even though the `curins` number shifts:
+      - pure-add reducer first `sload_int`:
+        - `curins=5`
+        - `ofs=8`
+        - `extra=12`
+      - the later exact-by-`curins` shared `sload_int`
+        (`curins=3`, `ofs=16`, `extra=20`) is still present in both forms, but
+        it is now second in the ordered shared seam
     - queue correction:
-      - the next honest family is shared header-state stabilization around
-        `sload_int`
+      - the next honest family is shared header-state stabilization around the
+        first ordered `SLOAD ofs=8 extra=12` seam
       - not more helper-header rewriting
       - not more hotside-population work
       - not another low32-home reopening
