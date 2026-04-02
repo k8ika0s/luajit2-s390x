@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 18:11:14 PDT
+Last updated: 2026-04-01 18:33:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -469,11 +469,20 @@ non-causal probe effects. The current state is cleaner:
               - that scope is now also codified in
                 [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
                 so helper-backed candidate summaries report:
-                - `promotion_evidence`
+                - `promotion_core`
+                - `promotion_secondary`
                 - `same_seam_but_dominated`
                 - `out_of_scope`
               - helper-backed host-pair truth packs now cover the full
                 non-dominated scoped slice:
+                - `promotion_core`
+                  - reduced `UGET`/looproot siblings
+                  - `be_helpers`
+                  - `ffi_calls`
+                - `promotion_secondary`
+                  - `vararg_paths/retconst_loop`
+                  - `vararg_paths/retlast_loop`
+                  - `mixed_noffi/mixed_loop`
                 - `kdz`
                   - [20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
                     - `number_helper_loop/hot`: `0.008169` vs `-joff 0.002285`
@@ -505,12 +514,9 @@ non-causal probe effects. The current state is cleaner:
               - promotion decision:
                 - keep `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as
                   the active scoped throughput candidate for:
-                  - reduced `UGET`/looproot siblings
-                  - `be_helpers`
-                  - `ffi_calls`
-                  - `vararg_paths/retconst_loop`
-                  - `vararg_paths/retlast_loop`
-                  - `mixed_noffi/mixed_loop`
+                  - `promotion_core` as the immediate promotion surface
+                  - `promotion_secondary` as carry-forward same-seam evidence,
+                    not the first promotion bar
                 - keep `vararg_paths/sum_loop` out of promotion evidence
                 - keep `dispatch_trace`, `iterator_table`, `mixed_ffi`,
                   `ffi_cdata`, plain `int_add_phi_only`, and
@@ -519,7 +525,8 @@ non-causal probe effects. The current state is cleaner:
                 helper codification, the promotion call itself, or host-pair
                 completion inside this slice
               - it is selective promotion planning from this fully
-                helper-backed candidate surface
+                helper-backed split: core promotion first, secondary
+                same-seam carry-forward second
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

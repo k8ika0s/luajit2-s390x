@@ -10914,3 +10914,43 @@ Next hash target
       inside the scoped slice
     - the next honest target is selective promotion planning from this fully
       helper-backed surface, not more slice backfill
+
+- Timestamp: `2026-04-01 18:33:00 PDT`
+- The filtered `UGET`/looproot candidate slice now has a cleaner promotion
+  split than the older single `promotion_evidence` bucket
+  - `promotion_core`:
+    - reduced `UGET`/looproot siblings
+    - `be_helpers`
+    - `ffi_calls`
+  - `promotion_secondary`:
+    - `vararg_paths/retconst_loop`
+    - `vararg_paths/retlast_loop`
+    - `mixed_noffi/mixed_loop`
+  - `same_seam_but_dominated`:
+    - `vararg_paths/sum_loop`
+  - `out_of_scope` stays unchanged:
+    - `dispatch_trace`
+    - `iterator_table`
+    - `mixed_ffi`
+    - `ffi_cdata`
+    - plain `int_add_phi_only`
+    - `logic_add_phi_noboundary`
+  - new baseline/candidate A/B now confirms the core helper-heavy leg on both
+    hosts:
+    - [20260401-kdz-be_helpers-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-be_helpers-baseline-truth-pack/summary.md)
+      - `number_helper_loop/hot`: `0.770458 -> 0.008169`
+      - `be_pack_loop/hot`: `0.345916 -> 0.023346`
+    - [20260401-zkd0-be_helpers-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-be_helpers-baseline-truth-pack/summary.md)
+      - `number_helper_loop/hot`: `2.019211 -> 0.015573`
+      - `be_pack_loop/hot`: `0.729473 -> 0.051882`
+    - `ffi_calls` baseline also already shows the same pre-candidate cliff on
+      `kdz`:
+      - [20260401-kdz-ffi_calls-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-ffi_calls-baseline-truth-pack/summary.md)
+        - `direct_abs/hot`: `1.206350 -> 0.018044`
+        - `stored_abs/hot`: `0.617257 -> 0.012581`
+  - queue correction:
+    - the next honest target is no longer more family discovery inside this
+      mechanism
+    - it is promotion planning and candidate surfacing from the split:
+      `promotion_core` first, `promotion_secondary` only as carry-forward
+      evidence
