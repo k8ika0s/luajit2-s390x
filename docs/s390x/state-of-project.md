@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 17:23:43 PDT
+Last updated: 2026-04-01 17:29:59 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -404,12 +404,31 @@ non-causal probe effects. The current state is cleaner:
                   - `op=BC_UGET`
                   - `startop=BC_JMP`
                   - `root_startop in {BC_FORL, BC_FUNCF}`
-              - so the next honest target is no longer reduced-family scope
-                discovery for this filtered gate
-              - it is broader positive-family mechanism proof:
-                confirm whether helper-heavy and call-heavy winners under the
-                filtered gate still improve through this exact same seam before
-                making any wider promotion claim
+              - broader positive-family mechanism proof on clean `kdz` is now
+                in hand too:
+                [20260401-kdz-hotside-uget-looproot-broader-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-broader-mechanism/summary.md)
+                - `number_helper_loop`: `match_count 63858`
+                - `be_pack_loop`: `match_count 63858`
+                - `direct_abs`: `match_count 79858`
+                - `stored_abs`: `match_count 79858`
+                - every positive broader family stayed on:
+                  - `exit=0`
+                  - `op=BC_UGET`
+                  - `startop=BC_JMP`
+                  - `root_startop=BC_FORL`
+              - representative host-pair confirmation is now in hand too:
+                [20260401-zkd0-hotside-uget-looproot-broader-mechanism-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-uget-looproot-broader-mechanism-check/summary.md)
+                - `number_helper_loop`: `match_count 63858`
+                - `direct_abs`: `match_count 79858`
+                - both representative broader winners stayed on:
+                  - `exit=0`
+                  - `op=BC_UGET`
+                  - `startop=BC_JMP`
+                  - `root_startop=BC_FORL`
+              - so the next honest target is no longer host-pair mechanism
+                confirmation for this filtered gate
+              - it is promotion-scope criteria from this one named seam instead
+                of mixed-family heuristics
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
