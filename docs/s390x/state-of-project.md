@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 17:17:01 PDT
+Last updated: 2026-04-01 17:23:43 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -393,11 +393,23 @@ non-causal probe effects. The current state is cleaner:
                   - `logical_chain_tail_add`: `0.004309`
                   - `logical_chain_tail_store`: `0.004228`
                   - `bitops_mix`: `0.004763`
-              - so the next honest target is no longer helper-backed restamp
-                for this filtered gate
-              - it is the exact promotion scope for the reduced
-                `UGET`/looproot seam, with plain `ADD`/`PHI` control now
-                explicitly outside that boundary
+              - exact scope proof on clean `kdz` is now explicit:
+                [20260401-kdz-hotside-uget-looproot-scope-proof](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-scope-proof/summary.md)
+                - `int_add_phi_only`: `match_count 0`
+                - `logical_chain_tail_add`: `match_count 8792`
+                - `logical_chain_tail_store`: `match_count 8792`
+                - `bitops_mix`: `match_count 8792`
+                - all positive reduced hits stay on:
+                  - `exit=0`
+                  - `op=BC_UGET`
+                  - `startop=BC_JMP`
+                  - `root_startop in {BC_FORL, BC_FUNCF}`
+              - so the next honest target is no longer reduced-family scope
+                discovery for this filtered gate
+              - it is broader positive-family mechanism proof:
+                confirm whether helper-heavy and call-heavy winners under the
+                filtered gate still improve through this exact same seam before
+                making any wider promotion claim
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

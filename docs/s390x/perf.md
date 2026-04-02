@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 17:17:01 PDT
+Last updated: 2026-04-01 17:23:43 PDT
 
 ## Latest Matrix
 
@@ -91,12 +91,25 @@ That gate is now clearly narrower than the old global
 
 So the active queue is no longer “broader gate promotion”. It is:
 
-1. exact promotion criteria for the reduced `UGET`/looproot family now that
-   the host-pair helper restamp is complete
-2. selective activation / promotion scope for
+1. broader positive-family mechanism proof for
    `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
-3. only after that, any new broader throughput seam outside the filtered
+2. confirm whether helper-heavy and call-heavy winners are still improving
+   through the exact same reduced `UGET`/looproot seam
+3. only after that, any wider promotion claim outside the filtered
    `UGET`/looproot mechanism
+
+Exact reduced-family scope proof on clean `kdz` is now recorded here:
+
+- [20260401-kdz-hotside-uget-looproot-scope-proof](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-scope-proof/summary.md)
+  - `int_add_phi_only`: `match_count 0`
+  - `logical_chain_tail_add`: `match_count 8792`
+  - `logical_chain_tail_store`: `match_count 8792`
+  - `bitops_mix`: `match_count 8792`
+  - all positive reduced hits stay on:
+    - `exit=0`
+    - `op=BC_UGET`
+    - `startop=BC_JMP`
+    - `root_startop in {BC_FORL, BC_FUNCF}`
 
 Current clean-`kdz` broader-throughput frontier:
 

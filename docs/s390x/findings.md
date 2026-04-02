@@ -10743,3 +10743,25 @@ Next hash target
     - plain `ADD`/`PHI` control is outside that boundary
     - the next honest target is promotion scope from that pinned reduced seam,
       not another reduced-family restamp
+
+- Timestamp: `2026-04-01 17:23:43 PDT`
+- Exact reduced-family scope proof now pins the filtered gate to one real seam
+  on clean `kdz`
+  - artifact:
+    [20260401-kdz-hotside-uget-looproot-scope-proof](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-scope-proof/summary.md)
+  - read:
+    - `int_add_phi_only`: `match_count 0`
+    - `logical_chain_tail_add`: `match_count 8792`
+    - `logical_chain_tail_store`: `match_count 8792`
+    - `bitops_mix`: `match_count 8792`
+  - the exact positive hit family is:
+    - `exit=0`
+    - `op=BC_UGET`
+    - `startop=BC_JMP`
+    - `root_startop in {BC_FORL, BC_FUNCF}`
+  - queue correction:
+    - reduced-family scope discovery is done
+    - the next honest target is broader positive-family mechanism proof:
+      verify whether helper-heavy and call-heavy winners under
+      `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` still improve through
+      this exact same seam before any wider promotion claim
