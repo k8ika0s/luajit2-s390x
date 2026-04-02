@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 23:58:00 PDT
+Last updated: 2026-04-02 05:55:27 PDT
 
 ## Latest Matrix
 
@@ -171,13 +171,14 @@ to the same exact bytecode seam in both representative workloads:
     - dominant texit: `7:0` x `257`
     - runtime exit log: `trace 7 exit 0` also resumes at `pc op=45`,
       `snapop=45`, `snapcount=0`
-- `op=45` is `BC_UGET`, which matches the exact filtered hotside seam in
+- `op=45` is `BC_UGET`, which matches the original filtered hotside seam in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
 - queue correction:
   - the promoted-default core red is not front-most call/FFI exit churn
-  - the remaining steady seam is the front `BC_UGET` re-entry / guard region
-  - on `number_helper_loop`, that is the clean upvalue/identity-guard prefix
-    for `bit.tobit`, not a helper call boundary
+  - the remaining steady seam is the full `SNAP #0` header-guard interval,
+    with `BC_UGET` only marking the original helper form's restore point
+  - on `number_helper_loop`, that is no longer described as a helper-only
+    `bit.tobit` identity seam
   - reduced baseline comparison now closes the mechanism split:
     - [20260401-kdz-core-exit-attribution-baseline-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-baseline-reduced/summary.md)
     - baseline and promoted default restore to the same `BC_UGET` header seam
@@ -215,8 +216,35 @@ to the same exact bytecode seam in both representative workloads:
       - `pc op=BC_UGET`
       - `snapop=BC_UGET`
       - `snapnent=0`
-    - so the hot seam is still inside the front `UGET/TGETS/HLOAD/fun EQ`
-      guard prefix, before any snapshot-carried state exists
+    - so the hot seam is still inside the full `SNAP #0` guard interval before
+      any snapshot-carried state exists
+
+Header variants on clean `kdz` now close the helper-only reading:
+
+- [20260402-kdz-uget-header-variant-audit](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-uget-header-variant-audit/summary.md)
+  - original helper form:
+    - restored hot seam starts at `BC_UGET` (`45`)
+  - local/arg `tobit` form:
+    - restored hot seam moves to `BC_MOV` (`18`)
+  - pure-add reducer:
+    - restored hot seam moves to `BC_MULVN` (`24`)
+  - all three still keep the same reduced `exit 0` clone ladder
+- queue correction:
+  - the helper lookup/identity chain is not required to reproduce the flurry
+  - the live family is generic `SNAP #0` header-guard failure, not a
+    helper-only `BC_UGET/TGETS/HLOAD/fun EQ` seam
+
+Guard-log intersection on the same reduced `kdz` scripts narrows the shared
+candidate set:
+
+- original helper `snap=0`: `curins=17,15,14,13,12,10,8,7,3,2`
+- pure-add reducer `snap=0`: `curins=6,5,4,3,2`
+- shared surviving guard kinds:
+  - `sload_int`
+  - arithmetic overflow guards
+- queue correction:
+  - the next honest target is shared header-state attribution around those
+    guards, not more helper-identity seam hunting
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 
