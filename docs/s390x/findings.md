@@ -12230,3 +12230,37 @@ Next hash target
       helper/value `BC_MOV` replay on the actual workload
     - the next honest target is exact stack-visible helper/value replay under
       the promoted slice, not another helper-lookup or localization pass
+
+- Timestamp: `2026-04-02 14:52:05 PDT`
+- Reduced dynamic localized-helper real-workload probes pin the moved seam to
+  one exact inherited integer `SLOAD`
+  - clean `kdz` reduced real-workload artifacts:
+    - local helper:
+      [20260402-kdz-dynamic-local-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-iter400/summary.md)
+    - arg helper:
+      [20260402-kdz-dynamic-arg-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-iter400/summary.md)
+  - both localized forms are finite and correct at reduced `n=400`:
+    - `RESULT 961100104`
+  - both keep the same reduced trace population shape:
+    - `TRACEINFO 1 1 loop 19 8 4`
+    - small interpreter/stitch side population only
+  - both restore and re-exit at the same moved seam:
+    - `pc op=18`
+    - `snapop=18`
+    - `guardmark=0x3`
+  - exact taken guard now matches between the two localized forms:
+    - `curins=3`
+    - `IR=SLOAD`
+    - `op1=5`
+    - `op2=36`
+    - `kind=sload_int`
+    - `ofs=24`
+    - `extra=28`
+  - matching reduced `TRACEIR` confirms the same moved inherited lane:
+    - `TRACEIR tr=1 ins=3 op=SLOAD ... op1=5 op2=36`
+  - queue correction:
+    - the moved seam is no longer just “`BC_MOV` replay”
+    - it is the shifted inherited integer `SLOAD` lane behind stack-visible
+      helper/value replay
+    - the next honest target is that shifted inherited `SLOAD`, not imported
+      helper lookup and not another localization attempt

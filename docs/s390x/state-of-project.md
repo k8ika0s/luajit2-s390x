@@ -2751,19 +2751,27 @@ Current owner map contract:
     - the next honest target remains the dynamic helper-form interaction that
       keeps the inherited numeric-for index/current-value `SLOAD` seam live
 
-- Timestamp: `2026-04-02 14:42:26 PDT`
+- Timestamp: `2026-04-02 14:52:05 PDT`
 - Dynamic helper-form interaction is now pinned as stack-visible `BC_MOV`
   replay, not imported-helper `BC_UGET` replay
-  - stripped real-workload localization runs on clean `kdz` now agree for both
-    dynamic helper forms:
+  - stripped reduced real-workload localization runs on clean `kdz` now agree
+    for both dynamic helper forms:
     - local helper:
-      [20260402-kdz-dynamic-local-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-guardmark/summary.md)
+      [20260402-kdz-dynamic-local-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-iter400/summary.md)
     - arg helper:
-      [20260402-kdz-dynamic-arg-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-guardmark/summary.md)
-  - both dynamic variants keep the same real-workload failure:
-    - `RESULT -149783296`
+      [20260402-kdz-dynamic-arg-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-iter400/summary.md)
+  - both localized reduced runs are finite and correct:
+    - `RESULT 961100104`
     - repeated steady seam at restored `pc op=18`, `snapop=18`
     - repeated exact-taken `guardmark=0x3`
+  - both now pin the same exact moved inherited guard:
+    - `curins=3`
+    - `IR=SLOAD`
+    - `op1=5`
+    - `op2=36`
+    - `kind=sload_int`
+    - `ofs=24`
+    - `extra=28`
   - source-backed opcode meaning now closes the semantic split:
     - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h)
       defines `BC_MOV` as `dst <- var`
@@ -2776,9 +2784,11 @@ Current owner map contract:
       old imported-helper `BC_UGET` seam is not fundamental
     - but the real replay family survives one step later as stack-visible
       helper/value `BC_MOV` replay on the actual workload
+    - the moved seam is no longer just an opcode marker; both localized forms
+      converge on the same inherited integer `SLOAD` lane behind that `MOV`
     - the next honest target is therefore exact stack-visible helper/value
-      replay under the promoted slice, not more helper-lookup attribution and
-      not another localization attempt
+      replay under the promoted slice at that shifted inherited `SLOAD`, not
+      more helper-lookup attribution and not another localization attempt
 
 ### After that
 
