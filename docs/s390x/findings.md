@@ -11129,3 +11129,56 @@ Next hash target
     - the envless promoted default remains a scoped throughput improvement
     - it does not promote into frozen iterator or frozen dispatch on either
       host
+
+- Timestamp: `2026-04-01 21:45:51 PDT`
+- The promoted-default `promotion_core` mechanism is now pinned on both hosts
+  by dominant `trace`/`texit` pair, not just aggregate counts
+  - new helper:
+    - [tools/s390x/build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
+  - host-pair artifacts:
+    - [kdz mechanism probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-214311-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+    - [zkd0 mechanism probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-214447-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `be_helpers`:
+    - `number_helper_loop`: `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 64001`
+    - `be_pack_loop`: `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 64001`
+    - dominant site on both hosts:
+      - `trace 7 exit 0`
+      - `63457` hits out of `64001`
+    - dominant traceinfo split is body size, not seam shape:
+      - `number_helper_loop`: `linktype loop`, `nins 28`, `nexit 4`
+      - `be_pack_loop`: `linktype loop`, `nins 71`, `nexit 4`
+  - `ffi_calls`:
+    - `direct_abs`: `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 80001`
+    - `stored_abs`: `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 80001`
+    - dominant site on both hosts:
+      - `trace 7 exit 0`
+      - `79457` hits out of `80001`
+    - dominant traceinfo split is body size, not seam shape:
+      - `direct_abs`: `linktype loop`, `nins 33`, `nexit 6`
+      - `stored_abs`: `linktype loop`, `nins 23`, `nexit 6`
+  - queue correction:
+    - the filtered hotside default already removed the equivalent-parent clone
+      ladder on this slice
+    - the remaining red is now one repeated `trace 7 exit 0` loop-exit seam
+    - do not reopen hotside population work here
+
+- Timestamp: `2026-04-01 21:49:52 PDT`
+- Focused reduced dumps corrected the next attribution target on clean `kdz`
+  - artifact:
+    [20260401-214848-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-214848-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `number_helper_loop` reduced dump:
+    - root trace body has no call IR in the hot loop
+    - the loop is arithmetic plus `HREFK/HLOAD` identity guards for
+      `bit.tobit`, then `MULOV`, `ADD`, and loop control
+  - `direct_abs` reduced dump:
+    - hot loop body does contain `CALLXS`
+  - queue correction:
+    - the shared front-most seam is not “helper/FFI call boundary everywhere”
+    - the clean first attribution target is now direct `trace 7 exit 0`
+      attribution on `number_helper_loop`
+    - `direct_abs` stays the call-decorated sibling for comparison, not the
+      first attribution target
