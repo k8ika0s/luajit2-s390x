@@ -15,7 +15,7 @@ if str(THIS_DIR) not in sys.path:
 import build_throughput_truth_pack as throughput
 
 
-DEFAULT_CANDIDATE = "hotside_canon_share_uget_looproot"
+DEFAULT_CANDIDATE = "hotside_canon_share_uget_looproot_default"
 
 
 def promotion_core_families(candidate: str) -> list[str]:

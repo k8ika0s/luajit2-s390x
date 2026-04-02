@@ -23,7 +23,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
 PROBE_TIMEOUT_SECS = 20
 CANDIDATE_ENVS: dict[str, dict[str, str]] = {
-    "baseline": {},
+    "baseline": {
+        "LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT": "1",
+    },
+    "hotside_canon_share_uget_looproot_default": {},
     "hotside_canon_share": {
         "LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV": "1",
     },
@@ -69,6 +72,10 @@ CANDIDATE_SCOPE: dict[str, dict[str, Any]] = {
         },
     },
 }
+
+CANDIDATE_SCOPE["hotside_canon_share_uget_looproot_default"] = (
+    CANDIDATE_SCOPE["hotside_canon_share_uget_looproot"]
+)
 
 PROMOTION_CLASS_ORDER = {
     "promotion_core": 0,
