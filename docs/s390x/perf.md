@@ -2359,25 +2359,35 @@ So the reduced local/arg zero-exit split is evidence only. The next exact
 target stays on the dynamic helper-form interaction with the inherited
 numeric-for index/current-value `SLOAD` seam.
 
-Stripped real-workload localization runs narrow that interaction further:
+Stripped reduced real-workload localization runs narrow that interaction
+further:
 
 - local helper:
-  [20260402-kdz-dynamic-local-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-guardmark/summary.md)
+  [20260402-kdz-dynamic-local-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-iter400/summary.md)
 - arg helper:
-  [20260402-kdz-dynamic-arg-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-guardmark/summary.md)
+  [20260402-kdz-dynamic-arg-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-iter400/summary.md)
 
-Both real dynamic localized forms still fail the workload and now agree on the
-same moved replay seam:
+Both reduced real-workload dynamic localized forms stay finite and now agree on
+the same moved replay seam:
 
-- `RESULT -149783296`
+- `RESULT 961100104`
 - restored `pc op=18`
 - restored `snapop=18`
 - repeated exact-taken `guardmark=0x3`
+- exact moved inherited guard on both:
+  - `curins=3`
+  - `IR=SLOAD`
+  - `op1=5`
+  - `op2=36`
+  - `kind=sload_int`
+  - `ofs=24`
+  - `extra=28`
 
 So the promoted-slice replay problem is no longer best described as imported
 helper `BC_UGET` churn once the helper is localized. It survives as
 stack-visible helper/value `BC_MOV` replay one step later in the header/call
-setup.
+setup, and the exact shifted replay lane is now the same inherited integer
+`SLOAD` on both localized forms.
 
 ## Relationship To Other Docs
 

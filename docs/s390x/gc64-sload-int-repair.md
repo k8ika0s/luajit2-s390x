@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 14:42:26 PDT
+Last updated: 2026-04-02 14:52:05 PDT
 
 ## Live Seam
 
@@ -415,19 +415,36 @@ So the reduced helper-localization split is evidence only:
 
 The dynamic helper-form split is now sharper than that first write-up:
 
-- stripped real-workload localization runs without counter/posthook churn show
-  that both dynamic localized forms relocate the steady seam instead of
-  removing it:
+- stripped real-workload localization runs without counter/posthook churn and
+  reduced `n=400` keep both dynamic localized forms finite, correct, and on
+  the same moved seam instead of removing it:
   - local helper form:
-    [20260402-kdz-dynamic-local-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-guardmark/summary.md)
+    [20260402-kdz-dynamic-local-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-iter400/summary.md)
   - arg helper form:
-    [20260402-kdz-dynamic-arg-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-guardmark/summary.md)
-- both real dynamic variants keep the same bad result:
-  - `RESULT -149783296`
-- both now restore and re-exit at:
+    [20260402-kdz-dynamic-arg-iter400](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-iter400/summary.md)
+- both reduced real-workload variants are correct:
+  - `RESULT 961100104`
+- both keep the same reduced trace population shape:
+  - local helper:
+    - `TRACEINFO 1 1 loop 19 8 4`
+    - `TRACEINFO 2 0 interpreter 14 12 3`
+  - arg helper:
+    - `TRACEINFO 1 1 loop 19 8 4`
+    - `TRACEINFO 2 0 interpreter 4 6 3`
+- both restore and re-exit at:
   - `pc op=18`
   - `snapop=18`
   - repeated `guardmark=0x3`
+- both now pin the same exact moved inherited guard:
+  - `curins=3`
+  - `IR=SLOAD`
+  - `op1=5`
+  - `op2=36`
+  - `kind=sload_int`
+  - `ofs=24`
+  - `extra=28`
+- matching reduced `TRACEIR` on both localized forms:
+  - `TRACEIR tr=1 ins=3 op=SLOAD ... op1=5 op2=36`
 - `op=18` is `BC_MOV`, and on the parser/recorder side that is plain
   slot-to-slot variable movement:
   - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h)
@@ -443,12 +460,14 @@ story is now precise:
 - helper localization does not clear the real replay problem
 - it shifts the steady seam from imported-helper `BC_UGET` replay to
   stack-visible helper/value `BC_MOV` replay on the real workload
+- after that shift, both dynamic localized forms still converge on the same
+  inherited integer `SLOAD` lane (`op1=5`, `ofs=24`, `extra=28`)
 - this is still the same promoted-slice replay family, just one step later in
   the header/call setup
 
 That keeps the next honest target where it belongs:
 
-- exact stack-visible helper/value replay interaction after the inherited
-  numeric-for `SLOAD` repair
+- exact stack-visible helper/value replay interaction at that shifted
+  inherited integer `SLOAD`
 - not imported-helper lookup attribution
 - not “just localize the helper”
