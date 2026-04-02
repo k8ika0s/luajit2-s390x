@@ -182,3 +182,53 @@ Do not reopen:
 This is now a narrow GC64 inherited numeric-`for` replay-materialization
 problem: restore the VM-style cleared 32-bit arithmetic contract before the
 header multiply path, not just the tag-extraction compare.
+
+## Second-Run Entry Path
+
+The next read tightens where that rematerialization has to happen.
+
+`TRACE 1` is the loop trace:
+
+- starts at `BC_FORL`
+- body snapshots restore to `BC_UGET`
+- first header arithmetic use is:
+  - `0003 > int SLOAD #4 TI`
+  - `0014 > int MULOV 0003 +65537`
+
+But the second hot run is not reaching that loop only through the VM
+`FORI/FORL` path.
+
+From the real workload dump:
+
+- `TRACE 2` starts earlier as a tiny `FUNCF` root
+- it only checks the loop bound `n`:
+  - `0001 > int SLOAD #2 T`
+  - `0002 > int LE 0001 +2147483646`
+  - `0003 > int GE 0001 +1`
+- then it stops `-> 1`
+
+So the current source-backed read is:
+
+- `TRACE 2` is a function-entry handoff into the existing loop trace
+- its `stop -> 1` shape matches the compiled-loop handoff path, not the VM
+  `FORI/FORL` path
+- that handoff can reach `TRACE 1` without re-running the VM integer
+  `FORI/FORL` materialization path
+- `lj_snap_replay()` itself only recreates inherited `IR_SLOAD` nodes; it does
+  not perform the VM-style `checkint -> 32-bit add -> setint -> store`
+  rematerialization
+
+That is why the repeated bad second-run value matters:
+
+- the failing arithmetic input increments as `0x8001`, `0x8002`, `0x8003`, ...
+- this cannot be the constant step slot
+- it matches the inherited numeric-for index/current-value path reaching
+  `TRACE 1` already stale/high before the first body arithmetic use
+
+So the next honest target is no longer just “fix the inherited integer
+typecheck”. It is:
+
+- explain the function-entry handoff into `TRACE 1`
+- identify where the VM-style numeric-for state is supposed to be rebuilt on
+  that path
+- and why it is not rebuilt before `TRACE 1` consumes `SLOAD #4`

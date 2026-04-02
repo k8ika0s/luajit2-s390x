@@ -11921,3 +11921,41 @@ Next hash target
     - it is “why replay after the inherited typecheck does not re-materialize
       the same cleared 32-bit numeric-for value that the VM fast path uses
       before arithmetic”
+
+- Timestamp: `2026-04-02 13:07:00 PDT`
+- The next dump slice narrows where that rematerialization is missing
+  - real workload loop trace:
+    - [number_helper_loop.dump.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v5/raw/number_helper_loop.dump.stdout.log)
+    - `TRACE 1` starts at `BC_FORL`
+    - first header arithmetic use is:
+      - `0003 > int SLOAD #4 TI`
+      - `0014 > int MULOV 0003 +65537`
+  - real workload entry trace:
+    - same dump, `TRACE 2`
+    - `TRACE 2` starts earlier as a tiny `FUNCF` root
+    - it only proves the loop bound `n`:
+      - `0001 > int SLOAD #2 T`
+      - `0002 > int LE 0001 +2147483646`
+      - `0003 > int GE 0001 +1`
+    - then it stops `-> 1`
+  - source tie-in:
+    - [lj_snap_replay()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L704)
+      replays inherited parent state as raw `IR_SLOAD` refs with
+      `IRSLOAD_INHERIT|IRSLOAD_PARENT`
+    - it does not run the VM integer `FORI/FORL`
+      `checkint -> 32-bit add -> setint -> store` materialization contract
+  - corrected seam read:
+    - the second hot run is not just “trace 1 replay is wrong by itself”
+    - it reaches `TRACE 1` through a function-entry root handoff that only
+      checks `n` and then links to the existing loop trace
+    - that `stop -> 1` shape matches the compiled-loop handoff path in
+      [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3618),
+      not the VM `FORI/FORL` path
+    - the repeated bad arithmetic input (`0x8001`, `0x8002`, `0x8003`, ...)
+      therefore points to stale inherited numeric-for index/current-value
+      state reaching `TRACE 1` before the first body arithmetic use
+  - queue correction:
+    - the next honest target is where that function-entry handoff is supposed
+      to rebuild VM-style numeric-for state before linking into `TRACE 1`
+    - not another tag-compare tweak
+    - not another low32-home, iterator, dispatch, or generic hotside pass
