@@ -12248,6 +12248,12 @@ Next hash target
     - `pc op=18`
     - `snapop=18`
     - `guardmark=0x3`
+  - recorder setup plus reduced `TRACEIR` now pin the localized frame layout:
+    - `baseslot=2`
+    - `op1=3` -> carried `total`
+    - `op1=4` -> localized `tobit`
+    - `op1=5` -> current numeric-for value feeding `* 65537`
+    - `op1=6` -> loop bound `n`
   - exact taken guard now matches between the two localized forms:
     - `curins=3`
     - `IR=SLOAD`
@@ -12258,9 +12264,11 @@ Next hash target
     - `extra=28`
   - matching reduced `TRACEIR` confirms the same moved inherited lane:
     - `TRACEIR tr=1 ins=3 op=SLOAD ... op1=5 op2=36`
+    - `TRACEIR tr=1 ins=5 op=MULOV ... op1=3 op2=-6`
+    - so the moved lane is the current numeric-for value, not the helper
   - queue correction:
     - the moved seam is no longer just “`BC_MOV` replay”
-    - it is the shifted inherited integer `SLOAD` lane behind stack-visible
-      helper/value replay
-    - the next honest target is that shifted inherited `SLOAD`, not imported
-      helper lookup and not another localization attempt
+    - it is the shifted inherited current numeric-for-value `SLOAD` lane
+      behind stack-visible helper/value replay
+    - the next honest target is that shifted current-value `SLOAD`, not
+      imported helper lookup and not another localization attempt
