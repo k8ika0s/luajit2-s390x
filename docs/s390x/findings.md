@@ -12272,3 +12272,29 @@ Next hash target
       behind stack-visible helper/value replay
     - the next honest target is that shifted current-value `SLOAD`, not
       imported helper lookup and not another localization attempt
+
+- Timestamp: `2026-04-02 15:03:17 PDT`
+- Reduced slot-state follow-up closes the localized rematerialization split
+  - artifact:
+    [20260402-kdz-dynamic-local-slotlog](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog/summary.md)
+  - repeated seam remains:
+    - `trace 1 exit 0`
+    - restored `pc op=18`, `snapop=18`
+    - exact taken `guardmark=0x3`
+    - `curins=3`, `IR=SLOAD`, `op1=5`, `op2=36`
+  - but the replayed loop state at that seam is already coherent and advancing:
+    - current value register `r11` walks `0x3`, `0x4`, `0x5`, ...
+    - carried `total` dump `r3tv q0` stays a valid boxed GC64 int:
+      - `0xfff9000000060006`
+      - `0xfff90000000a000a`
+      - `0xfff90000000f000f`
+      - `0xfff9000000150015`
+  - those values match the expected carried totals from the previous loop
+    iterations, so the failure is no longer consistent with missing current
+    value rematerialization
+  - queue correction:
+    - localized helper/value replay state is already live and progressing
+    - the live problem is the inherited integer `SLOAD`
+      replay/typecheck contract on that live current numeric-for-value lane
+    - not imported-helper lookup
+    - not another rematerialization theory

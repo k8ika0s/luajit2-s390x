@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 10:38:00 PDT
+Last updated: 2026-04-02 15:03:17 PDT
 
 ## Latest Matrix
 
@@ -2394,6 +2394,27 @@ helper `BC_UGET` churn once the helper is localized. It survives as
 stack-visible helper/value `BC_MOV` replay one step later in the header/call
 setup, and the exact shifted replay lane is now the same inherited current
 numeric-for-value `SLOAD` on both localized forms.
+
+A focused reduced slot-state follow-up now closes the remaining
+rematerialization split:
+
+- [20260402-kdz-dynamic-local-slotlog](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog/summary.md)
+- repeated seam still lands on:
+  - `trace 1 exit 0`
+  - restored `pc op=18`, `snapop=18`
+  - exact taken `guardmark=0x3`
+  - `curins=3`, `IR=SLOAD`, `op1=5`, `op2=36`
+- but the replayed loop state is already coherent and advancing:
+  - current value register `r11`: `0x3`, `0x4`, `0x5`, ...
+  - carried `total` dump `r3tv q0`:
+    - `0xfff9000000060006`
+    - `0xfff90000000a000a`
+    - `0xfff90000000f000f`
+    - `0xfff9000000150015`
+
+So the live localized seam is not missing current-value rematerialization. It
+is the inherited integer `SLOAD` replay/typecheck contract still firing on a
+live current numeric-for value lane.
 
 ## Relationship To Other Docs
 

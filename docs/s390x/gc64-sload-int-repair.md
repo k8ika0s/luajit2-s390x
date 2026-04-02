@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 15:01:41 PDT
+Last updated: 2026-04-02 15:03:17 PDT
 
 ## Live Seam
 
@@ -477,9 +477,38 @@ story is now precise:
 - this is still the same promoted-slice replay family, just one step later in
   the header/call setup
 
+The next reduced slot-state slice closes the remaining rematerialization split:
+
+- artifact:
+  [20260402-kdz-dynamic-local-slotlog](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-slotlog/summary.md)
+- the repeated exact seam is still:
+  - `trace 1 exit 0`
+  - restored `pc op=18`, `snapop=18`
+  - `guardmark=0x3`
+  - `curins=3`, `IR=SLOAD`, `op1=5`, `op2=36`
+- but the replayed loop state at that seam is already coherent and advancing:
+  - live current value register `r11` walks `0x3`, `0x4`, `0x5`, ...
+  - the carried `total` dump in `r3tv q0` stays a valid boxed GC64 int:
+    - `0xfff9000000060006`
+    - `0xfff90000000a000a`
+    - `0xfff90000000f000f`
+    - `0xfff9000000150015`
+  - those values match the expected carried totals for the previous loop
+    iterations
+
+So the dynamic-localized replay failure is no longer honestly described as
+missing current-value rematerialization before the inherited `SLOAD` fires.
+The live question is narrower:
+
+- why inherited integer `SLOAD` replay/typecheck still exits on the localized
+  current numeric-for value lane even when replayed state is already live and
+  progressing
+- not imported-helper lookup
+- not another rematerialization theory
+
 That keeps the next honest target where it belongs:
 
-- exact stack-visible helper/value replay interaction at that shifted current
-  numeric-for-value `SLOAD`
+- exact inherited integer `SLOAD` replay/typecheck contract at that shifted
+  current numeric-for-value lane
 - not imported-helper lookup attribution
 - not “just localize the helper”
