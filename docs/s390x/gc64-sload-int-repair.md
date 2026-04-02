@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 15:03:17 PDT
+Last updated: 2026-04-02 15:43:56 PDT
 
 ## Live Seam
 
@@ -303,75 +303,109 @@ So the current best source-backed read is:
 
 ## Direct Remediation Result
 
-The direct inherited integer `SLOAD` seam is now narrowed enough to treat the
-paired repair as the active GC64 default on s390x:
+The direct inherited integer `SLOAD` seam is now answered, but the first exact
+repair is rejected and the branch source is back on baseline.
 
-- signed/arithmetic GC64 integer `SLOAD` extraction is default-on on GC64 with
-  opt-out `LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD=1`
-- the matching `JFORI` interpreter handoff is also default-on on GC64 with
-  opt-out `LUAJIT_S390X_DISABLE_JFORI_INTERP_HANDOFF=1`
-- the old opt-in envs remain valid compatibility aliases:
-  - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
-  - `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+The repair that was tested:
 
-Clean `kdz` reduced rechecks after promoting that pair:
+- signed/arithmetic GC64 integer `SLOAD` extraction on s390x
+- matching `JFORI` interpreter handoff
 
-- literal-stop sibling:
-  [20260402-kdz-literal-stop-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-literal-stop-paired-default-check/summary.md)
-  - `TRACE_START 1`
-  - `TRACE_STOP 1`
-  - `TRACE_ABORT 0`
-  - `TEXIT_COUNT 399`
-  - old carried-`total` exact-taken `guardmark=0xd` seam no longer repeats
-  - repeated exits now run with `guardmark=0` and later logs show the steady
-    family has moved forward into a `BC_TGETS` seam
-- real helper workload:
-  [20260402-kdz-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-paired-default-check/summary.md)
-  - `TRACE_START 6`
-  - `TRACE_STOP 5`
-  - `TRACE_ABORT 0`
-  - `TEXIT_COUNT 64001`
-  - workload remains correctness-stable under the envless default pair
-  - dominant repeated seam is still restored `SNAP #0` at `BC_UGET`, but the
-    old exact-taken inherited-int `SLOAD` failure is gone and later logs again
-    show the steady failure family shifted forward into `BC_TGETS`
+The corrected signed comparison is real:
 
-Clean `zkd0` reduced screen:
+- for a boxed GC64 int, arithmetic `>> 47` produces signed `itype()` space
+- the current s390x signed path was comparing that signed value against the
+  wrong expected constant
+- changing the expected constant to signed `LJ_TISNUM` clears the inherited
+  integer `SLOAD` mismatch on the reduced seam
 
-- real helper workload:
-  [20260402-zkd0-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-number-helper-paired-default-check/summary.md)
-  - `TRACE_START 6`
-  - `TRACE_STOP 5`
-  - `TRACE_ABORT 0`
-  - `TEXIT_COUNT 64001`
-  - no correctness regression on the z14 screen
+But it is not promotable on the real helper workload.
 
-So the direct target is now answered, but one follow-on read needed correction:
+Reduced `kdz` checks with the signed-expected repair:
 
-- the inherited GC64 integer `SLOAD` replay/typecheck seam was real
-- the paired GC64 repair clears the earlier carried-`total` inherited-int
-  `SLOAD` seam and keeps the real helper workload correctness-stable
-- but this is not a full throughput fix
+- localized helper reducer:
+  [20260402-kdz-dynamic-local-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-after-signed-expected-fix/summary.md)
+  - `RESULT 961100104`
+  - old inherited `SLOAD(op1=5)` seam is gone
+  - front-most repeated seam moves to `trace 1 exit 3`
+- reduced real helper workload:
+  [20260402-kdz-number-helper-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-after-signed-expected-fix/summary.md)
+  - `RESULT 961100104` at reduced `n=400`
+  - repeated seam also moves off the old inherited `SLOAD`
 
-The first post-repair theory was that the steady seam had advanced to a later
-`BC_TGETS` family. Exact-taken guardmark proof on the real workload corrects
-that:
+Real hot helper workload on clean `kdz` fails the first promotion bar:
 
-- real helper workload with exact-taken marks:
-  [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
-  - dominant repeated seam remains:
-    - `trace 7 exit 0`
-    - restored `pc op=45`
-    - `snapop=45`
-    - `snapnent=0`
-  - exact taken runtime guard is:
-    - `curins 3`
-    - `ir SLOAD`
-    - `op1 4`
-    - `op2 36`
-    - `sload_int ofs 16 extra 20`
-  - that is the inherited numeric-for index/current-value `SLOAD`, not a
-    `TGETS` guard
+- helper-backed truth-pack failure:
+  [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/raw/jit-on.stderr.log)
+  - `number_helper_loop/hot: expected 1323881804, got 34304`
+
+The failure shape is now pinned:
+
+- first long hot run is correct
+- the second long hot run in the same process is wrong
+- the break appears only at larger second-run sizes
+  - still correct through smaller reruns
+  - fails from roughly `n=40000` onward
+- direct second-run counter check:
+  - `TRACE_START 3`
+  - `TRACE_STOP 2`
+  - `TRACE_ABORT 1`
+  - `TEXIT_COUNT 2`
+
+And the moved live seam is no longer the inherited `SLOAD` typecheck itself.
+On the bad warm-built rerun:
+
+- `TRACE 1` is still the main loop
+- `TRACE 2 (1/0)` is the warm-built overflow side loop
+- `TRACE 3` is the later fallback/interpreter path
+- the decisive shifted side-loop body is:
+  - `num CONV`
+  - `num MUL`
+  - `int TOBIT`
+  - `int ADD`
+
+So the corrected state is:
+
+- the inherited GC64 integer `SLOAD` mismatch was real
+- the signed-expected compare repair is directionally right
+- but it is not safe to promote because the real helper workload then falls
+  into a later warm-built overflow-side-loop continuation bug
+- this document therefore treats the signed-expected repair as a rejected
+  classifier, not an active default
+
+## Current Honest Target
+
+The next live seam is now the warmed overflow-side-loop continuation on the
+real helper path, not the original inherited integer `SLOAD` compare.
+
+The no-print-mid two-run dump closes the first ambiguity:
+
+- artifact:
+  [20260402-kdz-signedfix-two-run-noprint-mid](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-signedfix-two-run-noprint-mid/summary.md)
+- `WARM 132610`
+- `SECOND 25535`
+- exact trace chain:
+  - `TRACE 1`: main int loop
+  - `TRACE 2 (1/2)`: overflow side path, `stop -> 1`
+  - `TRACE 3 (1/0)`: warmed overflow loop
+  - `TRACE 4 (3/3)`: return-side continuation at `return bit.tobit(total)`,
+    `stop -> 1`
+  - `TRACE 5 (4/0)`: later stitch into `print`
+- exact narrowed return seam:
+  - `trace 4 exit 0`
+  - `guardmark=0xd`
+  - in `TRACE 4` IR that lines up with `curins 13`
+  - `0013 > p64 RETF ...`
+
+So the next exact family is narrower again:
+
+- second hot run only
+- overflow side-loop return-to-caller continuation
+- specifically the `RETF` / lower-frame return handoff after the warmed
+  `TRACE 3` loop
+- not the later print stitch
+
+That is the next exact family to map before any new code attempt.
 
 Reduced helper variants after the repair close the helper-specific split:
 

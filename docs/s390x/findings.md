@@ -12325,3 +12325,75 @@ Next hash target
       live current-value slot
     - the next honest target is the exact compiled typecheck/lowering on that
       lane
+
+- Timestamp: `2026-04-02 15:34:18 PDT`
+- Direct signed-expected GC64 `SLOAD` repair is rejected after the real helper
+  workload moves to a later warm-built overflow seam
+  - reduced `kdz` classifiers with the signed-expected repair:
+    - localized helper:
+      [20260402-kdz-dynamic-local-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-after-signed-expected-fix/summary.md)
+      - `RESULT 961100104`
+      - old inherited `SLOAD(op1=5)` seam is gone
+      - repeated seam moves to `trace 1 exit 3`
+    - reduced real helper workload:
+      [20260402-kdz-number-helper-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-after-signed-expected-fix/summary.md)
+      - `RESULT 961100104`
+      - reduced real-workload seam also moves off the old inherited `SLOAD`
+  - real helper truth-pack on clean `kdz` fails the first correctness gate:
+    - [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/raw/jit-on.stderr.log)
+    - `number_helper_loop/hot: expected 1323881804, got 34304`
+  - direct remote second-run characterization on `kdz`:
+    - first `run(64000)` is correct
+    - second `run(64000)` is wrong
+    - second runs stay correct through smaller sizes and break only at larger
+      reruns (around `n=40000` and above)
+    - direct second-run counter check:
+      - `TRACE_START 3`
+      - `TRACE_STOP 2`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 2`
+  - `-jv` two-run proof closes the moved seam:
+    - `TRACE 1`: main loop
+    - `TRACE 2 (1/0)`: warm-built overflow side loop
+    - `TRACE 3`: later fallback/interpreter path
+    - shifted side-loop body:
+      - `num CONV`
+      - `num MUL`
+      - `int TOBIT`
+      - `int ADD`
+  - closure:
+    - the inherited GC64 integer `SLOAD` mismatch was real
+    - the signed-expected repair is a useful classifier
+    - it is not safe to promote
+    - the next live seam is the warmed overflow-side-loop continuation on the
+      real helper workload, not the old inherited `SLOAD` compare
+
+- Timestamp: `2026-04-02 15:43:56 PDT`
+- No-print-mid two-run dump pins the post-repair seam as a return-side
+  continuation, not a print stitch
+  - artifact:
+    [20260402-kdz-signedfix-two-run-noprint-mid](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-signedfix-two-run-noprint-mid/summary.md)
+  - probe shape:
+    - warm `run(64000)`
+    - then `run(40000)`
+    - print only after both runs
+  - result:
+    - `WARM 132610`
+    - `SECOND 25535`
+  - exact trace chain from the reduced `-jdump=is` capture:
+    - `TRACE 1`: main int loop
+    - `TRACE 2 (1/2)`: overflow side path, `stop -> 1`
+    - `TRACE 3 (1/0)`: warmed overflow loop
+    - `TRACE 4 (3/3)`: return-side continuation at line `8`,
+      `return bit.tobit(total)`, `stop -> 1`
+    - `TRACE 5 (4/0)`: later stitch into `print`
+  - exact narrowed return seam:
+    - `trace 4 exit 0`
+    - `guardmark=0xd`
+    - in `TRACE 4` IR that is `curins 13`
+    - `0013 > p64 RETF ...`
+  - closure:
+    - the bad second-run result is already present before the print path
+    - the next live seam is the helper lower-frame return (`RETF`)
+      continuation after the warmed overflow loop
+    - not the later print stitch

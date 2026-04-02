@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 15:03:17 PDT
+Last updated: 2026-04-02 15:43:56 PDT
 
 ## Latest Matrix
 
@@ -2275,61 +2275,84 @@ So the next seam is no longer “can recorder constantize numeric-for header
 constants?” It is the inherited GC64 integer `SLOAD` replay/typecheck family
 on valid restored carried state exposed after that constantization.
 
-## GC64 Repair Promotion
+## GC64 Repair Rejection
 
-The direct inherited-int replay repair is now the active GC64 default pair on
-s390x:
+The direct inherited-int replay/typecheck mismatch was real, but the first
+exact repair is rejected and is not in branch source.
 
-- signed/arithmetic GC64 integer `SLOAD` extraction defaults on with opt-out
-  `LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD=1`
-- matching `JFORI` interpreter handoff defaults on with opt-out
-  `LUAJIT_S390X_DISABLE_JFORI_INTERP_HANDOFF=1`
-- old opt-in envs remain valid aliases
+What was tested:
 
-Reduced host checks for the direct target:
+- signed/arithmetic GC64 integer `SLOAD` extraction with the corrected signed
+  expected constant
+- matching `JFORI` interpreter handoff
 
-- `kdz` literal-stop reducer:
-  [20260402-kdz-literal-stop-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-literal-stop-paired-default-check/summary.md)
-  - `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 399`
-  - old carried-`total` exact inherited-int `SLOAD` seam no longer repeats
-  - repeated exits advance into a later `BC_TGETS` family
-- `kdz` real helper workload:
-  [20260402-kdz-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-paired-default-check/summary.md)
-  - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
-  - correctness-stable under the envless pair
-- `zkd0` real helper workload:
-  [20260402-zkd0-number-helper-paired-default-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-number-helper-paired-default-check/summary.md)
-  - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
-  - no z14 correctness regression on the reduced real-workload screen
+What carried:
 
-Helper-backed `kdz` family restamp after the promotion:
+- reduced `kdz` localized helper probe:
+  [20260402-kdz-dynamic-local-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-after-signed-expected-fix/summary.md)
+  - correctness restored
+  - old inherited `SLOAD(op1=5)` seam cleared
+- reduced `kdz` real helper probe:
+  [20260402-kdz-number-helper-after-signed-expected-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-after-signed-expected-fix/summary.md)
+  - reduced correctness restored
+  - live seam moved forward
 
-- `be_helpers`:
-  [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
-  - `number_helper_loop/hot`: JIT-on `0.008089s`, `-joff` `0.002261s`
-  - `be_pack_loop/hot`: JIT-on `0.023811s`, `-joff` `0.018838s`
-  - both remain `exit-dominated`
+What failed:
 
-So this slice is now in the right state:
+- real helper truth-pack on `kdz`:
+  [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/raw/jit-on.stderr.log)
+  - `number_helper_loop/hot: expected 1323881804, got 34304`
 
-- direct inherited-int replay/typecheck failure is fixed
-- workload correctness is preserved on both hosts
-- but the throughput family is still slower than `-joff` because the repeated
-  flurry survives on a later `BC_TGETS` seam
+Failure shape:
 
-That first post-repair next-step read needed one correction. Exact-taken
-guardmark proof on the real helper workload shows the dominant steady seam is
-still an inherited numeric-for index/current-value `SLOAD`, not a `TGETS`
-guard:
+- first long hot run is correct
+- second long hot run in the same process is wrong
+- smaller second runs still pass; failure starts only at larger reruns
+- direct second-run counter check on `kdz`:
+  - `TRACE_START 3`
+  - `TRACE_STOP 2`
+  - `TRACE_ABORT 1`
+  - `TEXIT_COUNT 2`
 
-- [20260402-kdz-number-helper-postrepair-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-postrepair-guardmark/summary.md)
-  - `number_helper_loop`: `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
-  - dominant exact-taken guard:
-    - `curins 3`
-    - `IR SLOAD`
-    - `op1 4`
-    - `op2 36`
-    - `sload_int ofs 16 extra 20`
+The moved seam is now the warmed overflow side-loop continuation, not the
+original inherited `SLOAD` compare:
+
+- `TRACE 1`: main loop
+- `TRACE 2 (1/0)`: overflow side loop
+- `TRACE 3`: fallback/interpreter path
+- hot shifted body:
+  - `num CONV`
+  - `num MUL`
+  - `int TOBIT`
+  - `int ADD`
+
+So the current branch state is:
+
+- inherited GC64 integer `SLOAD` mismatch: understood
+- corrected signed compare: useful classifier, rejected as unsafe
+- next live seam: warm-built overflow side loop on the real helper workload
+
+The next reduced two-run dump removes one wrong continuation read:
+
+- [20260402-kdz-signedfix-two-run-noprint-mid](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-signedfix-two-run-noprint-mid/summary.md)
+  - `WARM 132610`
+  - `SECOND 25535`
+  - `TRACE 1`: main int loop
+  - `TRACE 2 (1/2)`: overflow side path, `stop -> 1`
+  - `TRACE 3 (1/0)`: warmed overflow loop
+  - `TRACE 4 (3/3)`: return-side continuation at line `8`,
+    `return bit.tobit(total)`, `stop -> 1`
+  - `TRACE 5 (4/0)`: later stitch into `print`
+  - exact narrowed return seam:
+    - `trace 4 exit 0`
+    - `guardmark=0xd`
+    - `TRACE 4` `curins 13`
+    - `0013 > p64 RETF ...`
+
+So the post-repair seam is no longer best described as generic overflow-loop
+replay. The next honest target is the helper return-to-caller continuation
+after that warmed overflow loop, specifically the `RETF` / lower-frame return
+handoff, not the later print stitch.
 
 Reduced helper variants after the repair show the seam is helper-form
 specific:
