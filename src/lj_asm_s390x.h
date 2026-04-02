@@ -100,6 +100,14 @@ static int asm_s390x_guardmark_taken_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_gc64_signed_int_sload_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_GC64_SIGNED_INT_SLOAD") != NULL);
+  return enabled;
+}
+
 static int asm_s390x_call_log_enabled(void)
 {
   static int enabled = -1;
@@ -3073,8 +3081,14 @@ dotypecheck:
       asm_s390x_guard_log(as, "sload_int", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
-      emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM >> 15));
-      emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
+      if (LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()) {
+	emit_loadu64(as, expected,
+		     (uint64_t)(((int64_t)(int32_t)LJ_TISNUM) >> 15));
+	emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
+      } else {
+	emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM >> 15));
+	emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
+      }
     } else if (irt_isnum(t)) {
       Reg limit = ra_scratch(as, rset_exclude(tallow, tmp));
       if (asm_s390x_sloadmap_log_enabled()) {

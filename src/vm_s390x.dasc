@@ -2432,6 +2432,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  xgr TMPR0, TMPR0
   |  sty TMPR0, DISPATCH_GL(vmstate)(DISPATCH)
   |  lgr CARG1, RD
+  |  lgr CARG2, BASE
   |  brasl r14, extern lj_trace_s390x_vm_child_entry_log
   |  lgr CARG1, RD
   |  brasl r14, extern lj_trace_s390x_vm_child_skip_mcloop
