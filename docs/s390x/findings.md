@@ -11804,3 +11804,37 @@ Next hash target
       helper workload
     - the next honest target is the downstream state transition that goes bad
       once the hidden-`STEP` typecheck starts passing
+
+- Timestamp: `2026-04-02 11:41:10 PDT`
+- The later reduced `BC_ISF` crash path under the rejected signed-extraction
+  prototype is probe-hook noise, not the next workload seam
+  - bytecode proof:
+    - reduced helper loop itself has no `BC_ISF` in its body:
+      [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+    - the repeated reduced crash site was:
+      - `trace 6 exit 0`
+      - `op 15`
+      - `snapop 15`
+      - `snapnent 0`
+    - `op 15` is `BC_ISF`
+    - the surrounding restored sequence in the raw stderr log is:
+      - `#0:15`
+      - `#1:75`
+      - `#2:57`
+      - which is `ISF -> RET0 -> TGETS`
+    - that shape matches the Lua callback/header pattern used by the probe-side
+      `jit.attach()` capture helpers, not the workload loop body
+  - tooling correction:
+    - [build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
+      now supports `--no-counters`
+    - the no-counter reduced smoke proves the helper can emit raw
+      `S390X_EXIT` / `TRACEIR` artifacts without installing the Lua
+      trace/texit counter callbacks:
+      [20260402-kdz-core-exit-no-counters-smoke](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-core-exit-no-counters-smoke/summary.md)
+  - queue correction:
+    - do not treat the reduced `BC_ISF` path as the next promoted-slice
+      workload seam
+    - use the no-counter path for any future rerun of the rejected
+      signed-extraction idea
+    - the real remaining question stays on the helper-backed wrong-result path,
+      not the probe callback path

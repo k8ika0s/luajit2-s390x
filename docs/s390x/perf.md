@@ -2097,6 +2097,17 @@ Unacceptable future target shapes:
 - anything whose main claim is “fewer backend instructions”
 - anything whose proof is only “the IR looks cleaner”
 - anything that depends on bridge or continuation policy
+- anything that treats the reduced `BC_ISF` path from the rejected
+  signed-extraction prototype as the next workload seam
+
+Current queue correction:
+
+- the reduced `BC_ISF` path is probe-hook Lua from the trace/texit counter
+  callbacks, not the promoted-slice workload body
+- future reruns of any header-repair idea should use the no-counter reduced
+  mechanism probe path first
+- the real remaining question is still the helper-backed wrong-result path once
+  the hidden-`STEP` typecheck starts passing
 
 ## Promotable Patch Gate
 

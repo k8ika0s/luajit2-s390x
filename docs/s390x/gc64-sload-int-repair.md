@@ -77,12 +77,27 @@ Candidate shape:
 - validate first on:
   - pure-add reducer
   - `number_helper_loop`
+- use the reduced no-counter probe path first, so later Lua callback churn does
+  not masquerade as the next workload seam
 
 Accept only if all three hold:
 
 1. reduced probes stay finite
 2. real helper workload stays correct
 3. same-host pinned medians improve on `kdz`, then survive `zkd0`
+
+## Closed Misread
+
+The later reduced `BC_ISF` crash surface from the rejected arithmetic-shift
+prototype is not the next workload seam.
+
+- the reduced helper loop body itself has no `BC_ISF`
+- the repeated restored sequence around that crash is `ISF -> RET0 -> TGETS`
+- that matches the Lua callback/header shape used by the probe-side
+  `jit.attach()` counter hooks
+
+So the next real question remains the helper-backed wrong-result path on the
+workload itself, not the callback path inside the reduced validator.
 
 ## Hard Boundaries
 

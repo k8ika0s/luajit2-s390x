@@ -2486,9 +2486,15 @@ Current owner map contract:
 - preserve the clean `kdz` and `zkd0` validation surfaces
 - treat the current Lane A plus Lane B freeze point as the shipping iterator
   position
-- define whether `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` has a real
-  selective promotion scope that excludes frozen iterator behavior
-- avoid reopening any family already closed by the reject pile
+- keep the envless filtered hotside path as the shipping throughput default for
+  the scoped positive slice only
+- do not reopen the reduced `BC_ISF` callback path from the rejected
+  signed-extraction prototype; that is probe-hook noise, not the next workload
+  seam
+- use the new no-counter reduced probe path to separate future header-repair
+  reruns from Lua callback self-interference
+- keep the next live question on the real helper-backed wrong-result path after
+  the hidden-`STEP` typecheck starts passing
 
 ### After that
 
