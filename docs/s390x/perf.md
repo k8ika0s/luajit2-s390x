@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 16:39:41 PDT
+Last updated: 2026-04-01 17:17:01 PDT
 
 ## Latest Matrix
 
@@ -13,11 +13,11 @@ matrix until they are backfilled.
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |
 | --- | --- | --- | ---: | ---: | ---: |
-| 2026-04-01 14:30:28 PDT | `add_phi_only/hot` | `hotside_canon_share` | `0.000350` | `0.000032` | `10.94x` |
+| 2026-04-01 17:07:40 PDT | `add_phi_only/hot` | `hotside_canon_share_uget_looproot` | `0.000664` | `0.000020` | `33.20x` |
 | 2026-04-01 14:32:40 PDT | `logic_add_phi_noboundary/hot` | `hotside_canon_share` | `0.002619` | `0.002159` | `1.21x` |
-| 2026-04-01 14:24:29 PDT | `chain_tail_add/hot` | `hotside_canon_share` | `0.003052` | `0.002541` | `1.20x` |
-| 2026-04-01 15:02:12 PDT | `chain_tail_store/hot` | `hotside_canon_share` | `0.002800` | `0.002016` | `1.39x` |
-| 2026-04-01 14:26:05 PDT | `mix_bits/hot` | `hotside_canon_share` | `0.003084` | `0.002168` | `1.42x` |
+| 2026-04-01 17:09:28 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot` | `0.003169` | `0.002131` | `1.49x` |
+| 2026-04-01 17:13:07 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot` | `0.002914` | `0.002009` | `1.45x` |
+| 2026-04-01 17:11:14 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot` | `0.003249` | `0.001984` | `1.64x` |
 | 2026-04-01 16:25:27 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.340611` | `0.002162` | `157.54x` |
 | 2026-04-01 16:25:27 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.531437` | `0.004577` | `116.11x` |
 | 2026-04-01 16:25:27 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.612595` | `0.005580` | `109.78x` |
@@ -39,9 +39,9 @@ matrix until they are backfilled.
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |
 | --- | --- | --- | ---: | ---: | ---: |
-| 2026-04-01 15:10:05 PDT | `chain_tail_add/hot` | `hotside_canon_share` | `0.004495` | `0.002299` | `1.96x` |
-| 2026-04-01 15:03:55 PDT | `chain_tail_store/hot` | `hotside_canon_share` | `0.003920` | `0.002555` | `1.53x` |
-| 2026-04-01 14:28:37 PDT | `mix_bits/hot` | `hotside_canon_share` | `0.004083` | `0.003036` | `1.34x` |
+| 2026-04-01 17:15:08 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot` | `0.004309` | `0.003430` | `1.26x` |
+| 2026-04-01 17:17:01 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot` | `0.004228` | `0.002480` | `1.70x` |
+| 2026-04-01 17:15:03 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot` | `0.004763` | `0.002491` | `1.91x` |
 | 2026-04-01 16:39:41 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.681747` | `0.002604` | `261.81x` |
 | 2026-04-01 16:39:41 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.097901` | `0.005207` | `210.85x` |
 | 2026-04-01 16:39:41 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.352638` | `0.007836` | `172.62x` |
@@ -79,6 +79,7 @@ That gate is now clearly narrower than the old global
 `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` surface:
 
 - it still wins on the reduced `UGET`/looproot throughput family
+- it is effectively inert on the plain `int_add_phi_only` control reproducer
 - it no longer carries as a broader-suite promotion candidate on `kdz`
 - it does not carry as a broader-suite promotion candidate on either host
 - `zkd0` completes the same narrower read:
@@ -90,9 +91,10 @@ That gate is now clearly narrower than the old global
 
 So the active queue is no longer “broader gate promotion”. It is:
 
-1. helper-backed restamp and promotion-boundary work for the reduced
-   `UGET`/looproot family
-2. exact scope criteria for where the filtered hotside gate is promotable
+1. exact promotion criteria for the reduced `UGET`/looproot family now that
+   the host-pair helper restamp is complete
+2. selective activation / promotion scope for
+   `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
 3. only after that, any new broader throughput seam outside the filtered
    `UGET`/looproot mechanism
 
