@@ -10716,3 +10716,30 @@ Next hash target
       `UGET`/looproot candidate only
     - the next honest target stays helper-backed reduced-family restamp and
       exact promotion-boundary work for that seam
+
+- Timestamp: `2026-04-01 17:17:01 PDT`
+- The reduced `UGET`/looproot host-pair restamp is now complete on the helper
+  path
+  - `kdz` helper-backed reduced artifacts:
+    - [20260401-kdz-int_add_phi_only-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-int_add_phi_only-hotside_canon_share_uget_looproot-truth-pack)
+      - `add_phi_only/hot`: `0.000664`, `TRACE_START 20`, `TEXIT_COUNT 4001`
+      - read: effectively inert on the plain `ADD`/`PHI` control reproducer
+    - [20260401-kdz-logical_chain_tail_add-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_add-hotside_canon_share_uget_looproot-truth-pack)
+      - `chain_tail_add/hot`: `0.003169`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - [20260401-kdz-logical_chain_tail_store-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-logical_chain_tail_store-hotside_canon_share_uget_looproot-truth-pack)
+      - `chain_tail_store/hot`: `0.002914`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - [20260401-kdz-bitops_mix-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-bitops_mix-hotside_canon_share_uget_looproot-truth-pack)
+      - `mix_bits/hot`: `0.003249`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - `zkd0` helper-backed reduced artifacts:
+    - [20260401-zkd0-logical_chain_tail_add-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_add-hotside_canon_share_uget_looproot-truth-pack)
+      - `chain_tail_add/hot`: `0.004309`, focused ratio `0.94x`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - [20260401-zkd0-logical_chain_tail_store-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-logical_chain_tail_store-hotside_canon_share_uget_looproot-truth-pack)
+      - `chain_tail_store/hot`: `0.004228`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+    - [20260401-zkd0-bitops_mix-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-bitops_mix-hotside_canon_share_uget_looproot-truth-pack)
+      - `mix_bits/hot`: `0.004763`, `TRACE_START 2`, `TEXIT_COUNT 8000`
+  - queue correction:
+    - the filtered gate’s honest promotion boundary is now the reduced
+      `UGET`/looproot siblings
+    - plain `ADD`/`PHI` control is outside that boundary
+    - the next honest target is promotion scope from that pinned reduced seam,
+      not another reduced-family restamp

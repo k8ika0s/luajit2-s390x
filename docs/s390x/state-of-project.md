@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 16:39:41 PDT
+Last updated: 2026-04-01 17:17:01 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -383,13 +383,21 @@ non-causal probe effects. The current state is cleaner:
                 - frozen iterator still regresses:
                   - `pairs_sum/hot`: `0.068483 -> 0.076181`
                   - `pairs_array_sum/hot`: `0.066698 -> 0.084550`
-              - early `zkd0` broader rows do not contradict that narrower read:
-                - `dispatch_trace/numeric_loop`: `0.646129 -> 0.681747`
-                - `be_helpers/number_helper_loop`: `1.029361 -> 0.009826`
-              - so the next honest target is no longer broader promotion for
-                this filtered gate
-              - it is helper-backed reduced-family restamp and an explicit
-                promotion boundary for the `UGET`/looproot seam only
+              - the reduced-family host pair is now helper-backed too:
+                - `kdz`
+                  - `int_add_phi_only`: `0.000664`, effectively inert
+                  - `logical_chain_tail_add`: `0.003169`
+                  - `logical_chain_tail_store`: `0.002914`
+                  - `bitops_mix`: `0.003249`
+                - `zkd0`
+                  - `logical_chain_tail_add`: `0.004309`
+                  - `logical_chain_tail_store`: `0.004228`
+                  - `bitops_mix`: `0.004763`
+              - so the next honest target is no longer helper-backed restamp
+                for this filtered gate
+              - it is the exact promotion scope for the reduced
+                `UGET`/looproot seam, with plain `ADD`/`PHI` control now
+                explicitly outside that boundary
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:
