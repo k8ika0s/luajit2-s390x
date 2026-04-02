@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 17:41:37 PDT
+Last updated: 2026-04-01 18:00:01 PDT
 
 ## Latest Matrix
 
@@ -27,11 +27,11 @@ matrix until they are backfilled.
 | 2026-04-01 16:25:27 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.012540` | `0.007001` | `1.79x` |
 | 2026-04-01 16:25:27 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.027964` | `0.027969` | `1.00x` |
 | 2026-04-01 16:25:27 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.137179` | `0.017319` | `7.92x` |
-| 2026-04-01 16:25:27 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.001694` | `0.000575` | `2.95x` |
-| 2026-04-01 16:25:27 PDT | `retlast_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003123` | `0.002194` | `1.42x` |
+| 2026-04-01 17:53:04 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.001660` | `0.000591` | `2.81x` |
+| 2026-04-01 17:53:04 PDT | `retlast_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003093` | `0.002025` | `1.53x` |
 | 2026-04-01 16:25:27 PDT | `sum_loop/hot` | `hotside_canon_share_uget_looproot` | `0.675950` | `0.005150` | `131.25x` |
 | 2026-04-01 16:25:27 PDT | `mixed_ffi_loop/hot` | `hotside_canon_share_uget_looproot` | `0.059215` | `0.012404` | `4.77x` |
-| 2026-04-01 16:25:27 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.036721` | `0.003776` | `9.72x` |
+| 2026-04-01 17:55:23 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.036412` | `0.003764` | `9.67x` |
 | 2026-04-01 16:25:27 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot` | `0.076181` | `0.005021` | `15.17x` |
 | 2026-04-01 16:25:27 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot` | `0.084550` | `0.003708` | `22.80x` |
 
@@ -51,11 +51,11 @@ matrix until they are backfilled.
 | 2026-04-01 16:39:41 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot` | `0.018633` | `0.012526` | `1.49x` |
 | 2026-04-01 16:39:41 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.045325` | `0.045030` | `1.01x` |
 | 2026-04-01 16:39:41 PDT | `pair_loop/hot` | `hotside_canon_share_uget_looproot` | `0.366784` | `0.024836` | `14.77x` |
-| 2026-04-01 16:39:41 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.002048` | `0.000663` | `3.09x` |
-| 2026-04-01 16:39:41 PDT | `retlast_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003591` | `0.002389` | `1.50x` |
+| 2026-04-01 17:55:45 PDT | `retconst_loop/hot` | `hotside_canon_share_uget_looproot` | `0.003574` | `0.000849` | `4.21x` |
+| 2026-04-01 17:55:45 PDT | `retlast_loop/hot` | `hotside_canon_share_uget_looproot` | `0.012619` | `0.003196` | `3.95x` |
 | 2026-04-01 16:39:41 PDT | `sum_loop/hot` | `hotside_canon_share_uget_looproot` | `1.499405` | `0.005568` | `269.29x` |
 | 2026-04-01 16:39:41 PDT | `mixed_ffi_loop/hot` | `hotside_canon_share_uget_looproot` | `0.081518` | `0.015637` | `5.21x` |
-| 2026-04-01 16:39:41 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.043420` | `0.004553` | `9.54x` |
+| 2026-04-01 17:59:38 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.079668` | `0.006760` | `11.79x` |
 | 2026-04-01 16:39:41 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot` | `0.083802` | `0.005672` | `14.78x` |
 | 2026-04-01 16:39:41 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot` | `0.087370` | `0.004307` | `20.29x` |
 
@@ -414,10 +414,43 @@ Current clean-`kdz` broader-throughput frontier:
         - `promotion_evidence`
         - `same_seam_but_dominated`
         - `out_of_scope`
-      - so the next honest target is no longer broader-suite promotion for
-        `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
-      - it is using that scoped helper surface for any promotion decision or
-        additional host screens
+      - helper-backed in-scope truth packs now close the promotion call for
+        the non-dominated slice:
+        - `kdz`
+          - [20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `retlast_loop/hot`: `0.003093` vs `-joff 0.002025`, `TRACE_START 5`
+            - `retconst_loop/hot`: `0.001660` vs `-joff 0.000591`, `TRACE_START 5`
+            - `sum_loop/hot`: `0.675104` vs `-joff 0.004523`, still
+              `same_seam_but_dominated`
+          - [20260401-kdz-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `mixed_loop/hot`: `0.036412` vs `-joff 0.003764`,
+              `TRACE_START 102`, `TEXIT_COUNT 195722`
+        - `zkd0`
+          - [20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `retlast_loop/hot`: `0.012619` vs `-joff 0.003196`, `TRACE_START 5`
+            - `retconst_loop/hot`: `0.003574` vs `-joff 0.000849`, `TRACE_START 5`
+            - `sum_loop/hot`: `2.985526` vs `-joff 0.007298`, still
+              `same_seam_but_dominated`
+          - [20260401-zkd0-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+            - `mixed_loop/hot`: `0.079668` vs `-joff 0.006760`,
+              `TRACE_START 102`, `TEXIT_COUNT 195722`
+      - promotion decision:
+        - treat `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as the
+          active scoped throughput candidate for:
+          - reduced `UGET`/looproot siblings
+          - `be_helpers`
+          - `ffi_calls`
+          - `retconst_loop`
+          - `retlast_loop`
+          - `mixed_loop`
+        - keep `sum_loop` out of promotion evidence
+        - keep `dispatch_trace`, `iterator_table`, `mixed_ffi`, `ffi_cdata`,
+          `int_add_phi_only`, and `logic_add_phi_noboundary` out of this
+          candidate surface
+      - the next honest target is no longer deciding whether this filtered
+        gate has a promotable slice
+      - it is additional suite coverage for that already-scoped slice,
+        not host-pair completion inside the current in-scope families
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)

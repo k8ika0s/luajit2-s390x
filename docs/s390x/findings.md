@@ -10842,5 +10842,48 @@ Next hash target
       - `promotion_evidence`
       - `same_seam_but_dominated`
       - `out_of_scope`
-    - the next honest target is to use that scoped helper surface for any
-      promotion decision or additional host screens
+    - the next honest target is to use that scoped helper surface for a real
+      promotion decision on the non-dominated slice
+
+- Timestamp: `2026-04-01 17:56:05 PDT`
+- Helper-backed in-scope truth packs now close the promotion call for the
+  filtered `UGET`/looproot candidate
+  - `kdz` helper-backed vararg slice:
+    [20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+    - `retlast_loop/hot`: `0.003093` vs `-joff 0.002025`, `TRACE_START 5`
+    - `retconst_loop/hot`: `0.001660` vs `-joff 0.000591`, `TRACE_START 5`
+    - `sum_loop/hot`: `0.675104` vs `-joff 0.004523`, still
+      `same_seam_but_dominated`
+  - `zkd0` helper-backed vararg slice:
+    [20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+    - `retlast_loop/hot`: `0.012619` vs `-joff 0.003196`, `TRACE_START 5`
+    - `retconst_loop/hot`: `0.003574` vs `-joff 0.000849`, `TRACE_START 5`
+    - `sum_loop/hot`: `2.985526` vs `-joff 0.007298`, still
+      `same_seam_but_dominated`
+  - `kdz` helper-backed mixed non-ffi slice:
+    [20260401-kdz-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+    - `mixed_loop/hot`: `0.036412` vs `-joff 0.003764`, `TRACE_START 102`,
+      `TEXIT_COUNT 195722`
+  - `zkd0` helper-backed mixed non-ffi slice:
+    [20260401-zkd0-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+    - `mixed_loop/hot`: `0.079668` vs `-joff 0.006760`, `TRACE_START 102`,
+      `TEXIT_COUNT 195722`
+  - helper gap closed:
+    - [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+      now covers `mixed_noffi`
+  - promotion decision:
+    - keep `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as the active
+      scoped throughput candidate for:
+      - reduced `UGET`/looproot siblings
+      - `be_helpers`
+      - `ffi_calls`
+      - `retconst_loop`
+      - `retlast_loop`
+      - `mixed_loop`
+    - keep `sum_loop` out of promotion evidence
+    - keep `dispatch_trace`, `iterator_table`, `mixed_ffi`, `ffi_cdata`,
+      `int_add_phi_only`, and `logic_add_phi_noboundary` out of this
+      candidate surface
+  - next target:
+    - additional suite coverage for that already-scoped candidate slice, not
+      another promotion-boundary rediscovery pass

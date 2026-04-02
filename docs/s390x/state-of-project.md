@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 17:41:37 PDT
+Last updated: 2026-04-01 18:00:01 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -472,10 +472,41 @@ non-causal probe effects. The current state is cleaner:
                 - `promotion_evidence`
                 - `same_seam_but_dominated`
                 - `out_of_scope`
-              - so the next honest target is no longer scope discovery or
-                helper codification
-              - it is using that scoped helper surface for any promotion
-                decision or additional host screens
+              - helper-backed in-scope truth packs now close the promotion
+                call for the non-dominated slice:
+                - `kdz`
+                  - [20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+                    - `retlast_loop/hot`: `0.003093` vs `-joff 0.002025`
+                    - `retconst_loop/hot`: `0.001660` vs `-joff 0.000591`
+                    - `sum_loop/hot`: `0.675104` vs `-joff 0.004523`,
+                      still dominated
+                  - [20260401-kdz-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+                    - `mixed_loop/hot`: `0.036412` vs `-joff 0.003764`
+                - `zkd0`
+                  - [20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+                    - `retlast_loop/hot`: `0.012619` vs `-joff 0.003196`
+                    - `retconst_loop/hot`: `0.003574` vs `-joff 0.000849`
+                    - `sum_loop/hot`: `2.985526` vs `-joff 0.007298`,
+                      still dominated
+                  - [20260401-zkd0-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-mixed_noffi-hotside_canon_share_uget_looproot-truth-pack/summary.md)
+                    - `mixed_loop/hot`: `0.079668` vs `-joff 0.006760`
+              - promotion decision:
+                - keep `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as
+                  the active scoped throughput candidate for:
+                  - reduced `UGET`/looproot siblings
+                  - `be_helpers`
+                  - `ffi_calls`
+                  - `vararg_paths/retconst_loop`
+                  - `vararg_paths/retlast_loop`
+                  - `mixed_noffi/mixed_loop`
+                - keep `vararg_paths/sum_loop` out of promotion evidence
+                - keep `dispatch_trace`, `iterator_table`, `mixed_ffi`,
+                  `ffi_cdata`, plain `int_add_phi_only`, and
+                  `logic_add_phi_noboundary` out of this candidate surface
+              - so the next honest target is no longer scope discovery,
+                helper codification, or the promotion call itself
+              - it is additional suite coverage for that already-scoped
+                candidate slice
                 of mixed-family heuristics
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:

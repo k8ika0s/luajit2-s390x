@@ -953,6 +953,92 @@ print("TRACE_ABORT", trace_cap.abort)
 print("TEXIT_COUNT", texit_cap.total)
 """
 
+MIXED_NOFFI_FOCUSED_BENCH = """\
+local bit = require("bit")
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local numbers = { 1, 2, 3, 4, 5, 6, 7, 8 }
+
+local function mixed_loop(n)
+  local total = 0
+  local map = { a = 1, b = 2, c = 3, d = 4 }
+  for i = 1, n do
+    total = total + bit.band(i * 17, 0x3ff)
+    total = total + select(((i - 1) % 4) + 1, 1, 2, 3, 4)
+    for _, value in ipairs(numbers) do
+      total = total + value
+    end
+    for _, value in pairs(map) do
+      total = total + value
+    end
+  end
+  return total
+end
+
+bench.run_suite({
+  family = "mixed_noffi_truth_pack",
+  cases = {
+    {
+      workload = "mixed_loop",
+      scale = "hot",
+      iterations = 16000,
+      warmup_runs = 2,
+      run = mixed_loop,
+      validate = function(result)
+        bench.eq(result, mixed_loop(16000), "mixed_loop/hot")
+      end,
+    },
+  },
+})
+"""
+
+MIXED_NOFFI_CHECK_SCRIPT = """\
+local bit = require("bit")
+local numbers = { 1, 2, 3, 4, 5, 6, 7, 8 }
+local function run(n)
+  local total = 0
+  local map = { a = 1, b = 2, c = 3, d = 4 }
+  for i = 1, n do
+    total = total + bit.band(i * 17, 0x3ff)
+    total = total + select(((i - 1) % 4) + 1, 1, 2, 3, 4)
+    for _, value in ipairs(numbers) do total = total + value end
+    for _, value in pairs(map) do total = total + value end
+  end
+  return total
+end
+print("MIXED_LOOP", run(20))
+"""
+
+MIXED_NOFFI_TRACE_SCRIPT = """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local numbers = { 1, 2, 3, 4, 5, 6, 7, 8 }
+local function run(n)
+  local total = 0
+  local map = { a = 1, b = 2, c = 3, d = 4 }
+  for i = 1, n do
+    total = total + bit.band(i * 17, 0x3ff)
+    total = total + select(((i - 1) % 4) + 1, 1, 2, 3, 4)
+    for _, value in ipairs(numbers) do total = total + value end
+    for _, value in pairs(map) do total = total + value end
+  end
+  return total
+end
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run(16000))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+"""
+
 LOGIC_ADD_PHI_NOBOUNDARY_CHECK_SCRIPT = """\
 local bit = require("bit")
 local function chain(i)
@@ -1094,6 +1180,27 @@ FAMILY_CONFIGS = {
         "hot_cases": ("logic_add_phi_noboundary/hot",),
         "work_items": {
             "logic_add_phi_noboundary": 4000,
+        },
+    },
+    "mixed_noffi": {
+        "bench_file": "tests/s390x/perf/mixed_noffi.lua",
+        "focus_label": "mixed non-ffi throughput",
+        "selection_reason": (
+            "same-seam broader family with integer/vararg/ipairs/pairs mix; "
+            "use after the reduced UGET/looproot siblings to confirm whether "
+            "the filtered hotside candidate still holds on the larger mixed "
+            "non-ffi body"
+        ),
+        "focused_bench_script": MIXED_NOFFI_FOCUSED_BENCH,
+        "check_scripts": {
+            "mixed_loop": MIXED_NOFFI_CHECK_SCRIPT,
+        },
+        "trace_scripts": {
+            "mixed_loop": MIXED_NOFFI_TRACE_SCRIPT,
+        },
+        "hot_cases": ("mixed_loop/hot",),
+        "work_items": {
+            "mixed_loop": 16000,
         },
     },
 }
