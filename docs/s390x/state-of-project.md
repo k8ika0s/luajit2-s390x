@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 18:46:42 PDT
+Last updated: 2026-04-01 18:57:41 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -548,6 +548,12 @@ non-causal probe effects. The current state is cleaner:
                 - first promotion surface should be `promotion_core` only
                 - `promotion_secondary` remains evidence for the same mechanism,
                   but not the first default/enable set
+              - promotion note:
+                - [hotside-uget-looproot-promotion.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/hotside-uget-looproot-promotion.md)
+                  is now the checked-in first-enable boundary for this gate
+              - next honest target from this queue:
+                - promotion-core-only validation and rollout criteria from that
+                  checked-in boundary, not more slice discovery
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

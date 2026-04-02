@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 18:46:42 PDT
+Last updated: 2026-04-01 18:57:41 PDT
 
 ## Latest Matrix
 
@@ -498,6 +498,12 @@ Current clean-`kdz` broader-throughput frontier:
         - promote only `promotion_core` on the first surface
         - keep `promotion_secondary` as documented same-seam carry-forward
           evidence, not the first enable set
+      - checked-in boundary:
+        - [hotside-uget-looproot-promotion.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/hotside-uget-looproot-promotion.md)
+          now pins the first enable set and deferred slices explicitly
+      - next honest target:
+        - promotion-core-only validation and rollout criteria from that note,
+          not more family coverage inside the same seam
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
