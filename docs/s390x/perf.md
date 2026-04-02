@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 15:43:56 PDT
+Last updated: 2026-04-02 16:23:53 PDT
 
 ## Latest Matrix
 
@@ -38,8 +38,8 @@ Pinned host-pair summary:
 | 2026-04-01 20:20:45 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.342594` | `0.002173` | `157.66x` |
 | 2026-04-01 20:20:45 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.526504` | `0.004692` | `112.21x` |
 | 2026-04-01 20:20:45 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.611632` | `0.005619` | `108.85x` |
-| 2026-04-01 19:56:12 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.023744` | `0.018831` | `1.26x` |
-| 2026-04-01 19:56:12 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.008341` | `0.002267` | `3.68x` |
+| 2026-04-02 16:23:53 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.023373` | `0.018732` | `1.25x` |
+| 2026-04-02 16:23:53 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.008248` | `0.002282` | `3.61x` |
 | 2026-04-01 19:56:12 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.017982` | `0.010090` | `1.78x` |
 | 2026-04-01 19:56:12 PDT | `stored_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.013056` | `0.006895` | `1.89x` |
 | 2026-04-01 16:25:27 PDT | `mixed_width_loop/hot` | `hotside_canon_share_uget_looproot` | `0.027964` | `0.027969` | `1.00x` |
@@ -2514,6 +2514,48 @@ Current-`HEAD` slot logging now makes that stronger:
 
 So this is no longer a stale-slot theory. The inherited integer `SLOAD`
 typecheck is firing on the correct live current-value slot.
+
+## Current GC64 Pair Read
+
+The current opt-in GC64 repair pair is now closed as a correctness-positive but
+perf-inert branch on the active helper slice:
+
+- opt-in pair:
+  - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+  - `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+- cross-host correctness checks:
+  - [20260402-kdz-number-helper-optinpair-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-optinpair-check/raw/stdout.log)
+  - [20260402-zkd0-number-helper-optinpair-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-number-helper-optinpair-check/raw/stdout.log)
+  - both return the expected:
+    - `WARM -149783296`
+    - `SECOND -149783296`
+- stable-callsite control on `kdz` is also correct under the same pair:
+  - [20260402-kdz-recret-slotlog-signedfix-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-recret-slotlog-signedfix-v1/raw/stdout.log)
+  - `RESULT -2050009568`
+  - no `lua_lower_frame_retf`; only ordinary `lua_intrace_return`
+
+Authoritative helper-backed restamp on `kdz`:
+
+- [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+- `number_helper_loop/hot`: `0.008248` vs `-joff 0.002282`
+- `be_pack_loop/hot`: `0.023373` vs `-joff 0.018732`
+- focused read stays `exit-dominated`:
+  - `TRACE_START 6`
+  - `TRACE_STOP 5`
+  - `TRACE_ABORT 1`
+  - `TEXIT_COUNT 64001`
+
+Focused mechanism read under the pair:
+
+- [20260402-kdz-number-helper-optinpair-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-optinpair-mechanism/summary.md)
+- dominant seam is still:
+  - `trace 7 exit 0`
+  - restored `BC_UGET`
+  - first `sload_int`: `curins 15`, `IR=SLOAD`, `op1=3`, `ofs=8`, `extra=12`
+
+So the current pair no longer supports the old lower-frame return-value failure
+story. It is correct on both hosts, but on the active helper slice it does not
+materially change the steady perf seam or the hot medians.
 
 ## Relationship To Other Docs
 

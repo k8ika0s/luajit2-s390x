@@ -12466,3 +12466,43 @@ Next hash target
       loop exit happens
     - the next honest target is return-value handoff from the warmed overflow
       path into the lower frame, not generic caller-loop replay
+
+- Timestamp: `2026-04-02 16:26:11 PDT`
+- Current opt-in GC64 replay pair closes the stale lower-frame return bug story
+  on the real helper path
+  - active opt-ins:
+    - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+    - `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+  - `kdz` stable-callsite control under the pair:
+    - [20260402-kdz-recret-slotlog-signedfix-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-recret-slotlog-signedfix-v1/raw/stdout.log)
+    - `RESULT -2050009568`
+    - recorder logs show no `lua_lower_frame_retf`; only `lua_intrace_return`
+  - real helper workload under the pair:
+    - [20260402-kdz-number-helper-optinpair-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-optinpair-check/raw/stdout.log)
+    - [20260402-zkd0-number-helper-optinpair-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-number-helper-optinpair-check/raw/stdout.log)
+    - both hosts return the expected:
+      - `WARM -149783296`
+      - `SECOND -149783296`
+  - authoritative `kdz` helper pack with the pair layered onto the promoted
+    default:
+    - [20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+    - `number_helper_loop/hot 0.008248` vs `-joff 0.002282`
+    - `be_pack_loop/hot 0.023373` vs `-joff 0.018732`
+    - focused read remains `exit-dominated`:
+      - `TRACE_START 6`
+      - `TRACE_STOP 5`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 64001`
+  - focused mechanism under the pair:
+    - [20260402-kdz-number-helper-optinpair-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-optinpair-mechanism/summary.md)
+    - dominant seam is still:
+      - `trace 7 exit 0`
+      - restored `BC_UGET`
+      - first `sload_int`: `curins 15`, `IR=SLOAD`, `op1=3`,
+        `ofs=8`, `extra=12`
+  - closure:
+    - the old lower-frame return-value failure is stale for the current pair
+    - the pair is correctness-positive but does not materially change the
+      active helper perf seam
+    - the live perf frontier stays the same steady header-guard family under
+      the promoted default

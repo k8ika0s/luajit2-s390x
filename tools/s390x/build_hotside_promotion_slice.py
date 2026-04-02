@@ -37,6 +37,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pin-core", type=int, default=throughput.restamp.DEFAULT_PIN_CORE)
     parser.add_argument("--samples", type=int, default=throughput.restamp.DEFAULT_SAMPLES)
     parser.add_argument("--warmup", type=int, default=throughput.restamp.DEFAULT_WARMUP)
+    parser.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Extra environment variable to forward to build_throughput_truth_pack.py.",
+    )
     return parser.parse_args()
 
 
@@ -75,6 +82,8 @@ def main() -> int:
                 "--warmup",
                 str(args.warmup),
             ]
+            for item in args.env:
+                cmd.extend(["--env", item])
             print(f"==> {' '.join(cmd)}", flush=True)
             result = subprocess.run(cmd)
             if result.returncode != 0:
