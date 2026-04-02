@@ -28,6 +28,11 @@ CANDIDATE_ENVS: dict[str, dict[str, str]] = {
     "hotside_canon_share_uget_looproot_default": {},
 }
 
+PROBE_DEBUG_ENVS: dict[str, str] = {
+    "LUAJIT_S390X_EXIT_LOG": "1",
+    "LUAJIT_S390X_GUARD_LOG": "1",
+}
+
 
 def emit_hist_lua() -> str:
     return """\
@@ -259,6 +264,43 @@ emit_traceinfo(32)
 emit_traceir(32)
 """,
     },
+    "pure_add_reducer": {
+        "family": "header_reducer",
+        "iterations": 800,
+        "label": "PURE_ADD_REDUCER",
+        "script": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    total = total + i * 65537
+  end
+  return bit.tobit(total)
+end
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
+print("RESULT", run({iterations}))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TRACE_TOTAL", trace_cap.total)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
 }
 
 
@@ -276,7 +318,7 @@ GUARD_KIND_RE = re.compile(
 )
 EXIT_RE = re.compile(
     r"^S390X_EXIT phase=(?P<phase>\S+) trace=(?P<trace>\d+) exit=(?P<exit>\d+) .* op=(?P<op>\d+) "
-    r"snapcount=(?P<snapcount>\d+) snapref=(?P<snapref>\d+) snapnent=(?P<snapnent>\d+)"
+    r"snapcount=(?P<snapcount>\d+) snapref=(?P<snapref>\d+) snapnent=(?P<snapnent>\d+).* guardmark=(?P<guardmark>0x[0-9a-fA-F]+|\d+)"
 )
 EXIT_SNAP_RE = re.compile(
     r"^S390X_EXIT_SNAP trace=(?P<trace>\d+) exit=(?P<exit>\d+) snappc=(?P<snappc>\S+) snapop=(?P<snapop>\d+)(?P<rest>.*)$"
@@ -438,6 +480,7 @@ def parse_exit_guard_clusters(stderr_text: str) -> list[dict[str, Any]]:
                 "snapcount": int(m.group("snapcount")),
                 "snapref": int(m.group("snapref")),
                 "snapnent": int(m.group("snapnent")),
+                "guardmark": int(m.group("guardmark"), 0),
                 "guard_stubs": pending_stubs[:],
                 "guard_kinds": pending_kinds[:],
             }
@@ -474,12 +517,18 @@ def summarize_dominant_exit_cluster(
     if not matching:
         return {"trace": trace_no, "exit": exit_no, "samples": 0}
     exemplar = matching[0]
+    guardmark_hist: dict[int, int] = {}
+    for cluster in matching:
+        guardmark = int(cluster.get("guardmark", 0) or 0)
+        guardmark_hist[guardmark] = guardmark_hist.get(guardmark, 0) + 1
     stubs = dedupe_entries(
         exemplar["guard_stubs"],
         ["curins", "snap", "loopsnap", "cc", "patchpoint", "target"],
     )
     guard_sequence = []
     first_sload = None
+    dominant_guardmark = None
+    exact_guard = None
     for stub in stubs:
         curins = int(stub["curins"])
         kinds = dedupe_entries(
@@ -495,6 +544,13 @@ def summarize_dominant_exit_cluster(
         guard_sequence.append(item)
         if first_sload is None and any(kind.get("kind") == "sload_int" for kind in kinds):
             first_sload = item
+    if guardmark_hist:
+        guardmark, count = max(guardmark_hist.items(), key=lambda item: (item[1], item[0]))
+        dominant_guardmark = {"curins": guardmark, "count": count}
+        for item in guard_sequence:
+            if int(item["curins"]) == guardmark:
+                exact_guard = item
+                break
     return {
         "trace": trace_no,
         "exit": exit_no,
@@ -505,9 +561,12 @@ def summarize_dominant_exit_cluster(
         "snapref": exemplar.get("snapref"),
         "snapnent": exemplar.get("snapnent"),
         "snappc": exemplar.get("snappc"),
+        "guardmark_hist": guardmark_hist,
+        "dominant_guardmark": dominant_guardmark,
         "guard_curins": [item["curins"] for item in guard_sequence],
         "guard_sequence": guard_sequence,
         "first_sload_guard": first_sload,
+        "exact_guard": exact_guard,
     }
 
 
@@ -564,7 +623,9 @@ EOF
         stderr_path=raw_dir / f"{workload}.setup.stderr.log",
         label=f"{host} setup {workload}",
     )
-    extra_env_prefix = restamp.remote_extra_env_prefix(extra_env)
+    probe_env = dict(PROBE_DEBUG_ENVS)
+    probe_env.update(extra_env)
+    extra_env_prefix = restamp.remote_extra_env_prefix(probe_env)
     proc = restamp.run_remote_command(
         host,
         f"""
@@ -694,6 +755,26 @@ def render_summary(
                     f"- `{result['workload']}` dominant guard curins: "
                     f"`{','.join(str(curins) for curins in dominant_exit_cluster.get('guard_curins', []))}`"
                 )
+                dominant_guardmark = dominant_exit_cluster.get("dominant_guardmark")
+                if dominant_guardmark:
+                    lines.append(
+                        f"- `{result['workload']}` dominant runtime `guardmark`: "
+                        f"`curins {dominant_guardmark['curins']}` x `{dominant_guardmark['count']}`"
+                    )
+                exact_guard = dominant_exit_cluster.get("exact_guard")
+                if exact_guard:
+                    ir = exact_guard.get("trace_ir") or {}
+                    kind_bits = []
+                    for kind in exact_guard.get("guard_kinds", []):
+                        kind_bits.append(
+                            f"{kind.get('kind')} ofs {kind.get('ofs')} extra {kind.get('extra')} cc {kind.get('cc')}"
+                        )
+                    kind_text = ", ".join(kind_bits) if kind_bits else "kind detail unavailable"
+                    lines.append(
+                        f"- `{result['workload']}` exact runtime guard: "
+                        f"`curins {exact_guard['curins']}`, `ir {ir.get('op', 'unknown')}`, "
+                        f"`op1 {ir.get('op1', 'unknown')}`, `op2 {ir.get('op2', 'unknown')}`, `{kind_text}`"
+                    )
                 first_sload = dominant_exit_cluster.get("first_sload_guard")
                 if first_sload:
                     ir = first_sload.get("trace_ir") or {}

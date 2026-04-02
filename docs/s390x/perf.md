@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 06:39:29 PDT
+Last updated: 2026-04-02 10:18:43 PDT
 
 ## Latest Matrix
 
@@ -258,44 +258,53 @@ candidate set:
 - pure-add reducer `snap=0`: `curins=6,5,4,3,2`
 - shared surviving guard kinds:
   - `sload_int`
-  - arithmetic overflow guards
-- queue correction:
-  - the first shared live family is now pinned as `sload_int`
-  - arithmetic overflow remains the weaker fallback on the pure-add sibling
-  - clean reduced `number_helper_loop` attribution on the promoted default now
-    pins the real dominant exit cluster:
-    - [20260402-kdz-number-helper-sload-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sload-attribution/summary.md)
-    - dominant seam: `trace 7 exit 0`
-    - dominant guard order:
-      `25,22,20,17,15,14,13,12,10,8,7,3,2`
-    - first `sload_int` on the real workload:
-      - `curins=15`
-      - `IR=SLOAD`
-      - `op1=3`
-      - `op2=4`
-      - `ofs=8`
-      - `extra=12`
-    - semantic source is now pinned:
-      - this target is on a GC64 build (`LJ_FR2=1`)
-      - `IR_SLOAD.op1` is `baseslot + slot`
-      - `op1=3` maps to top-frame slot `1`
-      - on `number_helper_loop`, top-frame slot `1` is the loop-carried
-        `total`
-  - cross-reducer comparison now separates “first ordered shared seam” from
-    “later exact-by-curins shared seam”:
-    - pure-add reducer first `sload_int`: `curins=5`, same `ofs=8 extra=12`
-    - that reduced sibling has the same header slot layout, so its first
-      shared `ofs=8 extra=12` seam is the same carried `total` reload
-    - later exact-by-curins shared `sload_int`: `curins=3`, `ofs=16 extra=20`
-    - the later shared seam is now semantically pinned too:
-      - `op1=4` maps to top-frame slot `2`
-      - on both forms, that is the numeric `for` index state
-  - the next honest target is shared header-state stabilization around the
-    loop-carried `total` reload at the restored header seam, not more
-    helper-identity seam hunting
-  - current runtime exit logs still merge the whole `SNAP #0` header cluster
-    into one stub, so the exact first failing guard inside that cluster is not
-    yet singled out
+
+Exact runtime guard attribution now sharpens that further:
+
+- real workload:
+  [20260402-kdz-number-helper-guardmark-attribution-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v3/summary.md)
+  - dominant runtime failure on `trace 7 exit 0` is `curins=2`, `IR=LE`
+  - matching dump form: `int LE 0001 +2147483646`
+- no-helper sibling:
+  [20260402-kdz-pure-add-first-guard-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-first-guard-attribution/summary.md)
+  - first repeated reduced exit cluster also lands on `guardmark=0x2`
+  - restored header marker moves to `BC_MULVN`, but the first exact runtime
+    failure stays the same early `LE`
+
+So the current promoted-slice red is no longer best described as the
+carried-`total` reload seam. The carried-`total` `SLOAD ofs=8 extra=12`
+remains the first shared `sload_int` seam across reducers, but the front-most
+exact runtime failure is the earlier numeric-`for` header `LE` guard.
+
+Shared `sload_int` attribution remains useful, but it is now explicitly
+secondary:
+
+- [20260402-kdz-number-helper-sload-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-sload-attribution/summary.md)
+  - dominant guard order:
+    `25,22,20,17,15,14,13,12,10,8,7,3,2`
+  - first shared `sload_int` on the real workload:
+    - `curins=15`
+    - `IR=SLOAD`
+    - `op1=3`
+    - `op2=4`
+    - `ofs=8`
+    - `extra=12`
+    - semantic source: loop-carried `total`
+  - later shared `sload_int`:
+    - `curins=3`
+    - `ofs=16`
+    - `extra=20`
+    - semantic source: numeric `for` index state
+
+Current queue correction:
+
+- the next live seam on the promoted slice is the earlier numeric-`for`
+  header `LE` guard
+- the carried-`total` reload stays relevant as the first shared `sload_int`
+  seam across reducers, but it is no longer the front-most exact runtime
+  failure
+- do not reopen helper-header, low32-home, or generic hotside-population work
+  from this result
 
 x64 control status:
 
