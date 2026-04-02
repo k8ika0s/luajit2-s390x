@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 21:18:33 PDT
+Last updated: 2026-04-01 21:45:51 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -50,8 +50,34 @@ non-causal probe effects. The current state is cleaner:
   - clean remote build retries once after the flaky clean-build race
   - timed dispatch benches launch via the absolute remote `repo/src/luajit`
     path so `taskset` does not lose the binary on `zkd0`
+- the branch now also has a checked-in reduced mechanism helper at
+  [tools/s390x/build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
+  so the promoted-default `promotion_core` families can be classified by
+  dominant `trace`/`texit` pair instead of only aggregate `TEXIT_COUNT`
 - the iterator lane is now frozen at the current checkpoint unless a genuinely
   new seam appears outside the reject pile
+- the next live seam inside the promoted-default throughput slice is now pinned
+  on both hosts:
+  - `be_helpers` and `ffi_calls` converge to the same dominant steady-state
+    loop exit:
+    - `trace 7 exit 0`
+    - `linktype loop`
+  - `number_helper_loop` and `be_pack_loop` keep the same `trace 7 exit 0`
+    stream (`63457` dominant hits out of `64001` exits); the difference is
+    loop-body size (`nins 28` vs `71`)
+  - `direct_abs` and `stored_abs` also keep the same `trace 7 exit 0` stream
+    (`79457` dominant hits out of `80001` exits); the difference is loop-body
+    size (`nins 33` vs `23`), not a different front-most seam
+  - focused reduced dump on clean `kdz` corrects the next attribution target:
+    - `number_helper_loop` loop trace has no call IR in the hot loop body;
+      the front-most remaining seam there is not a helper call boundary
+    - `direct_abs` keeps `CALLXS` in the hot loop body, so it stays the
+      call-decorated sibling, not the clean first attribution target
+  - queue correction:
+    - the remaining red is no longer hotside population churn on this slice
+    - the next honest target is direct `trace 7 exit 0` attribution on
+      `number_helper_loop`, with `direct_abs` kept as the call-decorated
+      comparison path
 - the first dispatch/side-exit loop-clone queue has now also been classified
   and closed on the current mechanism
 - the follow-up dispatch-adjacent side-exit pass did not expose a second seam;

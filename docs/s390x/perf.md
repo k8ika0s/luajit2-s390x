@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 21:18:33 PDT
+Last updated: 2026-04-01 21:45:51 PDT
 
 ## Latest Matrix
 
@@ -130,6 +130,32 @@ Frozen-family fence status is now helper-backed on both hosts:
 So the envless promoted default now reads as a scoped throughput improvement,
 not a frozen-family promotion candidate. It remains fenced out of iterator and
 dispatch on both hosts.
+
+Reduced host-pair mechanism proof for the remaining `promotion_core` red is now
+in hand:
+
+- [20260401-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-214311-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- [20260401-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-214447-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+
+That read is narrower than the older “helper-heavy” / “FFI-heavy” labels:
+
+- `be_helpers` and `ffi_calls` both converge to the same dominant steady-state
+  exit on both hosts: `trace 7 exit 0`
+- `number_helper_loop` and `be_pack_loop` both spend `63457 / 64001` exits on
+  that one site; the remaining split is mostly body size (`nins 28` vs `71`)
+- `direct_abs` and `stored_abs` both spend `79457 / 80001` exits on that same
+  site; the remaining split is also body size (`nins 33` vs `23`)
+- focused reduced dump on clean `kdz` corrects the first attribution target:
+  - [20260401-214848-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-214848-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - [20260401-215124-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-215124-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `number_helper_loop` hot loop has no call IR inside the traced body
+  - `direct_abs` hot loop does keep `CALLXS`
+- conclusion:
+  - the filtered hotside default already removed the clone ladder on this
+    slice
+  - the front-most remaining payer is one stable loop exit, but the clean
+    first attribution target is now `number_helper_loop`, because it removes
+    the call-boundary complication that still exists in `direct_abs`
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 
