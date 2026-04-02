@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 10:33:14 PDT
+Last updated: 2026-04-02 14:42:26 PDT
 
 ## Live Seam
 
@@ -413,8 +413,42 @@ So the reduced helper-localization split is evidence only:
 - it does **not** by itself define a promotable remediation family on the real
   workload
 
+The dynamic helper-form split is now sharper than that first write-up:
+
+- stripped real-workload localization runs without counter/posthook churn show
+  that both dynamic localized forms relocate the steady seam instead of
+  removing it:
+  - local helper form:
+    [20260402-kdz-dynamic-local-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-guardmark/summary.md)
+  - arg helper form:
+    [20260402-kdz-dynamic-arg-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-guardmark/summary.md)
+- both real dynamic variants keep the same bad result:
+  - `RESULT -149783296`
+- both now restore and re-exit at:
+  - `pc op=18`
+  - `snapop=18`
+  - repeated `guardmark=0x3`
+- `op=18` is `BC_MOV`, and on the parser/recorder side that is plain
+  slot-to-slot variable movement:
+  - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h)
+    encodes `MOV` as `dst <- var`
+  - [lj_parse.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_parse.c#L544)
+    emits `BC_MOV` when a non-reloc value has to be copied to a different slot
+  - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3527)
+    records `BC_MOV` as a stack-slot move with no new arithmetic IR
+
+So the reduced helper-localization split is evidence only, and the dynamic
+story is now precise:
+
+- helper localization does not clear the real replay problem
+- it shifts the steady seam from imported-helper `BC_UGET` replay to
+  stack-visible helper/value `BC_MOV` replay on the real workload
+- this is still the same promoted-slice replay family, just one step later in
+  the header/call setup
+
 That keeps the next honest target where it belongs:
 
-- exact dynamic helper-form interaction with the inherited numeric-for
-  index/current-value `SLOAD` seam
+- exact stack-visible helper/value replay interaction after the inherited
+  numeric-for `SLOAD` repair
+- not imported-helper lookup attribution
 - not “just localize the helper”
