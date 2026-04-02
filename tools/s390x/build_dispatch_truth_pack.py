@@ -453,21 +453,31 @@ def run_dispatch_bench(
 ) -> list[dict[str, object]]:
     json_name = f"{mode_label}.jsonl"
     remote_json = f"{remote_tmp}/{json_name}"
+    luajit_bin = shlex.quote(f"{repo}/src/luajit")
     luajit_args = ["-joff", BENCH_FILE] if joff else [BENCH_FILE]
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 rm -f {shlex.quote(remote_json)}
-{remote_env_prefix(jsonl_path=remote_json, samples=samples, warmup=warmup, extra_env=extra_env)} {f"taskset -c {pin_core} " if pin_core is not None else ""}./src/luajit {' '.join(shlex.quote(arg) for arg in luajit_args)}
+{remote_env_prefix(jsonl_path=remote_json, samples=samples, warmup=warmup, extra_env=extra_env)} {f"taskset -c {pin_core} " if pin_core is not None else ""}{luajit_bin} {' '.join(shlex.quote(arg) for arg in luajit_args)}
 """
-    restamp.run_remote_command(
-        host,
-        script,
-        stdout_path=raw_dir / f"{mode_label}.stdout.log",
-        stderr_path=raw_dir / f"{mode_label}.stderr.log",
-        label=f"{host} dispatch_trace {mode_label}",
-    )
+    stdout_path = raw_dir / f"{mode_label}.stdout.log"
+    stderr_path = raw_dir / f"{mode_label}.stderr.log"
+    proc = restamp.run_ssh_script(host, script)
+    write_text(stdout_path, proc.stdout)
+    write_text(stderr_path, proc.stderr)
+    if (
+        proc.returncode != 0
+        and "taskset: failed to execute ./src/luajit: No such file or directory" in proc.stderr
+    ):
+        retry = restamp.run_ssh_script(host, script)
+        retry_stdout = proc.stdout + "\n=== RETRY dispatch bench ===\n" + retry.stdout
+        retry_stderr = proc.stderr + "\n=== RETRY dispatch bench ===\n" + retry.stderr
+        write_text(stdout_path, retry_stdout)
+        write_text(stderr_path, retry_stderr)
+        proc = retry
+    restamp.require_ok(proc, f"{host} dispatch_trace {mode_label}")
     json_text = restamp.fetch_remote_file(host, remote_json)
     local_json = raw_dir.parent.parent / json_name
     write_text(local_json, json_text)
@@ -488,7 +498,8 @@ def run_focused_bench(
 ) -> list[dict[str, object]]:
     mode = "focused-jit-on" if not joff else "focused-joff"
     remote_json = f"{remote_tmp}/{mode}.jsonl"
-    luajit_cmd = f"{f'taskset -c {pin_core} ' if pin_core is not None else ''}./src/luajit {'-joff ' if joff else ''}{shlex.quote(f'{remote_tmp}/focused_bench.lua')}"
+    luajit_bin = shlex.quote(f"{repo}/src/luajit")
+    luajit_cmd = f"{f'taskset -c {pin_core} ' if pin_core is not None else ''}{luajit_bin} {'-joff ' if joff else ''}{shlex.quote(f'{remote_tmp}/focused_bench.lua')}"
     script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
@@ -568,6 +579,7 @@ export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 def run_perf_stat(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
                   pin_core: int | None, extra_env: dict[str, str] | None = None) -> dict[str, object]:
     taskset = f"taskset -c {pin_core} " if pin_core is not None else ""
+    luajit_bin = shlex.quote(f"{repo}/src/luajit")
     env_prefix = remote_env_prefix(jsonl_path=None, samples=0, warmup=0, extra_env=extra_env)
     script = f"""
 set -euo pipefail
@@ -577,7 +589,7 @@ if ! command -v perf >/dev/null 2>&1; then
   echo "PERF_STATUS unavailable:perf-not-found"
   exit 0
 fi
-perf stat -x, -e cycles,instructions,branches,branch-misses -- {env_prefix} {taskset}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
+perf stat -x, -e cycles,instructions,branches,branch-misses -- {env_prefix} {taskset}{luajit_bin} {shlex.quote(f"{remote_tmp}/{name}_perf.lua")}
 """
     proc = restamp.run_ssh_script(host, script)
     write_text(raw_dir / f"{name}.stdout.log", proc.stdout)

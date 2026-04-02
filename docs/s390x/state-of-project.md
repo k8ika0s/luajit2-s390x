@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 20:20:45 PDT
+Last updated: 2026-04-01 21:18:33 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -36,6 +36,20 @@ non-causal probe effects. The current state is cleaner:
   so the frozen baseline can be examined with the same clean rebuild path plus
   trace/exit counts, IR+mcode dumps, owner-selection probes, and counter
   availability checks
+- the host-pair frozen-family fence is now complete for the envless promoted
+  default hotside path:
+  - `kdz` iterator and dispatch stay structurally inert
+  - `zkd0` iterator improves in raw medians but keeps the same frozen seam
+  - `zkd0` dispatch is flat-to-worse and keeps the same frozen seam
+  - conclusion:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT` remains a scoped
+      throughput policy, not a frozen-family promotion
+- the measurement helpers are now hardened enough to close the authoritative
+  `zkd0` fence cleanly:
+  - tracked-file sync retries once on transient `zkd0` transport failure
+  - clean remote build retries once after the flaky clean-build race
+  - timed dispatch benches launch via the absolute remote `repo/src/luajit`
+    path so `taskset` does not lose the binary on `zkd0`
 - the iterator lane is now frozen at the current checkpoint unless a genuinely
   new seam appears outside the reject pile
 - the first dispatch/side-exit loop-clone queue has now also been classified
@@ -612,8 +626,10 @@ non-causal probe effects. The current state is cleaner:
                       - promoted default is also effectively inert on the
                         frozen dispatch seam on `kdz`
                 - queue correction:
-                  - the next honest fence target is now `zkd0`, not another
-                    hotside seam rediscovery pass
+                  - the host-pair frozen-family fence is now complete
+                  - the next honest target is no longer another frozen-family
+                    fence pass; it is the next scoped throughput seam outside
+                    iterator and dispatch
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

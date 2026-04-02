@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 20:20:45 PDT
+Last updated: 2026-04-01 21:18:33 PDT
 
 ## Latest Matrix
 
@@ -42,9 +42,9 @@ matrix until they are backfilled.
 | 2026-04-01 19:56:12 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot_default` | `0.004231` | `0.002338` | `1.81x` |
 | 2026-04-01 19:56:12 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot_default` | `0.003796` | `0.002276` | `1.67x` |
 | 2026-04-01 19:56:12 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot_default` | `0.004088` | `0.003184` | `1.28x` |
-| 2026-04-01 16:39:41 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.681747` | `0.002604` | `261.81x` |
-| 2026-04-01 16:39:41 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.097901` | `0.005207` | `210.85x` |
-| 2026-04-01 16:39:41 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `1.352638` | `0.007836` | `172.62x` |
+| 2026-04-01 21:18:33 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.777567` | `0.003257` | `238.72x` |
+| 2026-04-01 21:18:33 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `1.299877` | `0.006691` | `194.28x` |
+| 2026-04-01 21:18:33 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `1.586069` | `0.008171` | `194.11x` |
 | 2026-04-01 19:56:12 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.031455` | `0.026039` | `1.21x` |
 | 2026-04-01 19:56:12 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.012384` | `0.002873` | `4.31x` |
 | 2026-04-01 19:56:12 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.024177` | `0.012092` | `2.00x` |
@@ -56,8 +56,8 @@ matrix until they are backfilled.
 | 2026-04-01 16:39:41 PDT | `sum_loop/hot` | `hotside_canon_share_uget_looproot` | `1.499405` | `0.005568` | `269.29x` |
 | 2026-04-01 16:39:41 PDT | `mixed_ffi_loop/hot` | `hotside_canon_share_uget_looproot` | `0.081518` | `0.015637` | `5.21x` |
 | 2026-04-01 17:59:38 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.079668` | `0.006760` | `11.79x` |
-| 2026-04-01 16:39:41 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot` | `0.083802` | `0.005672` | `14.78x` |
-| 2026-04-01 16:39:41 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot` | `0.087370` | `0.004307` | `20.29x` |
+| 2026-04-01 20:54:30 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.082382` | `0.006774` | `12.16x` |
+| 2026-04-01 20:54:30 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.106179` | `0.005346` | `19.86x` |
 
 ## Scope
 
@@ -98,7 +98,7 @@ So the active queue is no longer “broader gate promotion”. It is:
 3. only after that, any wider promotion claim outside the filtered
    `UGET`/looproot mechanism
 
-Frozen-family fence status on clean `kdz` is now helper-backed too:
+Frozen-family fence status is now helper-backed on both hosts:
 
 - iterator:
   [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201055-kdz-baseline-iterator-truth-pack/summary.md)
@@ -111,9 +111,25 @@ Frozen-family fence status on clean `kdz` is now helper-backed too:
   [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201748-kdz-hotside_canon_share_uget_looproot_default-dispatch-truth-pack/summary.md)
   - medians are effectively flat and trace/exit shape is unchanged
 
-So the envless promoted default currently reads as effectively inert on frozen
-iterator and dispatch on `kdz`. The next honest fence target is `zkd0`, not a
-new seam search inside those two families.
+- `zkd0` iterator:
+  [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-204030-zkd0-baseline-iterator-truth-pack/summary.md)
+  vs
+  [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-205106-zkd0-hotside_canon_share_uget_looproot_default-iterator-truth-pack/summary.md)
+  - `pairs_sum/hot`: `0.115511 -> 0.082382`
+  - `pairs_array_sum/hot`: `0.115958 -> 0.106179`
+  - trace/exit shape is unchanged
+- `zkd0` dispatch:
+  [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-211042-zkd0-baseline-dispatch-truth-pack/summary.md)
+  vs
+  [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-211442-zkd0-hotside_canon_share_uget_looproot_default-dispatch-truth-pack/summary.md)
+  - `numeric_loop/hot`: `0.850875 -> 0.777567`
+  - `side_exit_loop/hot`: `1.192460 -> 1.299877`
+  - `hotexit_loop/hot`: `1.327162 -> 1.586069`
+  - trace/exit shape is unchanged
+
+So the envless promoted default now reads as a scoped throughput improvement,
+not a frozen-family promotion candidate. It remains fenced out of iterator and
+dispatch on both hosts.
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 
