@@ -774,6 +774,25 @@ So the live performance seam is no longer just “an inherited stack `SLOAD`”.
 It is the inherited visible `FORL_IDX` replay/typecheck contract on the
 restored header path.
 
+Why that guard survives on the helper workload is now source-backed too:
+
+- in [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+  the visible current-value lane only drops `IRSLOAD_TYPECHECK` when the loop
+  state is fully compile-time clean:
+  - constant integer start
+  - constant stop
+  - constant step
+  - stack-visible `FORL_IDX` already matching the narrowed integer type
+- `number_helper_loop(n)` fails that fast path because hidden `STOP` is the
+  runtime parameter `n`, so `irref_isk(stop)` is false
+- that makes `tc = IRSLOAD_TYPECHECK`, and the recorder emits the visible
+  current-value lane as `IRSLOAD_INHERIT | IRSLOAD_TYPECHECK`:
+  - exactly the observed `op2=36`
+
+So the remaining helper performance seam is not accidental backend churn. It
+is a deliberate recorder/runtime contract for dynamic numeric-for current
+values under the narrowed integer loop path.
+
 Cross-backend audit also sharpens the interpretation:
 
 - the signed-vs-logical GC64 integer-tag extraction issue was genuinely

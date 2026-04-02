@@ -3056,6 +3056,19 @@ Current owner map contract:
       - the remaining performance seam is broader snapshot/header replay on
         the inherited visible `FORL_IDX` current-value lane, not a second copy
         of the same extraction bug
+      - that lane stays guarded by design on this workload:
+        - [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+          only drops `IRSLOAD_TYPECHECK` when the narrowed numeric-for state
+          is fully compile-time clean
+        - `number_helper_loop(n)` keeps hidden `STOP` as runtime `n`, so
+          `irref_isk(stop)` is false
+        - that leaves `tc = IRSLOAD_TYPECHECK`, and the recorder emits
+          `fori_load(... IRSLOAD_INHERIT | IRSLOAD_TYPECHECK ...)`
+        - exactly the observed `op2=36`
+      - next honest target:
+        - determine whether that visible-current-value typecheck can ever be
+          safely relaxed after JFORI/FORL integer state is already proven, or
+          whether it is the required generic contract for dynamic-stop loops
 
 ### After that
 
