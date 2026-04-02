@@ -1,12 +1,28 @@
 # Filtered Hotside Promotion Plan
 
-Last updated: 2026-04-01 19:56:12 PDT
+Last updated: 2026-04-02 06:39:29 PDT
 
 This note defines the first enable boundary for the promoted filtered hotside
 policy. The promoted/default surface is the envless s390x path. The old env
 gate `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` remains as a
 compatibility alias. The baseline/opt-out path is
 `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`.
+
+## Current Status
+
+Treat this as the active shipping-throughput slice, not as an open promotion
+candidate family:
+
+- `promotion_core` is the active shipping-throughput default slice
+- `promotion_secondary` is carry-forward evidence only
+- `same_seam_but_dominated` stays excluded from the enable set
+- frozen iterator and frozen dispatch stay out of scope
+- explicit opt-out / baseline remains:
+  `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+
+Pinned host-pair summary:
+
+- [20260402-hotside-promotion-core-host-pair](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-hotside-promotion-core-host-pair/summary.md)
 
 ## Mechanism
 
@@ -82,6 +98,9 @@ Reason:
 - use `promotion_core` as the first promotion surface
 - keep `promotion_secondary` as carry-forward evidence only
 - do not reopen iterator, dispatch, low32-home, or generic global canon/share from this queue
+- do not spend more turns rediscovering promotion scope on this mechanism
+- the next live target after this note is the shared `SNAP #0` header-guard
+  family inside the promoted slice
 
 ## Rollout Criteria
 

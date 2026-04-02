@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 05:55:27 PDT
+Last updated: 2026-04-02 06:39:29 PDT
 
 ## Latest Matrix
 
@@ -8,6 +8,23 @@ These tables list the latest hot-path rows with matching JIT-on and `-joff`
 artifacts. `Updated` is the timestamp of the artifact that produced the row.
 Rows without a paired `-joff` restamp are intentionally left out of the top
 matrix until they are backfilled.
+
+## Active Shipping Throughput Slice
+
+Treat the envless filtered hotside path as the active shipping-throughput
+default for `promotion_core` only:
+
+- active default:
+  `hotside_canon_share_uget_looproot_default`
+- explicit baseline / opt-out:
+  `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+- `promotion_secondary`: carry-forward evidence only
+- `same_seam_but_dominated`: excluded
+- frozen iterator / frozen dispatch: out of scope
+
+Pinned host-pair summary:
+
+- [20260402-hotside-promotion-core-host-pair](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-hotside-promotion-core-host-pair/summary.md)
 
 ### kdz
 
@@ -243,8 +260,19 @@ candidate set:
   - `sload_int`
   - arithmetic overflow guards
 - queue correction:
-  - the next honest target is shared header-state attribution around those
-    guards, not more helper-identity seam hunting
+  - the first shared live family is now pinned as `sload_int`
+  - arithmetic overflow remains the weaker fallback on the pure-add sibling
+  - the next honest target is shared header-state stabilization around
+    `sload_int`, not more helper-identity seam hunting
+
+x64 control status:
+
+- there is still no checked-in mature x64 reduced runner for this seam
+- an ad hoc Rosetta x64 path was tested on this workstation, but a direct
+  `arch -x86_64 make -C src ...` still selected the arm64 VM build and failed
+  in `vm_arm64.dasc`
+- treat mature x64 reduced control as a tooling gap for now, not as a blocker
+  on the s390x seam read
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 
