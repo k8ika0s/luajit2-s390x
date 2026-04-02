@@ -2751,7 +2751,7 @@ Current owner map contract:
     - the next honest target remains the dynamic helper-form interaction that
       keeps the inherited numeric-for index/current-value `SLOAD` seam live
 
-- Timestamp: `2026-04-02 14:52:05 PDT`
+- Timestamp: `2026-04-02 15:01:41 PDT`
 - Dynamic helper-form interaction is now pinned as stack-visible `BC_MOV`
   replay, not imported-helper `BC_UGET` replay
   - stripped reduced real-workload localization runs on clean `kdz` now agree
@@ -2764,6 +2764,13 @@ Current owner map contract:
     - `RESULT 961100104`
     - repeated steady seam at restored `pc op=18`, `snapop=18`
     - repeated exact-taken `guardmark=0x3`
+  - recorder setup plus reduced `TRACEIR` now pins the moved inherited lane
+    semantically on both localized forms:
+    - `baseslot=2`
+    - `op1=3` -> carried `total`
+    - `op1=4` -> localized `tobit` value
+    - `op1=5` -> current numeric-for value feeding `* 65537`
+    - `op1=6` -> loop bound `n`
   - both now pin the same exact moved inherited guard:
     - `curins=3`
     - `IR=SLOAD`
@@ -2785,10 +2792,11 @@ Current owner map contract:
     - but the real replay family survives one step later as stack-visible
       helper/value `BC_MOV` replay on the actual workload
     - the moved seam is no longer just an opcode marker; both localized forms
-      converge on the same inherited integer `SLOAD` lane behind that `MOV`
+      converge on the same inherited current numeric-for-value `SLOAD` lane
+      behind that `MOV`
     - the next honest target is therefore exact stack-visible helper/value
-      replay under the promoted slice at that shifted inherited `SLOAD`, not
-      more helper-lookup attribution and not another localization attempt
+      replay under the promoted slice at that shifted current-value `SLOAD`,
+      not more helper-lookup attribution and not another localization attempt
 
 ### After that
 

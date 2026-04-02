@@ -1,6 +1,6 @@
 # GC64 Integer SLOAD Repair Boundary
 
-Last updated: 2026-04-02 14:52:05 PDT
+Last updated: 2026-04-02 15:01:41 PDT
 
 ## Live Seam
 
@@ -435,6 +435,13 @@ The dynamic helper-form split is now sharper than that first write-up:
   - `pc op=18`
   - `snapop=18`
   - repeated `guardmark=0x3`
+- recorder setup plus reduced `TRACEIR` now pins the moved inherited lane
+  semantically on both localized forms:
+  - `baseslot=2`
+  - `op1=3` -> carried `total`
+  - `op1=4` -> localized `tobit` value
+  - `op1=5` -> current numeric-for value feeding `* 65537`
+  - `op1=6` -> loop bound `n`
 - both now pin the same exact moved inherited guard:
   - `curins=3`
   - `IR=SLOAD`
@@ -445,6 +452,10 @@ The dynamic helper-form split is now sharper than that first write-up:
   - `extra=28`
 - matching reduced `TRACEIR` on both localized forms:
   - `TRACEIR tr=1 ins=3 op=SLOAD ... op1=5 op2=36`
+  - `TRACEIR tr=1 ins=5 op=MULOV ... op1=3 op2=-6`
+  - that `MULOV` use closes the semantic owner:
+    `SLOAD(op1=5)` is the current localized numeric-for value, not the helper
+    itself
 - `op=18` is `BC_MOV`, and on the parser/recorder side that is plain
   slot-to-slot variable movement:
   - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h)
@@ -461,13 +472,14 @@ story is now precise:
 - it shifts the steady seam from imported-helper `BC_UGET` replay to
   stack-visible helper/value `BC_MOV` replay on the real workload
 - after that shift, both dynamic localized forms still converge on the same
-  inherited integer `SLOAD` lane (`op1=5`, `ofs=24`, `extra=28`)
+  inherited integer `SLOAD` lane for the current numeric-for value
+  (`op1=5`, `ofs=24`, `extra=28`)
 - this is still the same promoted-slice replay family, just one step later in
   the header/call setup
 
 That keeps the next honest target where it belongs:
 
-- exact stack-visible helper/value replay interaction at that shifted
-  inherited integer `SLOAD`
+- exact stack-visible helper/value replay interaction at that shifted current
+  numeric-for-value `SLOAD`
 - not imported-helper lookup attribution
 - not “just localize the helper”

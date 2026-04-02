@@ -2374,6 +2374,12 @@ the same moved replay seam:
 - restored `pc op=18`
 - restored `snapop=18`
 - repeated exact-taken `guardmark=0x3`
+- recorder setup plus reduced `TRACEIR` now pins the localized frame layout:
+  - `baseslot=2`
+  - `op1=3` -> carried `total`
+  - `op1=4` -> localized `tobit`
+  - `op1=5` -> current numeric-for value feeding `* 65537`
+  - `op1=6` -> loop bound `n`
 - exact moved inherited guard on both:
   - `curins=3`
   - `IR=SLOAD`
@@ -2386,8 +2392,8 @@ the same moved replay seam:
 So the promoted-slice replay problem is no longer best described as imported
 helper `BC_UGET` churn once the helper is localized. It survives as
 stack-visible helper/value `BC_MOV` replay one step later in the header/call
-setup, and the exact shifted replay lane is now the same inherited integer
-`SLOAD` on both localized forms.
+setup, and the exact shifted replay lane is now the same inherited current
+numeric-for-value `SLOAD` on both localized forms.
 
 ## Relationship To Other Docs
 
