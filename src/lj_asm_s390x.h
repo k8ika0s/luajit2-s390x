@@ -1236,20 +1236,24 @@ static void asm_guardcc(ASMState *as, int cc)
     as->loopinv = 1;
     lj_asm_s390x_guard_log(as, cc, target, p, 1);
     *p = S390X_INS_BRC(CC_AL, (int32_t)(((char *)target - (char *)p) >> 1));
+    /* Code is emitted backwards: place the branch first so the mark write
+    ** executes before a taken guard exits through the shared stub. */
+    emit_condbranch(as, (S390XCC)asm_guardcc_invert(cc), p);
     if (asm_s390x_guardmark_enabled()) {
       emit_store32ofs(as, RID_TMP, RID_DISPATCH,
 		      emit_gl_ofs(tmptv2) + (LJ_BE ? 4 : 0));
       emit_loadi(as, RID_TMP, mark);
     }
-    emit_condbranch(as, (S390XCC)asm_guardcc_invert(cc), p);
     return;
   }
+  /* Code is emitted backwards: place the branch first so the mark write
+  ** executes before a taken guard exits through the shared stub. */
+  emit_condbranch(as, (S390XCC)cc, target);
   if (asm_s390x_guardmark_enabled()) {
     emit_store32ofs(as, RID_TMP, RID_DISPATCH,
 		    emit_gl_ofs(tmptv2) + (LJ_BE ? 4 : 0));
     emit_loadi(as, RID_TMP, mark);
   }
-  emit_condbranch(as, (S390XCC)cc, target);
 }
 
 /* -- Trace setup --------------------------------------------------------- */

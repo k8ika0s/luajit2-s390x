@@ -262,24 +262,35 @@ candidate set:
 Exact runtime guard attribution now sharpens that further:
 
 - real workload:
-  [20260402-kdz-number-helper-guardmark-attribution-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v3/summary.md)
-  - dominant runtime failure on `trace 7 exit 0` is `curins=2`, `IR=LE`
-  - matching dump form: `int LE 0001 +2147483646`
+  [20260402-kdz-number-helper-guardmark-attribution-v5](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v5/summary.md)
+  - dominant runtime failure on `trace 7 exit 0` is `curins=3`, `IR=SLOAD`
+  - exact runtime guard:
+    - `op1=4`
+    - `op2=36`
+    - `sload_int ofs=16 extra=20 cc=6`
 - no-helper sibling:
-  [20260402-kdz-pure-add-first-guard-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-pure-add-first-guard-attribution/summary.md)
-  - first repeated reduced exit cluster also lands on `guardmark=0x2`
+  [20260402-kdz-number-helper-guardmark-attribution-v4](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-guardmark-attribution-v4/raw/pure_add_reducer.stderr.log)
+  - first repeated reduced exit cluster lands on `guardmark=0x3`
+  - matching early guard log is the same inherited
+    `sload_int curins=3 ofs=16 extra=20`
   - restored header marker moves to `BC_MULVN`, but the first exact runtime
-    failure stays the same early `LE`
+    failure stays on the same inherited `sload_int`
 - semantic meaning:
-  - dump form is `int LE 0001 +2147483646`
-  - `0001` is `SLOAD #5`, the numeric `for` stop slot loaded before the loop
-    body
-  - in [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua), that stop is the source-level `n`
+  - this is `IR=SLOAD #4 TI`, not the later carried `total` reload and not the
+    earlier stop-bound `LE`
+  - on this GC64 build, `op1=4` maps to top-frame slot `2`
+  - on `number_helper_loop`, that slot is the numeric `for` index state
+  - `op2=36` is `IRSLOAD_TYPECHECK|IRSLOAD_INHERIT`, so the guard is
+    intentionally revalidated on exits and side traces
+  - this is the hidden narrowed `FORL_IDX` reload created by `rec_for_loop()`,
+    not the visible helper header or the carried accumulator
+  - `snapnent=0` remains true on the dominant exit, so this guard is checking
+    live interpreter frame state at restored `SNAP #0`
 
 So the current promoted-slice red is no longer best described as the
-carried-`total` reload seam. The carried-`total` `SLOAD ofs=8 extra=12`
-remains the first shared `sload_int` seam across reducers, but the front-most
-exact runtime failure is the earlier numeric-`for` stop/range `LE` guard.
+carried-`total` reload seam or the numeric `for` stop/range `LE` seam. The
+front-most exact runtime failure is now the inherited numeric-`for` index
+`sload_int` guard (`ofs=16 extra=20`).
 
 Shared `sload_int` attribution remains useful, but it is now explicitly
 secondary:
