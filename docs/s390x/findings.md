@@ -11262,3 +11262,37 @@ Next hash target
       snapshot
     - there is still no mechanism here that peels past that header into a
       deeper arithmetic-only loop body
+
+- Timestamp: `2026-04-01 23:44:00 PDT`
+- Source path now confirms why the first clone has to start at the restored
+  header seam on the current generic mechanism
+  - `lj_snap_restore()` returns `snap_pc(&map[snap->nent])`
+  - `lj_trace_exit()` forwards that restored `pc` directly into
+    `trace_hotside()`
+  - `trace_hotside()` starts the new side trace with `lj_trace_ins(J, pc)`
+    after `hotexit` is reached
+  - `lj_record_setup()` then copies `J->pc` into `J->startpc` for side traces
+    and uses `startins=BC_JMP`
+  - `trace_save()` / `resumepc` logic only affects execution of an already
+    saved child; it does not provide a generic way to start the first clone
+    later than the restored snapshot PC
+  - queue correction:
+    - the live promotion-core question is now a header-stabilization / replay
+      question at the restored `UGET/TGETS` prefix
+    - it is no longer a mystery about where the first clone start point comes
+      from
+
+- Timestamp: `2026-04-01 23:58:00 PDT`
+- Reduced exit logger now shows the hot seam is inside the pre-snapshot header
+  guard cluster itself
+  - artifact:
+    [20260401-kdz-core-exit-attribution-reduced](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-core-exit-attribution-reduced/summary.md)
+  - dominant `trace 7 exit 0` reports:
+    - `pc op=BC_UGET`
+    - `snapop=BC_UGET`
+    - `snapnent=0`
+  - queue correction:
+    - the remaining promotion-core red is now the exact guard inside the front
+      `UGET -> TGETS -> HLOAD/fun EQ` prefix
+    - it is not the arithmetic tail and not any post-snapshot carried-state
+      boundary
