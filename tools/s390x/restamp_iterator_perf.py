@@ -224,7 +224,11 @@ rm -rf {shlex.quote(remote_repo)}/* {shlex.quote(remote_repo)}/.[!.]* {shlex.quo
         f"{shell_join(tar_parts)} | {ssh_cmd}"
     )
     proc = run_local_shell(pipeline, input_bytes=tracked.stdout)
-    require_ok(proc, f"{host} tracked-file sync")
+    if proc.returncode == 0:
+        return
+
+    retry = run_local_shell(pipeline, input_bytes=tracked.stdout)
+    require_ok(retry, f"{host} tracked-file sync")
 
 
 def collect_host_info(host: str) -> dict[str, str]:
@@ -336,20 +340,62 @@ cat {shlex.quote(remote_path)}
 
 
 def build_remote_repo(host: str, repo: str, raw_dir: pathlib.Path) -> None:
-    script = f"""
+    src_dir = shlex.quote(f"{repo}/src")
+    clean_script = f"""
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-make -C src clean
-make -C src -j4
+make -C {src_dir} clean
+make -C {src_dir} -j4
 """
-    run_remote_command(
-        host,
-        script,
-        stdout_path=raw_dir / "build.stdout.log",
-        stderr_path=raw_dir / "build.stderr.log",
-        label=f"{host} clean build",
+    proc = run_ssh_script(host, clean_script)
+    write_text(raw_dir / "build.stdout.log", proc.stdout)
+    write_text(raw_dir / "build.stderr.log", proc.stderr)
+    if proc.returncode == 0:
+        return
+
+    retry_script = f"""
+set -euo pipefail
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+make -C {src_dir} -j4
+"""
+    retry = run_ssh_script(host, retry_script)
+    retry_stdout = (
+        proc.stdout
+        + "\n=== RETRY make -C src -j4 ===\n"
+        + retry.stdout
     )
+    retry_stderr = (
+        proc.stderr
+        + "\n=== RETRY make -C src -j4 ===\n"
+        + retry.stderr
+    )
+    write_text(raw_dir / "build.stdout.log", retry_stdout)
+    write_text(raw_dir / "build.stderr.log", retry_stderr)
+    if retry.returncode == 0:
+        return
+
+    retry_serial_script = f"""
+set -euo pipefail
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+make -C src -j1
+"""
+    retry_serial = run_ssh_script(host, retry_serial_script)
+    serial_stdout = (
+        retry_stdout
+        + "\n=== RETRY make -C src -j1 ===\n"
+        + retry_serial.stdout
+    )
+    serial_stderr = (
+        retry_stderr
+        + "\n=== RETRY make -C src -j1 ===\n"
+        + retry_serial.stderr
+    )
+    write_text(raw_dir / "build.stdout.log", serial_stdout)
+    write_text(raw_dir / "build.stderr.log", serial_stderr)
+    require_ok(retry_serial, f"{host} clean build")
 
 
 def run_jit_status(host: str, repo: str, raw_dir: pathlib.Path) -> str:

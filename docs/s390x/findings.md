@@ -11100,3 +11100,32 @@ Next hash target
   - queue correction:
     - the next honest target is the same fence on `zkd0`
     - do not reopen iterator or dispatch seam work from this read
+
+- Timestamp: `2026-04-01 21:18:33 PDT`
+- The envless promoted-default frozen-family fence is now closed on both hosts
+  - `zkd0` iterator:
+    - [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-204030-zkd0-baseline-iterator-truth-pack/summary.md)
+      vs
+      [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-205106-zkd0-hotside_canon_share_uget_looproot_default-iterator-truth-pack/summary.md)
+    - `pairs_sum/hot`: `0.115511 -> 0.082382`
+    - `pairs_array_sum/hot`: `0.115958 -> 0.106179`
+    - trace/exit shape is unchanged from baseline
+  - `zkd0` dispatch:
+    - [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-211042-zkd0-baseline-dispatch-truth-pack/summary.md)
+      vs
+      [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-211442-zkd0-hotside_canon_share_uget_looproot_default-dispatch-truth-pack/summary.md)
+    - `numeric_loop/hot`: `0.850875 -> 0.777567`
+    - `side_exit_loop/hot`: `1.192460 -> 1.299877`
+    - `hotexit_loop/hot`: `1.327162 -> 1.586069`
+    - trace/exit shape is unchanged from baseline
+  - helper hardening that was required to finish the authoritative `zkd0`
+    fence:
+    - [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+      now retries tracked-file sync once and clean remote build once
+    - [tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+      now launches timed dispatch benches via the absolute remote
+      `repo/src/luajit` path
+  - queue correction:
+    - the envless promoted default remains a scoped throughput improvement
+    - it does not promote into frozen iterator or frozen dispatch on either
+      host
