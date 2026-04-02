@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 17:23:43 PDT
+Last updated: 2026-04-01 17:29:59 PDT
 
 ## Latest Matrix
 
@@ -110,6 +110,31 @@ Exact reduced-family scope proof on clean `kdz` is now recorded here:
     - `op=BC_UGET`
     - `startop=BC_JMP`
     - `root_startop in {BC_FORL, BC_FUNCF}`
+
+Broader positive-family mechanism proof on clean `kdz` now says the helper and
+FFI-call winners are improving through that same seam:
+
+- [20260401-kdz-hotside-uget-looproot-broader-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-broader-mechanism/summary.md)
+  - `number_helper_loop`: `match_count 63858`
+  - `be_pack_loop`: `match_count 63858`
+  - `direct_abs`: `match_count 79858`
+  - `stored_abs`: `match_count 79858`
+  - every positive broader family still stayed on:
+    - `exit=0`
+    - `op=BC_UGET`
+    - `startop=BC_JMP`
+    - `root_startop=BC_FORL`
+
+Representative host-pair confirmation now matches on `zkd0` too:
+
+- [20260401-zkd0-hotside-uget-looproot-broader-mechanism-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-uget-looproot-broader-mechanism-check/summary.md)
+  - `number_helper_loop`: `match_count 63858`
+  - `direct_abs`: `match_count 79858`
+  - both representative broader winners still stayed on:
+    - `exit=0`
+    - `op=BC_UGET`
+    - `startop=BC_JMP`
+    - `root_startop=BC_FORL`
 
 Current clean-`kdz` broader-throughput frontier:
 

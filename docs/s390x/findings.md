@@ -10765,3 +10765,41 @@ Next hash target
       verify whether helper-heavy and call-heavy winners under
       `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` still improve through
       this exact same seam before any wider promotion claim
+
+- Timestamp: `2026-04-01 17:23:43 PDT`
+- Broader positive-family mechanism proof now says the filtered gate is still
+  acting on the same seam on clean `kdz`
+  - artifact:
+    [20260401-kdz-hotside-uget-looproot-broader-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-broader-mechanism/summary.md)
+  - helper-heavy and call-heavy winners:
+    - `number_helper_loop`: `match_count 63858`
+    - `be_pack_loop`: `match_count 63858`
+    - `direct_abs`: `match_count 79858`
+    - `stored_abs`: `match_count 79858`
+  - every positive broader family still stayed on:
+    - `exit=0`
+    - `op=BC_UGET`
+    - `startop=BC_JMP`
+    - `root_startop=BC_FORL`
+  - queue correction:
+    - there is no second activation family on `kdz` yet
+    - the next honest target is host-pair confirmation for representative
+      broader winners, then promotion-scope criteria from this one named seam
+
+- Timestamp: `2026-04-01 17:29:59 PDT`
+- Representative host-pair confirmation now says the broader positive-family
+  winners are still using that same seam on `zkd0`
+  - artifact:
+    [20260401-zkd0-hotside-uget-looproot-broader-mechanism-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-uget-looproot-broader-mechanism-check/summary.md)
+  - representative winners:
+    - `number_helper_loop`: `match_count 63858`
+    - `direct_abs`: `match_count 79858`
+  - both representative broader winners still stayed on:
+    - `exit=0`
+    - `op=BC_UGET`
+    - `startop=BC_JMP`
+    - `root_startop=BC_FORL`
+  - queue correction:
+    - the filtered gate now has one named activation family across both hosts
+    - the next honest target is promotion-scope criteria from that seam, not
+      more mechanism discovery
