@@ -11059,3 +11059,44 @@ Next hash target
     - this mechanism is no longer just a candidate gate
     - the next honest target is broader rollout criteria and then the next
       remaining seam that keeps JIT slower than `-joff`
+
+- Timestamp: `2026-04-01 20:20:45 PDT`
+- The helper-backed frozen-family fence is now pinned on clean `kdz`
+  - helper changes:
+    - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+      now accepts `--candidate baseline` vs
+      `--candidate hotside_canon_share_uget_looproot_default`
+    - [tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+      now does the same
+    - both use the explicit opt-out baseline:
+      `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+  - iterator fence result on `kdz`:
+    - [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201055-kdz-baseline-iterator-truth-pack/summary.md)
+      vs
+      [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201051-kdz-hotside_canon_share_uget_looproot_default-iterator-truth-pack/summary.md)
+    - `pairs_sum/hot`: `0.062376 -> 0.058992`
+    - `pairs_array_sum/hot`: `0.072711 -> 0.064010`
+    - the structural seam is unchanged:
+      - `hash_value`: `TRACE_START 10`, `TRACE_ABORT 9`, `TEXIT_COUNT 960000`
+      - `hash_key`: `TRACE_START 10`, `TRACE_ABORT 9`, `TEXIT_COUNT 640000`
+      - `array_value`: `TRACE_START 11`, `TRACE_ABORT 10`, `TEXIT_COUNT 960000`
+    - interpretation:
+      - the promoted default is effectively inert on the frozen iterator seam
+        on `kdz`
+  - dispatch fence result on `kdz`:
+    - [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201441-kdz-baseline-dispatch-truth-pack/summary.md)
+      vs
+      [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201748-kdz-hotside_canon_share_uget_looproot_default-dispatch-truth-pack/summary.md)
+    - `numeric_loop/hot`: `0.683002 -> 0.684303`
+    - `side_exit_loop/hot`: `0.373787 -> 0.382921`
+    - `hotexit_loop/hot`: `0.532836 -> 0.536542`
+    - structural seam is unchanged:
+      - `numeric_loop`: `TRACE_START 12`, `TRACE_ABORT 0`, `TEXIT_COUNT 2001`
+      - `side_exit_loop`: `TRACE_START 12`, `TRACE_ABORT 0`, `TEXIT_COUNT 2001`
+      - `hotexit_loop`: `TRACE_START 11`, `TRACE_ABORT 0`, `TEXIT_COUNT 2001`
+    - interpretation:
+      - the promoted default is also effectively inert on the frozen dispatch
+        seam on `kdz`
+  - queue correction:
+    - the next honest target is the same fence on `zkd0`
+    - do not reopen iterator or dispatch seam work from this read

@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 19:56:12 PDT
+Last updated: 2026-04-01 20:20:45 PDT
 
 ## Latest Matrix
 
@@ -18,9 +18,9 @@ matrix until they are backfilled.
 | 2026-04-01 19:56:12 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot_default` | `0.003212` | `0.002104` | `1.53x` |
 | 2026-04-01 19:56:12 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot_default` | `0.002907` | `0.002036` | `1.43x` |
 | 2026-04-01 19:56:12 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot_default` | `0.003182` | `0.002086` | `1.53x` |
-| 2026-04-01 16:25:27 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot` | `0.340611` | `0.002162` | `157.54x` |
-| 2026-04-01 16:25:27 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.531437` | `0.004577` | `116.11x` |
-| 2026-04-01 16:25:27 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot` | `0.612595` | `0.005580` | `109.78x` |
+| 2026-04-01 20:20:45 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.342594` | `0.002173` | `157.66x` |
+| 2026-04-01 20:20:45 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.526504` | `0.004692` | `112.21x` |
+| 2026-04-01 20:20:45 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.611632` | `0.005619` | `108.85x` |
 | 2026-04-01 19:56:12 PDT | `be_pack_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.023744` | `0.018831` | `1.26x` |
 | 2026-04-01 19:56:12 PDT | `number_helper_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.008341` | `0.002267` | `3.68x` |
 | 2026-04-01 19:56:12 PDT | `direct_abs/hot` | `hotside_canon_share_uget_looproot_default` | `0.017982` | `0.010090` | `1.78x` |
@@ -32,8 +32,8 @@ matrix until they are backfilled.
 | 2026-04-01 16:25:27 PDT | `sum_loop/hot` | `hotside_canon_share_uget_looproot` | `0.675950` | `0.005150` | `131.25x` |
 | 2026-04-01 16:25:27 PDT | `mixed_ffi_loop/hot` | `hotside_canon_share_uget_looproot` | `0.059215` | `0.012404` | `4.77x` |
 | 2026-04-01 17:55:23 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.036412` | `0.003764` | `9.67x` |
-| 2026-04-01 16:25:27 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot` | `0.076181` | `0.005021` | `15.17x` |
-| 2026-04-01 16:25:27 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot` | `0.084550` | `0.003708` | `22.80x` |
+| 2026-04-01 20:14:22 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.058992` | `0.005459` | `10.81x` |
+| 2026-04-01 20:14:22 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.064010` | `0.003679` | `17.40x` |
 
 ### zkd0
 
@@ -97,6 +97,23 @@ So the active queue is no longer “broader gate promotion”. It is:
    through the exact same reduced `UGET`/looproot seam
 3. only after that, any wider promotion claim outside the filtered
    `UGET`/looproot mechanism
+
+Frozen-family fence status on clean `kdz` is now helper-backed too:
+
+- iterator:
+  [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201055-kdz-baseline-iterator-truth-pack/summary.md)
+  vs
+  [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201051-kdz-hotside_canon_share_uget_looproot_default-iterator-truth-pack/summary.md)
+  - medians improve slightly while trace/exit shape is unchanged
+- dispatch:
+  [baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201441-kdz-baseline-dispatch-truth-pack/summary.md)
+  vs
+  [promoted default](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-201748-kdz-hotside_canon_share_uget_looproot_default-dispatch-truth-pack/summary.md)
+  - medians are effectively flat and trace/exit shape is unchanged
+
+So the envless promoted default currently reads as effectively inert on frozen
+iterator and dispatch on `kdz`. The next honest fence target is `zkd0`, not a
+new seam search inside those two families.
 
 Exact reduced-family scope proof on clean `kdz` is now recorded here:
 
