@@ -2205,6 +2205,26 @@ LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/hash_key.lua
 LUAJIT_S390X_ADD_LOG=1 LUAJIT_S390X_SLOAD_LOG=1 ./src/luajit /tmp/array_value.lua
 ```
 
+## GC64 Replay Repair Slice
+
+Clean `kdz` paired-gate check on the promoted `number_helper_loop` seam:
+
+- artifact:
+  [20260402-kdz-gc64-signed-sload-plus-jfori-handoff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-signed-sload-plus-jfori-handoff/summary.md)
+- gates:
+  - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+  - `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+- result:
+  - the earlier second-hot wrong-result path is corrected on both the pure-add
+    sibling and the real helper workload
+  - but the steady promoted-slice counters remain flat:
+    - baseline `TRACE_START 7`, `TEXIT_COUNT 64001`
+    - paired gate `TRACE_START 7`, `TEXIT_COUNT 64001`
+  - the tiny entry trace changes from `root -> 1` to `interpreter`, but the
+    dominant repeated seam stays `trace 1 exit 0`
+
+So this pair is a real correctness probe, not a promotable perf fix.
+
 ## Relationship To Other Docs
 
 - High-level status:

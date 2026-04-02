@@ -137,38 +137,56 @@ So the signed/arithmetic extraction idea is directionally right for the
 inherited integer-`SLOAD` typecheck itself, but the remaining failure is the
 numeric-`for` replay materialization contract after that check starts passing.
 
-## VM Contract Mismatch
+## VM Contract Correction
 
-The next source read narrows that replay-materialization problem again.
+The earlier `FORI/JFORI` rematerialization read was too broad.
 
-On s390x, the VM integer `FORI/FORL` fast path in
-[vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc#L4331) is explicitly a 32-bit value path:
+On s390x:
 
-- `lg RB, FOR_IDX`
-- `checkint RB`
-- `ar RB, ITYPE`
-- `setint RB`
-- `stg RB, FOR_IDX`
-- `stg RB, FOR_EXT`
+- `BC_JFORI` does **not** do `idx += step`
+- only `BC_JFORL` / `BC_IFORL` perform the integer update/store step before
+  the loop body
+- `BC_JFORI` checks the current integer loop state and stores the current
+  visible `FOR_EXT` before `JLOOP`
 
-So the VM contract for the hot integer loop body is not “use the inherited
-tagged slot as-is”. It is “prove integer type, clear the tag into the working
-register, do 32-bit arithmetic, then retag for storage”.
+So the live replay question is not “where did `JFORI` forget to advance the
+index?”. It is narrower:
 
-The repaired trace that still fails on the second hot run does not reach a
-stable version of that contract. It passes the inherited integer `SLOAD`
-typecheck, then repeatedly dies at:
+- where does the current visible numeric-for value that `trace 1` expects at
+  restored `SNAP #0` come from on compiled re-entry?
+- and why does that inherited visible-value contract still fail every trip?
 
-- `trace 1 exit 0`
-- `guardmark=0xe`
-- `curins 14`
-- `0014 > int MULOV 0003 +65537`
-- `0003 = int SLOAD #4 TI`
+## Paired Repair Slice
 
-So the current live problem is now narrower than tag extraction by itself:
-the inherited numeric-`for` replay value is still not re-materialized as the
-same cleared 32-bit arithmetic input that the VM fast path uses before the
-header multiply/add chain.
+The next `kdz` pair now has a clean outcome:
+
+- `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+- `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+
+Results:
+
+- the earlier second-hot wrong-result path is corrected on both:
+  - the pure-add sibling
+  - the real `number_helper_loop` workload
+- but the steady real-workload counters stay flat:
+  - baseline `TRACE_START 7`, `TEXIT_COUNT 64001`
+  - paired gate `TRACE_START 7`, `TEXIT_COUNT 64001`
+- the tiny entry trace changes only from:
+  - baseline `TRACEINFO 2 1 root 4 6 3`
+  - to paired gate `TRACEINFO 2 0 interpreter 4 6 3`
+
+And the exact exit read under the pair still says:
+
+- repeated seam: `trace 1 exit 0`
+- restored `pc op=45` / `snapop=45` (`BC_UGET`)
+- exact taken `guardmark=0x3`
+
+That means:
+
+- the paired gate fixes a real secondary correctness blocker
+- it does not fix the primary steady-state exit seam
+- the remaining live problem is the inherited visible numeric-for current-value
+  contract at restored `SNAP #0`, not another `JFORI` population tweak
 
 ## Hard Boundaries
 

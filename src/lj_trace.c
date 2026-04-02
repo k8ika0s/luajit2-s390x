@@ -425,11 +425,45 @@ static int lj_trace_s390x_vm_child_skip_mcloop_enabled(void)
   return enabled;
 }
 
-void lj_trace_s390x_vm_child_entry_log(GCtrace *T)
+void lj_trace_s390x_vm_child_entry_log(GCtrace *T, const TValue *base)
 {
   static int dump_count = 0;
   if (!lj_trace_s390x_vm_child_entry_log_enabled() || !T || dump_count >= 128)
     return;
+  if (base) {
+    const BCIns *startpc = mref(T->startpc, const BCIns);
+    BCReg fa = 0;
+    uint64_t raw_for_idx = 0, raw_for_stop = 0, raw_for_step = 0, raw_for_ext = 0;
+    if (startpc && (bc_op(T->startins) == BC_FORL || bc_op(T->startins) == BC_JFORL)) {
+      fa = bc_a(*startpc);
+      raw_for_idx = base[fa+FORL_IDX].u64;
+      raw_for_stop = base[fa+FORL_STOP].u64;
+      raw_for_step = base[fa+FORL_STEP].u64;
+      raw_for_ext = base[fa+FORL_EXT].u64;
+    }
+    fprintf(stderr,
+	    "S390X_VM_CHILD_ENTRY n=%d trace=%u root=%u link=%u linktype=%u startpc=%p startop=%u resumepc=%p resumeop=%u resumevalid=%u resumechild=%u mcode=%p mcloop=%u ownerop=%u base=%p for_a=%u raw_for_idx=0x%016llx raw_for_stop=0x%016llx raw_for_step=0x%016llx raw_for_ext=0x%016llx\n",
+	    dump_count,
+	    (unsigned int)T->traceno,
+	    (unsigned int)T->root,
+	    (unsigned int)T->link,
+	    (unsigned int)T->linktype,
+	    (const void *)mref(T->startpc, BCIns),
+	    (unsigned int)bc_op(T->startins),
+	    (const void *)mref(T->resumepc, BCIns),
+	    (unsigned int)bc_op(T->resumeins),
+	    (unsigned int)T->resumevalid,
+	    (unsigned int)T->resumechild,
+	    (const void *)T->mcode,
+	    (unsigned int)T->mcloop,
+	    (unsigned int)T->unused1,
+	    (const void *)base,
+	    (unsigned int)fa,
+	    (unsigned long long)raw_for_idx,
+	    (unsigned long long)raw_for_stop,
+	    (unsigned long long)raw_for_step,
+	    (unsigned long long)raw_for_ext);
+  } else {
   fprintf(stderr,
 	  "S390X_VM_CHILD_ENTRY n=%d trace=%u root=%u link=%u linktype=%u startpc=%p startop=%u resumepc=%p resumeop=%u resumevalid=%u resumechild=%u mcode=%p mcloop=%u ownerop=%u\n",
 	  dump_count,
@@ -446,6 +480,7 @@ void lj_trace_s390x_vm_child_entry_log(GCtrace *T)
 	  (const void *)T->mcode,
 	  (unsigned int)T->mcloop,
 	  (unsigned int)T->unused1);
+  }
   dump_count++;
 }
 

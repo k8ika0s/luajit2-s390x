@@ -733,6 +733,14 @@ static int lj_record_s390x_looplink_payload_desc_enabled(void)
   return enabled;
 }
 
+static int lj_record_s390x_jfori_interp_handoff_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_JFORI_INTERP_HANDOFF") != NULL);
+  return enabled;
+}
+
 static int lj_record_s390x_recbc_log_enabled(void)
 {
   static int enabled = -1;
@@ -3615,8 +3623,22 @@ void lj_record_ins(jit_State *J)
 		(unsigned int)ev,
 		(unsigned int)bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
       }
-      if (ev != LOOPEV_LEAVE)  /* Link to existing loop. */
-	lj_record_stop(J, LJ_TRLINK_ROOT, bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
+      if (ev != LOOPEV_LEAVE) {  /* Link to existing loop. */
+	if (lj_record_s390x_jfori_interp_handoff_enabled() &&
+	    J->parent == 0 && J->exitno == 0 &&
+	    J->framedepth + J->retdepth == 0) {
+	  if (lj_record_s390x_stop_log_enabled()) {
+	    fprintf(stderr,
+		    "S390X_JFORI_HANDOFF trace=%u mode=interp root=%u pc=%p startpc=%p target=%u\n",
+		    (unsigned int)J->cur.traceno, (unsigned int)J->cur.root,
+		    (const void *)J->pc, (const void *)J->startpc,
+		    (unsigned int)bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
+	  }
+	  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
+	} else {
+	  lj_record_stop(J, LJ_TRLINK_ROOT, bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
+	}
+      }
     /* Continue tracing if the loop is not entered. */
     break;
     }

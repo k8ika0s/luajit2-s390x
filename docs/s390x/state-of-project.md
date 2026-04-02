@@ -2536,6 +2536,41 @@ Current owner map contract:
   - do not reopen low32-home, helper-header lookup, iterator, dispatch, or
     generic hotside population work
 
+- Timestamp: `2026-04-02 14:32:00 PDT`
+- The next paired host slice closes one wrong theory and one real blocker
+  - correction:
+    - `BC_JFORI` does **not** perform the VM `idx += step` update
+    - on s390x that update only happens on the `BC_JFORL` / `BC_IFORL` path in
+      [vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc#L4331)
+    - `BC_JFORI` checks the current integer loop state and stores the current
+      visible `FOR_EXT` value before `JLOOP`
+  - paired gate under clean `kdz`:
+    - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+    - `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+    - two-hot pure-add and real `number_helper_loop` canaries both return the
+      correct first and second hot results:
+      [20260402-kdz-gc64-signed-sload-plus-jfori-handoff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-signed-sload-plus-jfori-handoff/summary.md)
+  - but the focused real-workload counter read is still flat:
+    - baseline and paired gate both stay at `TRACE_START 7`, `TRACE_STOP 5`,
+      `TRACE_ABORT 1`, `TEXIT_COUNT 64001`
+    - the only structural movement is the tiny entry trace:
+      - baseline `TRACEINFO 2 1 root 4 6 3`
+      - paired gate `TRACEINFO 2 0 interpreter 4 6 3`
+  - exact exit read under the pair:
+    - repeated seam is still `trace 1 exit 0`
+    - restored `pc op=45` / `snapop=45` (`BC_UGET`)
+    - exact taken `guardmark` is still `0x3`
+    - runtime state now shows the signed compare register already corrected
+      (`r4=0xfffffffffffffff2`), while the current loop value still increments
+      as plain low integers (`r11=0x3`, `0x4`, `0x5`, ...)
+  - queue correction:
+    - direct `JFORI` root-linking was a real secondary correctness blocker once
+      the inherited integer `SLOAD` typecheck started passing
+    - it is not the primary steady-state exit payer on the promoted slice
+    - the next live seam is still stack-visible/current-value materialization
+      for the inherited visible numeric-for value at restored `SNAP #0`, not
+      another `JFORI` population tweak
+
 ### After that
 
 There are only two realistic outcomes:

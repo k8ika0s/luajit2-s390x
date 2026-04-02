@@ -11987,3 +11987,39 @@ Next hash target
     - it is “the `FORI/JFORI` entry handoff can reach trace 1 without
       rebuilding the VM-style numeric-for `IDX/EXT` state that trace 1
       assumes”
+
+- Timestamp: `2026-04-02 14:32:00 PDT`
+- Correction plus paired repair slice on clean `kdz`
+  - source correction:
+    - the prior `JFORI` read was too broad
+    - `BC_JFORI` does not do `idx += step`
+    - only `BC_JFORL` / `BC_IFORL` perform the VM update/store step on s390x
+    - `BC_JFORI` checks the current loop state and stores the current visible
+      `FOR_EXT` before `JLOOP`
+  - paired gate:
+    - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+    - `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1`
+    - clean `kdz` canaries both stay correct for two hot runs:
+      [20260402-kdz-gc64-signed-sload-plus-jfori-handoff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-signed-sload-plus-jfori-handoff/summary.md)
+  - focused real-workload read:
+    - baseline and paired gate both stay at:
+      - `TRACE_START 7`
+      - `TRACE_STOP 5`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 64001`
+    - the only structural change is the tiny entry trace:
+      - baseline `TRACEINFO 2 1 root 4 6 3`
+      - paired gate `TRACEINFO 2 0 interpreter 4 6 3`
+  - exact exit attribution under the pair:
+    - dominant repeated seam is still `trace 1 exit 0`
+    - restored `pc op=45` / `snapop=45` (`BC_UGET`)
+    - exact taken `guardmark` is still `0x3`
+    - runtime registers now show the signed compare constant already corrected
+      (`r4=0xfffffffffffffff2`), while the current loop value still advances as
+      plain low integers (`r11=0x3`, `0x4`, `0x5`, ...)
+  - queue correction:
+    - direct `JFORI` root-linking was a real secondary correctness blocker once
+      the inherited integer `SLOAD` typecheck started passing
+    - it is not the primary steady-state exit payer on this promoted slice
+    - the next live seam remains stack-visible/current-value materialization
+      for the inherited visible numeric-for value at restored `SNAP #0`
