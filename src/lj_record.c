@@ -96,6 +96,16 @@ static int s390x_recret_log_enabled(void)
   return state;
 }
 
+static int s390x_recret_slots_log_enabled(void)
+{
+  static int state = -1;
+  if (state == -1) {
+    const char *flag = getenv("LUAJIT_S390X_RECRET_SLOTS_LOG");
+    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
+  }
+  return state;
+}
+
 static int s390x_funcjit_log_enabled(void)
 {
   static int state = -1;
@@ -179,6 +189,28 @@ static void s390x_recret_branch_log(jit_State *J, const char *site,
 	  (unsigned int)baseadj, (unsigned int)cbase, (int)nresults,
 	  (void *)frame, frame_islua(frame), frame_iscont(frame),
 	  frame_isvarg(frame));
+  fflush(out);
+}
+
+static void s390x_recret_slots_log(jit_State *J, const char *site,
+				   BCReg cbase, ptrdiff_t nresults)
+{
+  int i, limit;
+  FILE *out;
+  if (!s390x_recret_slots_log_enabled())
+    return;
+  out = stderr;
+  limit = (int)(J->maxslot + cbase + 4);
+  if (limit < 12) limit = 12;
+  if (limit > 24) limit = 24;
+  fprintf(out,
+	  "S390X_RECRET_SLOTS site=%s trace=%u parent=%u exit=%u baseslot=%u maxslot=%u cbase=%u nresults=%d\n",
+	  site, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	  (unsigned int)J->exitno, (unsigned int)J->baseslot,
+	  (unsigned int)J->maxslot, (unsigned int)cbase, (int)nresults);
+  for (i = -((int)LJ_FR2 + 1); i < limit; i++) {
+    fprintf(out, "S390X_RECRET_SLOT idx=%d tref=%d\n", i, (int)J->base[i]);
+  }
   fflush(out);
 }
 
@@ -1961,20 +1993,22 @@ void lj_record_ret(jit_State *J, BCReg rbase, ptrdiff_t gotresults)
       s390x_recret_branch_log(J, "lua_stackov", frame, rbase, gotresults,
 				baseadj, cbase, nresults);
       lj_trace_err(J, LJ_TRERR_STACKOV);
-    } else {  /* Return to lower frame. Guard for the target we return to. */
-      s390x_recret_branch_log(J, "lua_lower_frame_retf", frame, rbase,
-				gotresults, baseadj, cbase, nresults);
-      TRef trpt = lj_ir_kgc(J, obj2gco(pt), IRT_PROTO);
-      TRef trpc = lj_ir_kptr(J, (void *)frame_pc(frame));
-      emitir(IRTG(IR_RETF, IRT_PGC), trpt, trpc);
-      J->retdepth++;
-      J->needsnap = 1;
-      J->scev.idx = REF_NIL;
-      lj_assertJ(J->baseslot == 1+LJ_FR2, "bad baseslot for return");
-      /* Shift result slots up and clear the slots of the new frame below. */
-      memmove(J->base + cbase, J->base-1-LJ_FR2, sizeof(TRef)*nresults);
-      memset(J->base-1-LJ_FR2, 0, sizeof(TRef)*(cbase+1+LJ_FR2));
-    }
+	    } else {  /* Return to lower frame. Guard for the target we return to. */
+	      s390x_recret_branch_log(J, "lua_lower_frame_retf", frame, rbase,
+					gotresults, baseadj, cbase, nresults);
+	      TRef trpt = lj_ir_kgc(J, obj2gco(pt), IRT_PROTO);
+	      TRef trpc = lj_ir_kptr(J, (void *)frame_pc(frame));
+	      emitir(IRTG(IR_RETF, IRT_PGC), trpt, trpc);
+	      J->retdepth++;
+	      J->needsnap = 1;
+	      J->scev.idx = REF_NIL;
+	      lj_assertJ(J->baseslot == 1+LJ_FR2, "bad baseslot for return");
+	      s390x_recret_slots_log(J, "lower_frame_pre_shift", cbase, nresults);
+	      /* Shift result slots up and clear the slots of the new frame below. */
+	      memmove(J->base + cbase, J->base-1-LJ_FR2, sizeof(TRef)*nresults);
+	      memset(J->base-1-LJ_FR2, 0, sizeof(TRef)*(cbase+1+LJ_FR2));
+	      s390x_recret_slots_log(J, "lower_frame_post_shift", cbase, nresults);
+	    }
   } else if (frame_iscont(frame)) {  /* Return to continuation frame. */
     s390x_recret_log(J, "cont", frame, rbase, gotresults, baseadj);
     s390x_recret_branch_log(J, "cont_pre", frame, rbase, gotresults, baseadj,

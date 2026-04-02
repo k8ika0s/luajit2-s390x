@@ -2231,14 +2231,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pin-core", type=int, default=restamp.DEFAULT_PIN_CORE)
     parser.add_argument("--samples", type=int, default=restamp.DEFAULT_SAMPLES)
     parser.add_argument("--warmup", type=int, default=restamp.DEFAULT_WARMUP)
+    parser.add_argument(
+        "--env",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Extra environment variable to set for remote benchmark and probe processes.",
+    )
     return parser.parse_args()
+
+
+def parse_env_overrides(items: list[str]) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    for item in items:
+        if "=" not in item:
+            raise SystemExit(f"invalid --env entry {item!r}; expected KEY=VALUE")
+        key, value = item.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise SystemExit(f"invalid --env entry {item!r}; missing KEY")
+        overrides[key] = value
+    return overrides
 
 
 def main() -> int:
     args = parse_args()
     family = args.family
     candidate = args.candidate
-    candidate_env = CANDIDATE_ENVS[candidate]
+    candidate_env = dict(CANDIDATE_ENVS[candidate])
+    candidate_env.update(parse_env_overrides(args.env))
     config = FAMILY_CONFIGS[family]
     scope_summary = family_scope_summary(candidate, config)
     host = args.host
