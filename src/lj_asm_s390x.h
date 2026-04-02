@@ -87,7 +87,16 @@ static int asm_s390x_guardmark_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_GUARDMARK") != NULL);
+    enabled = (getenv("LUAJIT_S390X_GUARDMARK") != NULL ||
+	       getenv("LUAJIT_S390X_GUARDMARK_TAKEN") != NULL);
+  return enabled;
+}
+
+static int asm_s390x_guardmark_taken_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_GUARDMARK_TAKEN") != NULL);
   return enabled;
 }
 
@@ -1244,6 +1253,16 @@ static void asm_guardcc(ASMState *as, int cc)
 		      emit_gl_ofs(tmptv2) + (LJ_BE ? 4 : 0));
       emit_loadi(as, RID_TMP, mark);
     }
+    return;
+  }
+  if (asm_s390x_guardmark_taken_enabled()) {
+    MCode *cont = as->mcp;
+    /* Debug-only exact mark path: only taken guards write the mark. */
+    emit_condbranch(as, CC_AL, target);
+    emit_store32ofs(as, RID_TMP, RID_DISPATCH,
+		    emit_gl_ofs(tmptv2) + (LJ_BE ? 4 : 0));
+    emit_loadi(as, RID_TMP, mark);
+    emit_condbranch(as, (S390XCC)asm_guardcc_invert(cc), cont);
     return;
   }
   /* Code is emitted backwards: place the branch first so the mark write
