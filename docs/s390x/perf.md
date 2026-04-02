@@ -2128,6 +2128,20 @@ Current queue correction:
       `checkint -> 32-bit add -> setint -> store`
     - so the remaining seam is now the replay materialization path before the
       header `MULOV`, not the tag compare by itself
+  - tighter handoff correction from the real workload dump:
+    - `TRACE 1` is the loop trace and starts at `BC_FORL`
+    - `TRACE 2` is a tiny `FUNCF` root that only proves `n` is in range and
+      stops `-> 1`
+    - that `stop -> 1` shape matches the compiled-loop handoff path for an
+      already-compiled loop, not the VM `FORI/FORL` path
+    - that means the second hot run can reach `TRACE 1` through a
+      function-entry handoff, not only through the VM `FORI/FORL` path
+    - `lj_snap_replay()` only recreates inherited `IR_SLOAD` refs on that
+      path, so the current replay bug is no longer “typecheck but no clear
+      32-bit arithmetic value inside trace 1” in the abstract
+    - it is “the handoff into trace 1 is still not rebuilding the numeric-for
+      index/current-value state the way VM `FORI/FORL` does before trace 1
+      consumes it”
 
 ## Promotable Patch Gate
 

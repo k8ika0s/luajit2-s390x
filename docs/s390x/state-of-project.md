@@ -2513,6 +2513,23 @@ Current owner map contract:
   - it is why replay after the inherited `SLOAD` typecheck still does not
     re-materialize that same cleared 32-bit numeric-for value before the
     header `MULOV`
+- tighter entry-path read:
+  - `TRACE 1` is the loop trace and starts at `BC_FORL`
+  - `TRACE 2` is a tiny `FUNCF` root that only guards `n` and then stops
+    `-> 1`
+  - that `stop -> 1` shape matches the compiled-loop handoff path in
+    [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3618),
+    not the VM `FORI/FORL` materialization path
+  - `lj_snap_replay()` only recreates inherited `IR_SLOAD` refs for that
+    handoff; it does not run the VM `FORI/FORL` integer materialization path
+  - the repeated second-run bad value (`0x8001`, `0x8002`, `0x8003`, ...)
+    therefore points to stale inherited numeric-for index/current-value state
+    reaching `TRACE 1` before the first body arithmetic use
+- next honest target:
+  - identify where that function-entry handoff is supposed to rematerialize
+    VM-style numeric-for state before linking into `TRACE 1`
+  - do not reopen low32-home, helper-header lookup, iterator, dispatch, or
+    generic hotside population work
 
 ### After that
 
