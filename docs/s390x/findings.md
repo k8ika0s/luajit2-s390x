@@ -10954,3 +10954,32 @@ Next hash target
     - it is promotion planning and candidate surfacing from the split:
       `promotion_core` first, `promotion_secondary` only as carry-forward
       evidence
+
+- Timestamp: `2026-04-01 18:46:42 PDT`
+- The `promotion_secondary` slice now has enough host-pair A/B to stay
+  explicitly secondary instead of drifting back toward the main enable set
+  - `mixed_noffi` baseline -> candidate:
+    - `kdz`: `mixed_loop/hot 0.084383 -> 0.036412`
+    - `zkd0`: `mixed_loop/hot 0.189387 -> 0.079668`
+  - `vararg_paths` baseline -> candidate:
+    - `kdz`
+      - `retlast_loop/hot 0.029461 -> 0.003093`
+      - `retconst_loop/hot 0.028523 -> 0.001660`
+      - `sum_loop/hot 1.123796 -> 0.675104`
+    - `zkd0`
+      - `retlast_loop/hot 0.052306 -> 0.012619`
+      - `retconst_loop/hot 0.063160 -> 0.003574`
+      - `sum_loop/hot 2.894826 -> 2.985526`
+  - interpretation:
+    - `retlast_loop`, `retconst_loop`, and `mixed_loop` still support the same
+      filtered `UGET`/looproot mechanism
+    - but they remain the second promotion bar, not the first one
+    - `sum_loop` stays `same_seam_but_dominated`, and on `zkd0` it is slightly
+      worse under the candidate
+  - source of the pending `zkd0` vararg baseline rows:
+    - [jit-on](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-baseline-truth-pack/raw/jit-on.stdout.log)
+    - [joff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-baseline-truth-pack/raw/joff.stdout.log)
+  - queue correction:
+    - promote `promotion_core` first
+    - keep `promotion_secondary` as carry-forward same-seam evidence
+    - keep `sum_loop` out of the enable set

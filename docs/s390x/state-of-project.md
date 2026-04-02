@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-01 18:33:00 PDT
+Last updated: 2026-04-01 18:46:42 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -483,6 +483,23 @@ non-causal probe effects. The current state is cleaner:
                   - `vararg_paths/retconst_loop`
                   - `vararg_paths/retlast_loop`
                   - `mixed_noffi/mixed_loop`
+              - the secondary slice now has enough baseline/candidate A/B
+                to stay explicitly secondary:
+                - `kdz`
+                  - `retlast_loop/hot`: `0.029461 -> 0.003093`
+                  - `retconst_loop/hot`: `0.028523 -> 0.001660`
+                  - `mixed_loop/hot`: `0.084383 -> 0.036412`
+                  - `sum_loop/hot`: `1.123796 -> 0.675104`, still dominated
+                - `zkd0`
+                  - `retlast_loop/hot`: `0.052306 -> 0.012619`
+                  - `retconst_loop/hot`: `0.063160 -> 0.003574`
+                  - `mixed_loop/hot`: `0.189387 -> 0.079668`
+                  - `sum_loop/hot`: `2.894826 -> 2.985526`, still dominated
+                - the `zkd0` vararg baseline rows are already present in the
+                  raw baseline logs even though the helper summary has not yet
+                  flushed:
+                  - [jit-on](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-baseline-truth-pack/raw/jit-on.stdout.log)
+                  - [joff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-baseline-truth-pack/raw/joff.stdout.log)
                 - `kdz`
                   - [20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
                     - `number_helper_loop/hot`: `0.008169` vs `-joff 0.002285`
@@ -527,6 +544,10 @@ non-causal probe effects. The current state is cleaner:
               - it is selective promotion planning from this fully
                 helper-backed split: core promotion first, secondary
                 same-seam carry-forward second
+              - immediate policy consequence:
+                - first promotion surface should be `promotion_core` only
+                - `promotion_secondary` remains evidence for the same mechanism,
+                  but not the first default/enable set
 - that first invariant-driven reduced-probe gate is now rejected on clean
   `kdz`:
   - artifact:

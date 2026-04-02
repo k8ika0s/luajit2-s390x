@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-01 18:33:00 PDT
+Last updated: 2026-04-01 18:46:42 PDT
 
 ## Latest Matrix
 
@@ -425,6 +425,23 @@ Current clean-`kdz` broader-throughput frontier:
           - `retconst_loop`
           - `retlast_loop`
           - `mixed_loop`
+      - the secondary slice now has enough baseline/candidate A/B to stay
+        explicitly secondary instead of floating as generic same-seam evidence:
+        - `kdz`
+          - `retlast_loop/hot`: `0.029461 -> 0.003093`
+          - `retconst_loop/hot`: `0.028523 -> 0.001660`
+          - `mixed_loop/hot`: `0.084383 -> 0.036412`
+          - `sum_loop/hot`: `1.123796 -> 0.675104`, still dominated
+        - `zkd0`
+          - `retlast_loop/hot`: `0.052306 -> 0.012619`
+          - `retconst_loop/hot`: `0.063160 -> 0.003574`
+          - `mixed_loop/hot`: `0.189387 -> 0.079668`
+          - `sum_loop/hot`: `2.894826 -> 2.985526`, still dominated and not
+            promotion evidence
+        - `zkd0` vararg baseline numbers above come from the completed raw
+          benchmark logs while the helper summary is still pending:
+          - [jit-on](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-baseline-truth-pack/raw/jit-on.stdout.log)
+          - [joff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-zkd0-vararg_paths-baseline-truth-pack/raw/joff.stdout.log)
         - `kdz`
           - [20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260401-kdz-be_helpers-hotside_canon_share_uget_looproot-truth-pack/summary.md)
             - `number_helper_loop/hot`: `0.008169` vs `-joff 0.002285`,
@@ -477,6 +494,10 @@ Current clean-`kdz` broader-throughput frontier:
         gate has a promotable slice or filling host-pair gaps inside it
       - it is selective promotion planning from this helper-backed split:
         core promotion first, secondary same-seam carry-forward second
+      - that now means:
+        - promote only `promotion_core` on the first surface
+        - keep `promotion_secondary` as documented same-seam carry-forward
+          evidence, not the first enable set
 - first invariant-driven reduced-probe gate is now a clean `kdz` reject:
   - artifact:
     [20260401-kdz-low32home-add-boundary-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-low32home-add-boundary-check/summary.md)
