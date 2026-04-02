@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 09:18:00 PDT
+Last updated: 2026-04-02 09:42:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -247,13 +247,31 @@ non-causal probe effects. The current state is cleaner:
             - queue correction:
               - the first shared marked header seam on the promoted slice is
                 the inherited `sload_int` on `IR=SLOAD #4 TI`
-              - on this GC64 build, `op1=4` maps to top-frame slot `2`, which
-                is the numeric `for` index state on this workload
-              - `op2=36` is `IRSLOAD_TYPECHECK|IRSLOAD_INHERIT`, so this guard
-                is explicitly revalidated on exits and side traces
-              - in recorder terms, this is the hidden narrowed `FORL_IDX`
-                reload created by `rec_for_loop(...)`, not the source-level
-                helper header and not the carried `total`
+              - corrected slot map artifact:
+                [20260402-kdz-number-helper-fori-slot-map](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-fori-slot-map/summary.md)
+              - for `number_helper_loop`, `FORI/FORL A=2` means:
+                - slot `2` = hidden `IDX`
+                - slot `3` = hidden `STOP` (`n`)
+                - slot `4` = hidden `STEP` (`1`)
+                - slot `5` = visible `EXT` (`i`)
+              - queue correction:
+                - `sload_int ofs=16 extra=20` is hidden `STEP`, not hidden
+                  `IDX`
+                - `sload_int ofs=8 extra=12` is hidden `STOP`, not carried
+                  `total`
+                - the promoted-slice front seam is a numeric-for hidden
+                  control-slot replay family, but the specific active marker is
+                  `STEP`, not `FORL_IDX`
+              - recorder/replay correction:
+                - this front `STEP` guard is not created by
+                  `rec_for_loop(...)` on the hot `FORL` path
+                - `rec_for(..., isforl=0)` records the original `FORI`
+                  initializer with generic `sload()` on `IDX/STOP/STEP`
+                - generic `sload()` always emits `IRSLOAD_TYPECHECK`
+                - `lj_snap_replay()` then recreates inherited parent `IR_SLOAD`
+                  refs for side traces
+                - so the repeated promoted-slice seam is inherited root-`FORI`
+                  control-slot replay, not a fresh `FORL` side-trace load
               - `trace 7 exit 0` is still a `snapnent=0` header exit, so this
                 guard is validating live interpreter frame state at restored
                 `SNAP #0`, not a later restored snapshot payload
@@ -274,14 +292,15 @@ non-causal probe effects. The current state is cleaner:
               - queue correction:
                 - on the real promoted workload, the first literal taken guard
                   inside the merged restored-`SNAP #0` numeric-`for` header is
-                  the inherited `FORL_IDX` `sload_int`
+                  the inherited hidden `STEP` `sload_int`
                 - the later stop-bound `LE` on `n` is still present in the
                   same cluster, but it is no longer the front-most competing
                   failure on the real workload
-              - the remaining live question is now narrower:
-                explain why that inherited numeric-`for` index typecheck
-                still fails every trip even though restored slot logging
-                shows the corresponding interpreter slot already int-tagged
+                - the remaining live question is now narrower:
+                  explain why that inherited numeric-for hidden-control
+                  `STEP` typecheck
+                  still fails every trip even though restored slot logging
+                  shows the corresponding interpreter slot already int-tagged
               - attempted fix boundary:
                 - direct GC64 shifted-tag repair for the inherited integer
                   `SLOAD` compare is now closed as a promotable family
@@ -306,16 +325,21 @@ non-causal probe effects. The current state is cleaner:
               - and it is no longer generic in-cluster guard-order
                 attribution between the inherited `sload_int` and stop-bound
                 `LE`
-              - it is exact failure attribution for the inherited
-                `FORL_IDX` `sload_int` on the restored `SNAP #0` header
+              - it is exact failure attribution for the inherited hidden
+                numeric-for `STEP` `sload_int` on the restored `SNAP #0`
+                header
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - explain why the inherited `FORL_IDX` replay/typecheck contract
+          - explain why the inherited root-`FORI` hidden `STEP`
+            replay/typecheck contract
             still fails at the restored `SNAP #0` header on the promoted slice:
             - exact-taken guard on the real workload: `IR=SLOAD #4 TI`
-            - recorder contract: hidden `FORL_IDX` with
-              `TYPECHECK|INHERIT`
+            - corrected bytecode map on `number_helper_loop`:
+              `IR=SLOAD op1=4` is hidden `STEP`, not hidden `IDX`
+            - origin path:
+              root `FORI` generic `sload()` + snapshot inheritance, not fresh
+              `FORL` side replay
             - rejected direct repair:
               exact GC64 shifted-tag compare for that inherited integer
               `SLOAD`

@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 09:18:00 PDT
+Last updated: 2026-04-02 09:42:00 PDT
 
 ## Latest Matrix
 
@@ -277,12 +277,27 @@ Exact runtime guard attribution now sharpens that further:
     failure stays on the same inherited `sload_int`
 - semantic meaning:
   - this is the first shared marked header guard, `IR=SLOAD #4 TI`
-  - on this GC64 build, `op1=4` maps to top-frame slot `2`
-  - on `number_helper_loop`, that slot is the numeric `for` index state
-  - `op2=36` is `IRSLOAD_TYPECHECK|IRSLOAD_INHERIT`, so the guard is
-    intentionally revalidated on exits and side traces
-  - this is the hidden narrowed `FORL_IDX` reload created by `rec_for_loop()`,
-    not the visible helper header or the carried accumulator
+  - corrected slot map artifact:
+    [20260402-kdz-number-helper-fori-slot-map](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-fori-slot-map/summary.md)
+  - on `number_helper_loop`, `FORI/FORL A=2` means:
+    - slot `2` = hidden `IDX`
+    - slot `3` = hidden `STOP`
+    - slot `4` = hidden `STEP`
+    - slot `5` = visible `EXT`
+  - so `IR=SLOAD op1=4` / `ofs=16 extra=20` is hidden `STEP`, not hidden
+    `IDX`
+  - and `ofs=8 extra=12` is hidden `STOP`, not the carried accumulator
+  - the live header seam is therefore a numeric-for hidden control-slot replay
+    family, with `STEP` now pinned as the front-most exact-taken marker on the
+    real workload
+  - origin matters:
+    - `rec_for(..., isforl=0)` records the original `FORI` initializer with
+      generic `sload()` on `IDX/STOP/STEP`
+    - generic `sload()` always emits `IRSLOAD_TYPECHECK`
+    - `lj_snap_replay()` recreates inherited parent `IR_SLOAD` refs on side
+      traces
+    - so the front `STEP` seam is inherited root-`FORI` control-slot replay,
+      not a fresh `FORL` hot-side load from `rec_for_loop()`
   - `snapnent=0` remains true on the dominant exit, so this guard is checking
     live interpreter frame state at restored `SNAP #0`
   - stricter taken-only marking on the real workload now closes that gap:
@@ -298,13 +313,13 @@ Exact runtime guard attribution now sharpens that further:
     - restored top-frame slot `2` is already int-tagged at the repeated exit
       point
     - so the live question is no longer “which guard is first?”
-    - it is “why does the inherited `FORL_IDX` typecheck still fail every
+    - it is “why does the inherited hidden `STEP` typecheck still fail every
       trip at restored `SNAP #0`?”
 
 So the current promoted-slice red is no longer best described as the
 carried-`total` reload seam. On the real workload, the first literal taken
 guard in the merged restored-`SNAP #0` numeric-`for` header cluster is now
-the inherited numeric-`for` index `sload_int` guard (`IR=SLOAD #4 TI`,
+the inherited numeric-for hidden `STEP` `sload_int` guard (`IR=SLOAD #4 TI`,
 `ofs=16 extra=20`). The later stop-bound `LE` on `n` remains present in the
 same cluster, but it is no longer the front-most competing failure on the
 real workload.
@@ -324,8 +339,9 @@ Direct shifted-tag repair is now closed on the current mechanism:
 - queue correction:
   - the raw tag mismatch at `IR=SLOAD #4 TI` is informative, but it is not a
     standalone promotable fix
-  - the live seam stays the inherited `FORL_IDX` replay/header contract at
-    restored `SNAP #0`, not “swap in the exact GC64 int tag and ship it”
+  - the live seam stays the inherited numeric-for hidden-control
+    replay/header contract at restored `SNAP #0`, not “swap in the exact GC64
+    int tag and ship it”
 
 Shared `sload_int` attribution remains useful, but it is now explicitly
 secondary:
@@ -340,18 +356,20 @@ secondary:
     - `op2=4`
     - `ofs=8`
     - `extra=12`
-    - semantic source: loop-carried `total`
+    - semantic source: hidden `STOP` (`n`)
   - later shared `sload_int`:
     - `curins=3`
     - `ofs=16`
     - `extra=20`
-    - semantic source: numeric `for` index state
+    - semantic source: hidden `STEP` (`1`)
 
 Current queue correction:
 
-- the next live seam on the promoted slice is the inherited numeric-`for`
-  replay/header contract around `FORL_IDX`, with the later `LE` on `n`
-  remaining secondary on the real workload
+- the next live seam on the promoted slice is the inherited numeric-for
+  hidden-control replay/header contract, with `STEP` front-most and the later
+  `LE` on `n` remaining secondary on the real workload
+- more precisely: inherited root-`FORI` control-slot replay, not fresh
+  `FORL` side-trace creation
 - the carried-`total` reload stays relevant as the first shared `sload_int`
   seam across reducers, but it is no longer the front-most exact runtime
   failure
