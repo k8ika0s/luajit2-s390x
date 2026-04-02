@@ -12023,3 +12023,21 @@ Next hash target
     - it is not the primary steady-state exit payer on this promoted slice
     - the next live seam remains stack-visible/current-value materialization
       for the inherited visible numeric-for value at restored `SNAP #0`
+
+- Timestamp: `2026-04-02 16:05:00 PDT`
+- Numeric-for header split on clean `kdz`
+  - focused recorder proof:
+    - on the real `number_helper_loop` path, hidden `STEP` already
+      constantizes in `fori_arg()`
+    - hidden `STOP` does not; it stays inherited from runtime stop argument
+      `n`
+  - literal-stop sibling:
+    - a reduced helper variant with `for i = 1, 400 do` constantizes both
+      hidden `STOP` and hidden `STEP`
+    - repeated exits still survive there, but the seam moves from the old
+      dynamic-form mark to a later guard (`guardmark=0xd`)
+  - closure:
+    - direct recorder const-init repair is not the next fix
+    - inherited hidden `STOP` replay is only the front-most dynamic seam
+    - once `STOP`/`STEP` are stabilized, the live payer becomes a later
+      header/body guard family

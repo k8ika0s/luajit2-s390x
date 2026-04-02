@@ -2225,6 +2225,23 @@ Clean `kdz` paired-gate check on the promoted `number_helper_loop` seam:
 
 So this pair is a real correctness probe, not a promotable perf fix.
 
+## Numeric-for Header Split
+
+Clean `kdz` reduced recorder/header probes now split the dynamic numeric-for
+seam:
+
+- on the real `number_helper_loop` path, recorder logging shows hidden
+  `STEP` already constantizes while hidden `STOP` stays inherited from runtime
+  argument `n`
+- a literal-stop sibling (`for i = 1, 400 do`) constantizes both hidden
+  `STOP` and `STEP`
+- the repeated exit flurry still survives on that literal-stop sibling, but it
+  shifts off the old dynamic-form mark and onto a later guard (`guardmark=0xd`)
+
+So the next seam is no longer “can recorder constantize numeric-for header
+constants?” It is the later header/body guard family exposed after that
+constantization.
+
 ## Relationship To Other Docs
 
 - High-level status:
