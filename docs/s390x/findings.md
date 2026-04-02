@@ -12397,3 +12397,48 @@ Next hash target
     - the next live seam is the helper lower-frame return (`RETF`)
       continuation after the warmed overflow loop
     - not the later print stitch
+
+- Timestamp: `2026-04-02 17:19:00 PDT`
+- Direct `RETF` probe proves a real polymorphic-caller side seam, but not the
+  whole post-repair bug
+  - artifact:
+    `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-runtime-contract/raw`
+  - in the two-call-site no-print-mid reducer:
+    - `WARM 132610`
+    - `SECOND 25535`
+    - `TRACE 4` records `lua_lower_frame_retf` with one caller `frame_pc`
+      (`0x...6b70`)
+    - the exact taken exit then carries two different PCs:
+      - `r2=0x...6b70`
+      - `r11=0x...6b7c`
+  - local bytecode listing closes that `0xc` gap:
+    - top-level `warm = run(64000)` call site
+    - top-level `second = run(40000)` call site
+  - closure:
+    - direct lower-frame `RETF` mismatch is real on polymorphic caller PCs
+    - but this remains a side seam in the two-call-site reducer
+
+- Timestamp: `2026-04-02 17:19:00 PDT`
+- Stable-callsite control moves the live seam past `RETF` into the caller
+  numeric-for header
+  - artifact:
+    `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-retf-single-callsite-loop/raw`
+  - `drive(n, reps)` calls `run(n)` twice from the same caller `FORL` site
+  - result is still wrong:
+    - `RESULT 25535`
+  - `TRACE 4` still contains `p64 RETF`, but the exact taken exit is later:
+    - `trace 4 exit 2`
+    - restored `pc op=76`
+    - `guardmark=0x11`
+  - the recorded caller-loop prefix after `RETF` is:
+    - `int SLOAD #6 RI`
+    - `int SLOAD #5 TI`
+    - `int ADD`
+    - `int LE`
+  - closure:
+    - stabilizing the caller return PC does not make the post-repair bug go
+      away
+    - once `RETF` is no longer the first failing point, the live seam moves
+      into the caller `FORI/FORL` state after return
+    - the next honest target is the caller numeric-for header contract after
+      successful lower-frame return, not generic `RETF`
