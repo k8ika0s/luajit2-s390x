@@ -11665,3 +11665,38 @@ Next hash target
     - not a fresh hot `FORL` side-trace load
     - the next honest target is therefore root-header stabilization or replay
       semantics on that inherited hidden `STEP` slot
+
+- Timestamp: `2026-04-02 10:02:00 PDT`
+- Root-`FORI` const-init surgery is now rejected as the wrong constructor for
+  the live promoted-slice seam
+  - source change stayed local only:
+    - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    - attempted gate: `LUAJIT_S390X_FORI_CONST_INIT=1`
+    - change: constify hidden `FORI` initializers via `find_kinit()` before
+      falling back to `fori_load(... IRSLOAD_TYPECHECK)`
+    - reverted after validation
+  - code-path correction:
+    - the older “root `FORI` is creating the live seam” read was too broad
+    - [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1086)
+      already uses `fori_arg(... find_kinit(...))` for hidden `STOP` and
+      `STEP` on the `FORL` side-trace path
+    - so the new gate only changed
+      [rec_for(..., isforl=0)](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1127),
+      not the later replay path that is actually live under the promoted
+      slice
+  - clean `kdz` proof under the gate:
+    - artifact:
+      [20260402-kdz-fori-const-init-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-fori-const-init-v1/summary.md)
+    - `TRACE_START 5`
+    - `TRACE_STOP 5`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 64001`
+    - dominant texit still `7:0=63457`
+    - repeated exit still reports `guardmark=0x3`
+  - queue correction:
+    - the live promoted-slice seam is not solved by changing root `FORI`
+      hidden-slot construction
+    - `STOP/STEP` already have `find_kinit()` available on the `FORL`
+      side-trace path
+    - the next honest target stays inside restored numeric-for replay /
+      typecheck semantics on the inherited hidden `STEP` seam

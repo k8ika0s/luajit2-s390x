@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 09:42:00 PDT
+Last updated: 2026-04-02 10:02:00 PDT
 
 ## Latest Matrix
 
@@ -290,14 +290,29 @@ Exact runtime guard attribution now sharpens that further:
   - the live header seam is therefore a numeric-for hidden control-slot replay
     family, with `STEP` now pinned as the front-most exact-taken marker on the
     real workload
-  - origin matters:
-    - `rec_for(..., isforl=0)` records the original `FORI` initializer with
-      generic `sload()` on `IDX/STOP/STEP`
-    - generic `sload()` always emits `IRSLOAD_TYPECHECK`
-    - `lj_snap_replay()` recreates inherited parent `IR_SLOAD` refs on side
-      traces
-    - so the front `STEP` seam is inherited root-`FORI` control-slot replay,
-      not a fresh `FORL` hot-side load from `rec_for_loop()`
+  - origin correction:
+    - the old “root `FORI` constructor” read is now closed
+    - [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1086)
+      already uses `fori_arg(... find_kinit(...))` for hidden `STOP` and
+      `STEP` on the `FORL` side-trace path
+    - the attempted root-only gate
+      `LUAJIT_S390X_FORI_CONST_INIT=1` changed only
+      [rec_for(..., isforl=0)](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1127)
+    - clean `kdz` proof under that gate kept the real workload on the same
+      seam:
+      - artifact:
+        [20260402-kdz-fori-const-init-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-fori-const-init-v1/summary.md)
+      - `TRACE_START 5`
+      - `TRACE_STOP 5`
+      - `TRACE_ABORT 0`
+      - `TEXIT_COUNT 64001`
+      - dominant texit still `7:0=63457`
+      - repeated exit still reports `guardmark=0x3`
+    - queue correction:
+      - root-`FORI` const-init surgery is the wrong mechanism for the live
+        promoted-slice seam
+      - the remaining question stays inside restored numeric-for
+        replay/typecheck semantics, not constructor choice
   - `snapnent=0` remains true on the dominant exit, so this guard is checking
     live interpreter frame state at restored `SNAP #0`
   - stricter taken-only marking on the real workload now closes that gap:
@@ -313,8 +328,8 @@ Exact runtime guard attribution now sharpens that further:
     - restored top-frame slot `2` is already int-tagged at the repeated exit
       point
     - so the live question is no longer “which guard is first?”
-    - it is “why does the inherited hidden `STEP` typecheck still fail every
-      trip at restored `SNAP #0`?”
+    - it is “why does the inherited hidden `STEP` replay/typecheck contract
+      still fail every trip at restored `SNAP #0`?”
 
 So the current promoted-slice red is no longer best described as the
 carried-`total` reload seam. On the real workload, the first literal taken

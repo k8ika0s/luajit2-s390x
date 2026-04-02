@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 09:42:00 PDT
+Last updated: 2026-04-02 10:02:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -263,15 +263,33 @@ non-causal probe effects. The current state is cleaner:
                   control-slot replay family, but the specific active marker is
                   `STEP`, not `FORL_IDX`
               - recorder/replay correction:
-                - this front `STEP` guard is not created by
-                  `rec_for_loop(...)` on the hot `FORL` path
-                - `rec_for(..., isforl=0)` records the original `FORI`
-                  initializer with generic `sload()` on `IDX/STOP/STEP`
-                - generic `sload()` always emits `IRSLOAD_TYPECHECK`
-                - `lj_snap_replay()` then recreates inherited parent `IR_SLOAD`
-                  refs for side traces
-                - so the repeated promoted-slice seam is inherited root-`FORI`
-                  control-slot replay, not a fresh `FORL` side-trace load
+                - the old “root `FORI` constructor” read is now closed
+                - [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1086)
+                  already uses
+                  `fori_arg(... find_kinit(...))` for hidden `STOP` and
+                  `STEP` on the `FORL` side-trace path
+                - the attempted root-only gate
+                  `LUAJIT_S390X_FORI_CONST_INIT=1` only changed
+                  [rec_for(..., isforl=0)](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1127),
+                  so it was pointed at the wrong constructor
+                - clean `kdz` proof under the gate kept the real workload on
+                  the same seam:
+                  - artifact:
+                    [20260402-kdz-fori-const-init-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-fori-const-init-v1/summary.md)
+                  - `TRACE_START 5`
+                  - `TRACE_STOP 5`
+                  - `TRACE_ABORT 0`
+                  - `TEXIT_COUNT 64001`
+                  - dominant texit still `7:0=63457`
+                  - repeated exit still reports `guardmark=0x3`
+                - queue correction:
+                  - the live promoted-slice seam is not being created by the
+                    root `FORI` initializer path
+                  - it survives after the `FORL` side path has already had
+                    `find_kinit()` available for hidden `STOP`/`STEP`
+                  - so the next honest target stays replay/typecheck semantics
+                    inside the restored numeric-for header, not more root
+                    `FORI` initializer surgery
               - `trace 7 exit 0` is still a `snapnent=0` header exit, so this
                 guard is validating live interpreter frame state at restored
                 `SNAP #0`, not a later restored snapshot payload
@@ -298,7 +316,7 @@ non-causal probe effects. The current state is cleaner:
                   failure on the real workload
                 - the remaining live question is now narrower:
                   explain why that inherited numeric-for hidden-control
-                  `STEP` typecheck
+                  `STEP` replay/typecheck contract
                   still fails every trip even though restored slot logging
                   shows the corresponding interpreter slot already int-tagged
               - attempted fix boundary:
@@ -326,20 +344,20 @@ non-causal probe effects. The current state is cleaner:
                 attribution between the inherited `sload_int` and stop-bound
                 `LE`
               - it is exact failure attribution for the inherited hidden
-                numeric-for `STEP` `sload_int` on the restored `SNAP #0`
-                header
+                numeric-for `STEP` replay/typecheck contract on the restored
+                `SNAP #0` header
               - not more helper-header rewriting
               - not another backend low32-home reopening
         - next honest target:
-          - explain why the inherited root-`FORI` hidden `STEP`
-            replay/typecheck contract
+          - explain why the inherited hidden `STEP` replay/typecheck contract
             still fails at the restored `SNAP #0` header on the promoted slice:
             - exact-taken guard on the real workload: `IR=SLOAD #4 TI`
             - corrected bytecode map on `number_helper_loop`:
               `IR=SLOAD op1=4` is hidden `STEP`, not hidden `IDX`
-            - origin path:
-              root `FORI` generic `sload()` + snapshot inheritance, not fresh
-              `FORL` side replay
+            - closed candidate:
+              root-`FORI` const-init surgery does not move the seam, because
+              `FORL` replay already uses `find_kinit()` for hidden
+              `STOP`/`STEP`
             - rejected direct repair:
               exact GC64 shifted-tag compare for that inherited integer
               `SLOAD`
