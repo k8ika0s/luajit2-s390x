@@ -12201,3 +12201,32 @@ Next hash target
     - it is not a promotable remediation family on the real workload
     - the next honest target remains the dynamic helper-form interaction with
       the inherited numeric-for index/current-value `SLOAD` seam
+
+- Timestamp: `2026-04-02 14:42:26 PDT`
+- Dynamic helper localization shifts the real replay seam to stack-visible
+  `BC_MOV`, but does not remove it
+  - stripped real-workload runs without counter/posthook churn now agree for
+    both localized helper forms:
+    - local helper:
+      [20260402-kdz-dynamic-local-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-guardmark/summary.md)
+    - arg helper:
+      [20260402-kdz-dynamic-arg-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-guardmark/summary.md)
+  - both keep the same real-workload failure:
+    - `RESULT -149783296`
+    - restored `pc op=18`
+    - restored `snapop=18`
+    - repeated exact-taken `guardmark=0x3`
+  - source-backed opcode meaning closes the semantic interpretation:
+    - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h)
+      defines `MOV` as `dst <- var`
+    - [lj_parse.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_parse.c#L544)
+      emits `BC_MOV` when a non-reloc value must be copied to a different slot
+    - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3527)
+      records `BC_MOV` as slot movement, not new arithmetic
+  - closure:
+    - reduced local/arg zero-exit behavior remains useful evidence
+    - dynamic helper localization is still not a remediation family
+    - the live replay problem survives one step later as stack-visible
+      helper/value `BC_MOV` replay on the actual workload
+    - the next honest target is exact stack-visible helper/value replay under
+      the promoted slice, not another helper-lookup or localization pass

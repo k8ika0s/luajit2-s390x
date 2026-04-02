@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 10:38:00 PDT
+Last updated: 2026-04-02 14:42:26 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -2750,6 +2750,35 @@ Current owner map contract:
     - it is not a promotable remediation family on the real workload
     - the next honest target remains the dynamic helper-form interaction that
       keeps the inherited numeric-for index/current-value `SLOAD` seam live
+
+- Timestamp: `2026-04-02 14:42:26 PDT`
+- Dynamic helper-form interaction is now pinned as stack-visible `BC_MOV`
+  replay, not imported-helper `BC_UGET` replay
+  - stripped real-workload localization runs on clean `kdz` now agree for both
+    dynamic helper forms:
+    - local helper:
+      [20260402-kdz-dynamic-local-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-guardmark/summary.md)
+    - arg helper:
+      [20260402-kdz-dynamic-arg-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-guardmark/summary.md)
+  - both dynamic variants keep the same real-workload failure:
+    - `RESULT -149783296`
+    - repeated steady seam at restored `pc op=18`, `snapop=18`
+    - repeated exact-taken `guardmark=0x3`
+  - source-backed opcode meaning now closes the semantic split:
+    - [lj_bc.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_bc.h)
+      defines `BC_MOV` as `dst <- var`
+    - [lj_parse.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_parse.c#L544)
+      emits `BC_MOV` when a non-reloc value must be copied to a different slot
+    - [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L3527)
+      treats `BC_MOV` as stack-slot movement, not new arithmetic
+  - queue correction:
+    - the helper-localization evidence is still useful because it proves the
+      old imported-helper `BC_UGET` seam is not fundamental
+    - but the real replay family survives one step later as stack-visible
+      helper/value `BC_MOV` replay on the actual workload
+    - the next honest target is therefore exact stack-visible helper/value
+      replay under the promoted slice, not more helper-lookup attribution and
+      not another localization attempt
 
 ### After that
 

@@ -2359,6 +2359,26 @@ So the reduced local/arg zero-exit split is evidence only. The next exact
 target stays on the dynamic helper-form interaction with the inherited
 numeric-for index/current-value `SLOAD` seam.
 
+Stripped real-workload localization runs narrow that interaction further:
+
+- local helper:
+  [20260402-kdz-dynamic-local-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-local-guardmark/summary.md)
+- arg helper:
+  [20260402-kdz-dynamic-arg-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-dynamic-arg-guardmark/summary.md)
+
+Both real dynamic localized forms still fail the workload and now agree on the
+same moved replay seam:
+
+- `RESULT -149783296`
+- restored `pc op=18`
+- restored `snapop=18`
+- repeated exact-taken `guardmark=0x3`
+
+So the promoted-slice replay problem is no longer best described as imported
+helper `BC_UGET` churn once the helper is localized. It survives as
+stack-visible helper/value `BC_MOV` replay one step later in the header/call
+setup.
+
 ## Relationship To Other Docs
 
 - High-level status:
