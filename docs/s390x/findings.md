@@ -11838,3 +11838,65 @@ Next hash target
       signed-extraction idea
     - the real remaining question stays on the helper-backed wrong-result path,
       not the probe callback path
+
+- Timestamp: `2026-04-02 12:00:44 PDT`
+- The GC64 signed-extraction repair is now narrowed to a second-run replay bug,
+  not a first-run helper-loop failure
+  - tooling correction:
+    - `--no-counters` alone was not enough for
+      [build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
+    - the generated reducer still contained post-run `jit.util.traceinfo` /
+      `traceir` Lua loops, and those bytecode bodies include `BC_ISF`
+    - the helper now supports `--no-posthooks` so the reduced validator can run
+      as workload-only with raw `S390X_EXIT` artifacts
+  - new reduced validation with the local-only arithmetic-shift gate:
+    - quiet helper reducer at `n=200` is correct:
+      [20260402-kdz-gc64-int-sload-ashift-number-helper-quiet-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-number-helper-quiet-v3/summary.md)
+    - quiet helper reducer at `n=64000` is also correct on the first hot run:
+      [20260402-kdz-gc64-int-sload-ashift-number-helper-quiet-hot-v4](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-number-helper-quiet-hot-v4/summary.md)
+      with `RESULT 1323881804`
+  - direct host replay split on clean `kdz`:
+    - a single first hot `number_helper_loop(64000)` after short warmups is
+      correct
+    - the immediately following second hot run is wrong:
+      `FIRST 1323881804`, `SECOND 34304`
+    - this reproduces without `be_pack_loop`, without multi-scale order, and
+      without bench timing machinery
+  - live replay seam:
+    - after the first successful hot run, repeated failure lands on
+      `trace 1 exit 0`
+    - restored `pc` / `snapop` stay at `BC_UGET`
+    - repeated taken `guardmark` is now `0xe`
+  - queue correction:
+    - the signed/arithmetic extraction repair is directionally right for the
+      inherited hidden-`STEP` typecheck itself
+    - the remaining failure is replay after one successful long run, not first
+      compile birth and not the stripped-down helper loop body
+
+- Timestamp: `2026-04-02 12:28:00 PDT`
+- The GC64 signed-extraction repair now has an exact second-hot replay seam on
+  the real helper workload
+  - direct host repro:
+    - [20260402-kdz-gc64-int-sload-ashift-two-hot-replay-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-two-hot-replay-v1/summary.md)
+    - first hot run is correct: `1323881804`
+    - immediately following second hot run is wrong: `34304`
+  - exact repeated replay seam after the first successful run:
+    - `trace 1 exit 0`
+    - restored `pc op=45` / `snapop=45` (`BC_UGET`)
+    - repeated exact-taken `guardmark=0xe`
+  - exact trace mapping:
+    - on the real workload trace, `guardmark=0xe` is `curins 14`
+    - `curins 14` is `0014 > int MULOV 0003 +65537`
+    - `0003` is `int SLOAD #4 TI`
+  - runtime state read at the repeated seam:
+    - the failing arithmetic input is not a plain loop index
+    - repeated exit state shows packed numeric-`for` replay:
+      - `r11=0x8001`, then `0x8002`, `0x8003`, ...
+      - `r12=0xffffffff80018001`, then `0xffffffff80028002`, ...
+  - queue correction:
+    - the signed/arithmetic extraction repair is directionally right for the
+      inherited integer-`SLOAD` typecheck itself
+    - the remaining failure is the numeric-`for` replay materialization
+      contract after that typecheck starts passing
+    - do not reopen low32-home, iterator, dispatch, vararg, or generic
+      hotside-population work from this seam

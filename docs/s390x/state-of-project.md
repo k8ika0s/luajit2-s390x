@@ -2491,10 +2491,20 @@ Current owner map contract:
 - do not reopen the reduced `BC_ISF` callback path from the rejected
   signed-extraction prototype; that is probe-hook noise, not the next workload
   seam
-- use the new no-counter reduced probe path to separate future header-repair
-  reruns from Lua callback self-interference
-- keep the next live question on the real helper-backed wrong-result path after
-  the hidden-`STEP` typecheck starts passing
+- use the new no-counter plus no-posthooks reduced probe path to separate
+  future header-repair reruns from probe-side Lua scaffolding
+- keep the next live question on replay after the first successful hot helper
+  run once the inherited integer `SLOAD` typecheck starts passing
+- the current replay seam is no longer just “typecheck passes then something
+  later breaks”:
+  - direct two-hot host replay shows repeated failure on `trace 1 exit 0`,
+    restored `BC_UGET`, exact-taken `guardmark=0xe`
+  - on the real workload trace, that mark is `curins 14`, `int MULOV 0003
+    +65537`
+  - `0003` is `int SLOAD #4 TI`
+  - repeated runtime state at that seam is packed numeric-`for` replay
+    (`r11=0x8001`, `r12=0xffffffff80018001`, then incrementing), not a plain
+    loop index
 
 ### After that
 
