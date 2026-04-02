@@ -27,6 +27,9 @@ CANDIDATE_ENVS: dict[str, dict[str, str]] = {
     "hotside_canon_share": {
         "LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV": "1",
     },
+    "hotside_canon_share_uget_looproot": {
+        "LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT": "1",
+    },
 }
 
 

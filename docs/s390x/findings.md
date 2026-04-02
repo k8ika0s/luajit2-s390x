@@ -10663,3 +10663,56 @@ Next hash target
       `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
     - the next honest target is broader suite validation and helper
       integration for that filtered gate
+
+- Timestamp: `2026-04-01 16:32:09 PDT`
+- The filtered hotside gate is now fenced back down from “broader promotion
+  candidate” to a narrower reduced-family candidate
+  - helper support now exists:
+    - [build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py)
+      accepts `--candidate hotside_canon_share_uget_looproot`
+  - the first clean `kdz` broader-suite restamp is:
+    [20260401-kdz-hotside-uget-looproot-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-kdz-hotside-uget-looproot-broader-suite-check/summary.md)
+  - it proves the filtered gate is real but not broad:
+    - reduced-family `UGET`/looproot wins remain the only clear positive
+      surface
+    - broader families are flat or still extremely red:
+      - `dispatch_trace/numeric_loop`: `0.341080 -> 0.340611`
+      - `mixed_ffi/mixed_ffi_loop`: `0.059399 -> 0.059215`
+      - `ffi_cdata/mixed_width_loop`: `0.027778 -> 0.027964`
+      - `vararg_paths/sum_loop`: `1.207311 -> 0.675950`, still far from
+        `-joff 0.005150`
+    - frozen iterator still regresses:
+      - `pairs_sum/hot`: `0.068483 -> 0.076181`
+      - `pairs_array_sum/hot`: `0.066698 -> 0.084550`
+  - the current `zkd0` partial broader rows do not contradict that narrower
+    read:
+    - `dispatch_trace/numeric_loop`: `0.646129 -> 0.681747`
+    - `be_helpers/number_helper_loop`: `1.029361 -> 0.009826`
+  - queue correction:
+    - do not promote `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` as a
+      broader suite gate on the current evidence
+    - the next honest target is helper-backed reduced-family restamp and exact
+      promotion boundary for the `UGET`/looproot seam only
+
+- Timestamp: `2026-04-01 16:39:41 PDT`
+- The full `zkd0` broader-suite restamp now confirms the same narrower
+  promotion boundary for the filtered hotside gate
+  - completed artifact:
+    [20260401-zkd0-hotside-uget-looproot-broader-suite-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260401-zkd0-hotside-uget-looproot-broader-suite-check/summary.md)
+  - host-pair read is now complete:
+    - `kdz` already closed broad promotion:
+      - dispatch stays catastrophically far from `-joff`
+      - helper-heavy and call-heavy families can improve sharply
+      - `sum_loop` improves but remains extremely red
+      - frozen iterator regresses materially
+    - `zkd0` confirms the same narrower boundary:
+      - dispatch still stays catastrophically far from `-joff`
+      - helper-heavy and call-heavy families can improve sharply
+      - `sum_loop` remains extremely red
+      - iterator no longer drives the same clear regression there, but still
+        stays far from `-joff`
+  - queue correction:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1` remains a reduced
+      `UGET`/looproot candidate only
+    - the next honest target stays helper-backed reduced-family restamp and
+      exact promotion-boundary work for that seam
