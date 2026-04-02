@@ -567,12 +567,18 @@ def dominant_hist(hist: dict[str, int]) -> dict[str, Any] | None:
     return {"key": key, "count": count}
 
 
-def render_lua_script(template: str, iterations: int, *, counters_enabled: bool) -> str:
+def render_lua_script(
+    template: str,
+    iterations: int,
+    *,
+    counters_enabled: bool,
+    posthooks_enabled: bool,
+) -> str:
     return template.format(
         iterations=iterations,
         emit_hist=emit_hist_lua().rstrip(),
-        emit_traceinfo=emit_traceinfo_lua().rstrip(),
-        emit_traceir=emit_traceir_lua().rstrip(),
+        emit_traceinfo=(emit_traceinfo_lua().rstrip() if posthooks_enabled else "local function emit_traceinfo() end"),
+        emit_traceir=(emit_traceir_lua().rstrip() if posthooks_enabled else "local function emit_traceir() end"),
         emit_counter=emit_counter_lua(enabled=counters_enabled).rstrip(),
     )
 
@@ -601,10 +607,12 @@ def run_probe(
     remote_name = f"{workload}.lua"
     remote_script_path = f"/tmp/{remote_name}"
     iterations = iterations_override or int(config["iterations"])
+    posthooks_enabled = not bool(extra_env.get("LUAJIT_S390X_PROBE_NO_POSTHOOKS"))
     script_text = render_lua_script(
         config["script"],
         iterations,
         counters_enabled=not bool(extra_env.get("LUAJIT_S390X_PROBE_NO_COUNTERS")),
+        posthooks_enabled=posthooks_enabled,
     )
     restamp.run_remote_command(
         host,
@@ -732,6 +740,8 @@ def render_summary(
                 lines.append(
                     f"- `{result['workload']}`: counter hooks disabled; using raw `S390X_EXIT`/`TRACEIR` artifacts only"
                 )
+            if not result["traceinfo"]:
+                lines.append(f"- `{result['workload']}`: post-run `traceinfo/traceir` hooks disabled")
             if dominant_texit:
                 lines.append(
                     f"- `{result['workload']}` dominant texit: `{dominant_texit['key']}` x `{dominant_texit['count']}`"
@@ -840,6 +850,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not install Lua trace/texit counter callbacks inside the probe script.",
     )
+    parser.add_argument(
+        "--no-posthooks",
+        action="store_true",
+        help="Do not emit post-run jit.util traceinfo/traceir helper loops inside the probe script.",
+    )
     return parser.parse_args()
 
 
@@ -876,6 +891,8 @@ def main() -> int:
     extra_env.update(parse_env_overrides(args.env))
     if args.no_counters:
         extra_env["LUAJIT_S390X_PROBE_NO_COUNTERS"] = "1"
+    if args.no_posthooks:
+        extra_env["LUAJIT_S390X_PROBE_NO_POSTHOOKS"] = "1"
     results = [
         run_probe(
             host=args.host,

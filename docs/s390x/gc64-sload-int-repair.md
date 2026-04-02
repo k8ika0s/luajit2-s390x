@@ -99,6 +99,44 @@ prototype is not the next workload seam.
 So the next real question remains the helper-backed wrong-result path on the
 workload itself, not the callback path inside the reduced validator.
 
+## Narrowed Failure Shape
+
+With both counter callbacks and post-run `traceinfo/traceir` loops removed from
+the reduced probe helper, the signed/arithmetic extraction repair no longer
+fails on the first hot helper run.
+
+- reduced helper path is correct at `n=200`
+- reduced helper path is correct on the first hot `n=64000` run
+- the break appears on the immediately following second hot run:
+  - first: `1323881804`
+  - second: `34304`
+
+So the remaining seam is now replay after one successful long run, not first
+compile birth and not the stripped-down helper loop body itself.
+
+## Second-Hot Replay Attribution
+
+The next host slice narrowed that replay seam further.
+
+- direct two-hot host replay is captured in:
+  [20260402-kdz-gc64-int-sload-ashift-two-hot-replay-v1](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-gc64-int-sload-ashift-two-hot-replay-v1/summary.md)
+- repeated failure after the first successful hot run is:
+  - `trace 1 exit 0`
+  - restored `pc op=45` / `snapop=45` (`BC_UGET`)
+  - repeated exact-taken `guardmark=0xe`
+- on the real workload trace, `guardmark=0xe` maps to:
+  - `curins 14`
+  - `0014 > int MULOV 0003 +65537`
+  - where `0003` is `int SLOAD #4 TI`
+- runtime state at that repeated seam shows packed numeric-`for` replay, not a
+  plain integer loop index:
+  - `r11=0x8001`, `0x8002`, `0x8003`, ...
+  - `r12=0xffffffff80018001`, `0xffffffff80028002`, ...
+
+So the signed/arithmetic extraction idea is directionally right for the
+inherited integer-`SLOAD` typecheck itself, but the remaining failure is the
+numeric-`for` replay materialization contract after that check starts passing.
+
 ## Hard Boundaries
 
 Do not reopen:
@@ -108,4 +146,5 @@ Do not reopen:
 - low32-home / normalization families
 - iterator / dispatch / bridge / vararg families
 
-This is now a narrow GC64 integer-`SLOAD` typecheck repair problem.
+This is now a narrow GC64 inherited numeric-`for` replay-materialization
+problem, not just a tag-extraction problem.

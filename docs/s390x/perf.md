@@ -2108,6 +2108,21 @@ Current queue correction:
   mechanism probe path first
 - the real remaining question is still the helper-backed wrong-result path once
   the hidden-`STEP` typecheck starts passing
+- that helper-backed wrong-result path is now narrowed further:
+  - with both counters and post-run `traceinfo/traceir` hooks removed, the
+    arithmetic-shift repair runs the helper reducer correctly on the first hot
+    pass
+  - the correctness break appears on the second hot run immediately after the
+    first successful long run
+  - current repeated replay seam under that local-only gate is:
+    - `trace 1 exit 0`
+    - restored `BC_UGET`
+    - exact-taken `guardmark=0xe`
+    - on the real workload trace, `guardmark=0xe` is `curins 14`,
+      `int MULOV 0003 +65537`
+    - `0003` is `int SLOAD #4 TI`
+    - runtime state at that seam is packed numeric-`for` replay, not a plain
+      loop index
 
 ## Promotable Patch Gate
 
