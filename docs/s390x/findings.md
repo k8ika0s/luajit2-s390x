@@ -13072,3 +13072,29 @@ Next hash target
     - this is not a bad-base or bad-slot replay problem
     - after the broad canon/share collapse, the next exact target is the
       carried-`total` `sload_int` compare/lowering path itself
+
+- Timestamp: `2026-04-02 22:11:49 PDT`
+- Direct carried-`total` `sload_int` skip is a structural reject
+  - artifact:
+    [20260402-kdz-number-helper-local-broad-skip-total-guard](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard/summary.md)
+  - reduced `kdz` run on `number_helper_local_tobit` with:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - `LUAJIT_S390X_SKIP_TOTAL_SLOAD_INT_GUARD=1`
+  - result remains correct:
+    - `RESULT -149783296`
+  - focused counts do not improve:
+    - `TRACE_START 5`
+    - `TRACE_STOP 5`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 64001`
+  - meaning:
+    - the carried-`total` guard really was the first marked branch in the
+      post-collapse cluster
+    - but it is not the actual remaining performance floor by itself
+    - once removed, the reduced localized lane still exits every trip through a
+      later unmarked path on the same restored `BC_MOV` replay family
+  - closure:
+    - do not open a remediation line on the carried-`total` compare/lowering
+      alone
+    - the next exact target is the later unmarked exit path that survives after
+      this guard is removed

@@ -2919,6 +2919,25 @@ That seam is now tighter than “some stack-visible `SLOAD`”:
 So the remaining payer on this reduced lane is now the carried-`total`
 `sload_int` compare/lowering path itself, not stack-lane selection.
 
+That direct remediation line is now rejected:
+
+- artifact:
+  [20260402-kdz-number-helper-local-broad-skip-total-guard](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard/summary.md)
+- reduced `kdz` run with:
+  - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+  - `LUAJIT_S390X_SKIP_TOTAL_SLOAD_INT_GUARD=1`
+- result stays correct:
+  - `RESULT -149783296`
+- but the structural floor does not improve:
+  - `TRACE_START 5`
+  - `TRACE_STOP 5`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 64001`
+
+So the carried-`total` guard is only the first marked branch after the ladder
+collapse. It is not the whole remaining payer. The next honest target is the
+later unmarked exit path on the same reduced localized lane.
+
 ## Relationship To Other Docs
 
 - High-level status:

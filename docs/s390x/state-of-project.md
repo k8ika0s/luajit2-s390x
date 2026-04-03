@@ -3545,6 +3545,30 @@ Current owner map contract:
     - the next honest target is the `sload_int` compare/lowering path on the
       carried-`total` lane after clone-ladder collapse
 
+- Timestamp: `2026-04-02 22:11:49 PDT`
+- Direct carried-`total` guard skip is rejected on the reduced broad
+  non-`UGET` lane
+  - artifact:
+    [20260402-kdz-number-helper-local-broad-skip-total-guard](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard/summary.md)
+  - env:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - `LUAJIT_S390X_SKIP_TOTAL_SLOAD_INT_GUARD=1`
+  - reduced localized `number_helper_local_tobit` stays correct:
+    - `RESULT -149783296`
+  - but the structural floor does not move:
+    - `TRACE_START 5`
+    - `TRACE_STOP 5`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 64001`
+  - queue correction:
+    - the carried-`total` `sload_int` guard was the first marked branch after
+      ladder collapse
+    - it is not the whole post-collapse floor
+    - skipping it just hands control to a later unmarked exit path on the same
+      reduced `BC_MOV` replay family
+    - the next honest target is that later unmarked exit path, not this guard
+      by itself
+
 ### After that
 
 There are only two realistic outcomes:

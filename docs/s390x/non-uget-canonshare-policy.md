@@ -67,9 +67,29 @@ Tighter attribution on the same reduced lane:
   - restored base is the normal stack base
   - `S390X_SLOT idx=0` is a valid boxed int advancing as expected
 
-So the next exact target is not stack selection. It is the `sload_int`
-compare/lowering itself on the carried-`total` lane after the ladder has
-already been collapsed.
+Direct carried-`total` guard-skip reject on the same reduced lane:
+
+- artifact:
+  [20260402-kdz-number-helper-local-broad-skip-total-guard](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard/summary.md)
+- env overlay:
+  - `LUAJIT_S390X_SKIP_TOTAL_SLOAD_INT_GUARD=1`
+- result stays correct:
+  - `RESULT -149783296`
+- structural counts do not move:
+  - `TRACE_START 5`
+  - `TRACE_STOP 5`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 64001`
+- correction:
+  - the carried-`total` `sload_int` guard is the first marked branch after the
+    ladder collapse
+  - it is not the whole floor by itself
+  - skipping it just hands the reduced lane to a later unmarked exit path on
+    the same restored `BC_MOV` replay family
+
+So the next exact target is no longer the carried-`total` compare/lowering by
+itself. It is the later unmarked exit path that survives after that guard is
+removed.
 
 This means the useful boundary is not “all non-`UGET` seams”. It is narrower.
 
