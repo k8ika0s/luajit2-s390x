@@ -12923,3 +12923,39 @@ Next hash target
       real-shape literal-stop siblings
     - the next honest target is the exact static-stop seam under the promoted
       default, because that is the remaining front-most payoff surface
+
+- Timestamp: `2026-04-02 20:39:30 PDT`
+- Static-stop helper localization removes replay but leaves a compiled-body
+  cliff
+  - direct remote A/B:
+    [20260402-kdz-static-stop-local-tobit-direct](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-direct/raw/candidate.stdout.log)
+  - `number_helper_literal_stop_real_local_tobit/hot`
+    - baseline `0.019114s` vs `-joff 0.001359s`
+    - promoted default `0.018959s` vs `-joff 0.001359s`
+  - focused trace counts:
+    [20260402-kdz-static-stop-local-tobit-trace](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-trace/raw/candidate.stdout.log)
+    - candidate: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+    - baseline: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+  - repeated-call check:
+    [20260402-kdz-static-stop-local-tobit-postcompile](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-postcompile/raw/candidate.stdout.log)
+    - `RUN1`: `0.018934s`, `TRACE_START 1`, `TRACE_STOP 1`,
+      `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+    - `RUN2`: `0.018927s`, `TRACE_START 1`, `TRACE_STOP 0`,
+      `TRACE_ABORT 1`, `TEXIT_COUNT 1`
+  - `-jv` proof:
+    [20260402-kdz-static-stop-local-tobit-postcompile-jv](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-postcompile-jv/raw/jv.stderr.log)
+    - repeated calls still build a loop-clone ladder:
+      `TRACE 1`, `TRACE 2 (1/0)`, ..., `TRACE 102 (101/0)`, then fallback
+  - native dump:
+    [20260402-kdz-static-stop-local-tobit-dump](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-dump/raw/dump.stdout.log)
+    - the remaining loop is compiled-body only:
+      `SLOAD #4 I`, `fun SLOAD #3 T`, `MULOV`, `SLOAD #2 T`,
+      `fun EQ bit.tobit`, `ADD`, `LE`
+  - correction:
+    - helper localization plus static stop is not a fast path
+    - it only proves the within-run replay floor can be removed for
+      `number_helper`
+    - the remaining live lane there is cross-call loop-clone/fallback on the
+      localized static-stop shape

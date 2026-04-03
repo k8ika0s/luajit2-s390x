@@ -9,6 +9,15 @@ local function number_helper_literal_stop_real()
   return bit.tobit(total)
 end
 
+local function number_helper_literal_stop_real_local_tobit()
+  local total = 0
+  local tobit = bit.tobit
+  for i = 1, 64000 do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+
 local function be_pack_literal_stop_real()
   local total = 0
   for i = 1, 64000 do
@@ -30,6 +39,16 @@ local cases = {
     run = number_helper_literal_stop_real,
     validate = function(result)
       bench.eq(result, number_helper_literal_stop_real(), "number_helper_literal_stop_real/hot")
+    end,
+  },
+  {
+    workload = "number_helper_literal_stop_real_local_tobit",
+    scale = "hot",
+    iterations = 1,
+    warmup_runs = 2,
+    run = number_helper_literal_stop_real_local_tobit,
+    validate = function(result)
+      bench.eq(result, number_helper_literal_stop_real_local_tobit(), "number_helper_literal_stop_real_local_tobit/hot")
     end,
   },
   {

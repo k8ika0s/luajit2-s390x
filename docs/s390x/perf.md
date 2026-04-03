@@ -43,6 +43,8 @@ Pinned host-pair summary:
 | 2026-04-02 19:10:40 PDT | `be_pack_loop_local_ops/hot` | `hotside_canon_share_uget_looproot_default` | `0.126296` | `0.019513` | `6.47x` |
 | 2026-04-02 20:03:13 PDT | `number_helper_loop_local_tobit/hot` | `baseline` | `0.436932` | `0.001442` | `303.00x` |
 | 2026-04-02 20:03:20 PDT | `number_helper_loop_local_tobit/hot` | `hotside_canon_share_uget_looproot_default` | `0.621525` | `0.001435` | `433.12x` |
+| 2026-04-02 20:39:30 PDT | `number_helper_literal_stop_real_local_tobit/hot` | `baseline` | `0.019114` | `0.001359` | `14.06x` |
+| 2026-04-02 20:39:23 PDT | `number_helper_literal_stop_real_local_tobit/hot` | `hotside_canon_share_uget_looproot_default` | `0.018959` | `0.001359` | `13.95x` |
 | 2026-04-02 20:03:13 PDT | `be_pack_loop_local_ops_real/hot` | `baseline` | `0.300697` | `0.007985` | `37.66x` |
 | 2026-04-02 20:03:20 PDT | `be_pack_loop_local_ops_real/hot` | `hotside_canon_share_uget_looproot_default` | `0.244329` | `0.008069` | `30.28x` |
 | 2026-04-02 20:10:45 PDT | `number_helper_literal_stop_real/hot` | `baseline` | `0.040660` | `0.002244` | `18.12x` |
@@ -2790,6 +2792,42 @@ numeric-for replay floor:
 
 - `be_pack` is front-most at restored `BC_UGET`
 - `number_helper` has already moved one step later to restored `BC_TGETS`
+
+Static-stop helper-localized A/B on clean `kdz`:
+
+- direct remote bench artifact:
+  [20260402-kdz-static-stop-local-tobit-direct](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-direct/raw/candidate.stdout.log)
+- `number_helper_literal_stop_real_local_tobit/hot`
+  - baseline `0.019114s` vs `-joff 0.001359s`
+  - promoted default `0.018959s` vs `-joff 0.001359s`
+- focused trace-count artifact:
+  [20260402-kdz-static-stop-local-tobit-trace](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-trace/raw/candidate.stdout.log)
+  - candidate: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+  - baseline: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+- repeated-call artifact:
+  [20260402-kdz-static-stop-local-tobit-postcompile](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-postcompile/raw/candidate.stdout.log)
+  - `RUN1`: `0.018934s`, `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+  - `RUN2`: `0.018927s`, `TRACE_START 1`, `TRACE_STOP 0`, `TRACE_ABORT 1`, `TEXIT_COUNT 1`
+- `-jv` artifact:
+  [20260402-kdz-static-stop-local-tobit-postcompile-jv](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-postcompile-jv/raw/jv.stderr.log)
+  - repeated calls build a loop-clone ladder:
+    `TRACE 1`, `TRACE 2 (1/0)`, ..., `TRACE 102 (101/0)`, then fallback
+- native dump artifact:
+  [20260402-kdz-static-stop-local-tobit-dump](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-dump/raw/dump.stdout.log)
+  - front compiled-body loop is now:
+    - `int SLOAD #4 I`
+    - `fun SLOAD #3 T`
+    - `int MULOV`
+    - `int SLOAD #2 T`
+    - `fun EQ ... bit.tobit`
+    - `int ADD`
+    - `int LE`
+
+So helper localization plus static stop does remove the within-run replay floor
+for `number_helper`, but it still does not create a stable fast JIT lane. On
+repeated calls the workload walks a loop-clone ladder and falls back again.
+The next honest target for that subgroup is that cross-call clone/fallback
+behavior, not more replay/header work inside a single run.
 
 ## Relationship To Other Docs
 
