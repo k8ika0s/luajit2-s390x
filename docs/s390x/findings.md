@@ -13051,3 +13051,24 @@ Next hash target
       first payer on this reduced lane
     - the next exact seam is now the localized `MOV`/stack-visible `SLOAD`
       header cluster
+
+- Timestamp: `2026-04-02 22:38:00 PDT`
+- The first post-collapse `MOV` seam is now pinned as a good-slot carried-total
+  `SLOAD`
+  - direct reduced `kdz` trace-IR on `number_helper_local_tobit` under
+    `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`:
+    - `TRACEIR tr=1 ins=4 op=SLOAD op1=2 op2=4`
+    - `TRACEIR tr=1 ins=2 op=SLOAD op1=3 op2=4`
+    - `TRACEIR tr=1 ins=3 op=MULOV op1=1 op2=-6`
+  - mapping:
+    - `ins=4` is the carried `total` reload
+    - `ins=2` is the localized helper slot
+    - `ins=3` is the intervening `MULOV`
+  - direct `SLOADMAP` + slot logging on the same reduced seam shows:
+    - `S390X_SLOADMAP curins=4 ref=4 kind=int op1=2 op2=0x4 ofs=0 vofs=4 base=11`
+    - restored base is the normal stack base
+    - `S390X_SLOT idx=0` is a valid boxed int advancing exactly as expected
+  - closure:
+    - this is not a bad-base or bad-slot replay problem
+    - after the broad canon/share collapse, the next exact target is the
+      carried-`total` `sload_int` compare/lowering path itself
