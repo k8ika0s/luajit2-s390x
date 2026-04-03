@@ -4163,3 +4163,41 @@ There are only two realistic outcomes:
   - next honest target remains the visible current-value replay/typecheck
     contract itself, with this `BC_ADDVV` result kept as carry-forward
     evidence for what sits underneath it
+
+## 2026-04-03 16:22 PDT
+
+- The combined recorder family is now closed:
+  - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+  - `LUAJIT_S390X_ADDVV_ACCUM_INT_NOGUARD=1`
+- On the mechanism control
+  [20260403-161644-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-161644-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md),
+  the first exact taken guard finally moves off replay/header `SLOAD`:
+  - `RESULT 1323881804`
+  - `trace 1 exit 0`
+  - runtime `guardmark curins 14`
+  - exact front-most consumer:
+    - `TRACEIR tr=1 ins=14 op=MULOV`
+    - `op1=3`
+    - `op2=-12`
+  - the carried accumulator lane remains but is already unguarded:
+    - `TRACEIR tr=1 ins=15 op=SLOAD op1=3 op2=0`
+- On the payoff sibling
+  [20260403-161839-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-161839-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md),
+  the family does not preserve the live seam:
+  - `TRACE_START 1`
+  - `TRACE_STOP 1`
+  - `TEXIT_COUNT 2`
+  - dominant exit shifts to `trace 2 exit 0`
+  - dominant runtime `guardmark curins 1`
+- Conclusion:
+  - this family is not promotable
+  - it is correctness-bad on `number_helper_loop`
+  - and not seam-preserving on `be_pack_loop`
+  - but it identifies the next real target cleanly:
+    the first loop-body `MULOV` consumer that becomes front-most once both
+    stack `SLOAD` lanes are relaxed
+  - the arithmetic audit closes the obvious follow-up:
+    `bit.tobit()` is not enough to justify stripping `MULOV`, because
+    [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+    explicitly treats wrapped `MULOV` as non-strip-safe due to precision
+    widening
