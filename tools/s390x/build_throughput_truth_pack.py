@@ -1391,6 +1391,15 @@ local function number_helper_literal_stop_real()
   return bit.tobit(total)
 end
 
+local function number_helper_literal_stop_real_local_tobit()
+  local total = 0
+  local tobit = bit.tobit
+  for i = 1, 64000 do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+
 local function be_pack_literal_stop_real()
   local total = 0
   for i = 1, 64000 do
@@ -1414,6 +1423,16 @@ bench.run_suite({
       run = number_helper_literal_stop_real,
       validate = function(result)
         bench.eq(result, number_helper_literal_stop_real(), "number_helper_literal_stop_real/hot")
+      end,
+    },
+    {
+      workload = "number_helper_literal_stop_real_local_tobit",
+      scale = "hot",
+      iterations = 1,
+      warmup_runs = 2,
+      run = number_helper_literal_stop_real_local_tobit,
+      validate = function(result)
+        bench.eq(result, number_helper_literal_stop_real_local_tobit(), "number_helper_literal_stop_real_local_tobit/hot")
       end,
     },
     {
@@ -1441,6 +1460,18 @@ local function run()
   return bit.tobit(total)
 end
 print("NUMBER_HELPER_LITERAL_STOP_REAL", run())
+""",
+    "number_helper_literal_stop_real_local_tobit": """\
+local bit = require("bit")
+local function run()
+  local total = 0
+  local tobit = bit.tobit
+  for i = 1, 64000 do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+print("NUMBER_HELPER_LITERAL_STOP_REAL_LOCAL_TOBIT", run())
 """,
     "be_pack_literal_stop_real": """\
 local bit = require("bit")
@@ -1472,6 +1503,31 @@ local function run()
     total = bit.tobit(total + i * 65537)
   end
   return bit.tobit(total)
+end
+run(); run(); run()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run())
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+    "number_helper_literal_stop_real_local_tobit": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local function run()
+  local total = 0
+  local tobit = bit.tobit
+  for i = 1, 64000 do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
 end
 run(); run(); run()
 local trace_cap = testlib.trace_counter_capture_lite()
@@ -2103,10 +2159,12 @@ FAMILY_CONFIGS = {
         "trace_scripts": PROMOTION_CORE_STATIC_STOP_TRACE_SCRIPTS,
         "hot_cases": (
             "number_helper_literal_stop_real/hot",
+            "number_helper_literal_stop_real_local_tobit/hot",
             "be_pack_literal_stop_real/hot",
         ),
         "work_items": {
             "number_helper_literal_stop_real": 1,
+            "number_helper_literal_stop_real_local_tobit": 1,
             "be_pack_literal_stop_real": 1,
         },
     },

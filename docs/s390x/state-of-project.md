@@ -3404,6 +3404,40 @@ Current owner map contract:
     - `number_helper` has already advanced one step later to restored
       `BC_TGETS`
 
+- Timestamp: `2026-04-02 20:39:30 PDT`
+- Static-stop helper localization closes the replay lane but not the perf gap
+  - direct remote A/B:
+    [20260402-kdz-static-stop-local-tobit-direct](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-direct/raw/candidate.stdout.log)
+  - `number_helper_literal_stop_real_local_tobit/hot`
+    - baseline `0.019114s` vs `-joff 0.001359s`
+    - promoted default `0.018959s` vs `-joff 0.001359s`
+  - focused trace-count check:
+    [20260402-kdz-static-stop-local-tobit-trace](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-trace/raw/candidate.stdout.log)
+    - candidate: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+    - baseline: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 0`
+  - repeated-call check:
+    [20260402-kdz-static-stop-local-tobit-postcompile](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-postcompile/raw/candidate.stdout.log)
+    - `RUN1`: `0.018934s`, `TRACE_START 1`, `TRACE_STOP 1`,
+      `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+    - `RUN2`: `0.018927s`, `TRACE_START 1`, `TRACE_STOP 0`,
+      `TRACE_ABORT 1`, `TEXIT_COUNT 1`
+  - `-jv` proof:
+    [20260402-kdz-static-stop-local-tobit-postcompile-jv](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-postcompile-jv/raw/jv.stderr.log)
+    - repeated calls still build a clone ladder:
+      `TRACE 1`, `TRACE 2 (1/0)`, ..., `TRACE 102 (101/0)`, then fallback
+  - native dump:
+    [20260402-kdz-static-stop-local-tobit-dump](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-tobit-dump/raw/dump.stdout.log)
+    - loop body is now just localized `bit.tobit` plus arithmetic:
+      `SLOAD #4 I`, `fun SLOAD #3 T`, `MULOV`, `SLOAD #2 T`, `fun EQ bit.tobit`, `ADD`, `LE`
+  - queue correction:
+    - helper localization plus static stop does remove the replay floor for
+      `number_helper`
+    - it still does not produce a stable fast JIT lane across repeated calls
+    - the next honest target for that subgroup is the cross-call clone/fallback
+      behavior, not more replay/header digging inside one run
+
 ### After that
 
 There are only two realistic outcomes:
