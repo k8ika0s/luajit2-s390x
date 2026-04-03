@@ -3403,3 +3403,22 @@ localized-helper carried-`total` lane
   - the arithmetic audit closes the easy follow-up:
     wrapped `bit.tobit()` semantics do not license stripping `MULOV`, so this
     is not a narrow promotable arithmetic lane
+
+## 2026-04-03 16:42 PDT
+
+- The replay-side-only visible-current rebuild family is rejected:
+  - `LUAJIT_S390X_FORL_REPLAY_VISIBLE_IDX_NOGUARD=1`
+- Mechanism control:
+  [20260403-164012-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-164012-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - exact result is structurally identical to the shipping default:
+    - `RESULT -149783296`
+    - `TRACE_START 6`
+    - `TRACE_STOP 5`
+    - `TEXIT_COUNT 64001`
+    - same dominant `trace 7 exit 0`
+    - same exact runtime guard `curins 3 / SLOAD op1=4 op2=36`
+    - same first carried lane `curins 15 / SLOAD op1=3 op2=4`
+- Classification:
+  - this replay-only emitter hook is inert
+  - it does not justify a payoff rerun because the mechanism control never
+    leaves the old seam

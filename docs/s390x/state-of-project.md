@@ -4201,3 +4201,35 @@ There are only two realistic outcomes:
     [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
     explicitly treats wrapped `MULOV` as non-strip-safe due to precision
     widening
+
+## 2026-04-03 16:42 PDT
+
+- The replay-side-only visible-current rebuild family is now closed.
+- Opt-in experiment:
+  - `LUAJIT_S390X_FORL_REPLAY_VISIBLE_IDX_NOGUARD=1`
+- Targeted rule:
+  - only on `rec_for_loop(init=0)` replay-side rebuild of the visible current
+    `FORL_IDX` lane
+  - root-born emission and matched-fastpath reuse left unchanged
+- Exact-taken control:
+  [20260403-164012-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-164012-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- Result:
+  - structurally inert on `number_helper_loop`
+  - same `trace 7 exit 0`
+  - same runtime `guardmark curins 3`
+  - same exact guard:
+    - `IR=SLOAD`
+    - `op1=4`
+    - `op2=36`
+    - `ofs=16`
+    - `extra=20`
+  - same first carried accumulator lane:
+    - `curins 15`
+    - `IR=SLOAD`
+    - `op1=3`
+    - `op2=4`
+- Conclusion:
+  - the narrow replay-side `rec_for_loop(init=0)` hook is not the active owner
+    of the shipping seam
+  - relaxing it does not move the live payer at all
+  - this closes the cleanest replay-only emitter theory

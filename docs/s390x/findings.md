@@ -13738,3 +13738,40 @@ Next hash target
       widening
     - that makes a narrow `bit.tobit()`-driven `MULOV` strip a generic
       non-starter, not the next honest remediation family
+
+- Timestamp: `2026-04-03 16:42:00 PDT`
+  - the side-trace rebuild-only visible-current no-guard family is closed as
+    structurally inert
+  - opt-in experiment:
+    - `LUAJIT_S390X_FORL_REPLAY_VISIBLE_IDX_NOGUARD=1`
+  - targeted rule:
+    - only on `rec_for_loop(init=0)` replay-side rebuild of the visible
+      current-value lane
+    - leave root-born emission and matched-fastpath reuse unchanged
+  - exact-taken control:
+    - [20260403-164012-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-164012-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - result on `number_helper_loop`:
+    - `RESULT -149783296`
+    - `TRACE_START 6`
+    - `TRACE_STOP 5`
+    - `TEXIT_COUNT 64001`
+    - dominant seam unchanged:
+      - `trace 7 exit 0`
+      - `guardmark curins 3`
+      - exact runtime guard:
+        - `IR=SLOAD`
+        - `op1=4`
+        - `op2=36`
+        - `ofs=16`
+        - `extra=20`
+    - first surviving accumulator `SLOAD` also unchanged:
+      - `curins 15`
+      - `IR=SLOAD`
+      - `op1=3`
+      - `op2=4`
+  - conclusion:
+    - replay-side-only visible-current no-guard does not own the live seam
+    - the shipping payer is recreated elsewhere or remains semantically
+      required even when the narrow rebuild hook is relaxed
+    - this is a clean reject; no payoff run was needed because the mechanism
+      control stayed exactly on the old seam
