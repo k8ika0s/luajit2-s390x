@@ -3215,6 +3215,30 @@ Current owner map contract:
     - the next honest target is whether the remaining promoted-default gap
       should now be treated as generic dynamic-stop numeric-for replay cost
 
+- Timestamp: `2026-04-02 18:31:02 PDT`
+- Host-pair seam check matches the same generic floor
+  - clean `zkd0` reduced cross-checks under the promoted default:
+    - [20260402-zkd0-direct-abs-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-direct-abs-current-seam)
+      - `TRACE_START 4`
+      - dominant texit `3:0 x 200`
+      - exact runtime guard:
+        - `curins 3`
+        - `sload_int ofs 16 extra 20`
+    - [20260402-zkd0-be-pack-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-be-pack-current-seam)
+      - `TRACE_START 3`
+      - dominant texit `4:0 x 200`
+      - exact runtime guard:
+        - `curins 3`
+        - `sload_int ofs 16 extra 20`
+  - closure:
+    - the same post-promotion replay seam is front-most on both `kdz` and
+      `zkd0`
+    - there is no remaining host-pair evidence for a z15-only or z14-only
+      latch-style remediation on this mechanism
+    - the remaining promoted-default gap should now be treated as the current
+      shared dynamic-stop numeric-for replay floor unless a different
+      mechanism is proven
+
 ### After that
 
 There are only two realistic outcomes:
