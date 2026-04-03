@@ -3034,21 +3034,30 @@ That continuation is now pinned more exactly:
 - `RECRET` artifact:
   [20260403-kdz-ffi-static-stop-same-callsite-recret](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-recret/summary.md)
 - [lj_record_ret()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2016) does shift the single live result `TRef`
-  during `lua_lower_frame_retf`
+  during `lua_lower_frame_retf`, but only into the lower-frame call-result
+  destination
   - pre-shift `idx=0`
   - post-shift `idx=5`
   - `cbase=5`
   - `nresults=1`
-- but `trace 4` still begins with the pre-`RETF` parent lane:
+- the same-callsite continuation is already at caller `RET1` with `prevop=JFORL`,
+  not at the bytecode `MOV` that would usually materialize the caller-visible
+  destination/local from that call-result slot
+- but `trace 4` still begins with the inherited caller-visible result lane:
   - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
   - exit snapshots still keep `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
 - [snapshot_slots()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L103) uses `IR_RETF` as the cutoff for SLOAD restore
-  elimination, so the continuation remains anchored to the dead pre-shift
-  parent result slot instead of the shifted lower-frame destination
+  elimination, so the continuation can keep the old inherited result identity
+  even though the lower-frame path only materialized the shifted `cbase=5`
+  destination
+- [snap_usedef()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L305) explains why that wrong identity wins:
+  by the time this path is at caller `RET1`, only the caller-visible return
+  slot is live, so the shifted call-result destination is not preserved unless
+  it has already been rebound to that return-slot identity
 
 So the next honest remediation lane on this slice is lower-frame result-slot
 rebasing/rematerialization across `IR_RETF`, not more caller-loop `LE`
-attribution.
+attribution and not local resumed-`MOV` patches.
 
 That later path is now confirmed to be workload-local:
 
