@@ -4233,3 +4233,39 @@ There are only two realistic outcomes:
     of the shipping seam
   - relaxing it does not move the live payer at all
   - this closes the cleanest replay-only emitter theory
+
+## 2026-04-03 16:55 PDT
+
+- The backend-only visible-current `SLOAD` family is now classified and
+  rejected.
+- Opt-in experiment:
+  - `LUAJIT_S390X_ASM_VISIBLE_IDX_SLOAD_NOGUARD=1`
+- Targeted rule:
+  - only in [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  - skip the asm-side integer typecheck compare for inherited
+    `SLOAD op1=4` with `IRSLOAD_INHERIT|IRSLOAD_TYPECHECK`
+  - recorder and replay emission unchanged
+- Exact control:
+  [20260403-164918-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-164918-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `number_helper_loop` stays on the same dominant `trace 7 exit 0` family
+  - exact first guard moves from the visible-current lane to the carried
+    accumulator lane:
+    - old: `curins 3 / SLOAD op1=4 op2=36`
+    - new: `curins 15 / SLOAD op1=3 op2=4`
+- Payoff sibling mirror:
+  [20260403-165053-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-165053-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `be_pack_loop` matches the same displacement:
+    - same dominant `trace 7 exit 0`
+    - exact guard becomes `curins 35 / SLOAD op1=3 op2=4`
+- Throughput and smoke:
+  [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - smoke is wrong:
+    - `number_helper_loop check: 13762770`
+    - `be_pack_loop check: 210`
+  - hot medians regress:
+    - `number_helper_loop/hot 0.010473`
+    - `be_pack_loop/hot 0.027104`
+- Conclusion:
+  - this is useful ownership evidence for the asm-side compare
+  - but not a promotable remediation family
+  - it fails correctness and makes the payoff sibling slower

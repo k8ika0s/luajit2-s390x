@@ -3422,3 +3422,28 @@ localized-helper carried-`total` lane
   - this replay-only emitter hook is inert
   - it does not justify a payoff rerun because the mechanism control never
     leaves the old seam
+
+## 2026-04-03 16:55 PDT
+
+- The backend-only visible-current `SLOAD` family is now measured and rejected:
+  - `LUAJIT_S390X_ASM_VISIBLE_IDX_SLOAD_NOGUARD=1`
+- Exact mechanism reads:
+  - control:
+    [20260403-164918-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-164918-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - payoff sibling:
+    [20260403-165053-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-165053-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - both workloads keep the same dominant `trace 7 exit 0` family
+  - both displace the first exact taken guard from visible-current
+    `SLOAD op1=4 op2=36` to carried-total `SLOAD op1=3 op2=4`
+- Truth pack:
+  [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+- Read:
+  - smoke is wrong:
+    - `number_helper_loop check: 13762770`
+    - `be_pack_loop check: 210`
+  - throughput regresses:
+    - `number_helper_loop/hot 0.010473` vs default `0.008927`
+    - `be_pack_loop/hot 0.027104` vs default `0.023920`
+- Classification:
+  - backend compare removal is real ownership evidence
+  - but it is not a viable remediation lane

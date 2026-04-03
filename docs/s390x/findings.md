@@ -13775,3 +13775,43 @@ Next hash target
       required even when the narrow rebuild hook is relaxed
     - this is a clean reject; no payoff run was needed because the mechanism
       control stayed exactly on the old seam
+
+- Timestamp: `2026-04-03 16:55:00 PDT`
+  - the backend-only visible-current `SLOAD` no-guard family is now closed
+  - opt-in experiment:
+    - `LUAJIT_S390X_ASM_VISIBLE_IDX_SLOAD_NOGUARD=1`
+  - targeted rule:
+    - only in [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - skip the asm-side integer typecheck compare for inherited
+      `SLOAD op1=4` with `IRSLOAD_INHERIT|IRSLOAD_TYPECHECK`
+    - leave recorder and replay emission unchanged
+  - exact-taken control:
+    - [20260403-164918-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-164918-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - control read:
+    - `number_helper_loop` stays on the same overall loop family:
+      - `RESULT -149783296`
+      - `TRACE_START 6`
+      - `TRACE_STOP 5`
+      - `TEXIT_COUNT 64001`
+      - dominant seam still `trace 7 exit 0`
+    - but the first exact taken guard does move:
+      - old: `curins 3`, `SLOAD op1=4 op2=36`
+      - new: `curins 15`, `SLOAD op1=3 op2=4`
+  - payoff sibling exact mirror:
+    - [20260403-165053-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-165053-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+    - `be_pack_loop` matches the same displacement:
+      - dominant seam still `trace 7 exit 0`
+      - exact guard becomes `curins 35`, `SLOAD op1=3 op2=4`
+  - throughput and smoke:
+    - [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+    - smoke is wrong:
+      - `number_helper_loop check: 13762770`
+      - `be_pack_loop check: 210`
+    - throughput regresses:
+      - `number_helper_loop/hot 0.010473` vs default `0.008927`
+      - `be_pack_loop/hot 0.027104` vs default `0.023920`
+  - conclusion:
+    - backend lowering does own this exact compare in the narrow sense that
+      removing it displaces the first literal taken guard
+    - but this family is not promotable
+    - it fails smoke correctness and makes the live payoff sibling slower
