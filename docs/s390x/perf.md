@@ -2937,6 +2937,25 @@ That direct remediation line is now rejected:
   - `TRACE_ABORT 0`
   - `TEXIT_COUNT 64001`
 
+Corrected signed-expected follow-up is now explicitly rejected on the dynamic
+localized-helper lane:
+
+- reduced `kdz` artifact:
+  [20260403-kdz-localized-current-fix-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-current-fix-check/summary.md)
+- the old visible-current `sload_int` exact guard clears, but control just
+  advances into an overflow side loop:
+  - dominant runtime `guardmark`: `curins 5`
+  - `TRACEIR tr=1 ins=5 op=MULOV op1=3 op2=-6`
+  - `trace 4`: `num CONV -> num MUL -> int TOBIT -> int ADD`
+- result is wrong and therefore non-promotable:
+  - `RESULT 1323881804`
+  - `TRACE_START 2`
+  - `TRACE_STOP 2`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 202`
+- adding `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1` on the same lane does not help:
+  [20260403-kdz-localized-current-fix-paired-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-current-fix-paired-check/summary.md)
+
 So the carried-`total` guard is only the first marked branch after the ladder
 collapse. It is not the whole remaining payer. The next honest target is the
 later unmarked exit path on the same reduced localized lane.

@@ -206,3 +206,33 @@ Exact-taken follow-up on the same reduced lane:
 So broad canon/share plus signed GC64 int-`SLOAD` still lands on the same
 generic dynamic-stop visible-current replay contract, just after the
 cross-call ladder is collapsed.
+
+Direct corrected-constant follow-up is now closed as a dynamic-lane reject:
+
+- direct reduced `kdz` experiment:
+  [20260403-kdz-localized-current-fix-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-current-fix-check/summary.md)
+  with the signed expected constant corrected to match `SRAG ... ,47`
+- this does clear the old visible-current `sload_int` exact guard:
+  - dominant runtime `guardmark` moves to `curins 5`
+  - `TRACEIR tr=1 ins=5 op=MULOV op1=3 op2=-6`
+  - `trace 4` becomes the overflow side loop:
+    - `num CONV`
+    - `num MUL`
+    - `int TOBIT`
+    - `int ADD`
+- but the lane is not promotable:
+  - `RESULT 1323881804`
+  - `TRACE_START 2`
+  - `TRACE_STOP 2`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 202`
+- pairing `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1` on the same reduced lane
+  does not help:
+  [20260403-kdz-localized-current-fix-paired-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-current-fix-paired-check/summary.md)
+  - still `RESULT 1323881804`
+  - same `MULOV`-driven exact guard
+
+So the corrected signed compare is a real bug fix signal, but on the dynamic
+localized-helper lane it just advances control into an overflow / `TOBIT`
+continuation bug. That is a separate remediation family, not a promotable
+extension of the current non-`UGET` canon/share policy.

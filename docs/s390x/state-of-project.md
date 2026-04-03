@@ -3657,6 +3657,32 @@ Current owner map contract:
     - not an unmarked late path
     - not another carried-`total` compare/lowering target
 
+- Timestamp: `2026-04-03 05:28:29 PDT`
+- Direct corrected signed-expected follow-up is closed as a dynamic-lane
+  reject, not a promotion-core remediation
+  - artifacts:
+    [20260403-kdz-localized-current-fix-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-current-fix-check/summary.md)
+    and
+    [20260403-kdz-localized-current-fix-paired-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-current-fix-paired-check/summary.md)
+  - correcting the signed expected constant does move the exact guard:
+    - old visible-current `sload_int` exact guard clears
+    - dominant runtime `guardmark` moves to `curins 5`
+    - `TRACEIR tr=1 ins=5 op=MULOV op1=3 op2=-6`
+  - reduced side-path shape becomes explicit:
+    - `trace 4` is `num CONV -> num MUL -> int TOBIT -> int ADD`
+  - but the lane is not correctness-safe:
+    - `RESULT 1323881804`
+    - `TRACE_START 2`
+    - `TRACE_STOP 2`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 202`
+  - pairing `LUAJIT_S390X_JFORI_INTERP_HANDOFF=1` does not change that
+  - queue correction:
+    - the corrected signed compare is a real bug-fix signal
+    - but on the dynamic localized-helper lane it only advances control into a
+      later overflow / `TOBIT` continuation bug
+    - it is not the next honest performance promotion line
+
 ### After that
 
 There are only two realistic outcomes:
