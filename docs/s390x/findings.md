@@ -13346,5 +13346,19 @@ Next hash target
         - `frame_pc(frame)` is still at an earlier caller PC
         - the failing continuation snapshot is already one bytecode later at
           caller `RET1`
+    - targeted `snapshot_slots()` logging sharpens that again:
+      - artifact:
+        [20260403-080945-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080945-kdz-baseline-core-exit-mechanism/summary.md)
+      - at the actual failing `RET1` snapshot pass, the current frame is
+        already collapsed to `baseslot=2`, `maxslot=1`
+      - inside that final pass, only the stale caller-visible lane is
+        considered/kept:
+        - `slot=2`, `rel=0`, `op=SLOAD`, `op1=2`, `op2=33`
+      - the shifted lower-frame destination is not explicitly skipped there; it
+        is already outside the current frame window
+      - conclusion:
+        - `snapshot_slots()` is too late for repair on this lane
+        - the next honest target is the earlier frame-window / slot-identity
+          collapse between `IR_RETF` and the later caller `RET1`
     - the next honest remediation family is lower-frame result-alias rebasing
       or rematerialization across `IR_RETF`

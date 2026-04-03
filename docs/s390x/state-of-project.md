@@ -3823,6 +3823,21 @@ Current owner map contract:
         - the next honest remediation target is the `IR_RETF` /
           snapshot/use-def identity boundary, not more local
           `lj_record_ret()` slot surgery
+    - targeted `snapshot_slots()` logging narrows that boundary again:
+      - artifact:
+        [20260403-080945-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080945-kdz-baseline-core-exit-mechanism/summary.md)
+      - at the actual failing `RET1` snapshot pass, the current frame is
+        already collapsed to `baseslot=2`, `maxslot=1`
+      - in that final pass, only the stale caller-visible lane is
+        considered/kept:
+        - `slot=2`, `rel=0`, `op=SLOAD`, `op1=2`, `op2=33`
+      - the shifted lower-frame destination is not being explicitly pruned
+        there; it is already outside the current `nslots` window
+      - queue correction:
+        - the live loss happens before the failing `RET1` snapshot build
+        - `snapshot_slots()` itself is too late for repair on this lane
+        - the next honest target is the earlier frame-window / slot-identity
+          collapse between `IR_RETF` and the later caller `RET1`
     - next honest target is lower-frame result-alias rebasing or
       rematerialization across `IR_RETF`, not more `CALLXS` narrowing, not
       more caller-loop attribution, and not more local `MOV` window

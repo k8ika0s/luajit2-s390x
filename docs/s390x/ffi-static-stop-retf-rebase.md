@@ -119,3 +119,22 @@ Rejected fresh lower-frame destination rematerialization:
     inside `lj_record_ret()`
   - the next honest remediation family is at the `IR_RETF` / snapshot/use-def
     identity boundary itself
+
+Snapshot-window correction:
+
+- artifact:
+  - [20260403-080945-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080945-kdz-baseline-core-exit-mechanism/summary.md)
+- targeted `snapshot_slots()` slot logging at `IR_RETF` + caller `RET1` shows:
+  - at the actual failing `RET1` snapshot pass, the current frame window is
+    already collapsed to `baseslot=2`, `maxslot=1`
+  - inside that pass, only the stale caller-visible lane is considered/kept:
+    - `slot=2`, `rel=0`, `op=SLOAD`, `op1=2`, `op2=33`
+  - the shifted lower-frame destination lane is not pruned there; it is no
+    longer in the current `nslots = baseslot + maxslot` window at all
+- conclusion:
+  - the loss happens before the failing `RET1` snapshot build
+  - `snapshot_slots()` on that final pass cannot rescue the shifted destination
+    because the destination lane is already out of scope
+  - the next honest target is earlier than `snapshot_slots()` itself:
+    where the caller frame window and slot identity collapse from the shifted
+    lower-frame destination back to the caller-visible return slot
