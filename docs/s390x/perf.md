@@ -3069,6 +3069,19 @@ That continuation is now pinned more exactly:
     `lua_lower_frame_retf` handoff window: `frame_pc(frame)` is still at an
     earlier caller PC, while the failing continuation snapshot is already one
     bytecode later at caller `RET1`
+- targeted `snapshot_slots()` logging narrows that further:
+  - artifact:
+    [20260403-080945-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080945-kdz-baseline-core-exit-mechanism/summary.md)
+  - at the actual failing `RET1` snapshot pass, the current frame has already
+    collapsed to `baseslot=2`, `maxslot=1`
+  - in that final pass, only the stale caller-visible lane is still
+    considered/kept:
+    - `slot=2`, `rel=0`, `op=SLOAD`, `op1=2`, `op2=33`
+  - the shifted lower-frame destination is not being skipped there; it is
+    already outside the current frame window
+- so `snapshot_slots()` itself is now closed as the local repair site on this
+  lane; the remaining target is earlier, in the frame-window / slot-identity
+  collapse between `IR_RETF` and the later caller `RET1`
 
 So the next honest remediation lane on this slice is lower-frame result-slot
 rebasing/rematerialization across `IR_RETF`, not more caller-loop `LE`
