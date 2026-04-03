@@ -183,5 +183,26 @@ non-`UGET` lane does not move the remaining floor.
 
 So the old logical-vs-signed GC64 int-tag extraction issue is not the live
 post-collapse payer on this localized broad-canon/share lane anymore. The
-next honest target is the later unmarked exit path on the same restored
-`BC_MOV` replay family, not another carried-`total` compare tweak.
+next honest target is not another carried-`total` compare tweak.
+
+Exact-taken follow-up on the same reduced lane:
+
+- artifact:
+  [20260403-kdz-localized-total-signed-broad-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-total-signed-broad-guardmark/summary.md)
+- env overlay adds:
+  - `LUAJIT_S390X_GUARDMARK_TAKEN=1`
+- the earlier “later unmarked path” read is now closed:
+  - dominant runtime `guardmark` is `curins 3`
+  - exact runtime guard is:
+    - `IR=SLOAD`
+    - `op1=5`
+    - `op2=36`
+    - `sload_int ofs 24 extra 28`
+- on the localized-helper reduced shape:
+  - `op1=5` is the visible current numeric-for value lane
+  - `op1=3` carried `total` remains the first `sload_int`, but not the exact
+    taken guard
+
+So broad canon/share plus signed GC64 int-`SLOAD` still lands on the same
+generic dynamic-stop visible-current replay contract, just after the
+cross-call ladder is collapsed.

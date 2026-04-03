@@ -13161,5 +13161,30 @@ Next hash target
     - the earlier GC64 logical-vs-signed int-tag extraction issue is not the
       remaining post-collapse payer on this localized lane
     - do not open another carried-`total` compare/lowering family here
-    - the next honest target is the later unmarked exit path on the same
+    - the next honest target is exact taken-guard attribution inside the same
       restored `BC_MOV` replay family
+
+- Timestamp: `2026-04-03 05:13:23 PDT`
+- Exact-taken guardmark closes the “later unmarked path” theory on the
+  localized broad non-`UGET` lane
+  - artifact:
+    [20260403-kdz-localized-total-signed-broad-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-total-signed-broad-guardmark/summary.md)
+  - env overlay adds:
+    - `LUAJIT_S390X_GUARDMARK_TAKEN=1`
+  - decisive read:
+    - dominant runtime `guardmark`: `curins 3`
+    - exact runtime guard:
+      - `IR=SLOAD`
+      - `op1=5`
+      - `op2=36`
+      - `sload_int ofs 24 extra 28`
+  - meaning on the localized-helper reduced lane:
+    - `curins=6 / op1=3` carried `total` is still the first `sload_int`
+    - but it is not the literal taken guard
+    - the actual taken guard is the visible current numeric-for value lane
+      `curins=3 / op1=5 / op2=36`
+  - closure:
+    - broad canon/share plus signed GC64 int-`SLOAD` does not hand control to
+      an invisible later path
+    - it lands back on the same generic dynamic-stop visible-current replay
+      contract after collapsing the cross-call ladder

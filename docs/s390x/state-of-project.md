@@ -3630,8 +3630,32 @@ Current owner map contract:
   - queue correction:
     - the localized-helper carried-`total` lane is no longer an honest
       logical-vs-signed GC64 compare target on this mechanism
-    - the next honest target is the later unmarked exit path on the same
+    - the next honest target is exact taken-guard attribution inside the same
       restored `BC_MOV` replay family
+
+- Timestamp: `2026-04-03 05:13:23 PDT`
+- Exact-taken follow-up closes the “later unmarked” theory on the same
+  localized broad non-`UGET` lane
+  - artifact:
+    [20260403-kdz-localized-total-signed-broad-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-total-signed-broad-guardmark/summary.md)
+  - env overlay adds:
+    - `LUAJIT_S390X_GUARDMARK_TAKEN=1`
+  - dominant runtime guard is now explicit:
+    - `curins 3`
+    - `IR=SLOAD`
+    - `op1=5`
+    - `op2=36`
+    - `sload_int ofs 24 extra 28`
+  - correction:
+    - the first `sload_int` on this reduced lane is still the carried `total`
+      (`curins=6`, `op1=3`)
+    - but the exact taken guard is the visible current numeric-for value lane
+      (`curins=3`, `op1=5`, `op2=36`)
+  - queue correction:
+    - the remaining post-collapse floor on this localized shape is back on the
+      generic dynamic-stop visible-current replay contract
+    - not an unmarked late path
+    - not another carried-`total` compare/lowering target
 
 ### After that
 
