@@ -3005,6 +3005,30 @@ And a numeric-accumulator control does not route around it:
 So this remains a separate FFI/call correctness lane, not promotion-core
 route-around evidence and not a plain int-accumulator specialization bug.
 
+The next direct remediation attempt on that lane is now closed too:
+
+- `CALLXS`-fed `ADDOV` narrowing block:
+  [20260403-kdz-ffi-static-stop-no-callxs-addov](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-no-callxs-addov/summary.md)
+- same-callsite control under the same gate:
+  [20260403-kdz-ffi-static-stop-same-callsite-no-callxs-addov](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-no-callxs-addov/summary.md)
+- root IR does change as intended:
+  - `CALLXS -> SLOAD #2 T -> ADDOV`
+  - becomes `CALLXS -> SLOAD #2 T -> num CONV -> num ADD`
+- but the lane is still wrong:
+  - `direct_abs_literal_stop_real`: `RESULT 0`
+  - `stored_abs_literal_stop_real`: `RESULT 0`
+  - `direct_abs_literal_stop_same_callsite`: `RESULT 0`
+  - `stored_abs_literal_stop_same_callsite`: `RESULT 0`
+- same-callsite stays small and finite, but the dominant exact seam moves later:
+  - `trace 4 exit 2`
+  - restored `snapop=76`
+  - dominant runtime `guardmark=0x6`
+  - exact runtime guard `curins 6`, `IR LE`
+
+So the remaining payer on this FFI slice is no longer the `CALLXS` arithmetic
+classifier. It is the later lower-frame return / caller-loop continuation on
+the num-accumulation path.
+
 That later path is now confirmed to be workload-local:
 
 - artifact:

@@ -3741,6 +3741,34 @@ Current owner map contract:
     - keep it fenced as a separate FFI/call correctness line rather than
       folding it back into the current promotion-core performance queue
 
+- Timestamp: `2026-04-03 06:28:03 PDT`
+- `CALLXS`-fed `ADDOV` narrowing is rejected as a remediation for the static-stop
+  FFI lane
+  - direct clean `kdz` gated check:
+    [20260403-kdz-ffi-static-stop-no-callxs-addov](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-no-callxs-addov/summary.md)
+  - same-callsite clean `kdz` control under the same gate:
+    [20260403-kdz-ffi-static-stop-same-callsite-no-callxs-addov](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-no-callxs-addov/summary.md)
+  - the gate does change the root IR in the intended way:
+    - `CALLXS -> SLOAD #2 T -> ADDOV`
+    - becomes `CALLXS -> SLOAD #2 T -> num CONV -> num ADD`
+  - but both real workloads stay wrong:
+    - `direct_abs_literal_stop_real`: `RESULT 0`
+    - `stored_abs_literal_stop_real`: `RESULT 0`
+  - same-callsite also stays wrong:
+    - `direct_abs_literal_stop_same_callsite`: `RESULT 0`
+    - `stored_abs_literal_stop_same_callsite`: `RESULT 0`
+  - queue correction:
+    - the remaining bug is not multi-callsite replay noise
+    - and it is not fixed by removing `CALLXS`-fed `ADDOV`
+    - after the gate, the live seam moves to the later return/caller-loop
+      continuation:
+      - dominant exact exit `trace 4 exit 2`
+      - restored `snapop=76`
+      - dominant runtime `guardmark=0x6`
+      - exact runtime guard `curins 6`, `IR LE`
+    - next honest target is the lower-frame return / caller-loop continuation on
+      the num-accumulation path, not more `CALLXS` narrowing work
+
 ### After that
 
 There are only two realistic outcomes:

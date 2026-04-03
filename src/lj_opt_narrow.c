@@ -19,27 +19,6 @@
 #include "lj_vm.h"
 #include "lj_strscan.h"
 
-static int lj_opt_narrow_s390x_no_callxs_addov_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_NO_CALLXS_ADDOV") != NULL);
-  return enabled;
-}
-
-static int lj_opt_narrow_s390x_callish_ref(jit_State *J, TRef tr)
-{
-  IRRef ref;
-  IRIns *ir;
-  if (tref_isk(tr))
-    return 0;
-  ref = tref_ref(tr);
-  if (!ref)
-    return 0;
-  ir = &J->cur.ir[ref];
-  return ir->o == IR_CALLXS || ir->o == IR_PVAL;
-}
-
 /* Rationale for narrowing optimizations:
 **
 ** Lua has only a single number type and this is a FP double by default.
@@ -547,15 +526,11 @@ static TRef conv_str_tonum(jit_State *J, TRef tr, TValue *o)
 TRef lj_opt_narrow_arith(jit_State *J, TRef rb, TRef rc,
 			 TValue *vb, TValue *vc, IROp op)
 {
-  int no_callxs_addov = lj_opt_narrow_s390x_no_callxs_addov_enabled();
   rb = conv_str_tonum(J, rb, vb);
   rc = conv_str_tonum(J, rc, vc);
   /* Must not narrow MUL in non-DUALNUM variant, because it loses -0. */
   if ((op >= IR_ADD && op <= (LJ_DUALNUM ? IR_MUL : IR_SUB)) &&
       tref_isinteger(rb) && tref_isinteger(rc) &&
-      !(no_callxs_addov &&
-	(lj_opt_narrow_s390x_callish_ref(J, rb) ||
-	 lj_opt_narrow_s390x_callish_ref(J, rc))) &&
       lj_num2int_ok(lj_vm_foldarith(numberVnum(vb), numberVnum(vc),
 				    (int)op - (int)IR_ADD)))
     return emitir(IRTGI((int)op - (int)IR_ADD + (int)IR_ADDOV), rb, rc);

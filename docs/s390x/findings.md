@@ -13273,3 +13273,30 @@ Next hash target
       initialization alone
     - keep it fenced as a separate FFI/call correctness problem rather than
       folding it back into the current promotion-core performance queue
+
+- `CALLXS`-fed `ADDOV` narrowing is not the remaining static-stop FFI bug
+  - gated probe:
+    [20260403-kdz-ffi-static-stop-no-callxs-addov](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-no-callxs-addov/summary.md)
+  - same-callsite control:
+    [20260403-kdz-ffi-static-stop-same-callsite-no-callxs-addov](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-no-callxs-addov/summary.md)
+  - the recorder does respond to the gate:
+    - root trace changes from integer accumulation
+      - `CALLXS -> SLOAD #2 T -> ADDOV`
+    - to numeric accumulation
+      - `CALLXS -> SLOAD #2 T -> num CONV -> num ADD`
+  - but correctness does not recover:
+    - `direct_abs_literal_stop_real`: `RESULT 0`
+    - `stored_abs_literal_stop_real`: `RESULT 0`
+    - `direct_abs_literal_stop_same_callsite`: `RESULT 0`
+    - `stored_abs_literal_stop_same_callsite`: `RESULT 0`
+  - same-callsite closes the caller-polymorphism theory:
+    - the lane stays wrong even when re-entered through one callsite
+  - after the gate, the exact seam moves later:
+    - dominant exit `trace 4 exit 2`
+    - restored `snapop=76`
+    - dominant runtime `guardmark=0x6`
+    - exact runtime guard `curins 6`, `IR LE`
+  - conclusion:
+    - reject `LUAJIT_S390X_NO_CALLXS_ADDOV` as remediation for this lane
+    - the next honest target is the lower-frame return / caller-loop
+      continuation on the num-accumulation path
