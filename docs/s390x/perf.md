@@ -2960,6 +2960,28 @@ So the carried-`total` guard is only the first marked branch after the ladder
 collapse. It is not the whole remaining payer. The next honest target is the
 later unmarked exit path on the same reduced localized lane.
 
+The exploratory static-stop FFI subgroup is now fenced off from this family:
+
+- reducer file:
+  [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+- direct `kdz` proof:
+  [20260403-kdz-ffi-static-stop-direct-probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-direct-probe/summary.md)
+- both real static-stop FFI forms are correctness-broken under JIT:
+  - `direct_abs_literal_stop_real`: `RUN1 486`, `RUN2 0`, `RUN3 0`
+  - `stored_abs_literal_stop_real`: `RUN1 486`, `RUN2 0`, `RUN3 0`
+- repeated-call structure is small and stable rather than ladder-shaped:
+  - `TRACE_START 3`
+  - `TRACE_STOP 3`
+  - `TRACE_ABORT 0`
+  - `TEXIT 401`
+  - texit histogram:
+    - `1:1=200`
+    - `2:1=2`
+    - `3:0=199`
+
+So this subgroup is a separate correctness lane, not usable benchmark-ready
+route-around evidence for the current promotion-core performance map.
+
 That later path is now confirmed to be workload-local:
 
 - artifact:

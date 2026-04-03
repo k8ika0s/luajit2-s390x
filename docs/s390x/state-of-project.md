@@ -3683,6 +3683,31 @@ Current owner map contract:
       later overflow / `TOBIT` continuation bug
     - it is not the next honest performance promotion line
 
+- Timestamp: `2026-04-03 05:34:59 PDT`
+- Real static-stop FFI siblings are now split into their own exploratory slice
+  and kept out of `promotion_core_static_stop`
+  - standalone reducer:
+    [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+  - direct `kdz` probe:
+    [20260403-kdz-ffi-static-stop-direct-probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-direct-probe/summary.md)
+  - both real static-stop forms are correctness-broken under JIT:
+    - `direct_abs_literal_stop_real`: `RUN1 486`, `RUN2 0`, `RUN3 0`
+    - `stored_abs_literal_stop_real`: `RUN1 486`, `RUN2 0`, `RUN3 0`
+  - repeated-call shape is small and stable, not the old ladder:
+    - `TRACE_START 3`
+    - `TRACE_STOP 3`
+    - `TRACE_ABORT 0`
+    - `TEXIT 401`
+    - texit histogram:
+      - `1:1=200`
+      - `2:1=2`
+      - `3:0=199`
+  - queue correction:
+    - the static-stop FFI subgroup is a real new JIT correctness lane
+    - it is not benchmark-ready route-around evidence for `promotion_core`
+    - if pursued, the next target is this small repeated-call FFI call seam,
+      not the generic dynamic-stop numeric-for floor
+
 ### After that
 
 There are only two realistic outcomes:

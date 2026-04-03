@@ -13218,3 +13218,27 @@ Next hash target
       later overflow / `TOBIT` continuation bug
     - this is a separate remediation family, not the next promotion-core
       performance win
+
+- real static-stop FFI siblings are now isolated as a separate exploratory
+  slice, not kept inside `promotion_core_static_stop`:
+  - reducer file:
+    [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+  - direct host proof:
+    [20260403-kdz-ffi-static-stop-direct-probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-direct-probe/summary.md)
+  - both forms are correctness-broken under JIT on `kdz`:
+    - `direct_abs_literal_stop_real`: `RUN1 486`, `RUN2 0`, `RUN3 0`
+    - `stored_abs_literal_stop_real`: `RUN1 486`, `RUN2 0`, `RUN3 0`
+  - repeated-call structure is small and stable:
+    - `TRACE_START 3`
+    - `TRACE_STOP 3`
+    - `TRACE_ABORT 0`
+    - `TEXIT 401`
+    - texit histogram:
+      - `1:1=200`
+      - `2:1=2`
+      - `3:0=199`
+  - meaning:
+    - this is not a helper-lookup-only quirk
+    - this is not the earlier large clone-ladder family either
+    - the static-stop FFI subgroup is a separate JIT correctness lane, not
+      valid route-around evidence for the current promotion-core floor
