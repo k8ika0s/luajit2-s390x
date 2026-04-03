@@ -108,13 +108,24 @@ Workload-only confirmation on the same reduced lane:
   - `snapop=18`
   - `snapnent=0`
   - dominant runtime `guardmark=0`
-- first surviving `sload_int` in that workload-only cluster is now:
+- corrected attribution:
+  - the one-off skip was scoped to the no-helper sibling's carried-`total`
+    lane (`curins=4`, `op1=2`)
+  - on the localized-helper workload, the reduced trace-IR lane layout is:
+    - `ins=1 SLOAD op1=6` -> loop bound `n`
+    - `ins=3 SLOAD op1=5` -> current numeric-for value
+    - `ins=4 SLOAD op1=4` -> localized `tobit`
+    - `ins=6 SLOAD op1=3` -> carried `total`
+- first surviving `sload_int` in that workload-only cluster is therefore:
   - `curins=6`
+  - `op1=3`
   - `ofs=8`
   - `extra=12`
 
 So the next honest target is the later workload-only cluster headed by
-`curins=6 sload_int ofs=8 extra=12`, not the old carried-`total` guard.
+the localized-helper carried-`total` lane
+`curins=6 / op1=3 / ofs=8 / extra=12`, not the no-helper sibling's skipped
+`curins=4 / op1=2` lane.
 
 This means the useful boundary is not “all non-`UGET` seams”. It is narrower.
 

@@ -2953,13 +2953,23 @@ That later path is now confirmed to be workload-local:
   - restored `BC_MOV` (`op=18`)
   - `snapop=18`
   - dominant runtime `guardmark=0`
-- first surviving workload-only `sload_int`:
+- corrected lane mapping:
+  - the one-off skip only targeted the no-helper sibling's carried-`total`
+    guard (`curins=4`, `op1=2`)
+  - on the localized-helper workload, reduced trace-IR lays out:
+    - `op1=6` -> loop bound `n`
+    - `op1=5` -> current numeric-for value
+    - `op1=4` -> localized `tobit`
+    - `op1=3` -> carried `total`
+- first surviving workload-only `sload_int` on this workload is therefore:
   - `curins=6`
+  - `op1=3`
   - `ofs=8`
   - `extra=12`
 
 So the next reduced target is no longer “is the unmarked path real?” It is the
-later `curins=6 sload_int ofs=8 extra=12` cluster inside the workload itself.
+localized-helper carried-`total` lane
+`curins=6 / op1=3 / ofs=8 / extra=12` inside the workload itself.
 
 ## Relationship To Other Docs
 

@@ -13116,13 +13116,22 @@ Next hash target
       - `snapop=18`
       - `snapnent=0`
       - dominant `guardmark=0`
-    - first surviving workload-only `sload_int` is now:
+    - corrected lane mapping:
+      - the one-off skip only targeted the no-helper sibling carried-`total`
+        lane (`curins=4`, `op1=2`)
+      - on the localized-helper workload, reduced trace-IR lays out:
+        - `op1=6` -> loop bound `n`
+        - `op1=5` -> current numeric-for value
+        - `op1=4` -> localized `tobit`
+        - `op1=3` -> carried `total`
+    - first surviving workload-only `sload_int` is therefore:
       - `curins=6`
+      - `op1=3`
       - `ofs=8`
       - `extra=12`
   - closure:
     - the carried-`total` skip did not merely expose helper posthook noise
-    - the remaining floor is a later workload-local cluster
-    - the next exact target is to map `curins=6 sload_int ofs=8 extra=12`
-      semantically and decide whether that lane is a real fix surface or just
-      the next marker in the same floor
+    - but the localized-helper workload is not using the skipped
+      `curins=4 / op1=2` lane as its first carried-`total` guard
+    - the remaining floor is the localized-helper carried-`total`
+      `curins=6 / op1=3 / ofs=8 / extra=12` lane
