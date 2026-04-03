@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 19:23:54 PDT
+Last updated: 2026-04-02 21:22:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -3437,6 +3437,39 @@ Current owner map contract:
     - it still does not produce a stable fast JIT lane across repeated calls
     - the next honest target for that subgroup is the cross-call clone/fallback
       behavior, not more replay/header digging inside one run
+
+- Timestamp: `2026-04-02 21:22:00 PDT`
+- Explicit broad canon/share now opens a bounded remediation lane for localized
+  static-stop `number_helper`
+  - artifact:
+    [20260402-kdz-static-stop-local-broad-canonshare](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-broad-canonshare/summary.md)
+  - source boundary:
+    [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - correction:
+    - explicit broad canon/share envs were accidentally hard-gated by the
+      shipping `UGET`/looproot prefilter in `trace_hotside()`
+    - the fix keeps the envless default unchanged, but lets manual broad envs
+      reach the equivalence matcher on non-`UGET` seams
+  - mechanism proof on clean `kdz`:
+    - the localized static-stop lane now reaches `find_equiv_min()`
+    - repeated accepts appear on the same root chain:
+      - `parent=6 exit=0 root=1 cand=5`
+      - `parent=7 exit=0 root=1 cand=6`
+    - earlier candidates are rejected only by ordering, not by shape drift
+  - repeated-call quant:
+    - `number_helper_literal_stop_real_local_tobit`
+      - default: `0.027580s`, `0.030517s`, `103` traces
+      - broad opt-in: `0.007981s`, `0.007844s`, `7` traces
+    - localized static-stop `be_pack` sibling:
+      - default: `0.016238s`, `0.016659s`, `7` traces
+      - broad opt-in: `0.015817s`, `0.015774s`, `7` traces
+  - queue correction:
+    - this is a real opt-in remediation lane for the localized static-stop
+      `number_helper` subgroup
+    - it is not yet a shipping-default widening and not a subgroup-wide win
+    - the next honest target is whether this opt-in lane can actually cross
+      into `jit.on < -joff`, then whether a selective non-`UGET`
+      canon/share policy can be justified
 
 ### After that
 

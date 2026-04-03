@@ -12959,3 +12959,44 @@ Next hash target
       `number_helper`
     - the remaining live lane there is cross-call loop-clone/fallback on the
       localized static-stop shape
+
+- Timestamp: `2026-04-02 21:22:00 PDT`
+- Explicit broad canon/share on non-`UGET` seams is now a real bounded lane
+  for localized static-stop `number_helper`
+  - summary:
+    [20260402-kdz-static-stop-local-broad-canonshare](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-broad-canonshare/summary.md)
+  - source boundary:
+    [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - corrected mechanism:
+    - broad canon/share envs were not “ineffective by nature” on this lane
+    - they were being suppressed by the shipping `UGET`/looproot gate in
+      `trace_hotside()`
+    - current source now keeps the envless default scoped, but allows explicit
+      broad envs to reach canon/share on non-`UGET` seams
+  - decisive `kdz` proof:
+    - repeated equivalence accepts now appear on the localized static-stop
+      lane:
+      - `parent=6 exit=0 root=1 cand=5`
+      - `parent=7 exit=0 root=1 cand=6`
+    - repeated-call quant on `number_helper_literal_stop_real_local_tobit`:
+      - default:
+        - `RUN 1 -149783296 0.027580 103`
+        - `RUN 2 -149783296 0.030517 103`
+      - broad opt-in:
+        - `RUN 1 -149783296 0.007981 7`
+        - `RUN 2 -149783296 0.007844 7`
+  - sibling check:
+    - localized static-stop `be_pack` does not materially improve:
+      - default:
+        - `RUN 1 2048032000 0.016238 7`
+        - `RUN 2 2048032000 0.016659 7`
+      - broad opt-in:
+        - `RUN 1 2048032000 0.015817 7`
+        - `RUN 2 2048032000 0.015774 7`
+  - closure:
+    - this is not a subgroup-wide silver bullet
+    - it is a real opt-in remediation lane for the localized static-stop
+      `number_helper` path
+    - the next honest target is whether that lane can cross into
+      `jit.on < -joff`, then whether a selective non-`UGET` canon/share policy
+      is worth designing
