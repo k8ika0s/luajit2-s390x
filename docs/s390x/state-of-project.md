@@ -4088,3 +4088,39 @@ There are only two realistic outcomes:
   [perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md)
 - Validation workflow:
   [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
+
+## 2026-04-03 15:20 PDT
+
+- `promotion_core` next issue is now pinned more narrowly than “restored
+  header carried-total lane”.
+- Under the paired control that relaxes the root visible-current guard and
+  preserves the first local integer snapshot lane:
+  - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+  - `LUAJIT_S390X_KEEP_FIRST_LOCAL_SLOAD_SNAP=1`
+  the first exact taken guard is still the carried accumulator lane:
+  - `curins 15`
+  - `IR=SLOAD`
+  - `op1=3`
+  - `op2=4`
+  - `ofs=8`
+  - `extra=12`
+- widened birth logging now proves where that lane comes from:
+  - visible current-value lanes are born by `sloadt()` in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    while recording `BC_UGET`
+  - the carried accumulator lane is born later by plain `sload()` while
+    recording `BC_ADDVV`
+  - exact birth:
+    - `pcop=32`
+    - `baseslot=2`
+    - `slot=1`
+    - `abs=3`
+    - `mode=4`
+    - `ref=15`
+- direct restored-header rematerialization is rejected:
+  - seeding `J->base[1]` from the preserved local integer lane at the header
+    leaves the exact guard and exit counts unchanged
+- next honest remediation target:
+  - the `BC_ADDVV` accumulator operand specialization path
+  - not more restored-header rematerialization
+  - not more visible-current `FORL_IDX` no-guard variants

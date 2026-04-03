@@ -3300,3 +3300,39 @@ localized-helper carried-`total` lane
   [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
 - Validation discipline:
   [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
+
+## 2026-04-03 15:20 PDT
+
+- The carried-`total` lane is now source-pinned to its birth site.
+- Paired control:
+  - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+  - `LUAJIT_S390X_KEEP_FIRST_LOCAL_SLOAD_SNAP=1`
+- exact-taken artifact:
+  [20260403-150846-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-150846-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- still pays first on:
+  - `curins 15`
+  - `IR=SLOAD`
+  - `op1=3`
+  - `op2=4`
+  - `ofs=8`
+  - `extra=12`
+- widened birth-log artifact:
+  [20260403-151707-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-151707-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- birth attribution:
+  - visible current-value lanes are `sloadt()` births at `BC_UGET`
+  - the carried accumulator lane is a later plain `sload()` birth at
+    `BC_ADDVV`:
+    - `baseslot=2`
+    - `slot=1`
+    - `abs=3`
+    - `mode=4`
+    - `ref=15`
+- direct header seeding reject:
+  [20260403-151928-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-151928-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - seeding the preserved first local integer lane into `J->base[1]` at the
+    restored header is structurally inert
+  - same `trace 7 exit 0`
+  - same exact guard `curins 15 / SLOAD op1=3 op2=4`
+- next remediation family:
+  - `BC_ADDVV` accumulator operand specialization
+  - not restored-header rematerialization

@@ -13597,3 +13597,51 @@ Next hash target
     - the next real issue ready for remediation is the loop-carried
       accumulator `getslot()->sload()` replay / typecheck / consumer contract
     - not another visible-current no-guard variant
+
+- Timestamp: `2026-04-03 15:20:21 PDT`
+  - The next carried-`total` lane is now pinned to its real emitter, and one
+    direct rematerialization family is rejected
+  - paired classification experiment:
+    - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+    - `LUAJIT_S390X_KEEP_FIRST_LOCAL_SLOAD_SNAP=1`
+  - exact-taken control artifact:
+    - [20260403-150846-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-150846-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - result:
+    - `number_helper_loop` still stays on the same repeated structural floor:
+      - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+      - dominant seam `trace 7 exit 0` x `63457`
+    - with the visible-current root guard relaxed, the first literal taken
+      guard remains:
+      - `curins 15`
+      - `IR=SLOAD`
+      - `op1=3`
+      - `op2=4`
+      - `sload_int ofs=8 extra=12`
+  - widened birth-log artifact:
+    - [20260403-151707-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-151707-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - birth attribution:
+    - the visible current-value lanes are created by `sloadt()` in
+      [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      at `pcop=45` (`BC_UGET`)
+    - the carried accumulator lane is **not** born there
+    - it is created later by plain `sload()` while recording
+      `pcop=32` (`BC_ADDVV`):
+      - `baseslot=2`
+      - `slot=1`
+      - `abs=3`
+      - `mode=4`
+      - `ref=15`
+  - direct header rematerialization reject:
+    - opt-in experiment:
+      - `LUAJIT_S390X_HEADER_SEED_FIRST_LOCAL=1`
+    - artifact:
+      [20260403-151928-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-151928-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+    - injecting the preserved first local integer lane into `J->base[1]` at
+      the restored header is structurally inert:
+      - same `trace 7 exit 0`
+      - same exact taken guard `curins 15 / SLOAD op1=3 op2=4`
+  - conclusion:
+    - the carried-`total` payer is not a restored-header birth problem
+    - it is a later `BC_ADDVV` accumulator operand specialization problem
+    - the next honest remediation family is the `ADDVV`-side
+      `getslot()->sload()` contract for the first local integer accumulator
