@@ -2580,10 +2580,13 @@ New reduced artifacts:
 
 - [20260402-kdz-direct-abs-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-direct-abs-current-seam)
 - [20260402-kdz-be-pack-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-current-seam)
+- [20260402-zkd0-direct-abs-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-direct-abs-current-seam)
+- [20260402-zkd0-be-pack-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-zkd0-be-pack-current-seam)
 
 That means the remaining gap is no longer best described as a helper-only
 header problem. It is a shared dynamic-stop numeric-for replay seam on the
-current promoted-default slice.
+current promoted-default slice, and the same exact reduced signature is present
+on both `kdz` and `zkd0`.
 
 ## Relationship To Other Docs
 
