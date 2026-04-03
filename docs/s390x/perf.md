@@ -2905,6 +2905,20 @@ So the clone ladder is no longer the first payer on this reduced lane. After
 the broad opt-in collapse, the next exact seam is the stack-visible `MOV` /
 `sload_int` header cluster.
 
+That seam is now tighter than “some stack-visible `SLOAD`”:
+
+- direct reduced `kdz` trace-IR under broad opt-in shows:
+  - `TRACEIR tr=1 ins=4 op=SLOAD op1=2 op2=4`
+  - `TRACEIR tr=1 ins=2 op=SLOAD op1=3 op2=4`
+  - `TRACEIR tr=1 ins=3 op=MULOV op1=1 op2=-6`
+- so the first marked guard is the carried `total` reload
+- direct `SLOADMAP` + slot logging shows that lane is already good:
+  - `curins=4 ref=4 kind=int op1=2 op2=0x4 ofs=0 vofs=4 base=11`
+  - restored `idx=0` is a valid boxed int and advances correctly
+
+So the remaining payer on this reduced lane is now the carried-`total`
+`sload_int` compare/lowering path itself, not stack-lane selection.
+
 ## Relationship To Other Docs
 
 - High-level status:

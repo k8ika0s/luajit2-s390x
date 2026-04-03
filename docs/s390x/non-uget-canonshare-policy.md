@@ -1,6 +1,6 @@
 # Non-UGET Canon/Share Policy Boundary
 
-Last updated: 2026-04-02 21:43:00 PDT
+Last updated: 2026-04-02 22:38:00 PDT
 
 ## Why This Exists
 
@@ -53,6 +53,23 @@ Reduced post-collapse seam on clean `kdz`:
 So broad non-`UGET` canon/share collapses the cross-call ladder, but it does
 not remove the first stack-visible `SLOAD` guard cluster on the localized
 `MOV` seam.
+
+Tighter attribution on the same reduced lane:
+
+- direct `kdz` reduced trace-IR:
+  - `TRACEIR tr=1 ins=4 op=SLOAD op1=2 op2=4`
+  - `TRACEIR tr=1 ins=2 op=SLOAD op1=3 op2=4`
+  - `TRACEIR tr=1 ins=3 op=MULOV op1=1 op2=-6`
+- that maps the first marked post-collapse guard to the carried `total` reload,
+  not the localized helper slot and not the current loop value
+- direct `SLOADMAP` + slot logging on the same seam shows:
+  - `curins=4 ref=4 kind=int op1=2 op2=0x4 ofs=0 vofs=4 base=11`
+  - restored base is the normal stack base
+  - `S390X_SLOT idx=0` is a valid boxed int advancing as expected
+
+So the next exact target is not stack selection. It is the `sload_int`
+compare/lowering itself on the carried-`total` lane after the ladder has
+already been collapsed.
 
 This means the useful boundary is not “all non-`UGET` seams”. It is narrower.
 

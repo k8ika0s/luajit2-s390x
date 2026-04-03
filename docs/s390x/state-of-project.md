@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 21:43:00 PDT
+Last updated: 2026-04-02 22:38:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -3522,6 +3522,28 @@ Current owner map contract:
       localized `MOV` seam
     - the next honest target is the exact `MOV`/`sload_int ofs=0 extra=4`
       post-collapse lane, not the old clone ladder itself
+
+- Timestamp: `2026-04-02 22:38:00 PDT`
+- Post-collapse localized seam is now pinned as a good-slot carried-`total`
+  `SLOAD`, not a bad stack lane
+  - direct reduced `kdz` trace-IR on `number_helper_local_tobit` under
+    `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`:
+    - `TRACEIR tr=1 ins=4 op=SLOAD op1=2 op2=4`
+    - `TRACEIR tr=1 ins=2 op=SLOAD op1=3 op2=4`
+    - `TRACEIR tr=1 ins=3 op=MULOV op1=1 op2=-6`
+  - so the first marked guard on that lane is the carried `total` reload
+  - direct `SLOADMAP` + slot logging on the same seam shows:
+    - `S390X_SLOADMAP curins=4 ref=4 kind=int op1=2 op2=0x4 ofs=0 vofs=4 base=11`
+    - restored stack base is correct
+    - `S390X_SLOT idx=0` is a valid boxed int advancing:
+      - `0xfff9000000030003`
+      - `0xfff9000000060006`
+      - `0xfff90000000a000a`
+      - ...
+  - queue correction:
+    - this is no longer a bad-base or bad-slot theory
+    - the next honest target is the `sload_int` compare/lowering path on the
+      carried-`total` lane after clone-ladder collapse
 
 ### After that
 
