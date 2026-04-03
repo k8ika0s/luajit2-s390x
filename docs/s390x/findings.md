@@ -13535,3 +13535,37 @@ Next hash target
     - the only structural change was a later `SLOAD op1=4 op2=32`
   - conclusion:
     - matched-fastpath visible-idx no-guard is a clean reject
+
+- Timestamp: `2026-04-03 14:50:32 PDT`
+  - One narrower root-only patch family was opened against the same live guard
+    and rejected
+  - opt-in experiment:
+    - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+  - targeted rule:
+    - only on root-born `rec_for_loop(init=1)` creation of the visible
+      `FORL_IDX` int lane
+    - drop `IRSLOAD_TYPECHECK` there and leave replay-side logic unchanged
+  - `kdz` exact-taken artifacts:
+    - `number_helper_loop`:
+      [20260403-144356-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-144356-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+    - `be_pack_loop`:
+      [20260403-144556-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-144556-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - structural result:
+    - the first literal taken guard does move on both live workloads
+    - `number_helper_loop`:
+      - exact taken guard becomes `curins 15`, `IR=SLOAD`, `op1=3`, `op2=4`
+    - `be_pack_loop`:
+      - exact taken guard becomes `curins 35`, `IR=SLOAD`, `op1=3`, `op2=4`
+    - so this family redirects the first exact guard from the visible
+      current-value lane to the carried-`total` lane
+  - throughput artifact:
+    - [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - throughput result:
+    - `number_helper_loop/hot`: `0.010545` vs current default `0.008927`
+    - `be_pack_loop/hot`: `0.025796` vs current default `0.023920`
+    - both workloads stay `exit-dominated` with
+      `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 1`, `TEXIT_COUNT 64001`
+  - conclusion:
+    - root-only visible-idx no-guard is a clean reject
+    - it shifts the exact first guard, but it makes the live payoff family
+      slower and does not clear the repeated `trace 7 exit 0` floor

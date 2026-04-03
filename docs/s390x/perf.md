@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-03 14:00:32 PDT
+Last updated: 2026-04-03 14:50:32 PDT
 
 ## Latest Matrix
 
@@ -106,6 +106,26 @@ Matched-fastpath visible-idx no-guard reject:
     - `nins 71 -> 72`
     - first literal taken guard still `curins 3`, `SLOAD op1 4 op2 36`
   - the only structural change was a later `SLOAD op1 4 op2 32`
+  - this family is rejected
+
+Root-only visible-idx no-guard reject:
+
+- opt-in experiment:
+  - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+- exact-taken artifacts:
+  - [number_helper_loop](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-144356-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - [be_pack_loop](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-144556-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- throughput artifact:
+  - [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+- read:
+  - the first literal taken guard does shift on both live `kdz` workloads:
+    - `number_helper_loop`: `curins 15`, `SLOAD op1 3 op2 4`
+    - `be_pack_loop`: `curins 35`, `SLOAD op1 3 op2 4`
+  - but the throughput gets worse, not better:
+    - `number_helper_loop/hot 0.010545` vs default `0.008927`
+    - `be_pack_loop/hot 0.025796` vs default `0.023920`
+  - both workloads remain `exit-dominated` at
+    `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 1`, `TEXIT_COUNT 64001`
   - this family is rejected
 
 ### kdz
