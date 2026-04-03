@@ -3029,6 +3029,24 @@ So the remaining payer on this FFI slice is no longer the `CALLXS` arithmetic
 classifier. It is the later lower-frame return / caller-loop continuation on
 the num-accumulation path.
 
+That continuation family is now known to be generic rather than FFI-specific:
+
+- checked-in reducer:
+  [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
+- reducer boundary on clean `kdz`:
+  - the bench harness stays correct
+  - the exact direct same-callsite script still returns `LUA1 0`, `LUA2 0`
+  - so the checked-in file is a control surface, not the authoritative bug
+    reproducer
+- control result:
+  - same-callsite constant-return outer shape stays correct
+  - pure-Lua inner hot loop under the same outer call/loop/return shape
+    reproduces the same lower-frame continuation family on `kdz`
+- queue correction:
+  - the active bug class is generic same-callsite lower-frame continuation /
+    result-slot identity loss after a hot inner loop
+  - the old static-stop FFI lane is one reproducer, not the whole family
+
 That continuation is now pinned more exactly:
 
 - `RECRET` artifact:

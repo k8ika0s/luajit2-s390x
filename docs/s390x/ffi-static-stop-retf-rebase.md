@@ -1,8 +1,27 @@
-# FFI Static-Stop RETF Rebase
+# Same-Callsite Lower-Frame Continuation Rebase
 
 Status: active design note
 
 Current exact seam on clean `kdz`:
+
+- checked-in generic reducer:
+  - [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
+- reducer boundary:
+  - the bench harness stays correct on clean `kdz`
+  - the exact direct same-callsite script on clean `kdz` still returns:
+    - `LUA1 0`
+    - `LUA2 0`
+  - so the checked-in bench is a control surface, not the authoritative bug
+    reproducer
+- generic control:
+  - local constant-return outer-call shape stays correct
+  - pure-Lua inner hot loop under the same outer call/loop/return shape also
+    collapses to the same `trace 4 exit 2` / `slot2=ref1[...]` continuation
+    seam on `kdz`
+- consequence:
+  - this is not FFI-specific
+  - the old static-stop FFI lane is one instance of a generic same-callsite
+    lower-frame continuation / result-slot identity bug after a hot inner loop
 
 - workload:
   - `direct_abs_literal_stop_same_callsite`
@@ -44,7 +63,7 @@ Current exact reading:
 
 - this is not a generic bad-base replay bug
 - this is not an immediate resumed-`MOV` peephole
-- it is a caller-visible result-alias mismatch across `IR_RETF`:
+- it is a generic caller-visible result-alias mismatch across `IR_RETF`:
   - the lower-frame path materializes the call-result destination
   - the continuation later consumes a caller-visible result alias
   - that alias is still anchored to the pre-`RETF` inherited lane

@@ -765,6 +765,76 @@ emit_traceinfo(32)
 emit_traceir(32)
 """,
     },
+    "pure_lua_abs_same_callsite": {
+        "family": "lower_frame_same_callsite",
+        "iterations": 1,
+        "label": "PURE_LUA_ABS_SAME_CALLSITE",
+        "script": """\
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  for i = 1, 80000 do
+    local x = (i % 17) - 8
+    if x < 0 then
+      x = -x
+    end
+    total = total + x
+  end
+  return total
+end
+local function drive()
+  local out = 0
+  for _ = 1, 4 do
+    out = run()
+  end
+  return out
+end
+drive()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", drive())
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "const_same_callsite": {
+        "family": "lower_frame_same_callsite",
+        "iterations": 1,
+        "label": "CONST_SAME_CALLSITE",
+        "script": """\
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  return 486
+end
+local function drive()
+  local out = 0
+  for _ = 1, 4 do
+    out = run()
+  end
+  return out
+end
+drive()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", drive())
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
     "stored_abs": {
         "family": "ffi_calls",
         "iterations": 80000,
