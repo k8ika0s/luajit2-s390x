@@ -13242,3 +13242,34 @@ Next hash target
     - this is not the earlier large clone-ladder family either
     - the static-stop FFI subgroup is a separate JIT correctness lane, not
       valid route-around evidence for the current promotion-core floor
+
+- Timestamp: `2026-04-03 10:43:00 PDT`
+- Exact-taken probing closes the first wrong FFI static-stop seam attribution
+  - direct clean `kdz` rerun with `LUAJIT_S390X_GUARDMARK_TAKEN=1` keeps the
+    dominant runtime seam at `trace 1 exit 1`
+  - restored header remains:
+    - `snapop=32`
+    - `snapnent=2`
+  - but the first literal taken guard is:
+    - `guardmark=0x12`
+    - `curins 18`
+    - `int SLOAD #2 T`
+  - meaning:
+    - the first failing guard on the broken static-stop FFI lane is the
+      accumulator-slot `SLOAD` typecheck immediately before `ADDOV`
+    - not the `ADDOV` guard itself
+    - backend right-operand normalization was therefore the wrong remediation
+      layer for this slice
+
+- Timestamp: `2026-04-03 10:47:00 PDT`
+- Numeric accumulator initialization does not rescue the static-stop FFI lane
+  - direct clean `kdz` control with the same `ffi.C.abs` loop but
+    `local total = 0.0` still returns:
+    - `RUN1 486`
+    - `RUN2 0`
+    - `RUN3 0`
+  - meaning:
+    - this correctness lane is not explained by integer accumulator
+      initialization alone
+    - keep it fenced as a separate FFI/call correctness problem rather than
+      folding it back into the current promotion-core performance queue

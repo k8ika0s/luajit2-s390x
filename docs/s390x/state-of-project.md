@@ -3708,6 +3708,39 @@ Current owner map contract:
     - if pursued, the next target is this small repeated-call FFI call seam,
       not the generic dynamic-stop numeric-for floor
 
+- Timestamp: `2026-04-03 10:43:00 PDT`
+- Exact-taken probing closes the first wrong FFI static-stop theory
+  - direct clean `kdz` rerun with `LUAJIT_S390X_GUARDMARK_TAKEN=1` shows the
+    repeated side exit is not the `CALLXS abs -> ADDOV` guard itself
+  - dominant runtime seam stays:
+    - `trace 1 exit 1`
+    - restored `snapop=32`
+    - dominant exact `guardmark=0x12`
+  - on this branch, `guardmark` values match `curins`, so `0x12` pins the
+    first literal failing guard to:
+    - `curins 18`
+    - `int SLOAD #2 T`
+  - queue correction:
+    - the first live failure on this lane is the accumulator-slot `SLOAD`
+      typecheck immediately before `ADDOV`
+    - not the `ADDOV` classifier itself
+    - so the failed right-operand normalization experiment was aimed at the
+      wrong layer
+
+- Timestamp: `2026-04-03 10:47:00 PDT`
+- Numeric accumulator initialization does not rescue the static-stop FFI lane
+  - direct clean `kdz` control with:
+    - `local total = 0.0`
+    - same `ffi.C.abs` loop body
+  - still returns the same broken sequence:
+    - `RUN1 486`
+    - `RUN2 0`
+    - `RUN3 0`
+  - queue correction:
+    - this lane is not explained by integer accumulator initialization alone
+    - keep it fenced as a separate FFI/call correctness line rather than
+      folding it back into the current promotion-core performance queue
+
 ### After that
 
 There are only two realistic outcomes:

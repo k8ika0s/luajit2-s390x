@@ -2982,6 +2982,29 @@ The exploratory static-stop FFI subgroup is now fenced off from this family:
 So this subgroup is a separate correctness lane, not usable benchmark-ready
 route-around evidence for the current promotion-core performance map.
 
+One more direct `kdz` check closes the first wrong attribution on that lane:
+
+- exact-taken guard probe with `LUAJIT_S390X_GUARDMARK_TAKEN=1` shows the
+  repeated seam is still `trace 1 exit 1`, but the first literal failing
+  guard is:
+  - `guardmark=0x12`
+  - `curins 18`
+  - `int SLOAD #2 T`
+- so the broken static-stop FFI lane is not first failing at `ADDOV`; it is
+  first failing at the accumulator-slot `SLOAD` typecheck immediately before
+  `ADDOV`
+
+And a numeric-accumulator control does not route around it:
+
+- direct `kdz` control with `local total = 0.0` and the same `ffi.C.abs` loop
+  still returns:
+  - `RUN1 486`
+  - `RUN2 0`
+  - `RUN3 0`
+
+So this remains a separate FFI/call correctness lane, not promotion-core
+route-around evidence and not a plain int-accumulator specialization bug.
+
 That later path is now confirmed to be workload-local:
 
 - artifact:
