@@ -13396,3 +13396,20 @@ Next hash target
     - the next honest remediation family is lower-frame result-alias rebasing
       or rematerialization across `IR_RETF`, specifically at the snapshot-map /
       inherited-lane identity boundary
+
+- The same-callsite lower-frame continuation bug is now pinned as generic, not
+  FFI-specific
+  - checked-in reducer:
+    [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
+  - reducer boundary on clean `kdz`:
+    - the bench harness stays correct
+    - the exact direct same-callsite script still returns `LUA1 0`, `LUA2 0`
+    - treat the checked-in file as a control surface, not the live reproducer
+  - direct control:
+    - outer same-callsite constant-return shape stays correct
+    - pure-Lua inner hot loop under the same outer call/loop/return shape
+      reproduces the same continuation family and wrong result on `kdz`
+  - conclusion:
+    - the live bug is generic lower-frame continuation / return-slot identity
+      loss after a hot inner loop
+    - static-stop FFI is evidence, not the full scope

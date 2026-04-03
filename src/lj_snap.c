@@ -70,6 +70,50 @@ static void lj_snap_s390x_log_bad_parent(jit_State *J, GCtrace *T,
 	    (unsigned int)(snap->nent > 1 ? snmap[1] : 0));
 }
 
+static int lj_snap_s390x_retf_window_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_RETF_WINDOW_LOG") != NULL);
+  return enabled;
+}
+
+static void lj_snap_s390x_log_retf_window(jit_State *J, const char *site,
+					  BCReg nslots)
+{
+  BCOp op;
+  BCReg s;
+  if (!lj_snap_s390x_retf_window_log_enabled() || !J->chain[IR_RETF] || !J->pc)
+    return;
+  op = bc_op(*J->pc);
+  if (!bc_isret(op))
+    return;
+  fprintf(stderr,
+	  "S390X_RETFWIN site=%s op=%u baseslot=%u maxslot=%u nslots=%u retf=%u\n",
+	  site, (unsigned int)op, (unsigned int)J->baseslot,
+	  (unsigned int)J->maxslot, (unsigned int)nslots,
+	  (unsigned int)(J->chain[IR_RETF] - REF_BIAS));
+  for (s = 0; s < nslots; s++) {
+    TRef tr = J->slot[s];
+    IRRef ref = tref_ref(tr);
+    if (!tr)
+      continue;
+    if (ref >= REF_FIRST && ref < J->cur.nins) {
+      IRIns *ir = &J->cur.ir[ref];
+      fprintf(stderr,
+	      "S390X_RETFWIN_SLOT slot=%u tref=%d ref=%u op=%u op1=%u op2=%u prev=%u\n",
+	      (unsigned int)s, (int)tr, (unsigned int)(ref - REF_BIAS),
+	      (unsigned int)ir->o, (unsigned int)ir->op1,
+	      (unsigned int)ir->op2, (unsigned int)ir->prev);
+    } else {
+      fprintf(stderr,
+	      "S390X_RETFWIN_SLOT slot=%u tref=%d ref=%u\n",
+	      (unsigned int)s, (int)tr,
+	      (unsigned int)(ref >= REF_BIAS ? ref - REF_BIAS : ref));
+    }
+  }
+}
+
 /* -- Snapshot buffer allocation ------------------------------------------ */
 
 /* Grow snapshot buffer. */
@@ -103,6 +147,7 @@ static MSize snapshot_slots(jit_State *J, SnapEntry *map, BCReg nslots)
   IRRef retf = J->chain[IR_RETF];  /* Limits SLOAD restore elimination. */
   BCReg s;
   MSize n = 0;
+  lj_snap_s390x_log_retf_window(J, "snapshot_slots_pre", nslots);
   for (s = 0; s < nslots; s++) {
     TRef tr = J->slot[s];
     IRRef ref = tref_ref(tr);

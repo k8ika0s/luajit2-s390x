@@ -3844,8 +3844,27 @@ Current owner map contract:
       - the first real collapse point is not the later caller `RET1` pass
       - it is the earlier caller `RET0` use/def pass under active `IR_RETF`
       - exact read:
-        - `op=75` (`RET0`)
-        - `prevop=50` (`UCLO`)
+      - `op=75` (`RET0`)
+      - `prevop=50` (`UCLO`)
+
+- Timestamp: `2026-04-03 10:05:00 PDT`
+- The lower-frame continuation seam is now pinned as generic same-callsite
+  return-slot identity loss, not an FFI-only bug
+  - checked-in reducer:
+    [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
+  - reducer boundary on clean `kdz`:
+    - the bench harness stays correct
+    - the exact direct same-callsite script still returns `LUA1 0`, `LUA2 0`
+    - so the checked-in file is a control surface, not the live reproducer
+  - control result:
+    - outer same-callsite constant return stays correct
+    - pure-Lua inner hot loop under the same outer call/loop/return shape also
+      collapses to the same continuation family
+  - queue correction:
+    - the old static-stop FFI lane is one instance of a generic lower-frame
+      continuation / result-slot identity seam after a hot inner loop
+    - the next honest replay fix must target that generic continuation family,
+      not FFI-specific `CALLXS`/`ADDOV` behavior
         - `baseslot=2`
         - `maxslot=18`
         - `retf=3`
