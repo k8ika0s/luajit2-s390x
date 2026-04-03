@@ -793,6 +793,35 @@ So the remaining helper performance seam is not accidental backend churn. It
 is a deliberate recorder/runtime contract for dynamic numeric-for current
 values under the narrowed integer loop path.
 
+## Closed Wrong Relaxation
+
+The first direct attempt to relax that contract is now closed.
+
+- rejected gate:
+  - `LUAJIT_S390X_FORL_VISIBLE_IDX_NO_TC`
+- intended scope:
+  - `FORL` replay only
+  - visible current-value lane only
+  - integer loop only
+- behavior on clean `kdz`:
+  - remote rebuild completed
+  - first reduced setup completed
+  - but the run never emitted even the first runtime log for
+    `pure_add_reducer`
+  - artifact directory stopped at:
+    - `build.*`
+    - `pure_add_reducer.setup.*`
+  - artifact:
+    [20260402-kdz-forl-visible-idx-no-tc-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-visible-idx-no-tc-check)
+
+So “just drop the visible-current-value `IRSLOAD_TYPECHECK` on `FORL` replay”
+is not a promotable path. The next honest target stays narrower:
+
+- explain what invariant that typecheck is still protecting on dynamic-stop
+  loops after integer state is already proven
+- or find a different place to prove/stabilize that invariant without removing
+  the current-value guard directly
+
 Cross-backend audit also sharpens the interpretation:
 
 - the signed-vs-logical GC64 integer-tag extraction issue was genuinely

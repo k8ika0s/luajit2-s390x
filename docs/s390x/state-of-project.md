@@ -3070,6 +3070,29 @@ Current owner map contract:
           safely relaxed after JFORI/FORL integer state is already proven, or
           whether it is the required generic contract for dynamic-stop loops
 
+- Timestamp: `2026-04-02 18:24:00 PDT`
+- Direct visible-current-value typecheck relaxation is closed as a structural
+  reject
+  - rejected gate:
+    - `LUAJIT_S390X_FORL_VISIBLE_IDX_NO_TC`
+  - intended scope:
+    - `FORL` replay only
+    - visible current-value lane only
+    - integer loop only
+  - clean `kdz` screen:
+    - remote build completed
+    - first reduced setup for `pure_add_reducer` completed
+    - no runtime workload log was ever emitted after setup
+    - artifact directory stopped at:
+      - `build.*`
+      - `pure_add_reducer.setup.*`
+    - artifact:
+      [20260402-kdz-forl-visible-idx-no-tc-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-visible-idx-no-tc-check)
+  - queue correction:
+    - direct removal of the visible `FORL_IDX` replay/typecheck is not safe
+    - the next honest target is the invariant that this guard still protects
+      on dynamic-stop loops, not another blind no-typecheck variant
+
 ### After that
 
 There are only two realistic outcomes:
