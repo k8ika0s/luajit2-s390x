@@ -13329,5 +13329,11 @@ Next hash target
       by the time the continuation is at caller `RET1`, only the caller-visible
       return slot is live, so the shifted `cbase=5` call-result destination is
       no longer enough unless it has already been rebound to that slot identity
+    - direct `BC_RET1`-side rebinding is closed:
+      - artifact:
+        [20260403-075054-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-075054-kdz-baseline-core-exit-mechanism/summary.md)
+      - explicit local rebinding from `J->base[cbase]` after the lower-frame
+        shift leaves the same `RESULT 0`, `TRACEIR tr=4 ins=1 ...`, and
+        `slot2=ref1[...]` snapshot
     - the next honest remediation family is lower-frame result-alias rebasing
       or rematerialization across `IR_RETF`
