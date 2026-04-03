@@ -13376,6 +13376,23 @@ Next hash target
           built
         - `lj_record_ret()` is too early for repair
         - the final `snapshot_slots()` pass is too late
+    - first direct remediation attempts on that boundary are now closed:
+      - keep-live gate:
+        [20260403-082728-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082728-kdz-baseline-core-exit-mechanism/summary.md)
+        - `LUAJIT_S390X_RETF_RET0_KEEP_LIVE=1`
+        - preserving all currently nonzero live lanes across active `RET0`
+          leaves the lane unchanged:
+          - same `RESULT 0`
+          - same `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+          - same `slot2=ref1[...]`
+      - slot0-rebind gate:
+        [20260403-082941-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082941-kdz-baseline-core-exit-mechanism/summary.md)
+        - `LUAJIT_S390X_RETF_RET0_REBIND_SLOT0=1`
+        - copying the single live lane into `J->base[0]` before snapshot build
+          also leaves the lane unchanged
+      - conclusion:
+        - the remaining mismatch is deeper than return-window liveness alone
+        - it is deeper than local slot `0` rebinding before snapshot build
     - the next honest remediation family is lower-frame result-alias rebasing
-      or rematerialization across `IR_RETF`, specifically at the active
-      `snap_usedef()` return window
+      or rematerialization across `IR_RETF`, specifically at the snapshot-map /
+      inherited-lane identity boundary

@@ -3095,11 +3095,28 @@ That continuation is now pinned more exactly:
   - that means the caller-visible result identity has already been collapsed
     by the earlier return-window rule before the failing `RET1` snapshot is
     built
+- first direct remediation attempts on that boundary are now closed:
+  - keep-live gate:
+    [20260403-082728-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082728-kdz-baseline-core-exit-mechanism/summary.md)
+    - `LUAJIT_S390X_RETF_RET0_KEEP_LIVE=1`
+    - structurally inert:
+      - same `RESULT 0`
+      - same `TRACE_START 4`, `TRACE_STOP 3`, `TEXIT_COUNT 1`
+      - same `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+  - slot0-rebind gate:
+    [20260403-082941-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082941-kdz-baseline-core-exit-mechanism/summary.md)
+    - `LUAJIT_S390X_RETF_RET0_REBIND_SLOT0=1`
+    - also structurally inert:
+      - same `RESULT 0`
+      - same continuation front and same exit snapshot
+  - queue correction:
+    - preserving liveness is not enough
+    - rebinding local slot `0` before snapshot build is not enough
 
 So the next honest remediation lane on this slice is lower-frame result-slot
 rebasing/rematerialization across `IR_RETF`, specifically at the active
-`snap_usedef()` return window, not more caller-loop `LE` attribution and not
-local resumed-`MOV` patches.
+snapshot-map / inherited-lane identity boundary, not more caller-loop `LE`
+attribution and not local resumed-`MOV` patches.
 
 That later path is now confirmed to be workload-local:
 
