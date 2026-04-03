@@ -4124,3 +4124,42 @@ There are only two realistic outcomes:
   - the `BC_ADDVV` accumulator operand specialization path
   - not more restored-header rematerialization
   - not more visible-current `FORL_IDX` no-guard variants
+
+## 2026-04-03 16:11 PDT
+
+- The direct `BC_ADDVV` accumulator specialization family is now classified.
+- On the carried-`total` control, `BC_ADDVV` entry logging shows:
+  - `pcop=32`
+  - `ra=8`, `rb=1`, `rc=8`
+  - `baseslot=2`
+  - `J->base[1] == 0`
+  - `J->slot[3] == 0`
+- So the accumulator lane is genuinely absent before consumer-side
+  specialization begins.
+- The direct patch family:
+  - `LUAJIT_S390X_ADDVV_ACCUM_INT_NOGUARD=1`
+  - only on `BC_ADDVV`
+  - only for `rb==1`
+  - seeds the operand with `sloadt(... IRT_INT, 0)` instead of
+    `getslot()->sload()`
+- What it buys:
+  - under paired root visible-current relax, the carried-`total` lane is no
+    longer the first payer
+  - `curins 15 / SLOAD op1=3` remains in the loop body, but now as `op2=0`
+- What it does not buy:
+  - the first exact taken guard simply snaps back to the visible current-value
+    lane on both control and payoff sibling:
+    - `curins 3`
+    - `IR=SLOAD`
+    - `op1=4`
+    - `op2=36`
+  - throughput stays near the current default and remains exit-dominated:
+    - `number_helper_loop/hot 0.008697`
+    - `be_pack_loop/hot 0.023731`
+- Conclusion:
+  - the `BC_ADDVV` accumulator family is a closed sub-remediation
+  - it removes the carried accumulator typecheck, but only re-exposes the old
+    visible-current seam
+  - next honest target remains the visible current-value replay/typecheck
+    contract itself, with this `BC_ADDVV` result kept as carry-forward
+    evidence for what sits underneath it

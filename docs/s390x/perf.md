@@ -3336,3 +3336,40 @@ localized-helper carried-`total` lane
 - next remediation family:
   - `BC_ADDVV` accumulator operand specialization
   - not restored-header rematerialization
+
+## 2026-04-03 16:11 PDT
+
+- The direct `BC_ADDVV` accumulator specialization family is now measured.
+- Consumer-entry read on the carried-`total` control:
+  - `BC_ADDVV`
+  - `ra=8`, `rb=1`, `rc=8`
+  - `baseslot=2`
+  - `J->base[1] == 0`
+  - `J->slot[3] == 0`
+- Patch family:
+  - `LUAJIT_S390X_ADDVV_ACCUM_INT_NOGUARD=1`
+  - on exact `BC_ADDVV`, `rb==1`, int runtime operand
+  - use `sloadt(... IRT_INT, 0)` instead of `getslot()->sload()`
+- Exact mechanism result:
+  - `number_helper_loop`:
+    [20260403-160805-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-160805-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `be_pack_loop`:
+    [20260403-160946-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-160946-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - on both, the carried accumulator lane remains but is no longer guarded:
+    - `SLOAD op1=3 op2=0`
+  - the first exact taken guard becomes the old visible current-value seam
+    again:
+    - `curins 3`
+    - `IR=SLOAD`
+    - `op1=4`
+    - `op2=36`
+- Throughput result:
+  - truth pack:
+    [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - `number_helper_loop/hot`: `0.008697`
+  - `be_pack_loop/hot`: `0.023731`
+  - still exit-dominated and still materially above `-joff`
+- Classification:
+  - this is a real sub-remediation for the carried accumulator lane
+  - but not a promotable lane by itself because it only re-exposes the
+    visible current-value payer
