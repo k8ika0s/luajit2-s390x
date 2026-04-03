@@ -12594,3 +12594,67 @@ Next hash target
       performance path
     - the next honest target is the invariant that this guard is still
       protecting on dynamic-stop loops
+
+- Timestamp: `2026-04-02 17:33:08 PDT`
+- `FORL` fastpath miss/rematerialization is now closed on the helper seam
+  - I added a debug-only `LUAJIT_S390X_FORL_FASTPATH_LOG` hook in
+    [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    to log the exact `rec_for(... isforl=1)` reuse predicate:
+    - `mref(J->scev.pc, const BCIns) == fori`
+    - `tref_ref(tr[FORL_IDX]) == J->scev.idx`
+  - clean `kdz` reduced helper artifact:
+    [20260402-kdz-forl-fastpath-log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-fastpath-log)
+  - repeated live hits already show:
+    - `pc_match=1`
+    - `idx_match=1`
+  - so the promoted helper path is already re-entering the exact same `fori`
+    with the exact same index ref identity
+  - the follow-on exact-taken probe confirms the live seam is unchanged:
+    [20260402-kdz-post-fastpath-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-post-fastpath-guardmark/summary.md)
+    - `TRACE_START 4`
+    - `TEXIT_COUNT 401`
+    - dominant texit `4:0 x 200`
+    - restored `BC_UGET`
+    - exact taken `guardmark=0x3`
+    - exact inherited current-value lane still:
+      - `curins 3`
+      - `kind=sload_int`
+      - `ofs=16`
+      - `extra=20`
+  - conclusion:
+    - the active red is not a missed `FORL` scalar-evolution fastpath
+    - the next honest target remains the visible current numeric-for value
+      replay/typecheck lane itself
+
+- Timestamp: `2026-04-02 18:06:00 PDT`
+- Corrected isolated visible-current-value relaxation is also closed
+  immediately
+  - rejected gate:
+    - `LUAJIT_S390X_FORL_VISIBLE_IDX_ONLY_NO_TC`
+  - corrected scope:
+    - preserve hidden `STOP/STEP` anchoring in `J->base`
+    - drop `IRSLOAD_TYPECHECK` only on the visible `FORL_IDX` lane during
+      `FORL` replay
+  - clean `kdz` artifact:
+    [20260402-kdz-forl-visible-idx-only-no-tc-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-visible-idx-only-no-tc-v2)
+  - result split:
+    - `number_helper_loop` still ran:
+      - `RESULT 961100104`
+      - `TRACE_START 4`
+      - `TEXIT_COUNT 401`
+    - but no-helper `pure_add_reducer` still failed structurally:
+      - `TRACE_START 403`
+      - `TRACE_STOP 402`
+      - `TEXIT_COUNT 400`
+      - final failure:
+        - `./src/luajit: /tmp/pure_add_reducer.lua:8: table overflow`
+      - late steady seam had already shifted into `BC_LEN` (`op=21`) on a
+        huge clone ladder (`trace 463`)
+  - conclusion:
+    - helper interaction is not what makes the visible current-value
+      typecheck required
+    - even with hidden anchoring preserved, dropping only that lane breaks the
+      generic dynamic-stop numeric-for contract badly enough to explode trace
+      population
+    - the next honest target is the invariant that lane is enforcing, not
+      another no-typecheck variant
