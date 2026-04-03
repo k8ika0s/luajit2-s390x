@@ -13300,3 +13300,25 @@ Next hash target
     - reject `LUAJIT_S390X_NO_CALLXS_ADDOV` as remediation for this lane
     - the next honest target is the lower-frame return / caller-loop
       continuation on the num-accumulation path
+
+- The static-stop FFI same-callsite lane is now pinned as a lower-frame result
+  rebasing mismatch across `IR_RETF`
+  - artifact:
+    [20260403-kdz-ffi-static-stop-same-callsite-recret](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-recret/summary.md)
+  - [lj_record_ret()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2016) does move the one live result `TRef`
+    during `lua_lower_frame_retf`
+    - `S390X_RECRET_SLOTS` shows that live `TRef` moving from pre-shift
+      `idx=0` to post-shift `idx=5` with `cbase=5`, `nresults=1`
+  - but the continuation trace still snapshots the pre-`RETF` parent lane:
+    - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+    - `S390X_EXIT_SNAP trace=4 exit=2 ... slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
+  - [snapshot_slots()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L103) uses the current `IR_RETF` chain as the
+    restore-elision cutoff, so that pre-`RETF` inherited result survives into
+    the continuation snapshot
+  - conclusion:
+    - the later exact `IR LE` at `trace 4 exit 2` is secondary
+    - the active contract mismatch is that the continuation remains anchored
+      to the dead pre-shift parent result slot instead of the shifted
+      lower-frame destination slot
+    - the next honest remediation family is lower-frame result-slot rebasing
+      or rematerialization across `IR_RETF`

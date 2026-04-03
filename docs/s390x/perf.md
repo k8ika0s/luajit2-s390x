@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-03 05:09:36 PDT
+Last updated: 2026-04-03 06:54:46 PDT
 
 ## Latest Matrix
 
@@ -3028,6 +3028,27 @@ The next direct remediation attempt on that lane is now closed too:
 So the remaining payer on this FFI slice is no longer the `CALLXS` arithmetic
 classifier. It is the later lower-frame return / caller-loop continuation on
 the num-accumulation path.
+
+That continuation is now pinned more exactly:
+
+- `RECRET` artifact:
+  [20260403-kdz-ffi-static-stop-same-callsite-recret](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-recret/summary.md)
+- [lj_record_ret()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2016) does shift the single live result `TRef`
+  during `lua_lower_frame_retf`
+  - pre-shift `idx=0`
+  - post-shift `idx=5`
+  - `cbase=5`
+  - `nresults=1`
+- but `trace 4` still begins with the pre-`RETF` parent lane:
+  - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+  - exit snapshots still keep `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
+- [snapshot_slots()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L103) uses `IR_RETF` as the cutoff for SLOAD restore
+  elimination, so the continuation remains anchored to the dead pre-shift
+  parent result slot instead of the shifted lower-frame destination
+
+So the next honest remediation lane on this slice is lower-frame result-slot
+rebasing/rematerialization across `IR_RETF`, not more caller-loop `LE`
+attribution.
 
 That later path is now confirmed to be workload-local:
 
