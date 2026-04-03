@@ -586,6 +586,38 @@ emit_traceinfo(32)
 emit_traceir(32)
 """,
     },
+    "direct_abs_literal_stop_real": {
+        "family": "ffi_static_stop",
+        "iterations": 1,
+        "label": "DIRECT_ABS_LITERAL_STOP_REAL",
+        "script": """\
+local ffi = require("ffi")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+ffi.cdef[[
+int abs(int x);
+]]
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  for i = 1, 80000 do
+    total = total + ffi.C.abs((i % 17) - 8)
+  end
+  return total
+end
+run(); run(); run()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run())
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
     "stored_abs_literal_stop": {
         "family": "header_reducer",
         "iterations": 400,
@@ -616,6 +648,39 @@ end
 run(1); run(1); run(1)
 local trace_cap, texit_cap = start_counters()
 print("RESULT", run({iterations}))
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "stored_abs_literal_stop_real": {
+        "family": "ffi_static_stop",
+        "iterations": 1,
+        "label": "STORED_ABS_LITERAL_STOP_REAL",
+        "script": """\
+local ffi = require("ffi")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+ffi.cdef[[
+int abs(int x);
+]]
+local cabs = ffi.C.abs
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  for i = 1, 80000 do
+    total = total + cabs((i % 17) - 8)
+  end
+  return total
+end
+run(); run(); run()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run())
 stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
