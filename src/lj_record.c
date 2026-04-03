@@ -615,6 +615,22 @@ static int fori_inherited_ref(jit_State *J, TRef tr)
   return ir->o == IR_SLOAD && (ir->op2 & IRSLOAD_INHERIT);
 }
 
+static int s390x_fori_force_stop_slot_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *optin = getenv("LUAJIT_S390X_FORI_FORCE_STOP_SLOT");
+    const char *disable = getenv("LUAJIT_S390X_DISABLE_FORI_FORCE_STOP_SLOT");
+    if (disable && disable[0] && !(disable[0] == '0' && disable[1] == '\0'))
+      enabled = 0;
+    else if (optin && optin[0] && !(optin[0] == '0' && optin[1] == '\0'))
+      enabled = 1;
+    else
+      enabled = 1;
+  }
+  return enabled;
+}
+
 /* Peek before FORI to find a const initializer. Otherwise load from slot. */
 static TRef fori_arg(jit_State *J, const BCIns *fori, BCReg slot,
 		     IRType t, int mode)
@@ -622,6 +638,8 @@ static TRef fori_arg(jit_State *J, const BCIns *fori, BCReg slot,
   TRef tr = J->base[slot];
   TRef kinit = 0;
   BCReg ra = bc_a(*fori);
+  int force_stop_slot = (s390x_fori_force_stop_slot_enabled() &&
+			 slot == ra + FORL_STOP);
   int log_hidden = (lj_record_s390x_fori_arg_log_enabled() &&
 		    slot > ra+FORL_IDX && slot <= ra+FORL_STEP);
   if (log_hidden)
@@ -629,8 +647,10 @@ static TRef fori_arg(jit_State *J, const BCIns *fori, BCReg slot,
   if (tr) {
     tr = fori_conv(J, tr, t);
   } else {
-    tr = kinit;
-    if (!tr)
+    /* Keep hidden literal-stop loops anchored to the runtime stop slot. */
+    if (!force_stop_slot)
+      tr = kinit;
+    if (!tr && !force_stop_slot)
       tr = find_kinit(J, fori, slot, t);
     if (!tr)
       tr = fori_load(J, slot, t, mode);

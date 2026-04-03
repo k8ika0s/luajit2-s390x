@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 08:35:00 PDT
+Last updated: 2026-04-03 12:40:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -66,6 +66,26 @@ non-causal probe effects. The current state is cleaner:
   - that helper now also supports reduced iteration overrides and extra env
     passthrough, so focused runtime exit attribution can be captured without
     reopening the full 64k/80k hot runs
+- the exact static-stop FFI literal-stop failure is now directly remediated in
+  the recorder baseline:
+  - hidden `FORL_STOP` no longer prefers `find_kinit()` on this path; it now
+    stays anchored to the runtime stop slot in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  - default opt-out:
+    - `LUAJIT_S390X_DISABLE_FORI_FORCE_STOP_SLOT=1`
+  - compatibility opt-in alias:
+    - `LUAJIT_S390X_FORI_FORCE_STOP_SLOT=1`
+  - exact host result on the bad reducer shape:
+    - `kdz`: `onecall 338816`, `warm 338816`
+    - `zkd0`: `onecall 338816`, `warm 338816`
+  - the old bad outputs were:
+    - `onecall 26`
+    - `warm 7`
+  - the checked-in direct guard is now:
+    [ffi_literal_stop_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_core/ffi_literal_stop_same_callsite.lua)
+  - and the perf harness no longer bootstraps its expected value from the
+    traced path:
+    [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
 - the iterator lane is now frozen at the current checkpoint unless a genuinely
   new seam appears outside the reject pile
 - the next live seam inside the promoted-default throughput slice is now pinned

@@ -13413,3 +13413,28 @@ Next hash target
     - the live bug is generic lower-frame continuation / return-slot identity
       loss after a hot inner loop
     - static-stop FFI is evidence, not the full scope
+
+- Timestamp: `2026-04-03 12:40:45 PDT`
+  - The exact static-stop FFI literal-stop failure is now closed by forcing
+    hidden `FORL_STOP` to stay on the runtime slot path instead of taking the
+    `find_kinit()` constant path in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  - default behavior:
+    - enabled by default
+    - opt-out: `LUAJIT_S390X_DISABLE_FORI_FORCE_STOP_SLOT=1`
+    - compatibility alias: `LUAJIT_S390X_FORI_FORCE_STOP_SLOT=1`
+  - exact host-pair result on the bad reducer shape:
+    - `kdz`: `onecall 338816`, `warm 338816`
+    - `zkd0`: `onecall 338816`, `warm 338816`
+  - old failing outputs for that exact shape were:
+    - `onecall 26`
+    - `warm 7`
+  - checked-in guards:
+    - direct same-callsite test:
+      [ffi_literal_stop_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_core/ffi_literal_stop_same_callsite.lua)
+    - perf harness now derives expected values with `jit.off(...)`:
+      [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+  - nearby literal-stop pure-Lua helper timing on the patched host trees did
+    not regress in the focused check:
+    - `kdz`: `0.189076s` vs `0.215219s`
+    - `zkd0`: `0.208581s` vs `0.264532s`
