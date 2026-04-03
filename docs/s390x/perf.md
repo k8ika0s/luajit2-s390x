@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-03 14:50:32 PDT
+Last updated: 2026-04-03 15:05:32 PDT
 
 ## Latest Matrix
 
@@ -127,6 +127,27 @@ Root-only visible-idx no-guard reject:
   - both workloads remain `exit-dominated` at
     `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 1`, `TEXIT_COUNT 64001`
   - this family is rejected
+
+What that reject proves about the next payer:
+
+- the shipping default still pays first on the visible current-value lane
+  (`curins 3`, `SLOAD op1 4 op2 36`)
+- but the root-only reject shows that lane is not the whole floor by itself
+- when the root-born visible-current typecheck is relaxed, the first exact
+  guard immediately becomes the loop-carried accumulator lane instead:
+  - `number_helper_loop`: `curins 15`, `SLOAD op1 3 op2 4`
+  - `be_pack_loop`: `curins 35`, `SLOAD op1 3 op2 4`
+- source-backed read:
+  - visible current-value is born by
+    [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    through `fori_load(... IRSLOAD_INHERIT | IRSLOAD_TYPECHECK | ...)`
+  - carried `total` is the ordinary `getslot()->sload()` stack
+    specialization path in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+    not a numeric-for helper lane
+- next exact remediation target:
+  - the loop-carried accumulator `getslot()->sload()` replay/typecheck /
+    consumer contract
 
 ### kdz
 

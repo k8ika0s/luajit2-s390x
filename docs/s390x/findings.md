@@ -13569,3 +13569,31 @@ Next hash target
     - root-only visible-idx no-guard is a clean reject
     - it shifts the exact first guard, but it makes the live payoff family
       slower and does not clear the repeated `trace 7 exit 0` floor
+
+- Timestamp: `2026-04-03 15:05:32 PDT`
+  - The reject above also closes the next attribution question
+  - read:
+    - the shipping default still pays first on the inherited visible
+      current-value lane:
+      - `curins 3`
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+    - but the root-only reject proves that this is not the whole remaining
+      floor by itself
+    - as soon as the root-born visible-current typecheck is relaxed, the first
+      exact guard immediately becomes the loop-carried accumulator lane:
+      - `number_helper_loop`: `curins 15`, `IR=SLOAD`, `op1=3`, `op2=4`
+      - `be_pack_loop`: `curins 35`, `IR=SLOAD`, `op1=3`, `op2=4`
+  - source-backed identity:
+    - visible current-value is created in
+      [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      by `fori_load(... IRSLOAD_INHERIT | IRSLOAD_TYPECHECK | ...)`
+    - carried `total` is not that contract and not replay-parent state; it is
+      the ordinary stack specialization path in
+      [sload()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      reached by `getslot()`, which emits plain `IRSLOAD_TYPECHECK`
+  - conclusion:
+    - the next real issue ready for remediation is the loop-carried
+      accumulator `getslot()->sload()` replay / typecheck / consumer contract
+    - not another visible-current no-guard variant
