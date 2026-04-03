@@ -91,3 +91,31 @@ Rejected direct local repair:
 - conclusion:
   - the live mismatch is deeper than a local post-shift slot assignment inside
     `lj_record_ret()`
+
+Rejected fresh lower-frame destination rematerialization:
+
+- artifact:
+  - [20260403-080443-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080443-kdz-baseline-core-exit-mechanism/summary.md)
+- direct `lj_record_ret()` experiment:
+  - after the lower-frame shift, if `nresults == 1` and the immediate caller
+    bytecode at `frame_pc(frame)` is `RET1`, rematerialize the caller-visible
+    lane from the shifted lower-frame destination with `sload(J, cbase)`
+- result:
+  - no structural change
+  - `RESULT 0`
+  - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+  - exit snapshots still keep `slot2=ref1[...]`
+- correction:
+  - this probe shows the active seam is later than the local
+    `lua_lower_frame_retf` handoff window
+  - on the first failing chain, `lua_lower_frame_retf` sees `frame_pc(frame)`
+    at an earlier caller PC, while the live failing continuation snapshot is
+    already one bytecode later at caller `RET1`
+  - by then, `snap_usedef()` has already reduced the live set to the
+    caller-visible return slot, so the shifted lower-frame destination is gone
+    unless it was rebound before that later continuation step
+- conclusion:
+  - the live mismatch is deeper than any local post-shift rematerialization
+    inside `lj_record_ret()`
+  - the next honest remediation family is at the `IR_RETF` / snapshot/use-def
+    identity boundary itself

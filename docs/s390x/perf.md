@@ -3059,6 +3059,16 @@ That continuation is now pinned more exactly:
     [20260403-075054-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-075054-kdz-baseline-core-exit-mechanism/summary.md)
   - it leaves `RESULT 0`, `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`, and
     `slot2=ref1[...]` unchanged
+- fresh lower-frame destination rematerialization is also rejected:
+  - artifact:
+    [20260403-080443-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080443-kdz-baseline-core-exit-mechanism/summary.md)
+  - explicit `sload(J, cbase)` rematerialization inside `lua_lower_frame_retf`
+    leaves `RESULT 0`, `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`, and
+    `slot2=ref1[...]` unchanged
+  - the correction is that the active seam is later than the local
+    `lua_lower_frame_retf` handoff window: `frame_pc(frame)` is still at an
+    earlier caller PC, while the failing continuation snapshot is already one
+    bytecode later at caller `RET1`
 
 So the next honest remediation lane on this slice is lower-frame result-slot
 rebasing/rematerialization across `IR_RETF`, not more caller-loop `LE`

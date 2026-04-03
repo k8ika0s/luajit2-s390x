@@ -13335,5 +13335,16 @@ Next hash target
       - explicit local rebinding from `J->base[cbase]` after the lower-frame
         shift leaves the same `RESULT 0`, `TRACEIR tr=4 ins=1 ...`, and
         `slot2=ref1[...]` snapshot
+    - fresh lower-frame destination rematerialization is also closed:
+      - artifact:
+        [20260403-080443-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080443-kdz-baseline-core-exit-mechanism/summary.md)
+      - explicit `sload(J, cbase)` rematerialization inside
+        `lua_lower_frame_retf` leaves the same `RESULT 0`, leading
+        `TRACEIR tr=4 ins=1 ...`, and `slot2=ref1[...]` snapshot
+      - the correction is structural:
+        - the live seam is later than the local `lua_lower_frame_retf` window
+        - `frame_pc(frame)` is still at an earlier caller PC
+        - the failing continuation snapshot is already one bytecode later at
+          caller `RET1`
     - the next honest remediation family is lower-frame result-alias rebasing
       or rematerialization across `IR_RETF`

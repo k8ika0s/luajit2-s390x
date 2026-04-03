@@ -3809,6 +3809,20 @@ Current owner map contract:
       - explicit `BC_RET1`-side rebinding from `J->base[cbase]` did not change
         `RESULT`, `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`, or the
         `slot2=ref1[...]` exit snapshot
+    - fresh lower-frame destination rematerialization is also closed:
+      - artifact:
+        [20260403-080443-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080443-kdz-baseline-core-exit-mechanism/summary.md)
+      - rematerializing the caller-visible lane from `sload(J, cbase)` inside
+        `lua_lower_frame_retf` leaves `RESULT 0`, `TRACEIR tr=4 ins=1 ...`,
+        and `slot2=ref1[...]` unchanged
+      - queue correction:
+        - the active seam is later than the local `lua_lower_frame_retf`
+          window
+        - `frame_pc(frame)` is still at an earlier caller PC, while the live
+          failure is already one bytecode later at caller `RET1`
+        - the next honest remediation target is the `IR_RETF` /
+          snapshot/use-def identity boundary, not more local
+          `lj_record_ret()` slot surgery
     - next honest target is lower-frame result-alias rebasing or
       rematerialization across `IR_RETF`, not more `CALLXS` narrowing, not
       more caller-loop attribution, and not more local `MOV` window
