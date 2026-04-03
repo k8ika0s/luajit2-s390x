@@ -2829,6 +2829,37 @@ repeated calls the workload walks a loop-clone ladder and falls back again.
 The next honest target for that subgroup is that cross-call clone/fallback
 behavior, not more replay/header work inside a single run.
 
+Bounded opt-in broad-canon/share remediation on clean `kdz`:
+
+- summary:
+  [20260402-kdz-static-stop-local-broad-canonshare](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-static-stop-local-broad-canonshare/summary.md)
+- boundary correction:
+  - explicit broad canon/share envs were accidentally blocked by the shipping
+    `UGET`/looproot prefilter in `trace_hotside()`
+  - the current source now lets manual broad envs reach canon/share on
+    non-`UGET` seams without widening the envless default
+- `number_helper_literal_stop_real_local_tobit`
+  - default repeated-call probe:
+    - `RUN 1 -149783296 0.027580 103`
+    - `RUN 2 -149783296 0.030517 103`
+  - broad opt-in repeated-call probe:
+    - `RUN 1 -149783296 0.007981 7`
+    - `RUN 2 -149783296 0.007844 7`
+- localized static-stop `be_pack` sibling:
+  - default:
+    - `RUN 1 2048032000 0.016238 7`
+    - `RUN 2 2048032000 0.016659 7`
+  - broad opt-in:
+    - `RUN 1 2048032000 0.015817 7`
+    - `RUN 2 2048032000 0.015774 7`
+
+So the localized static-stop subgroup is no longer one uniform dead end:
+
+- `number_helper` has a real opt-in canon/share remediation lane
+- `be_pack` does not materially move under the same explicit broad policy
+- the next honest quant is not more structural probing; it is whether this
+  opt-in `number_helper` lane can actually beat `-joff`
+
 ## Relationship To Other Docs
 
 - High-level status:
