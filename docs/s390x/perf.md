@@ -2557,6 +2557,34 @@ So the current pair no longer supports the old lower-frame return-value failure
 story. It is correct on both hosts, but on the active helper slice it does not
 materially change the steady perf seam or the hot medians.
 
+## Current Promotion-Core Seam Read
+
+The remaining promoted-default red is now pinned as one shared replay seam
+across the representative core winners on `kdz`:
+
+- `number_helper_loop`
+- `be_pack_loop`
+- `direct_abs`
+
+The shared steady signature is:
+
+- exact runtime guard:
+  - `curins 3`
+  - `sload_int`
+  - `ofs 16`
+  - `extra 20`
+- reduced dump front lane:
+  - `0003 >  int SLOAD  #4    TI`
+
+New reduced artifacts:
+
+- [20260402-kdz-direct-abs-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-direct-abs-current-seam)
+- [20260402-kdz-be-pack-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-current-seam)
+
+That means the remaining gap is no longer best described as a helper-only
+header problem. It is a shared dynamic-stop numeric-for replay seam on the
+current promoted-default slice.
+
 ## Relationship To Other Docs
 
 - High-level status:
