@@ -13645,3 +13645,51 @@ Next hash target
     - it is a later `BC_ADDVV` accumulator operand specialization problem
     - the next honest remediation family is the `ADDVV`-side
       `getslot()->sload()` contract for the first local integer accumulator
+
+- Timestamp: `2026-04-03 16:11:31 PDT`
+  - The direct `BC_ADDVV` accumulator remediation family is now classified
+  - first targeted probe:
+    - [20260403-160557-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-160557-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `BC_ADDVV` entry logging on the carried-`total` control proves the live
+    identity state just before consumer specialization:
+    - `pcop=32` (`BC_ADDVV`)
+    - `ra=8`, `rb=1`, `rc=8`
+    - `baseslot=2`
+    - `J->base[1] == 0`
+    - `J->slot[3] == 0`
+  - so the carried accumulator lane really is absent from both the current
+    recorder base and the restored slot map before `BC_ADDVV` starts
+  - direct consumer-side patch family:
+    - `LUAJIT_S390X_ADDVV_ACCUM_INT_NOGUARD=1`
+    - only on `BC_ADDVV`
+    - only for `rb==1`
+    - if the runtime value is already an int and the slot is otherwise dead,
+      seed it with `sloadt(... IRT_INT, 0)` instead of `getslot()->sload()`
+  - exact-taken control:
+    - [20260403-160805-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-160805-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - exact result on `number_helper_loop` with paired root relax:
+    - the carried-`total` lane is no longer the first `sload_int`
+    - `curins 15` stays present but becomes `SLOAD op1=3 op2=0`
+    - the first exact taken guard snaps back to the visible current-value
+      lane:
+      - `curins 3`
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+  - payoff sibling exact control:
+    - [20260403-160946-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-160946-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+    - `be_pack_loop` does the same thing:
+      - first exact taken guard is again `curins 3 / SLOAD op1=4 op2=36`
+  - throughput truth pack:
+    - [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - throughput result:
+    - `number_helper_loop/hot`: `0.008697`
+    - `be_pack_loop/hot`: `0.023731`
+    - both remain `exit-dominated`
+    - both still sit materially above `-joff`
+    - this is only a near-default reshuffle, not a new real lift
+  - conclusion:
+    - the `BC_ADDVV` consumer-side patch does neutralize the carried-`total`
+      typecheck when the visible-current guard is already relaxed
+    - but that only exposes the old visible current-value seam again
+    - so this family is evidence, not a promotable remediation by itself
