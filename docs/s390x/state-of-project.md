@@ -3586,15 +3586,25 @@ Current owner map contract:
     - `snapop=18`
     - `snapnent=0`
     - dominant runtime `guardmark=0`
-  - first surviving workload-only `sload_int` is now:
+  - correction:
+    - the one-off skip only targeted the no-helper sibling's carried-`total`
+      lane (`curins=4`, `op1=2`)
+    - the localized-helper workload keeps a shifted lane layout:
+      - `op1=6` -> loop bound `n`
+      - `op1=5` -> current numeric-for value
+      - `op1=4` -> localized `tobit`
+      - `op1=3` -> carried `total`
+  - first surviving workload-only `sload_int` on the localized-helper lane is
+    therefore:
     - `curins=6`
+    - `op1=3`
     - `ofs=8`
     - `extra=12`
   - queue correction:
-    - the carried-`total` guard was only the first marked branch
-    - after removing it, the live floor is still inside the workload itself
-    - the next exact target is the later `curins=6 sload_int ofs=8 extra=12`
-      cluster on the reduced localized lane
+    - the earlier `curins=4` no-helper skip does not explain this workload
+    - the live floor is the localized-helper carried-`total` lane itself
+    - the next exact target is `curins=6 / op1=3 / ofs=8 / extra=12`
+      on the reduced localized lane
 
 ### After that
 
