@@ -12658,3 +12658,31 @@ Next hash target
       population
     - the next honest target is the invariant that lane is enforcing, not
       another no-typecheck variant
+
+- Timestamp: `2026-04-02 18:40:00 PDT`
+- The next live question is now pinned as a generic visible-current-value
+  latch, not a backend quirk
+  - source and cross-backend read:
+    - the surviving `FORL_IDX` current-value lane is recorder/runtime-generic
+    - the earlier GC64 signed-int extraction bug was s390x-specific; this one
+      is not
+  - `FORL` fastpath debug read:
+    - live helper seam already hits:
+      - `pc_match=1`
+      - `idx_match=1`
+    - so replay-PC/rematerialization is closed
+  - instrumented reduced baseline:
+    - artifact:
+      [20260402-kdz-visible-idx-slotlog-baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-visible-idx-slotlog-baseline)
+    - caveat:
+      - slot logging perturbs the reducer and eventually blows it up
+    - still-useful observation before failure:
+      - visible current-value slot is boxed-int and increments normally at
+        repeated exits
+  - queue correction:
+    - the next honest remediation is only a once-per-replay visible-current
+      latch/proof design
+    - reopen code only if replay-entry mismatch can be shown to disappear
+      after the first traced update on the same replayed loop
+  - design note:
+    [forl-visible-current-latch.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/forl-visible-current-latch.md)

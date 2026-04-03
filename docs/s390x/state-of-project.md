@@ -3155,6 +3155,30 @@ Current owner map contract:
     - the next honest target is the generic invariant enforced by that
       dynamic-stop numeric-for current-value lane
 
+- Timestamp: `2026-04-02 18:40:00 PDT`
+- Generic `FORL_IDX` contract is now pinned as the next remediation boundary
+  - source and backend read:
+    - the surviving visible-current-value lane is recorder/runtime-generic,
+      not a second s390-only backend bug
+    - the narrowed integer `FORL` path requires visible `FORL_IDX` to arrive as
+      an int-tagged TValue at replay entry
+  - `FORL` fastpath is already succeeding on the live helper seam:
+    - `pc_match=1`
+    - `idx_match=1`
+  - slot-log evidence is noisy but still directionally useful:
+    - under the instrumented reduced baseline, the visible current-value slot
+      is already boxed-int and increments normally at repeated exits before the
+      logger perturbs the reducer
+    - artifact:
+      [20260402-kdz-visible-idx-slotlog-baseline](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-visible-idx-slotlog-baseline)
+  - queue correction:
+    - next honest remediation is a once-per-replay visible-current-value latch
+      only if replay-entry mismatch can be shown to disappear after the first
+      traced update
+    - otherwise this visible-current-value line stays closed
+  - design note:
+    [forl-visible-current-latch.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/forl-visible-current-latch.md)
+
 ### After that
 
 There are only two realistic outcomes:
