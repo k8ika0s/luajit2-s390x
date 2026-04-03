@@ -835,3 +835,94 @@ Cross-backend audit also sharpens the interpretation:
 So the old lower-frame return-value failure is stale for the current pair. The
 pair is correctness-positive, but on the active helper slice it is effectively
 perf-inert and does not displace the steady header-guard seam.
+
+## Closed FORL Fastpath Detour
+
+The next replay/rematerialization detour is now closed too.
+
+I added a debug-only `LUAJIT_S390X_FORL_FASTPATH_LOG` hook in
+[lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+to log the exact `rec_for(... isforl=1)` reuse predicate:
+
+- `mref(J->scev.pc, const BCIns) == fori`
+- `tref_ref(tr[FORL_IDX]) == J->scev.idx`
+
+On the live promoted helper seam, that predicate is already succeeding:
+
+- artifact:
+  [20260402-kdz-forl-fastpath-log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-fastpath-log)
+- repeated real-workload hits:
+  - `trace=1 ... pc_match=1 idx_match=1`
+  - `trace=4 ... pc_match=1 idx_match=1`
+
+So the current red is not caused by missing scalar-evolution reuse, wrong
+`fori` identity, or wrong `FORL_IDX` ref identity at the `FORL` fast path. The
+loop is already re-entering through the exact same `fori` and the exact same
+index ref.
+
+The follow-on reduced exact-taken probe makes the consequence explicit:
+
+- artifact:
+  [20260402-kdz-post-fastpath-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-post-fastpath-guardmark/summary.md)
+- clean `kdz` read:
+  - `TRACE_START 4`
+  - `TEXIT_COUNT 401`
+  - dominant texit `4:0 x 200`
+  - dominant exit cluster still restores at `BC_UGET`
+  - dominant exact runtime guard still `guardmark=0x3`
+  - exact runtime guard still the same inherited current-value lane:
+    - `curins 3`
+    - `kind=sload_int`
+    - `ofs=16`
+    - `extra=20`
+
+So the next honest target is no longer replay-PC rematerialization. It is the
+current visible numeric-for value lane itself: why that inherited
+`IRSLOAD_INHERIT | IRSLOAD_TYPECHECK` `SLOAD` remains the first literal taken
+guard even after `FORL` fastpath reuse is already succeeding.
+
+## Closed Isolated Visible-Lane Relaxation
+
+The corrected isolated visible-lane variant is now closed too.
+
+This version fixed the earlier experiment design mistake: it kept hidden
+`STOP/STEP` anchoring in `J->base`, and only dropped `IRSLOAD_TYPECHECK` on the
+visible `FORL_IDX` lane during `FORL` replay:
+
+- rejected gate:
+  - `LUAJIT_S390X_FORL_VISIBLE_IDX_ONLY_NO_TC`
+
+Clean `kdz` reduced results:
+
+- artifact:
+  [20260402-kdz-forl-visible-idx-only-no-tc-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-visible-idx-only-no-tc-v2)
+- `number_helper_loop` still ran:
+  - `RESULT 961100104`
+  - `TRACE_START 4`
+  - `TEXIT_COUNT 401`
+- but the no-helper sibling still failed the first real bar:
+  - `pure_add_reducer`
+  - `TRACE_START 403`
+  - `TRACE_STOP 402`
+  - `TEXIT_COUNT 400`
+  - final failure:
+    - `./src/luajit: /tmp/pure_add_reducer.lua:8: table overflow`
+  - the late steady seam there had already shifted into `BC_LEN` (`op=21`)
+    on a large clone ladder (`trace 463`), which is a structural reject, not a
+    promotion candidate
+
+So helper lookup is not what makes this guard required. Even with helper
+interaction removed, dropping only the visible current-value typecheck still
+breaks the generic dynamic-stop numeric-for contract badly enough to explode
+trace population.
+
+That closes another wrong remediation line:
+
+- not a `FORL` fastpath miss
+- not helper-specific replay
+- not “drop only the visible current-value typecheck while preserving hidden
+  anchoring”
+
+The next honest target stays narrower than another no-typecheck variant: what
+generic invariant this visible current-value `IRSLOAD_INHERIT |
+IRSLOAD_TYPECHECK` lane is still enforcing on dynamic-stop numeric-for replay.

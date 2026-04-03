@@ -825,6 +825,14 @@ static int lj_record_s390x_fori_arg_log_enabled(void)
   return enabled;
 }
 
+static int lj_record_s390x_forl_fastpath_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_FORL_FASTPATH_LOG") != NULL);
+  return enabled;
+}
+
 static int lj_record_s390x_recbc_log_enabled(void)
 {
   static int enabled = -1;
@@ -1225,6 +1233,17 @@ static LoopEvent rec_for(jit_State *J, const BCIns *fori, int isforl)
     lj_trace_err(J, LJ_TRERR_GFAIL);
   if (isforl) {  /* Handle FORL/JFORL opcodes. */
     TRef idx = tr[FORL_IDX];
+    if (lj_record_s390x_forl_fastpath_log_enabled()) {
+      fprintf(stderr,
+	      "S390X_FORL_FASTPATH trace=%u parent=%u exit=%u ra=%u fori=%p scev_pc=%p idx_ref=%u scev_idx=%u pc_match=%u idx_match=%u\n",
+	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	      (unsigned int)J->exitno, (unsigned int)ra, (const void *)fori,
+	      (const void *)mref(J->scev.pc, const BCIns),
+	      (unsigned int)(tref_ref(idx) - REF_BIAS),
+	      (unsigned int)(J->scev.idx - REF_BIAS),
+	      (unsigned int)(mref(J->scev.pc, const BCIns) == fori),
+	      (unsigned int)(tref_ref(idx) == J->scev.idx));
+    }
     if (mref(J->scev.pc, const BCIns) == fori && tref_ref(idx) == J->scev.idx) {
       t = J->scev.t.irt;
       stop = J->scev.stop;

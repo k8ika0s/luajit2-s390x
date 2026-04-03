@@ -3093,6 +3093,68 @@ Current owner map contract:
     - the next honest target is the invariant that this guard still protects
       on dynamic-stop loops, not another blind no-typecheck variant
 
+- Timestamp: `2026-04-02 17:33:08 PDT`
+- `FORL` fastpath miss/rematerialization is closed as the next helper seam
+  - debug-only logger:
+    - `LUAJIT_S390X_FORL_FASTPATH_LOG`
+  - artifact:
+    [20260402-kdz-forl-fastpath-log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-fastpath-log)
+  - decisive read on clean `kdz` helper path:
+    - repeated `S390X_FORL_FASTPATH` hits already show:
+      - `pc_match=1`
+      - `idx_match=1`
+    - so the loop is already re-entering through the exact same `fori`
+      and the exact same `FORL_IDX` ref identity
+  - follow-on exact-taken probe:
+    - artifact:
+      [20260402-kdz-post-fastpath-guardmark](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-post-fastpath-guardmark/summary.md)
+    - still lands at:
+      - `TRACE_START 4`
+      - `TEXIT_COUNT 401`
+      - dominant texit `4:0 x 200`
+      - restored `BC_UGET`
+      - exact taken `guardmark=0x3`
+      - exact inherited current-value lane:
+        - `curins 3`
+        - `kind=sload_int`
+        - `ofs=16`
+        - `extra=20`
+  - queue correction:
+    - the active red is not a `FORL` fastpath miss
+    - the next honest target stays the visible current numeric-for value
+      typecheck/replay contract itself
+
+- Timestamp: `2026-04-02 18:06:00 PDT`
+- Isolated visible-current-value relaxation is closed as a structural reject
+  too
+  - rejected gate:
+    - `LUAJIT_S390X_FORL_VISIBLE_IDX_ONLY_NO_TC`
+  - corrected scope:
+    - preserve hidden `STOP/STEP` anchoring in `J->base`
+    - drop `IRSLOAD_TYPECHECK` only on the visible `FORL_IDX` lane during
+      `FORL` replay
+  - clean `kdz` artifact:
+    [20260402-kdz-forl-visible-idx-only-no-tc-v2](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-visible-idx-only-no-tc-v2)
+  - results:
+    - `number_helper_loop` still ran:
+      - `RESULT 961100104`
+      - `TRACE_START 4`
+      - `TEXIT_COUNT 401`
+    - but no-helper `pure_add_reducer` still failed structurally:
+      - `TRACE_START 403`
+      - `TRACE_STOP 402`
+      - `TEXIT_COUNT 400`
+      - final failure:
+        - `./src/luajit: /tmp/pure_add_reducer.lua:8: table overflow`
+      - late steady seam had already shifted to `BC_LEN` (`op=21`) on a large
+        clone ladder (`trace 463`)
+  - queue correction:
+    - helper interaction is not what makes the current-value typecheck
+      required
+    - dropping only the visible `FORL_IDX` typecheck is still not safe
+    - the next honest target is the generic invariant enforced by that
+      dynamic-stop numeric-for current-value lane
+
 ### After that
 
 There are only two realistic outcomes:
