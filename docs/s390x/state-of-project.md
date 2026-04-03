@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 12:40:45 PDT
+Last updated: 2026-04-03 13:14:31 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -86,6 +86,55 @@ non-causal probe effects. The current state is cleaner:
   - and the perf harness no longer bootstraps its expected value from the
     traced path:
     [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+- post-fix `promotion_core` re-quant on clean `kdz` says the active
+  throughput floor is unchanged:
+  - [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+    - default:
+      - `number_helper_loop/hot 0.008927`
+      - `be_pack_loop/hot 0.023920`
+    - baseline:
+      - `number_helper_loop/hot 0.411136`
+      - `be_pack_loop/hot 0.431987`
+    - `-joff`:
+      - `number_helper_loop/hot 0.002251`
+      - `be_pack_loop/hot 0.019077`
+  - [ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua)
+    - default:
+      - `direct_abs/hot 0.018530`
+      - `stored_abs/hot 0.013380`
+    - baseline:
+      - `direct_abs/hot 0.477617`
+      - `stored_abs/hot 0.458766`
+    - `-joff`:
+      - `direct_abs/hot 0.009999`
+      - `stored_abs/hot 0.006944`
+  - correction:
+    - `5e7b09fe` closes the literal-stop FFI correctness seam
+    - it does not materially lift the active `promotion_core` throughput floor
+    - `be_pack_loop` remains the best payoff sibling because it is still the
+      closest live family to `-joff`
+    - `number_helper_loop` remains the cleanest control for mechanism work
+  - current host-pair caveat:
+    - the fresh `zkd0` throughput re-quant is blocked by a broken clean bench
+      tree and could not be restamped this pass
+- focused post-`5e7b09fe` mechanism rerun on clean `kdz` says the live seam is
+  unchanged too:
+  - artifact:
+    [20260403-131228-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-131228-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+    - `number_helper_loop`: `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 64001`
+    - dominant seam: `trace 7 exit 0` x `63457`
+    - first `sload_int`: `curins 15`, `op1 3`, `op2 4`, `ofs 8`, `extra 12`
+    - `be_pack_loop`: `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 64001`
+    - dominant seam: `trace 7 exit 0` x `63457`
+    - first `sload_int`: `curins 35`, `op1 3`, `op2 4`, `ofs 8`, `extra 12`
+  - correction:
+    - `5e7b09fe` closes the exact literal-stop FFI correctness seam
+    - it does not move the live `promotion_core` loop floor on `kdz`
+    - `number_helper_loop` and `be_pack_loop` still converge on the same
+      restored-`BC_UGET` / first-`SLOAD(op1=3, ofs=8)` family
 - the iterator lane is now frozen at the current checkpoint unless a genuinely
   new seam appears outside the reject pile
 - the next live seam inside the promoted-default throughput slice is now pinned

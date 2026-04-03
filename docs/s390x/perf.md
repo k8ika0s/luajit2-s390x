@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-03 06:54:46 PDT
+Last updated: 2026-04-03 13:14:31 PDT
 
 ## Latest Matrix
 
@@ -25,6 +25,53 @@ default for `promotion_core` only:
 Pinned host-pair summary:
 
 - [20260402-hotside-promotion-core-host-pair](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-hotside-promotion-core-host-pair/summary.md)
+
+Post-`5e7b09fe` `kdz` re-quant:
+
+- [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+  - default:
+    - `number_helper_loop/hot 0.008927`
+    - `be_pack_loop/hot 0.023920`
+  - baseline:
+    - `number_helper_loop/hot 0.411136`
+    - `be_pack_loop/hot 0.431987`
+  - `-joff`:
+    - `number_helper_loop/hot 0.002251`
+    - `be_pack_loop/hot 0.019077`
+- [ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua)
+  - default:
+    - `direct_abs/hot 0.018530`
+    - `stored_abs/hot 0.013380`
+  - baseline:
+    - `direct_abs/hot 0.477617`
+    - `stored_abs/hot 0.458766`
+  - `-joff`:
+    - `direct_abs/hot 0.009999`
+    - `stored_abs/hot 0.006944`
+- read:
+  - the literal-stop FFI correctness fix does not materially lift the active
+    `promotion_core` throughput floor on `kdz`
+  - `be_pack_loop` remains the closest live family to `-joff`
+  - `number_helper_loop` remains the cleanest control for mechanism work
+- caveat:
+  - fresh `zkd0` throughput restamps are blocked by a broken clean bench tree
+
+Post-`5e7b09fe` `kdz` mechanism rerun:
+
+- [20260403-131228-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-131228-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `number_helper_loop`
+    - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+    - dominant seam: `trace 7 exit 0` x `63457`
+    - first `sload_int`: `curins 15`, `op1 3`, `op2 4`, `ofs 8`, `extra 12`
+  - `be_pack_loop`
+    - `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+    - dominant seam: `trace 7 exit 0` x `63457`
+    - first `sload_int`: `curins 35`, `op1 3`, `op2 4`, `ofs 8`, `extra 12`
+  - read:
+    - the literal-stop recorder fix does not move the live `promotion_core`
+      mechanism on `kdz`
+    - `number_helper_loop` remains the cleanest control
+    - `be_pack_loop` remains the best payoff sibling
 
 ### kdz
 

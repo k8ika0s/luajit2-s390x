@@ -13438,3 +13438,58 @@ Next hash target
     not regress in the focused check:
     - `kdz`: `0.189076s` vs `0.215219s`
     - `zkd0`: `0.208581s` vs `0.264532s`
+
+- Timestamp: `2026-04-03 13:02:00 PDT`
+  - Post-fix `promotion_core` re-quant on clean `kdz` says the active
+    throughput floor is unchanged
+  - [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+    - default:
+      - `number_helper_loop/hot 0.008927`
+      - `be_pack_loop/hot 0.023920`
+    - baseline:
+      - `number_helper_loop/hot 0.411136`
+      - `be_pack_loop/hot 0.431987`
+    - `-joff`:
+      - `number_helper_loop/hot 0.002251`
+      - `be_pack_loop/hot 0.019077`
+  - [ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua)
+    - default:
+      - `direct_abs/hot 0.018530`
+      - `stored_abs/hot 0.013380`
+    - baseline:
+      - `direct_abs/hot 0.477617`
+      - `stored_abs/hot 0.458766`
+    - `-joff`:
+      - `direct_abs/hot 0.009999`
+      - `stored_abs/hot 0.006944`
+  - conclusion:
+    - `5e7b09fe` is a real correctness fix for the literal-stop FFI seam
+    - it does not materially change the live `promotion_core` performance
+      field on `kdz`
+    - `be_pack_loop` remains the best payoff sibling because it is still the
+      closest live family to `-joff`
+    - `number_helper_loop` remains the cleanest mechanism control
+  - host-pair caveat:
+    - fresh `zkd0` throughput restamps are blocked right now because the clean
+      bench tree cannot currently rebuild `luajit`
+
+- Timestamp: `2026-04-03 13:14:31 PDT`
+  - Focused post-fix mechanism rerun on clean `kdz` says the live
+    `promotion_core` seam is unchanged too:
+    [20260403-131228-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-131228-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - [be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+    - `number_helper_loop`
+      - `TRACE_START 6`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+      - dominant seam: `trace 7 exit 0` x `63457`
+      - first `sload_int`: `curins 15`, `op1 3`, `op2 4`, `ofs 8`,
+        `extra 12`
+    - `be_pack_loop`
+      - `TRACE_START 5`, `TRACE_STOP 5`, `TRACE_ABORT 0`, `TEXIT_COUNT 64001`
+      - dominant seam: `trace 7 exit 0` x `63457`
+      - first `sload_int`: `curins 35`, `op1 3`, `op2 4`, `ofs 8`,
+        `extra 12`
+  - conclusion:
+    - `5e7b09fe` is a real correctness fix for the exact literal-stop FFI seam
+    - it does not move the live `promotion_core` floor on `kdz`
+    - `number_helper_loop` and `be_pack_loop` still converge on the same
+      restored-`BC_UGET` / first-`SLOAD(op1=3, ofs=8)` family
