@@ -1,4 +1,5 @@
 local ffi = require("ffi")
+local jit = require("jit")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
 
 ffi.cdef[[
@@ -23,8 +24,12 @@ local function stored_abs_literal_stop_real()
   return total
 end
 
+jit.off(direct_abs_literal_stop_real, true)
+jit.off(stored_abs_literal_stop_real, true)
 local expected_direct = direct_abs_literal_stop_real()
 local expected_stored = stored_abs_literal_stop_real()
+jit.on(direct_abs_literal_stop_real, true)
+jit.on(stored_abs_literal_stop_real, true)
 
 bench.run_suite({
   family = "ffi_calls_static_stop",
