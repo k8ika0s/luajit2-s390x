@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 13:14:31 PDT
+Last updated: 2026-04-03 14:00:32 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -135,6 +135,50 @@ non-causal probe effects. The current state is cleaner:
     - it does not move the live `promotion_core` loop floor on `kdz`
     - `number_helper_loop` and `be_pack_loop` still converge on the same
       restored-`BC_UGET` / first-`SLOAD(op1=3, ofs=8)` family
+- exact-taken host-pair reruns now close the next question too:
+  - `kdz`:
+    [20260403-135247-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135247-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `zkd0`:
+    [20260403-135538-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135538-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - on both hosts, for both `number_helper_loop` and `be_pack_loop`:
+    - dominant seam stays `trace 7 exit 0`
+    - first literal taken guard stays `curins 3`
+    - exact guard stays the inherited visible current-value lane:
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+      - `ofs=16`
+      - `extra=20`
+  - correction:
+    - the live `promotion_core` payer is still the visible current-value
+      replay/typecheck lane
+    - it has not shifted to carried-`total`
+    - it has not shifted to a later arithmetic/compare consumer
+- one new patch family was opened and rejected against that named guard:
+  - opt-in experiment:
+    - `LUAJIT_S390X_FORL_FASTPATH_VISIBLE_IDX_NOGUARD=1`
+  - targeted rule:
+    - only on matched `FORL` fastpath reuse (`pc_match=1`, `idx_match=1`)
+    - rebuild the visible current-value lane without the replay typecheck
+  - `kdz` artifact:
+    [20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - result:
+    - exact taken guard stayed unchanged on both `number_helper_loop` and
+      `be_pack_loop`
+    - `guardmark` remained `curins 3`
+    - the old `SLOAD op1=4 op2=36` stayed first
+    - the patch only grew the loop trace (`nins 28 -> 29`, `71 -> 72`) and
+      introduced a later `SLOAD op1=4 op2=32`
+  - conclusion:
+    - matched-fastpath visible-idx no-guard is a clean reject
+- short ISA/ABI memo for the current seam:
+  [promotion-core-isa-audit.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/promotion-core-isa-audit.md)
+  - blind 32-bit opcode swaps remain rejected
+  - preserved-register carry remains off-seam while the first literal guard is
+    still inherited `SLOAD`
+  - predictor hints remain off-seam
+  - a fused compare-and-branch experiment only becomes relevant if a later
+    cycle moves the first literal taken guard to one stable compare family
 - the iterator lane is now frozen at the current checkpoint unless a genuinely
   new seam appears outside the reject pile
 - the next live seam inside the promoted-default throughput slice is now pinned

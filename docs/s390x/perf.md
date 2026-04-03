@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-03 13:14:31 PDT
+Last updated: 2026-04-03 14:00:32 PDT
 
 ## Latest Matrix
 
@@ -72,6 +72,41 @@ Post-`5e7b09fe` `kdz` mechanism rerun:
       mechanism on `kdz`
     - `number_helper_loop` remains the cleanest control
     - `be_pack_loop` remains the best payoff sibling
+
+Exact-taken host-pair reruns on current `HEAD`:
+
+- `kdz`:
+  [20260403-135247-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135247-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- `zkd0`:
+  [20260403-135538-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135538-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- read:
+  - `number_helper_loop` and `be_pack_loop` match exactly on both hosts
+  - dominant seam still `trace 7 exit 0`
+  - first literal taken guard is still:
+    - `curins 3`
+    - `IR=SLOAD`
+    - `op1 4`
+    - `op2 36`
+    - `ofs 16`
+    - `extra 20`
+  - so the live payer is still the inherited visible current-value lane
+
+Matched-fastpath visible-idx no-guard reject:
+
+- opt-in experiment:
+  - `LUAJIT_S390X_FORL_FASTPATH_VISIBLE_IDX_NOGUARD=1`
+- artifact:
+  [20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- read:
+  - exact taken guard stayed unchanged on both real workloads
+  - `number_helper_loop`
+    - `nins 28 -> 29`
+    - first literal taken guard still `curins 3`, `SLOAD op1 4 op2 36`
+  - `be_pack_loop`
+    - `nins 71 -> 72`
+    - first literal taken guard still `curins 3`, `SLOAD op1 4 op2 36`
+  - the only structural change was a later `SLOAD op1 4 op2 32`
+  - this family is rejected
 
 ### kdz
 

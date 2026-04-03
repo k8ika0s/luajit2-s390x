@@ -13493,3 +13493,45 @@ Next hash target
     - it does not move the live `promotion_core` floor on `kdz`
     - `number_helper_loop` and `be_pack_loop` still converge on the same
       restored-`BC_UGET` / first-`SLOAD(op1=3, ofs=8)` family
+
+- Timestamp: `2026-04-03 13:58:14 PDT`
+  - Exact-taken host-pair reruns now close the next live question
+  - artifacts:
+    - `kdz`:
+      [20260403-135247-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135247-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+    - `zkd0`:
+      [20260403-135538-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135538-zkd0-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - on both hosts, for both `number_helper_loop` and `be_pack_loop`:
+    - dominant seam remains `trace 7 exit 0`
+    - dominant runtime `guardmark` remains `curins 3`
+    - exact runtime guard remains:
+      - `IR=SLOAD`
+      - `op1=4`
+      - `op2=36`
+      - `sload_int ofs=16 extra=20`
+  - conclusion:
+    - the first literal taken guard on the live `promotion_core` seam is still
+      the inherited visible current-value lane
+    - it has not moved to carried-`total`
+    - it has not moved to an arithmetic/compare consumer
+
+- Timestamp: `2026-04-03 14:00:32 PDT`
+  - One new patch family was opened against that named guard and rejected
+  - opt-in experiment:
+    - `LUAJIT_S390X_FORL_FASTPATH_VISIBLE_IDX_NOGUARD=1`
+  - targeted rule:
+    - only under matched `FORL` fastpath reuse
+    - only to rebuild the visible current-value lane without the replay
+      typecheck
+  - `kdz` artifact:
+    [20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - result:
+    - `number_helper_loop`
+      - `nins 28 -> 29`
+      - exact taken guard stayed `curins 3`, `IR=SLOAD`, `op1=4`, `op2=36`
+    - `be_pack_loop`
+      - `nins 71 -> 72`
+      - exact taken guard stayed `curins 3`, `IR=SLOAD`, `op1=4`, `op2=36`
+    - the only structural change was a later `SLOAD op1=4 op2=32`
+  - conclusion:
+    - matched-fastpath visible-idx no-guard is a clean reject
