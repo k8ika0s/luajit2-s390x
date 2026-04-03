@@ -13305,20 +13305,29 @@ Next hash target
   rebasing mismatch across `IR_RETF`
   - artifact:
     [20260403-kdz-ffi-static-stop-same-callsite-recret](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-recret/summary.md)
-  - [lj_record_ret()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2016) does move the one live result `TRef`
-    during `lua_lower_frame_retf`
+  - [lj_record_ret()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2016) moves the one live result `TRef`
+    only into the lower-frame call-result destination
     - `S390X_RECRET_SLOTS` shows that live `TRef` moving from pre-shift
       `idx=0` to post-shift `idx=5` with `cbase=5`, `nresults=1`
-  - but the continuation trace still snapshots the pre-`RETF` parent lane:
+  - the same-callsite continuation is already recording later at caller
+    `RET1` with `prevop=JFORL`, not at the bytecode `MOV` that would normally
+    copy the call-result slot into the caller-visible local/result
+  - but the continuation trace still snapshots the inherited caller-visible
+    result lane:
     - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
     - `S390X_EXIT_SNAP trace=4 exit=2 ... slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
   - [snapshot_slots()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L103) uses the current `IR_RETF` chain as the
-    restore-elision cutoff, so that pre-`RETF` inherited result survives into
-    the continuation snapshot
+    restore-elision cutoff, but that still leaves the caller-visible result
+    alias anchored to the pre-`RETF` inherited lane
   - conclusion:
     - the later exact `IR LE` at `trace 4 exit 2` is secondary
-    - the active contract mismatch is that the continuation remains anchored
-      to the dead pre-shift parent result slot instead of the shifted
-      lower-frame destination slot
-    - the next honest remediation family is lower-frame result-slot rebasing
+    - this is not a generic bad-base replay bug
+    - this is not a resumed-`MOV` window problem
+    - the active contract mismatch is a caller-visible result alias crossing
+      `IR_RETF` without being re-based to the shifted lower-frame destination
+    - [snap_usedef()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L305) makes the failure mode precise:
+      by the time the continuation is at caller `RET1`, only the caller-visible
+      return slot is live, so the shifted `cbase=5` call-result destination is
+      no longer enough unless it has already been rebound to that slot identity
+    - the next honest remediation family is lower-frame result-alias rebasing
       or rematerialization across `IR_RETF`

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 06:54:46 PDT
+Last updated: 2026-04-03 07:45:41 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -3769,33 +3769,44 @@ Current owner map contract:
     - next honest target is the lower-frame return / caller-loop continuation on
       the num-accumulation path, not more `CALLXS` narrowing work
 
-- Timestamp: `2026-04-03 06:54:46 PDT`
+- Timestamp: `2026-04-03 07:45:41 PDT`
 - The static-stop FFI same-callsite lane is now pinned as a lower-frame result
   slot rebasing problem, not a caller-loop `LE` primary seam
   - clean `kdz` `RECRET` artifact:
     [20260403-kdz-ffi-static-stop-same-callsite-recret](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-recret/summary.md)
   - source-backed read:
     - [lj_record_ret()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L1920) does shift the one live result `TRef`
-      during `lua_lower_frame_retf`
+      during `lua_lower_frame_retf`, but only into the lower-frame call-result
+      destination
     - on the first lower-frame handoff into `trace 4`, `S390X_RECRET_SLOTS`
       shows the same live `TRef` moving from pre-shift `idx=0` to post-shift
       `idx=5` (`cbase=5`, `nresults=1`)
+    - the same-callsite continuation is already recording later at caller
+      `RET1` with `prevop=JFORL`, not at the bytecode `MOV` that would normally
+      copy the call-result slot into the caller-visible destination/local
     - but the continuation trace still starts from
-      `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`, i.e. `num SLOAD #2 PI`
+      `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`, i.e. the inherited
+      caller-visible result alias `num SLOAD #2 PI`
     - matching exit snapshots still record:
       - `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
     - [snapshot_slots()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L103) explicitly treats the current
-      `IR_RETF` chain as the cutoff for SLOAD restore elimination, so this
-      pre-`RETF` parent-inherited result lane survives into the continuation
-      snapshot
+      `IR_RETF` chain as the cutoff for SLOAD restore elimination, so the
+      continuation can keep the old inherited result identity even though the
+      lower-frame path only materialized the shifted `cbase=5` destination
   - queue correction:
     - the later `trace 4 exit 2` / `IR LE` site is secondary
-    - the active contract mismatch is that the continuation remains anchored to
-      the pre-shift parent result slot instead of the shifted lower-frame
-      destination slot
-    - next honest target is lower-frame result-slot rebasing or
-      rematerialization across `IR_RETF`, not more `CALLXS` narrowing and not
-      more caller-loop attribution
+    - this is not a generic bad-base replay bug
+    - this is not a resumed-`MOV` window problem
+    - the active contract mismatch is a caller-visible result alias crossing
+      `IR_RETF` without being re-based to the shifted lower-frame destination
+    - [snap_usedef()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L305) now explains why the seam stays live:
+      at caller `RET1`, only the caller-visible return slot is treated as live,
+      so if the path reached `RET1` without recording the intervening `MOV`,
+      the shifted `cbase=5` destination is not enough by itself
+    - next honest target is lower-frame result-alias rebasing or
+      rematerialization across `IR_RETF`, not more `CALLXS` narrowing, not
+      more caller-loop attribution, and not more local `MOV` window
+      experiments
 
 ### After that
 
