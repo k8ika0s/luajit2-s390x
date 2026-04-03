@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 20:10:45 PDT
+Last updated: 2026-04-03 05:09:36 PDT
 
 ## Latest Matrix
 
@@ -45,6 +45,9 @@ Pinned host-pair summary:
 | 2026-04-02 20:03:20 PDT | `number_helper_loop_local_tobit/hot` | `hotside_canon_share_uget_looproot_default` | `0.621525` | `0.001435` | `433.12x` |
 | 2026-04-02 20:39:30 PDT | `number_helper_literal_stop_real_local_tobit/hot` | `baseline` | `0.019114` | `0.001359` | `14.06x` |
 | 2026-04-02 20:39:23 PDT | `number_helper_literal_stop_real_local_tobit/hot` | `hotside_canon_share_uget_looproot_default` | `0.018959` | `0.001359` | `13.95x` |
+| 2026-04-03 05:07:58 PDT | `number_helper_literal_stop_real/hot` | `hotside_canon_share + gc64_signed_int_sload` | `0.010431` | `0.002247` | `4.64x` |
+| 2026-04-03 05:07:58 PDT | `number_helper_literal_stop_real_local_tobit/hot` | `hotside_canon_share + gc64_signed_int_sload` | `0.006251` | `0.001359` | `4.60x` |
+| 2026-04-03 05:07:58 PDT | `be_pack_literal_stop_real/hot` | `hotside_canon_share + gc64_signed_int_sload` | `0.025815` | `0.018846` | `1.37x` |
 | 2026-04-02 20:03:13 PDT | `be_pack_loop_local_ops_real/hot` | `baseline` | `0.300697` | `0.007985` | `37.66x` |
 | 2026-04-02 20:03:20 PDT | `be_pack_loop_local_ops_real/hot` | `hotside_canon_share_uget_looproot_default` | `0.244329` | `0.008069` | `30.28x` |
 | 2026-04-02 20:10:45 PDT | `number_helper_literal_stop_real/hot` | `baseline` | `0.040660` | `0.002244` | `18.12x` |

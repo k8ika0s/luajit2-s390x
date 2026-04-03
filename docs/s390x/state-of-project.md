@@ -3606,6 +3606,33 @@ Current owner map contract:
     - the next exact target is `curins=6 / op1=3 / ofs=8 / extra=12`
       on the reduced localized lane
 
+- Timestamp: `2026-04-03 05:09:36 PDT`
+- Signed GC64 integer `SLOAD` extraction is now closed as a non-remediation on
+  the localized broad non-`UGET` lane
+  - host-backed `kdz` truth pack:
+    [20260403-kdz-promotion_core_static_stop-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-promotion_core_static_stop-hotside_canon_share-truth-pack/summary.md)
+    with:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+  - localized static-stop subgroup barely changes:
+    - `number_helper_literal_stop_real_local_tobit/hot`
+      `0.006251s` vs `-joff 0.001359s` (`4.60x`)
+    - focused read stays `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 63999`
+  - reduced mechanism probe:
+    [20260403-kdz-localized-total-signed-broad-probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-total-signed-broad-probe/summary.md)
+  - same dominant seam survives:
+    - `trace 7 exit 0`
+    - restored `BC_MOV` (`op=18`)
+    - first `sload_int`
+      `curins=6 op1=3 op2=4 ofs=8 extra=12`
+    - dominant runtime `guardmark=0`
+  - queue correction:
+    - the localized-helper carried-`total` lane is no longer an honest
+      logical-vs-signed GC64 compare target on this mechanism
+    - the next honest target is the later unmarked exit path on the same
+      restored `BC_MOV` replay family
+
 ### After that
 
 There are only two realistic outcomes:
