@@ -75,3 +75,19 @@ Hard stop conditions:
   same-callsite correctness failure, reject it
 - if the repair broadens lower-frame return behavior outside this tiny FFI
   static-stop lane before proof exists, reject it
+
+Rejected direct local repair:
+
+- artifact:
+  - [20260403-075054-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-075054-kdz-baseline-core-exit-mechanism/summary.md)
+- direct `lj_record_ret()` experiment:
+  - after the lower-frame shift, if `bc_op(*J->pc) == BC_RET1`, assign the
+    caller-visible return slot from `J->base[cbase]`
+- result:
+  - no structural change
+  - `RESULT 0`
+  - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+  - exit snapshots still keep `slot2=ref1[...]`
+- conclusion:
+  - the live mismatch is deeper than a local post-shift slot assignment inside
+    `lj_record_ret()`

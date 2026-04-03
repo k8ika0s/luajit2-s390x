@@ -3054,6 +3054,11 @@ That continuation is now pinned more exactly:
   by the time this path is at caller `RET1`, only the caller-visible return
   slot is live, so the shifted call-result destination is not preserved unless
   it has already been rebound to that return-slot identity
+- direct `BC_RET1`-side rebinding after the lower-frame shift is now rejected:
+  - artifact:
+    [20260403-075054-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-075054-kdz-baseline-core-exit-mechanism/summary.md)
+  - it leaves `RESULT 0`, `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`, and
+    `slot2=ref1[...]` unchanged
 
 So the next honest remediation lane on this slice is lower-frame result-slot
 rebasing/rematerialization across `IR_RETF`, not more caller-loop `LE`

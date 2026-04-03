@@ -3803,6 +3803,12 @@ Current owner map contract:
       at caller `RET1`, only the caller-visible return slot is treated as live,
       so if the path reached `RET1` without recording the intervening `MOV`,
       the shifted `cbase=5` destination is not enough by itself
+    - direct local repair is now closed:
+      - artifact:
+        [20260403-075054-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-075054-kdz-baseline-core-exit-mechanism/summary.md)
+      - explicit `BC_RET1`-side rebinding from `J->base[cbase]` did not change
+        `RESULT`, `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`, or the
+        `slot2=ref1[...]` exit snapshot
     - next honest target is lower-frame result-alias rebasing or
       rematerialization across `IR_RETF`, not more `CALLXS` narrowing, not
       more caller-loop attribution, and not more local `MOV` window
