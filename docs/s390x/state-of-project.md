@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 14:50:32 PDT
+Last updated: 2026-04-03 15:05:32 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -200,6 +200,29 @@ non-causal probe effects. The current state is cleaner:
     - root-only visible-idx no-guard is a clean reject
     - it shifts the first exact guard, but it makes the live payoff family
       slower and does not clear the repeated loop-exit floor
+- that reject also pins the next real issue cleanly:
+  - the surviving visible-current `FORL_IDX` guard is still the first literal
+    payer on the shipping default, but it is not the whole floor by itself
+  - as soon as that root-born visible-current typecheck is relaxed, the next
+    front-most exact guard becomes the loop-carried accumulator lane
+  - source-backed identity:
+    - the visible-current lane is born in
+      [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      as `fori_load(... IRSLOAD_INHERIT | IRSLOAD_TYPECHECK | ...)`
+    - the carried-`total` lane is not a numeric-for helper lane and not a
+      replay-parent artifact; it is the ordinary stack specialization path
+      in [sload()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      reached through `getslot()`
+    - on the rejected root-only gate, the visible-current load remains in the
+      trace as `op1=4 op2=32`, but the first exact guard shifts to:
+      - `number_helper_loop`: `curins 15`, `IR=SLOAD`, `op1=3`, `op2=4`
+      - `be_pack_loop`: `curins 35`, `IR=SLOAD`, `op1=3`, `op2=4`
+  - implication:
+    - the next remediation family is no longer another visible-current
+      no-guard tweak
+    - it is the loop-carried accumulator `getslot()->sload()` replay /
+      typecheck / consumer contract that becomes front-most immediately after
+      the visible-current lane is relaxed
 - short ISA/ABI memo for the current seam:
   [promotion-core-isa-audit.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/promotion-core-isa-audit.md)
   - blind 32-bit opcode swaps remain rejected
