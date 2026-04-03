@@ -13000,3 +13000,28 @@ Next hash target
     - the next honest target is whether that lane can cross into
       `jit.on < -joff`, then whether a selective non-`UGET` canon/share policy
       is worth designing
+
+- Timestamp: `2026-04-02 21:31:00 PDT`
+- Host-pair truth packs close the broad non-`UGET` localized lane as still
+  exit-dominated and still slower than `-joff`
+  - packs:
+    [20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+    [20260402-zkd0-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-zkd0-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - env:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+  - decisive localized `number_helper` read:
+    - `kdz`: `0.006327s` vs `0.001361s` (`4.65x`), focused
+      `TEXIT_COUNT 63999`
+    - `zkd0`: `0.013725s` vs `0.002224s` (`6.17x`), focused
+      `TEXIT_COUNT 63999`
+    - both hosts keep `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`
+    - classification stays `exit-dominated`
+  - sibling check:
+    - `be_pack_literal_stop_real` remains around `1.3x` slower than `-joff`
+      on both hosts and barely moves
+  - closure:
+    - the broad non-`UGET` opt-in lane is a real structural reduction
+    - it is not enough to make the localized static-stop subgroup fast
+    - the next honest target is either:
+      - selective non-`UGET` canon/share policy design, or
+      - a fresh exit seam inside this lane
