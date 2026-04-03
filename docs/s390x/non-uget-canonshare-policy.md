@@ -91,6 +91,31 @@ So the next exact target is no longer the carried-`total` compare/lowering by
 itself. It is the later unmarked exit path that survives after that guard is
 removed.
 
+Workload-only confirmation on the same reduced lane:
+
+- artifact:
+  [20260402-kdz-number-helper-local-broad-skip-total-guard-nopost](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard-nopost/summary.md)
+- `--no-posthooks` proves the later path is inside the workload, not helper
+  traceinfo noise
+- reduced `number_helper_loop_local_tobit` still exits every trip:
+  - `TRACE_START 6`
+  - `TRACE_STOP 5`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 64001`
+- dominant workload seam remains:
+  - `trace 7 exit 0`
+  - restored `BC_MOV` (`op=18`)
+  - `snapop=18`
+  - `snapnent=0`
+  - dominant runtime `guardmark=0`
+- first surviving `sload_int` in that workload-only cluster is now:
+  - `curins=6`
+  - `ofs=8`
+  - `extra=12`
+
+So the next honest target is the later workload-only cluster headed by
+`curins=6 sload_int ofs=8 extra=12`, not the old carried-`total` guard.
+
 This means the useful boundary is not “all non-`UGET` seams”. It is narrower.
 
 ## Candidate Entry Conditions

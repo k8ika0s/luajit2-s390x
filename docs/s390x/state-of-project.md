@@ -3569,6 +3569,33 @@ Current owner map contract:
     - the next honest target is that later unmarked exit path, not this guard
       by itself
 
+- Timestamp: `2026-04-02 22:15:40 PDT`
+- The later post-collapse path is now proven to be workload-local, not
+  posthook noise
+  - artifact:
+    [20260402-kdz-number-helper-local-broad-skip-total-guard-nopost](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard-nopost/summary.md)
+  - same reduced lane, but with post-run `traceinfo/traceir` hooks disabled
+  - the workload still stays on:
+    - `TRACE_START 6`
+    - `TRACE_STOP 5`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 64001`
+  - dominant workload seam is still:
+    - `trace 7 exit 0`
+    - restored `BC_MOV` (`op=18`)
+    - `snapop=18`
+    - `snapnent=0`
+    - dominant runtime `guardmark=0`
+  - first surviving workload-only `sload_int` is now:
+    - `curins=6`
+    - `ofs=8`
+    - `extra=12`
+  - queue correction:
+    - the carried-`total` guard was only the first marked branch
+    - after removing it, the live floor is still inside the workload itself
+    - the next exact target is the later `curins=6 sload_int ofs=8 extra=12`
+      cluster on the reduced localized lane
+
 ### After that
 
 There are only two realistic outcomes:

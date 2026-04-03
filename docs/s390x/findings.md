@@ -13098,3 +13098,31 @@ Next hash target
       alone
     - the next exact target is the later unmarked exit path that survives after
       this guard is removed
+
+- Timestamp: `2026-04-02 22:15:40 PDT`
+- The later path after carried-`total` skip is confirmed inside the workload
+  itself
+  - artifact:
+    [20260402-kdz-number-helper-local-broad-skip-total-guard-nopost](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard-nopost/summary.md)
+  - same reduced `number_helper_loop_local_tobit` lane with posthooks disabled
+  - decisive read:
+    - `TRACE_START 6`
+    - `TRACE_STOP 5`
+    - `TRACE_ABORT 0`
+    - `TEXIT_COUNT 64001`
+    - dominant texit remains `7:0 x 63457`
+    - dominant exit cluster remains restored `BC_MOV`:
+      - `op=18`
+      - `snapop=18`
+      - `snapnent=0`
+      - dominant `guardmark=0`
+    - first surviving workload-only `sload_int` is now:
+      - `curins=6`
+      - `ofs=8`
+      - `extra=12`
+  - closure:
+    - the carried-`total` skip did not merely expose helper posthook noise
+    - the remaining floor is a later workload-local cluster
+    - the next exact target is to map `curins=6 sload_int ofs=8 extra=12`
+      semantically and decide whether that lane is a real fix surface or just
+      the next marker in the same floor

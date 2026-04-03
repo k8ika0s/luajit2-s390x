@@ -2938,6 +2938,29 @@ So the carried-`total` guard is only the first marked branch after the ladder
 collapse. It is not the whole remaining payer. The next honest target is the
 later unmarked exit path on the same reduced localized lane.
 
+That later path is now confirmed to be workload-local:
+
+- artifact:
+  [20260402-kdz-number-helper-local-broad-skip-total-guard-nopost](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-number-helper-local-broad-skip-total-guard-nopost/summary.md)
+- same reduced lane, with post-run hooks disabled
+- still:
+  - `TRACE_START 6`
+  - `TRACE_STOP 5`
+  - `TRACE_ABORT 0`
+  - `TEXIT_COUNT 64001`
+- dominant workload seam:
+  - `trace 7 exit 0`
+  - restored `BC_MOV` (`op=18`)
+  - `snapop=18`
+  - dominant runtime `guardmark=0`
+- first surviving workload-only `sload_int`:
+  - `curins=6`
+  - `ofs=8`
+  - `extra=12`
+
+So the next reduced target is no longer “is the unmarked path real?” It is the
+later `curins=6 sload_int ofs=8 extra=12` cluster inside the workload itself.
+
 ## Relationship To Other Docs
 
 - High-level status:
