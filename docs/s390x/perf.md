@@ -2886,6 +2886,25 @@ So the broad non-`UGET` opt-in lane is real, but it does not cross into
 policy design or a fresh exit seam inside this localized subgroup, not a
 shipping-default expansion.
 
+Reduced post-collapse seam on clean `kdz`:
+
+- localized no-helper sibling (`number_helper_local_tobit`, `n=400`)
+- broad opt-in env:
+  - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+- restored hot seam:
+  - `op=18`
+  - `snapop=18`
+  - `BC_MOV`
+- exact first surviving guard:
+  - `sload_int curins=4 ofs=0 extra=4`
+- later same-cluster guards:
+  - `curins=3`
+  - `sload_type curins=2 ofs=8 extra=8`
+
+So the clone ladder is no longer the first payer on this reduced lane. After
+the broad opt-in collapse, the next exact seam is the stack-visible `MOV` /
+`sload_int` header cluster.
+
 ## Relationship To Other Docs
 
 - High-level status:

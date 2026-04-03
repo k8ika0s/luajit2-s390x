@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 21:31:00 PDT
+Last updated: 2026-04-02 21:43:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -3499,6 +3499,29 @@ Current owner map contract:
       design or a fresh exit seam inside this lane, not widening the default
     - bounded follow-on note:
       [non-uget-canonshare-policy.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/non-uget-canonshare-policy.md)
+
+- Timestamp: `2026-04-02 21:43:00 PDT`
+- Reduced localized broad opt-in seam is now pinned after the ladder collapse
+  - direct reduced `kdz` probe with:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - `LUAJIT_S390X_GUARDMARK_TAKEN=1`
+    - `LUAJIT_S390X_GUARD_LOG=1`
+  - on the localized no-helper sibling (`number_helper_local_tobit`, `n=400`):
+    - restored seam stays `BC_MOV` (`op=18`)
+    - exact taken guard is:
+      - `kind=sload_int`
+      - `curins=4`
+      - `ofs=0`
+      - `extra=4`
+    - later same-cluster guards are:
+      - `curins=3`
+      - `sload_type curins=2 ofs=8 extra=8`
+  - queue correction:
+    - broad non-`UGET` canon/share collapses the clone ladder
+    - it does not remove the first stack-visible `SLOAD` guard cluster on the
+      localized `MOV` seam
+    - the next honest target is the exact `MOV`/`sload_int ofs=0 extra=4`
+      post-collapse lane, not the old clone ladder itself
 
 ### After that
 
