@@ -10,6 +10,7 @@ import pathlib
 import re
 import shlex
 import sys
+import uuid
 from typing import Any
 
 THIS_DIR = pathlib.Path(__file__).resolve().parent
@@ -399,20 +400,22 @@ jit.opt.start("hotloop=1", "hotexit=1")
 {emit_traceinfo}
 {emit_traceir}
 {emit_counter}
-local function run()
+local function run(chunks)
   local total = 0
-  for i = 1, 400 do
-    local b1 = bit.band(bit.rshift(i, 24), 0xff)
-    local b2 = bit.band(bit.rshift(i, 16), 0xff)
-    local b3 = bit.band(bit.rshift(i, 8), 0xff)
-    local b4 = bit.band(i, 0xff)
-    total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = bit.band(bit.rshift(i, 24), 0xff)
+      local b2 = bit.band(bit.rshift(i, 16), 0xff)
+      local b3 = bit.band(bit.rshift(i, 8), 0xff)
+      local b4 = bit.band(i, 0xff)
+      total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+    end
   end
   return bit.tobit(total)
 end
-run(); run(); run()
+run(1); run(1); run(1)
 local trace_cap, texit_cap = start_counters()
-print("RESULT", run())
+print("RESULT", run({iterations}))
 stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
@@ -432,24 +435,26 @@ jit.opt.start("hotloop=1", "hotexit=1")
 {emit_traceinfo}
 {emit_traceir}
 {emit_counter}
-local function run()
+local function run(chunks)
   local total = 0
   local band = bit.band
   local rshift = bit.rshift
   local lshift = bit.lshift
   local tobit = bit.tobit
-  for i = 1, 400 do
-    local b1 = band(rshift(i, 24), 0xff)
-    local b2 = band(rshift(i, 16), 0xff)
-    local b3 = band(rshift(i, 8), 0xff)
-    local b4 = band(i, 0xff)
-    total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
   end
   return tobit(total)
 end
-run(); run(); run()
+run(1); run(1); run(1)
 local trace_cap, texit_cap = start_counters()
-print("RESULT", run())
+print("RESULT", run({iterations}))
 stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
@@ -502,16 +507,53 @@ int abs(int x);
 {emit_traceinfo}
 {emit_traceir}
 {emit_counter}
-local function run()
+local function run(chunks)
   local total = 0
-  for i = 1, 400 do
-    total = total + ffi.C.abs((i % 17) - 8)
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      total = total + ffi.C.abs((i % 17) - 8)
+    end
   end
   return total
 end
-run(); run(); run()
+run(1); run(1); run(1)
 local trace_cap, texit_cap = start_counters()
-print("RESULT", run())
+print("RESULT", run({iterations}))
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "stored_abs_literal_stop": {
+        "family": "header_reducer",
+        "iterations": 400,
+        "label": "STORED_ABS_LITERAL_STOP",
+        "script": """\
+local ffi = require("ffi")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+ffi.cdef[[
+int abs(int x);
+]]
+local cabs = ffi.C.abs
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      total = total + cabs((i % 17) - 8)
+    end
+  end
+  return total
+end
+run(1); run(1); run(1)
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run({iterations}))
 stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
@@ -890,7 +932,7 @@ def run_probe(
     iterations_override: int | None,
 ) -> dict[str, Any]:
     config = WORKLOADS[workload]
-    remote_name = f"{workload}.lua"
+    remote_name = f"{workload}-{uuid.uuid4().hex[:8]}.lua"
     remote_script_path = f"/tmp/{remote_name}"
     iterations = iterations_override or int(config["iterations"])
     posthooks_enabled = not bool(extra_env.get("LUAJIT_S390X_PROBE_NO_POSTHOOKS"))

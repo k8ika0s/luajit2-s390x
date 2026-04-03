@@ -1352,6 +1352,260 @@ print("TEXIT_COUNT", texit_cap.total)
 """,
 }
 
+ROUTE_AROUND_REDUCERS_FOCUSED_BENCH = """\
+local bit = require("bit")
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local function be_pack_literal_stop(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = bit.band(bit.rshift(i, 24), 0xff)
+      local b2 = bit.band(bit.rshift(i, 16), 0xff)
+      local b3 = bit.band(bit.rshift(i, 8), 0xff)
+      local b4 = bit.band(i, 0xff)
+      total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+    end
+  end
+  return bit.tobit(total)
+end
+
+local function be_pack_literal_stop_local_ops(chunks)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
+  end
+  return tobit(total)
+end
+
+local function be_pack_loop_local_ops(chunks)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
+  end
+  return tobit(total)
+end
+
+bench.run_suite({
+  family = "route_around_reducers_truth_pack",
+  cases = {
+    {
+      workload = "be_pack_literal_stop",
+      scale = "hot",
+      iterations = 400,
+      warmup_runs = 2,
+      run = be_pack_literal_stop,
+      validate = function(result)
+        bench.eq(result, be_pack_literal_stop(400), "be_pack_literal_stop/hot")
+      end,
+    },
+    {
+      workload = "be_pack_literal_stop_local_ops",
+      scale = "hot",
+      iterations = 400,
+      warmup_runs = 2,
+      run = be_pack_literal_stop_local_ops,
+      validate = function(result)
+        bench.eq(result, be_pack_literal_stop_local_ops(400), "be_pack_literal_stop_local_ops/hot")
+      end,
+    },
+    {
+      workload = "be_pack_loop_local_ops",
+      scale = "hot",
+      iterations = 400,
+      warmup_runs = 2,
+      run = be_pack_loop_local_ops,
+      validate = function(result)
+        bench.eq(result, be_pack_loop_local_ops(400), "be_pack_loop_local_ops/hot")
+      end,
+    },
+  },
+})
+"""
+
+ROUTE_AROUND_REDUCERS_CHECK_SCRIPTS = {
+    "be_pack_literal_stop": """\
+local bit = require("bit")
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = bit.band(bit.rshift(i, 24), 0xff)
+      local b2 = bit.band(bit.rshift(i, 16), 0xff)
+      local b3 = bit.band(bit.rshift(i, 8), 0xff)
+      local b4 = bit.band(i, 0xff)
+      total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+    end
+  end
+  return bit.tobit(total)
+end
+print("BE_PACK_LITERAL_STOP", run(4))
+""",
+    "be_pack_literal_stop_local_ops": """\
+local bit = require("bit")
+local function run(chunks)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
+  end
+  return tobit(total)
+end
+print("BE_PACK_LITERAL_STOP_LOCAL_OPS", run(4))
+""",
+    "be_pack_loop_local_ops": """\
+local bit = require("bit")
+local function run(chunks)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
+  end
+  return tobit(total)
+end
+print("BE_PACK_LOOP_LOCAL_OPS", run(4))
+""",
+}
+
+ROUTE_AROUND_REDUCERS_TRACE_SCRIPTS = {
+    "be_pack_literal_stop": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = bit.band(bit.rshift(i, 24), 0xff)
+      local b2 = bit.band(bit.rshift(i, 16), 0xff)
+      local b3 = bit.band(bit.rshift(i, 8), 0xff)
+      local b4 = bit.band(i, 0xff)
+      total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+    end
+  end
+  return bit.tobit(total)
+end
+run(1); run(1); run(1)
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run(400))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+    "be_pack_literal_stop_local_ops": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+local function run(chunks)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
+  end
+  return tobit(total)
+end
+run(1); run(1); run(1)
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run(400))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+    "be_pack_loop_local_ops": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+local function run(chunks)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
+  end
+  return tobit(total)
+end
+run(1); run(1); run(1)
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run(400))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+}
+
 LOGIC_ADD_PHI_NOBOUNDARY_CHECK_SCRIPT = """\
 local bit = require("bit")
 local function chain(i)
@@ -1548,6 +1802,27 @@ FAMILY_CONFIGS = {
         "work_items": {
             "direct_abs": 80000,
             "stored_abs": 80000,
+        },
+    },
+    "route_around_reducers": {
+        "bench_file": "tests/s390x/perf/route_around_reducers.lua",
+        "focus_label": "reduced route-around throughput",
+        "selection_reason": (
+            "quantify the structurally improved reduced siblings to see which "
+            "route-around shapes actually cross into useful JIT throughput"
+        ),
+        "focused_bench_script": ROUTE_AROUND_REDUCERS_FOCUSED_BENCH,
+        "check_scripts": ROUTE_AROUND_REDUCERS_CHECK_SCRIPTS,
+        "trace_scripts": ROUTE_AROUND_REDUCERS_TRACE_SCRIPTS,
+        "hot_cases": (
+            "be_pack_literal_stop/hot",
+            "be_pack_literal_stop_local_ops/hot",
+            "be_pack_loop_local_ops/hot",
+        ),
+        "work_items": {
+            "be_pack_literal_stop": 160000,
+            "be_pack_literal_stop_local_ops": 160000,
+            "be_pack_loop_local_ops": 160000,
         },
     },
 }
