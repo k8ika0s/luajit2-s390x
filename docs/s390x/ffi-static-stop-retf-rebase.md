@@ -167,3 +167,43 @@ Exact collapse-site correction:
     too late
   - the next honest remediation boundary is the `snap_usedef()` return-window
     rule under active `IR_RETF`, not another local slot assignment
+
+Rejected direct `snap_usedef()` remediation attempts:
+
+- artifact:
+  - [20260403-082728-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082728-kdz-baseline-core-exit-mechanism/summary.md)
+- gate:
+  - `LUAJIT_S390X_RETF_RET0_KEEP_LIVE=1`
+- experiment:
+  - on active `IR_RETF` + caller `RET0`, keep all currently nonzero `J->base`
+    lanes live through the `BC_RET0/RET1` use/def collapse
+- result:
+  - structurally inert
+  - same `RESULT 0`
+  - same `TRACE_START 4`, `TRACE_STOP 3`, `TEXIT_COUNT 1`
+  - same continuation front:
+    - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+    - `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
+
+- artifact:
+  - [20260403-082941-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082941-kdz-baseline-core-exit-mechanism/summary.md)
+- gate:
+  - `LUAJIT_S390X_RETF_RET0_REBIND_SLOT0=1`
+- experiment:
+  - before snapshot build on active `IR_RETF` + caller `RET0`, if slot `0` is
+    empty and there is exactly one live lane in the current frame, copy that
+    live lane into `J->base[0]`
+- result:
+  - structurally inert
+  - same `RESULT 0`
+  - same continuation front:
+    - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
+    - `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
+
+Current correction:
+
+- the remaining mismatch is deeper than return-window liveness alone
+- it is deeper than local slot `0` rebinding before snapshot build
+- the next honest remediation family is snapshot-map / inherited-lane identity
+  replacement at the `IR_RETF` continuation boundary, not another local
+  `snap_usedef()` or `J->base[]` tweak
