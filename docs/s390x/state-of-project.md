@@ -3326,6 +3326,84 @@ Current owner map contract:
     - reduced route-around siblings are now evidence only, not the next
       promotable performance lane
 
+- Timestamp: `2026-04-02 20:03:20 PDT`
+- Real-shape helper localization is now closed as a promotion-core performance
+  family on clean `kdz`
+  - new checked-in family:
+    [20260402-kdz-be_helpers_localized-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers_localized-baseline-truth-pack/summary.md)
+    vs
+    [20260402-kdz-be_helpers_localized-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers_localized-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - real dynamic-stop localized forms:
+    - `number_helper_loop_local_tobit/hot`
+      - baseline `0.436932` vs `-joff 0.001442`
+      - promoted default `0.621525` vs `0.001435`
+    - `be_pack_loop_local_ops_real/hot`
+      - baseline `0.300697` vs `-joff 0.007985`
+      - promoted default `0.244329` vs `0.008069`
+  - focused runtime read:
+    - baseline:
+      - both workloads `TRACE_START 321`, `TRACE_STOP 321`,
+        `TEXIT_COUNT 64001`
+    - promoted default:
+      - both workloads `TRACE_START 5`, `TRACE_STOP 5`,
+        `TEXIT_COUNT 64001`
+  - queue correction:
+    - real helper localization is not a hidden win on the active slice
+    - it is drastically worse than the existing shipping `be_helpers` path
+    - it preserves the same dynamic-stop replay floor
+    - the next honest target stays on that shared floor, not helper-hoist
+
+- Timestamp: `2026-04-02 20:10:45 PDT`
+- Real-shape static-stop quant shows the remaining promotion-core gap is not
+  just “dynamic stop” in the simple sense
+  - new checked-in family:
+    [20260402-kdz-promotion_core_static_stop-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-baseline-truth-pack/summary.md)
+    vs
+    [20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - real-shape literal-stop hot read:
+    - `number_helper_literal_stop_real`
+      - baseline `0.040660` vs `-joff 0.002244`
+      - promoted default `0.009910` vs `0.002230`
+    - `be_pack_literal_stop_real`
+      - baseline `0.097101` vs `-joff 0.019263`
+      - promoted default `0.025347` vs `0.018812`
+  - focused runtime split:
+    - baseline:
+      - `compiled-body-dominated`
+      - `TEXIT_COUNT 0`
+    - promoted default:
+      - still `exit-dominated`
+      - `TEXIT_COUNT 63999`
+  - queue correction:
+    - removing dynamic stop does not by itself clear the promoted-default
+      steady floor on the real `be_helpers` shapes
+    - the promoted default remains a net win even there because its new
+      exit-heavy path is still much faster than the compiled-body baseline
+    - the next honest target is the exact static-stop seam under the promoted
+      default, not helper-hoist and not another dynamic-stop-only theory
+
+- Timestamp: `2026-04-02 20:15:29 PDT`
+- Static-stop seam probe narrows the remaining promoted-default floor again
+  - new focused artifact:
+    [20260402-201327-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-201327-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `be_pack_literal_stop_real` now pins cleanly:
+    - `TRACE_START 2`, `TRACE_STOP 1`, `TEXIT_COUNT 63999`
+    - dominant texit:
+      - `trace 7 exit 0`
+      - restored `op 45`, `snapop 45` = `BC_UGET`
+      - first `sload_int`: `curins 33`, `IR=SLOAD`, `op1 2`, `op2 4`
+  - `number_helper_literal_stop_real` no longer matches that same front seam:
+    - raw exit logs in the same artifact show repeated restored `op 57` /
+      `snapop 57` = `BC_TGETS`
+    - the exact taken inner guard inside that `TGETS` cluster is not yet
+      isolated
+  - queue correction:
+    - the remaining static-stop cap is no longer one uniform dynamic-stop
+      numeric-for replay seam
+    - `be_pack` is now front-most at restored `BC_UGET`
+    - `number_helper` has already advanced one step later to restored
+      `BC_TGETS`
+
 ### After that
 
 There are only two realistic outcomes:

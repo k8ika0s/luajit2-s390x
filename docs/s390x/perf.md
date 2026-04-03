@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 19:23:54 PDT
+Last updated: 2026-04-02 20:10:45 PDT
 
 ## Latest Matrix
 
@@ -41,6 +41,14 @@ Pinned host-pair summary:
 | 2026-04-02 19:10:40 PDT | `be_pack_literal_stop_local_ops/hot` | `hotside_canon_share_uget_looproot_default` | `0.126189` | `0.019927` | `6.33x` |
 | 2026-04-02 19:10:44 PDT | `be_pack_loop_local_ops/hot` | `baseline` | `0.126122` | `0.019463` | `6.48x` |
 | 2026-04-02 19:10:40 PDT | `be_pack_loop_local_ops/hot` | `hotside_canon_share_uget_looproot_default` | `0.126296` | `0.019513` | `6.47x` |
+| 2026-04-02 20:03:13 PDT | `number_helper_loop_local_tobit/hot` | `baseline` | `0.436932` | `0.001442` | `303.00x` |
+| 2026-04-02 20:03:20 PDT | `number_helper_loop_local_tobit/hot` | `hotside_canon_share_uget_looproot_default` | `0.621525` | `0.001435` | `433.12x` |
+| 2026-04-02 20:03:13 PDT | `be_pack_loop_local_ops_real/hot` | `baseline` | `0.300697` | `0.007985` | `37.66x` |
+| 2026-04-02 20:03:20 PDT | `be_pack_loop_local_ops_real/hot` | `hotside_canon_share_uget_looproot_default` | `0.244329` | `0.008069` | `30.28x` |
+| 2026-04-02 20:10:45 PDT | `number_helper_literal_stop_real/hot` | `baseline` | `0.040660` | `0.002244` | `18.12x` |
+| 2026-04-02 20:10:38 PDT | `number_helper_literal_stop_real/hot` | `hotside_canon_share_uget_looproot_default` | `0.009910` | `0.002230` | `4.44x` |
+| 2026-04-02 20:10:45 PDT | `be_pack_literal_stop_real/hot` | `baseline` | `0.097101` | `0.019263` | `5.04x` |
+| 2026-04-02 20:10:38 PDT | `be_pack_literal_stop_real/hot` | `hotside_canon_share_uget_looproot_default` | `0.025347` | `0.018812` | `1.35x` |
 | 2026-04-01 20:20:45 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.342594` | `0.002173` | `157.66x` |
 | 2026-04-01 20:20:45 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.526504` | `0.004692` | `112.21x` |
 | 2026-04-01 20:20:45 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.611632` | `0.005619` | `108.85x` |
@@ -2680,12 +2688,108 @@ So:
     - `TRACE_START 367`
     - `TRACE_STOP 367`
     - `TEXIT_COUNT 365`
-- helper correction:
-  - the reduced core probe now honors `--iterations` for literal-stop reducers
-  - it also uses unique remote `/tmp/<workload>-<id>.lua` names so parallel
-    runs no longer clobber one another
+  - helper correction:
+    - the reduced core probe now honors `--iterations` for literal-stop reducers
+    - it also uses unique remote `/tmp/<workload>-<id>.lua` names so parallel
+      runs no longer clobber one another
 - reduced route-around siblings are evidence only, not the next promotable
   performance lane
+
+## Real-Shape Helper Localization
+
+The real dynamic-stop helper-localization family is now closed as a performance
+lane on clean `kdz`:
+
+- baseline:
+  [20260402-kdz-be_helpers_localized-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers_localized-baseline-truth-pack/summary.md)
+- promoted default:
+  [20260402-kdz-be_helpers_localized-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers_localized-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+
+Key read:
+
+- `number_helper_loop_local_tobit/hot`
+  - baseline `0.436932` vs `-joff 0.001442`
+  - promoted default `0.621525` vs `0.001435`
+- `be_pack_loop_local_ops_real/hot`
+  - baseline `0.300697` vs `-joff 0.007985`
+  - promoted default `0.244329` vs `0.008069`
+
+Focused runtime read:
+
+- baseline:
+  - both localized real-shape workloads are `exit-dominated`
+  - `TRACE_START 321`, `TRACE_STOP 321`, `TEXIT_COUNT 64001`
+- promoted default:
+  - both are still `exit-dominated`
+  - `TRACE_START 5`, `TRACE_STOP 5`, `TEXIT_COUNT 64001`
+
+So helper localization on the real dynamic-stop shape is not a hidden
+promotion-core win:
+
+- it is far worse than the existing shipping `be_helpers` slice
+- it keeps the same replay-floor exit count
+- it only changes trace population, not the performance floor
+
+## Real-Shape Static Stop
+
+Real-shape static stop does not clear the remaining promotion-core gap under
+the promoted default, but it changes the baseline read in an important way:
+
+- baseline:
+  [20260402-kdz-promotion_core_static_stop-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-baseline-truth-pack/summary.md)
+- promoted default:
+  [20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+
+Key read on clean `kdz`:
+
+- `number_helper_literal_stop_real/hot`
+  - baseline `0.040660` vs `-joff 0.002244`
+  - promoted default `0.009910` vs `0.002230`
+- `be_pack_literal_stop_real/hot`
+  - baseline `0.097101` vs `-joff 0.019263`
+  - promoted default `0.025347` vs `0.018812`
+
+Focused runtime split:
+
+- baseline:
+  - `number_helper_literal_stop_real`: `TRACE_START 1`, `TRACE_STOP 0`, `TRACE_ABORT 1`, `TEXIT_COUNT 0`
+  - `be_pack_literal_stop_real`: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`
+  - classification: `compiled-body-dominated`
+- promoted default:
+  - both workloads still carry `TEXIT_COUNT 63999`
+  - `number_helper_literal_stop_real`: `TRACE_START 1`, `TRACE_STOP 0`, `TRACE_ABORT 1`
+  - `be_pack_literal_stop_real`: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`
+  - classification: `exit-dominated`
+
+So the remaining core gap is not “dynamic stop only” in the simple sense:
+
+- removing dynamic stop makes the baseline path compiled-body-dominated
+- the promoted default still routes the real-shape static-stop siblings through
+  an exit-heavy steady state
+- that exit-heavy promoted path is still much faster than the compiled-body
+  baseline, so the gate remains a net win
+- the next honest target is the exact static-stop seam under the promoted
+  default, not helper localization and not more reduced route-around work
+
+Static-stop seam probe on clean `kdz`:
+
+- [20260402-201327 kdz core exit mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-201327-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+- `be_pack_literal_stop_real`
+  - `TRACE_START 2`, `TRACE_STOP 1`, `TEXIT_COUNT 63999`
+  - dominant texit:
+    - `trace 7 exit 0`
+    - restored `op 45` / `snapop 45` = `BC_UGET`
+    - first `sload_int`: `curins 33`, `IR=SLOAD`, `op1 2`, `op2 4`
+- `number_helper_literal_stop_real`
+  - raw exit logs in the same artifact show the repeated restored `pc` at
+    `op 57` / `snapop 57` = `BC_TGETS`
+  - exact taken inner guard in that `TGETS` cluster is not yet isolated
+
+So the remaining static-stop cap is now narrower than the old dynamic-stop
+numeric-for replay floor:
+
+- `be_pack` is front-most at restored `BC_UGET`
+- `number_helper` has already moved one step later to restored `BC_TGETS`
 
 ## Relationship To Other Docs
 
