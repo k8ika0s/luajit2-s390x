@@ -618,6 +618,45 @@ emit_traceinfo(32)
 emit_traceir(32)
 """,
     },
+    "direct_abs_literal_stop_same_callsite": {
+        "family": "ffi_static_stop",
+        "iterations": 1,
+        "label": "DIRECT_ABS_LITERAL_STOP_SAME_CALLSITE",
+        "script": """\
+local ffi = require("ffi")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+ffi.cdef[[
+int abs(int x);
+]]
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  for i = 1, 80000 do
+    total = total + ffi.C.abs((i % 17) - 8)
+  end
+  return total
+end
+local function drive()
+  local out = 0
+  for _ = 1, 4 do
+    out = run()
+  end
+  return out
+end
+drive()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", drive())
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
     "stored_abs_literal_stop": {
         "family": "header_reducer",
         "iterations": 400,
@@ -681,6 +720,46 @@ end
 run(); run(); run()
 local trace_cap, texit_cap = start_counters()
 print("RESULT", run())
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "stored_abs_literal_stop_same_callsite": {
+        "family": "ffi_static_stop",
+        "iterations": 1,
+        "label": "STORED_ABS_LITERAL_STOP_SAME_CALLSITE",
+        "script": """\
+local ffi = require("ffi")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+ffi.cdef[[
+int abs(int x);
+]]
+local cabs = ffi.C.abs
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  for i = 1, 80000 do
+    total = total + cabs((i % 17) - 8)
+  end
+  return total
+end
+local function drive()
+  local out = 0
+  for _ = 1, 4 do
+    out = run()
+  end
+  return out
+end
+drive()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", drive())
 stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
