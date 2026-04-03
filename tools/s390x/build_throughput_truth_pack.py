@@ -1229,6 +1229,291 @@ print("TEXIT_COUNT", texit_cap.total)
 """,
 }
 
+BE_HELPERS_LOCALIZED_FOCUSED_BENCH = """\
+local bit = require("bit")
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local function number_helper_loop_local_tobit(n)
+  local total = 0
+  local tobit = bit.tobit
+  for i = 1, n do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+
+local function be_pack_loop_local_ops_real(n)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for i = 1, n do
+    local b1 = band(rshift(i, 24), 0xff)
+    local b2 = band(rshift(i, 16), 0xff)
+    local b3 = band(rshift(i, 8), 0xff)
+    local b4 = band(i, 0xff)
+    total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+  end
+  return tobit(total)
+end
+
+bench.run_suite({
+  family = "be_helpers_localized_truth_pack",
+  cases = {
+    {
+      workload = "number_helper_loop_local_tobit",
+      scale = "hot",
+      iterations = 64000,
+      warmup_runs = 2,
+      run = number_helper_loop_local_tobit,
+      validate = function(result)
+        bench.eq(result, number_helper_loop_local_tobit(64000), "number_helper_loop_local_tobit/hot")
+      end,
+    },
+    {
+      workload = "be_pack_loop_local_ops_real",
+      scale = "hot",
+      iterations = 64000,
+      warmup_runs = 2,
+      run = be_pack_loop_local_ops_real,
+      validate = function(result)
+        bench.eq(result, be_pack_loop_local_ops_real(64000), "be_pack_loop_local_ops_real/hot")
+      end,
+    },
+  },
+})
+"""
+
+BE_HELPERS_LOCALIZED_CHECK_SCRIPTS = {
+    "number_helper_loop_local_tobit": """\
+local bit = require("bit")
+local tobit = bit.tobit
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+print("NUMBER_HELPER_LOOP_LOCAL_TOBIT", run(20))
+""",
+    "be_pack_loop_local_ops_real": """\
+local bit = require("bit")
+local band = bit.band
+local rshift = bit.rshift
+local lshift = bit.lshift
+local tobit = bit.tobit
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    local b1 = band(rshift(i, 24), 0xff)
+    local b2 = band(rshift(i, 16), 0xff)
+    local b3 = band(rshift(i, 8), 0xff)
+    local b4 = band(i, 0xff)
+    total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+  end
+  return tobit(total)
+end
+print("BE_PACK_LOOP_LOCAL_OPS_REAL", run(20))
+""",
+}
+
+BE_HELPERS_LOCALIZED_TRACE_SCRIPTS = {
+    "number_helper_loop_local_tobit": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local tobit = bit.tobit
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    total = tobit(total + i * 65537)
+  end
+  return tobit(total)
+end
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run(64000))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+    "be_pack_loop_local_ops_real": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local band = bit.band
+local rshift = bit.rshift
+local lshift = bit.lshift
+local tobit = bit.tobit
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    local b1 = band(rshift(i, 24), 0xff)
+    local b2 = band(rshift(i, 16), 0xff)
+    local b3 = band(rshift(i, 8), 0xff)
+    local b4 = band(i, 0xff)
+    total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+  end
+  return tobit(total)
+end
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run(64000))
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+}
+
+PROMOTION_CORE_STATIC_STOP_FOCUSED_BENCH = """\
+local bit = require("bit")
+local bench = dofile("tests/s390x/perf/benchlib.lua")
+
+local function number_helper_literal_stop_real()
+  local total = 0
+  for i = 1, 64000 do
+    total = bit.tobit(total + i * 65537)
+  end
+  return bit.tobit(total)
+end
+
+local function be_pack_literal_stop_real()
+  local total = 0
+  for i = 1, 64000 do
+    local b1 = bit.band(bit.rshift(i, 24), 0xff)
+    local b2 = bit.band(bit.rshift(i, 16), 0xff)
+    local b3 = bit.band(bit.rshift(i, 8), 0xff)
+    local b4 = bit.band(i, 0xff)
+    total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+  end
+  return bit.tobit(total)
+end
+
+bench.run_suite({
+  family = "promotion_core_static_stop_truth_pack",
+  cases = {
+    {
+      workload = "number_helper_literal_stop_real",
+      scale = "hot",
+      iterations = 1,
+      warmup_runs = 2,
+      run = number_helper_literal_stop_real,
+      validate = function(result)
+        bench.eq(result, number_helper_literal_stop_real(), "number_helper_literal_stop_real/hot")
+      end,
+    },
+    {
+      workload = "be_pack_literal_stop_real",
+      scale = "hot",
+      iterations = 1,
+      warmup_runs = 2,
+      run = be_pack_literal_stop_real,
+      validate = function(result)
+        bench.eq(result, be_pack_literal_stop_real(), "be_pack_literal_stop_real/hot")
+      end,
+    },
+  },
+})
+"""
+
+PROMOTION_CORE_STATIC_STOP_CHECK_SCRIPTS = {
+    "number_helper_literal_stop_real": """\
+local bit = require("bit")
+local function run()
+  local total = 0
+  for i = 1, 64000 do
+    total = bit.tobit(total + i * 65537)
+  end
+  return bit.tobit(total)
+end
+print("NUMBER_HELPER_LITERAL_STOP_REAL", run())
+""",
+    "be_pack_literal_stop_real": """\
+local bit = require("bit")
+local function run()
+  local total = 0
+  for i = 1, 64000 do
+    local b1 = bit.band(bit.rshift(i, 24), 0xff)
+    local b2 = bit.band(bit.rshift(i, 16), 0xff)
+    local b3 = bit.band(bit.rshift(i, 8), 0xff)
+    local b4 = bit.band(i, 0xff)
+    total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+  end
+  return bit.tobit(total)
+end
+print("BE_PACK_LITERAL_STOP_REAL", run())
+""",
+}
+
+PROMOTION_CORE_STATIC_STOP_TRACE_SCRIPTS = {
+    "number_helper_literal_stop_real": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local function run()
+  local total = 0
+  for i = 1, 64000 do
+    total = bit.tobit(total + i * 65537)
+  end
+  return bit.tobit(total)
+end
+run(); run(); run()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run())
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+    "be_pack_literal_stop_real": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+local function run()
+  local total = 0
+  for i = 1, 64000 do
+    local b1 = bit.band(bit.rshift(i, 24), 0xff)
+    local b2 = bit.band(bit.rshift(i, 16), 0xff)
+    local b3 = bit.band(bit.rshift(i, 8), 0xff)
+    local b4 = bit.band(i, 0xff)
+    total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+  end
+  return bit.tobit(total)
+end
+run(); run(); run()
+local trace_cap = testlib.trace_counter_capture_lite()
+local texit_cap = testlib.texit_counter_capture_lite()
+print("RESULT", run())
+trace_cap.stop()
+texit_cap.stop()
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TEXIT_COUNT", texit_cap.total)
+""",
+}
+
 FFI_CALLS_FOCUSED_BENCH = """\
 local ffi = require("ffi")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
@@ -1785,6 +2070,44 @@ FAMILY_CONFIGS = {
         "work_items": {
             "number_helper_loop": 64000,
             "be_pack_loop": 64000,
+        },
+    },
+    "be_helpers_localized": {
+        "bench_file": "tests/s390x/perf/be_helpers_localized.lua",
+        "focus_label": "localized helper throughput",
+        "selection_reason": (
+            "quantify whether localizing helper bindings on the real dynamic-stop "
+            "workload shape materially narrows the remaining promotion-core gap"
+        ),
+        "focused_bench_script": BE_HELPERS_LOCALIZED_FOCUSED_BENCH,
+        "check_scripts": BE_HELPERS_LOCALIZED_CHECK_SCRIPTS,
+        "trace_scripts": BE_HELPERS_LOCALIZED_TRACE_SCRIPTS,
+        "hot_cases": (
+            "number_helper_loop_local_tobit/hot",
+            "be_pack_loop_local_ops_real/hot",
+        ),
+        "work_items": {
+            "number_helper_loop_local_tobit": 64000,
+            "be_pack_loop_local_ops_real": 64000,
+        },
+    },
+    "promotion_core_static_stop": {
+        "bench_file": "tests/s390x/perf/promotion_core_static_stop.lua",
+        "focus_label": "promotion-core static-stop throughput",
+        "selection_reason": (
+            "quantify how much of the remaining promotion-core gap is the "
+            "dynamic-stop replay floor by measuring real-shape static-stop siblings"
+        ),
+        "focused_bench_script": PROMOTION_CORE_STATIC_STOP_FOCUSED_BENCH,
+        "check_scripts": PROMOTION_CORE_STATIC_STOP_CHECK_SCRIPTS,
+        "trace_scripts": PROMOTION_CORE_STATIC_STOP_TRACE_SCRIPTS,
+        "hot_cases": (
+            "number_helper_literal_stop_real/hot",
+            "be_pack_literal_stop_real/hot",
+        ),
+        "work_items": {
+            "number_helper_literal_stop_real": 1,
+            "be_pack_literal_stop_real": 1,
         },
     },
     "ffi_calls": {

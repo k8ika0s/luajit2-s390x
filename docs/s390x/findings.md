@@ -12863,3 +12863,63 @@ Next hash target
     - the real reduced boundary matches the throughput-family read
     - there is no surviving reduced route-around lane here once the probe is
       corrected
+
+- Timestamp: `2026-04-02 20:03:20 PDT`
+- Real-shape helper localization is closed as a performance family on the
+  active promotion-core slice
+  - new checked-in family:
+    [20260402-kdz-be_helpers_localized-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers_localized-baseline-truth-pack/summary.md)
+    vs
+    [20260402-kdz-be_helpers_localized-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-be_helpers_localized-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - decisive hot read on clean `kdz`:
+    - `number_helper_loop_local_tobit/hot`
+      - baseline `0.436932` vs `-joff 0.001442`
+      - promoted default `0.621525` vs `0.001435`
+    - `be_pack_loop_local_ops_real/hot`
+      - baseline `0.300697` vs `-joff 0.007985`
+      - promoted default `0.244329` vs `0.008069`
+  - focused runtime read:
+    - baseline:
+      - both localized real-shape workloads are `exit-dominated`
+      - `TRACE_START 321`, `TRACE_STOP 321`, `TEXIT_COUNT 64001`
+    - promoted default:
+      - both are still `exit-dominated`
+      - `TRACE_START 5`, `TRACE_STOP 5`, `TEXIT_COUNT 64001`
+  - closure:
+    - helper localization on the real dynamic-stop shape is not a hidden
+      promotion-core win
+    - it only changes trace population; it does not change the replay-floor
+      exit count
+    - it is drastically worse than the existing shipping `be_helpers` slice
+    - helper-hoist / helper-localization should not be reopened as the next
+      performance family on this mechanism
+
+- Timestamp: `2026-04-02 20:10:45 PDT`
+- Real-shape static-stop quant pins the next honest promotion-core question
+  - new checked-in family:
+    [20260402-kdz-promotion_core_static_stop-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-baseline-truth-pack/summary.md)
+    vs
+    [20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - decisive `kdz` read:
+    - baseline real-shape literal-stop siblings are `compiled-body-dominated`
+      with `TEXIT_COUNT 0`
+      - `number_helper_literal_stop_real/hot 0.040660` vs `-joff 0.002244`
+      - `be_pack_literal_stop_real/hot 0.097101` vs `0.019263`
+    - promoted default still routes those same static-stop siblings into an
+      exit-heavy steady state:
+      - `number_helper_literal_stop_real`: `TRACE_START 1`, `TRACE_STOP 0`,
+        `TRACE_ABORT 1`, `TEXIT_COUNT 63999`
+      - `be_pack_literal_stop_real`: `TRACE_START 1`, `TRACE_STOP 1`,
+        `TRACE_ABORT 0`, `TEXIT_COUNT 63999`
+      - medians still improve sharply relative to baseline:
+        - `0.009910` vs `0.002230`
+        - `0.025347` vs `0.018812`
+  - closure:
+    - the remaining promotion-core gap is not “dynamic stop only” in the
+      simple sense
+    - removing dynamic stop is enough to make the baseline path
+      compiled-body-dominated
+    - but the promoted default still chooses an exit-heavy steady path even on
+      real-shape literal-stop siblings
+    - the next honest target is the exact static-stop seam under the promoted
+      default, because that is the remaining front-most payoff surface
