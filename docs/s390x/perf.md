@@ -2588,6 +2588,46 @@ header problem. It is a shared dynamic-stop numeric-for replay seam on the
 current promoted-default slice, and the same exact reduced signature is present
 on both `kdz` and `zkd0`.
 
+## Reduced Route-Around Split
+
+New reduced `kdz` route-around probes show the current floor can be escaped,
+but not by one generic trick:
+
+- [20260402-kdz-direct-abs-literal-stop-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-direct-abs-literal-stop-seam)
+  - `TRACE_START 4`
+  - `TRACE_STOP 3`
+  - `TEXIT_COUNT 1`
+- [20260402-kdz-be-pack-literal-stop-seam-nodump](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-literal-stop-seam-nodump)
+  - `TRACE_START 1`
+  - `TRACE_STOP 0`
+  - `TEXIT_COUNT 399`
+  - dominant exact guard:
+    - `trace 7 exit 0`
+    - `op 45`
+    - `curins 33`
+    - `sload_int ofs 0 extra 4`
+- [20260402-kdz-be-pack-literal-stop-local-ops](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-literal-stop-local-ops)
+  - `TRACE_START 1`
+  - `TRACE_STOP 1`
+  - `TEXIT_COUNT 0`
+- [20260402-kdz-be-pack-loop-local-ops](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-loop-local-ops)
+  - `TRACE_START 4`
+  - `TRACE_STOP 3`
+  - `TEXIT_COUNT 401`
+  - dominant exact guard:
+    - `trace 4 exit 0`
+    - `op 18`
+    - `curins 3`
+    - `sload_int ofs 48 extra 52`
+
+So:
+
+- static stop is enough to largely free `direct_abs`
+- static stop alone is not enough for `be_pack`
+- localizing `bit` helpers frees the literal-stop `be_pack` reducer
+- but on the real dynamic-stop `be_pack` shape, helper localization only moves
+  the replay seam later instead of removing the exit-dominated floor
+
 ## Relationship To Other Docs
 
 - High-level status:

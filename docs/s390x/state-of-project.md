@@ -3239,6 +3239,47 @@ Current owner map contract:
       shared dynamic-stop numeric-for replay floor unless a different
       mechanism is proven
 
+- Timestamp: `2026-04-02 18:43:05 PDT`
+- Route-around split is now pinned on reduced siblings
+  - new checked-in reduced probe variants live in:
+    - [build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
+  - clean `kdz` static-stop reads:
+    - [20260402-kdz-direct-abs-literal-stop-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-direct-abs-literal-stop-seam)
+      - `TRACE_START 4`
+      - `TRACE_STOP 3`
+      - `TEXIT_COUNT 1`
+      - old dynamic-stop replay floor is effectively gone
+    - [20260402-kdz-be-pack-literal-stop-seam-nodump](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-literal-stop-seam-nodump)
+      - `TRACE_START 1`
+      - `TRACE_STOP 0`
+      - `TEXIT_COUNT 399`
+      - dominant texit still hot:
+        - `trace 7 exit 0`
+        - `op 45`
+        - `curins 33`
+        - `sload_int ofs 0 extra 4`
+  - helper-localized static-stop `be_pack`:
+    - [20260402-kdz-be-pack-literal-stop-local-ops](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-literal-stop-local-ops)
+      - `TRACE_START 1`
+      - `TRACE_STOP 1`
+      - `TEXIT_COUNT 0`
+  - helper-localized dynamic-stop `be_pack`:
+    - [20260402-kdz-be-pack-loop-local-ops](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-loop-local-ops)
+      - `TRACE_START 4`
+      - `TRACE_STOP 3`
+      - `TEXIT_COUNT 401`
+      - dominant texit remains hot, but moves later:
+        - `trace 4 exit 0`
+        - `op 18`
+        - `curins 3`
+        - `sload_int ofs 48 extra 52`
+  - queue correction:
+    - static-stop alone is not the route-around for the whole slice
+    - imported helper/header traffic is a real residual floor for `be_pack`
+      under static-stop
+    - but on the real dynamic-stop shape, localizing helpers only shifts the
+      replay seam later; it does not remove the generic exit-dominated floor
+
 ### After that
 
 There are only two realistic outcomes:

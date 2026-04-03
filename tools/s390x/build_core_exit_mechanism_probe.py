@@ -348,6 +348,113 @@ emit_traceinfo(32)
 emit_traceir(32)
 """,
     },
+    "be_pack_loop_local_ops": {
+        "family": "be_helpers",
+        "iterations": 64000,
+        "label": "BE_PACK_LOOP_LOCAL_OPS",
+        "script": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run(n)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for i = 1, n do
+    local b1 = band(rshift(i, 24), 0xff)
+    local b2 = band(rshift(i, 16), 0xff)
+    local b3 = band(rshift(i, 8), 0xff)
+    local b4 = band(i, 0xff)
+    total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+  end
+  return tobit(total)
+end
+run(20); run(20); run(20)
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run({iterations}))
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "be_pack_literal_stop": {
+        "family": "header_reducer",
+        "iterations": 400,
+        "label": "BE_PACK_LITERAL_STOP",
+        "script": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  for i = 1, 400 do
+    local b1 = bit.band(bit.rshift(i, 24), 0xff)
+    local b2 = bit.band(bit.rshift(i, 16), 0xff)
+    local b3 = bit.band(bit.rshift(i, 8), 0xff)
+    local b4 = bit.band(i, 0xff)
+    total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
+  end
+  return bit.tobit(total)
+end
+run(); run(); run()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run())
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "be_pack_literal_stop_local_ops": {
+        "family": "header_reducer",
+        "iterations": 400,
+        "label": "BE_PACK_LITERAL_STOP_LOCAL_OPS",
+        "script": """\
+local bit = require("bit")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for i = 1, 400 do
+    local b1 = band(rshift(i, 24), 0xff)
+    local b2 = band(rshift(i, 16), 0xff)
+    local b3 = band(rshift(i, 8), 0xff)
+    local b4 = band(i, 0xff)
+    total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+  end
+  return tobit(total)
+end
+run(); run(); run()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run())
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
     "direct_abs": {
         "family": "ffi_calls",
         "iterations": 80000,
@@ -373,6 +480,38 @@ end
 run(20); run(20); run(20)
 local trace_cap, texit_cap = start_counters()
 print("RESULT", run({iterations}))
+stop_counters(trace_cap, texit_cap)
+emit_traceinfo(32)
+emit_traceir(32)
+""",
+    },
+    "direct_abs_literal_stop": {
+        "family": "header_reducer",
+        "iterations": 400,
+        "label": "DIRECT_ABS_LITERAL_STOP",
+        "script": """\
+local ffi = require("ffi")
+local jit = require("jit")
+local testlib = dofile("tests/s390x/helpers/testlib.lua")
+testlib.enable_repo_jit_modules()
+jit.opt.start("hotloop=1", "hotexit=1")
+ffi.cdef[[
+int abs(int x);
+]]
+{emit_hist}
+{emit_traceinfo}
+{emit_traceir}
+{emit_counter}
+local function run()
+  local total = 0
+  for i = 1, 400 do
+    total = total + ffi.C.abs((i % 17) - 8)
+  end
+  return total
+end
+run(); run(); run()
+local trace_cap, texit_cap = start_counters()
+print("RESULT", run())
 stop_counters(trace_cap, texit_cap)
 emit_traceinfo(32)
 emit_traceir(32)
