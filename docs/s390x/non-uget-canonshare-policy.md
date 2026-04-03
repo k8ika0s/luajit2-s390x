@@ -1,6 +1,6 @@
 # Non-UGET Canon/Share Policy Boundary
 
-Last updated: 2026-04-02 22:38:00 PDT
+Last updated: 2026-04-03 05:09:36 PDT
 
 ## Why This Exists
 
@@ -160,3 +160,28 @@ Before any new code family:
   post-collapse target, not the old `UGET` clone-ladder itself
 
 Only then decide whether a dedicated selective policy/gate is justified.
+
+## Rejected Follow-On
+
+Layering signed GC64 integer `SLOAD` extraction onto the same reduced broad
+non-`UGET` lane does not move the remaining floor.
+
+- host-backed `kdz` truth pack:
+  [20260403-kdz-promotion_core_static_stop-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-promotion_core_static_stop-hotside_canon_share-truth-pack/summary.md)
+  - `number_helper_literal_stop_real_local_tobit/hot`
+    `0.006251s` vs `-joff 0.001359s` (`4.60x`)
+  - focused read stays `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+    `TEXIT_COUNT 63999`
+- reduced `kdz` mechanism probe:
+  [20260403-kdz-localized-total-signed-broad-probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-total-signed-broad-probe/summary.md)
+  - dominant seam is unchanged:
+    - `trace 7 exit 0`
+    - restored `BC_MOV` (`op=18`)
+    - first `sload_int`
+      `curins=6 op1=3 op2=4 ofs=8 extra=12`
+    - dominant runtime `guardmark=0`
+
+So the old logical-vs-signed GC64 int-tag extraction issue is not the live
+post-collapse payer on this localized broad-canon/share lane anymore. The
+next honest target is the later unmarked exit path on the same restored
+`BC_MOV` replay family, not another carried-`total` compare tweak.

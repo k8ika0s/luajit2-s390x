@@ -13135,3 +13135,31 @@ Next hash target
       `curins=4 / op1=2` lane as its first carried-`total` guard
     - the remaining floor is the localized-helper carried-`total`
       `curins=6 / op1=3 / ofs=8 / extra=12` lane
+
+- Timestamp: `2026-04-03 05:09:36 PDT`
+- Signed GC64 integer `SLOAD` extraction is perf-inert on the localized broad
+  non-`UGET` lane
+  - host-backed `kdz` truth pack:
+    [20260403-kdz-promotion_core_static_stop-hotside_canon_share-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-promotion_core_static_stop-hotside_canon_share-truth-pack/summary.md)
+  - env overlay:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+  - quantitative read:
+    - `number_helper_literal_stop_real_local_tobit/hot`
+      `0.006251s` vs `-joff 0.001359s` (`4.60x`)
+    - focused read stays `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 63999`
+  - reduced mechanism probe:
+    [20260403-kdz-localized-total-signed-broad-probe](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-localized-total-signed-broad-probe/summary.md)
+  - structural read is unchanged:
+    - dominant seam still `trace 7 exit 0`
+    - restored `BC_MOV` (`op=18`)
+    - first `sload_int` still
+      `curins=6 op1=3 op2=4 ofs=8 extra=12`
+    - dominant runtime `guardmark=0`
+  - closure:
+    - the earlier GC64 logical-vs-signed int-tag extraction issue is not the
+      remaining post-collapse payer on this localized lane
+    - do not open another carried-`total` compare/lowering family here
+    - the next honest target is the later unmarked exit path on the same
+      restored `BC_MOV` replay family
