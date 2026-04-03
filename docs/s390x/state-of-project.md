@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 21:22:00 PDT
+Last updated: 2026-04-02 21:31:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -3470,6 +3470,35 @@ Current owner map contract:
     - the next honest target is whether this opt-in lane can actually cross
       into `jit.on < -joff`, then whether a selective non-`UGET`
       canon/share policy can be justified
+
+- Timestamp: `2026-04-02 21:31:00 PDT`
+- Host-pair truth packs close the broad non-`UGET` localized lane as
+  correctness-positive but still slower than `-joff`
+  - authoritative packs:
+    [20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+    [20260402-zkd0-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-zkd0-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - candidate env:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - layered on top of the shipping filtered default
+  - `number_helper_literal_stop_real_local_tobit/hot`
+    - `kdz`: `0.006327s` vs `-joff 0.001361s` (`4.65x`)
+    - `zkd0`: `0.013725s` vs `-joff 0.002224s` (`6.17x`)
+  - focused runtime read:
+    - `kdz`: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 63999`
+    - `zkd0`: `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 63999`
+    - both stay `exit-dominated`
+  - sibling contrast:
+    - `be_pack_literal_stop_real` barely moves under the same env and stays
+      around `1.3x` slower than `-joff`
+  - queue correction:
+    - the broad non-`UGET` canon/share lane is real but still not enough to
+      make this subgroup fast
+    - the next honest target is selective non-`UGET` canon/share policy
+      design or a fresh exit seam inside this lane, not widening the default
+    - bounded follow-on note:
+      [non-uget-canonshare-policy.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/non-uget-canonshare-policy.md)
 
 ### After that
 

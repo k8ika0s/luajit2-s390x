@@ -2860,6 +2860,32 @@ So the localized static-stop subgroup is no longer one uniform dead end:
 - the next honest quant is not more structural probing; it is whether this
   opt-in `number_helper` lane can actually beat `-joff`
 
+Host-pair truth-pack quant closes that question:
+
+- `kdz`:
+  [20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - `number_helper_literal_stop_real_local_tobit/hot`
+    - JIT-on `0.006327s`
+    - `-joff 0.001361s`
+    - ratio `4.65x`
+  - focused:
+    - `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 63999`
+    - still `exit-dominated`
+- `zkd0`:
+  [20260402-zkd0-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-zkd0-promotion_core_static_stop-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - `number_helper_literal_stop_real_local_tobit/hot`
+    - JIT-on `0.013725s`
+    - `-joff 0.002224s`
+    - ratio `6.17x`
+  - focused:
+    - `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 63999`
+    - still `exit-dominated`
+
+So the broad non-`UGET` opt-in lane is real, but it does not cross into
+`jit.on < -joff`. The next honest target is selective non-`UGET` canon/share
+policy design or a fresh exit seam inside this localized subgroup, not a
+shipping-default expansion.
+
 ## Relationship To Other Docs
 
 - High-level status:
