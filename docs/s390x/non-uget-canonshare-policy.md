@@ -1,6 +1,6 @@
 # Non-UGET Canon/Share Policy Boundary
 
-Last updated: 2026-04-02 21:35:00 PDT
+Last updated: 2026-04-02 21:43:00 PDT
 
 ## Why This Exists
 
@@ -32,6 +32,28 @@ Real evidence so far:
 - localized static-stop `be_pack`
   - barely moves under the same broad opt-in
 
+Reduced post-collapse seam on clean `kdz`:
+
+- broad opt-in env:
+  - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+- reduced localized no-helper sibling (`number_helper_local_tobit`, `n=400`)
+  still exits at restored `BC_MOV` (`op=18`)
+- first exact surviving guard in that reduced lane:
+  - `kind=sload_int`
+  - `curins=4`
+  - `ofs=0`
+  - `extra=4`
+- later guards in the same cluster include:
+  - `curins=3`
+  - `kind=sload_type`
+  - `curins=2`
+  - `ofs=8`
+  - `extra=8`
+
+So broad non-`UGET` canon/share collapses the cross-call ladder, but it does
+not remove the first stack-visible `SLOAD` guard cluster on the localized
+`MOV` seam.
+
 This means the useful boundary is not “all non-`UGET` seams”. It is narrower.
 
 ## Candidate Entry Conditions
@@ -61,5 +83,7 @@ Before any new code family:
 - prove the exact repeated-call lane that broad canon/share helps on the real
   localized static-stop `number_helper` shape
 - prove that the same policy does not pay for unrelated non-`UGET` seams
+- use the reduced `MOV` + `sload_int ofs=0 extra=4` seam as the first exact
+  post-collapse target, not the old `UGET` clone-ladder itself
 
 Only then decide whether a dedicated selective policy/gate is justified.

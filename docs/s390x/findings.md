@@ -13025,3 +13025,29 @@ Next hash target
     - the next honest target is either:
       - selective non-`UGET` canon/share policy design, or
       - a fresh exit seam inside this lane
+
+- Timestamp: `2026-04-02 21:43:00 PDT`
+- Reduced localized broad-opt-in probe pins the first post-collapse seam
+  - direct reduced `kdz` run with:
+    - `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - `LUAJIT_S390X_GUARDMARK_TAKEN=1`
+    - `LUAJIT_S390X_GUARD_LOG=1`
+  - target:
+    - localized no-helper sibling `number_helper_local_tobit`
+    - `n=400`
+  - decisive read:
+    - restored `pc op=18`
+    - `snapop=18`
+    - exact first surviving guard:
+      - `kind=sload_int`
+      - `curins=4`
+      - `ofs=0`
+      - `extra=4`
+    - later cluster:
+      - `curins=3`
+      - `sload_type curins=2 ofs=8 extra=8`
+  - closure:
+    - broad non-`UGET` canon/share removes the old cross-call ladder as the
+      first payer on this reduced lane
+    - the next exact seam is now the localized `MOV`/stack-visible `SLOAD`
+      header cluster
