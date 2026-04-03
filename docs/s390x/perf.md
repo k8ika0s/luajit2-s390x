@@ -3373,3 +3373,33 @@ localized-helper carried-`total` lane
   - this is a real sub-remediation for the carried accumulator lane
   - but not a promotable lane by itself because it only re-exposes the
     visible current-value payer
+
+## 2026-04-03 16:22 PDT
+
+- The combined recorder family is now classified and rejected:
+  - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+  - `LUAJIT_S390X_ADDVV_ACCUM_INT_NOGUARD=1`
+- Mechanism control:
+  [20260403-161644-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-161644-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - first exact taken guard moves beyond both stack `SLOAD` payers
+  - it lands on the first loop-body arithmetic consumer:
+    - `TRACEIR tr=1 ins=14 op=MULOV`
+    - runtime `guardmark curins 14`
+  - but the result is already wrong:
+    - `RESULT 1323881804`
+- Payoff sibling:
+  [20260403-161839-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-161839-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - the same family is not seam-preserving on `be_pack_loop`
+  - it collapses to:
+    - `TRACE_START 1`
+    - `TRACE_STOP 1`
+    - `TEXIT_COUNT 2`
+    - dominant `trace 2 exit 0`
+- Classification:
+  - this is not a throughput lane
+  - it is a control-only redirect that identifies the next issue:
+    once both stack `SLOAD` lanes are relaxed, the front-most payer is the
+    first loop-body `MULOV` consumer
+  - the arithmetic audit closes the easy follow-up:
+    wrapped `bit.tobit()` semantics do not license stripping `MULOV`, so this
+    is not a narrow promotable arithmetic lane

@@ -13693,3 +13693,48 @@ Next hash target
       typecheck when the visible-current guard is already relaxed
     - but that only exposes the old visible current-value seam again
     - so this family is evidence, not a promotable remediation by itself
+
+- Timestamp: `2026-04-03 16:22:00 PDT`
+  - the combined recorder family is now closed as a control-only redirect:
+    - `LUAJIT_S390X_FORL_ROOT_VISIBLE_IDX_NOGUARD=1`
+    - `LUAJIT_S390X_ADDVV_ACCUM_INT_NOGUARD=1`
+  - exact-taken control:
+    - [20260403-161644-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-161644-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - on `number_helper_loop`, the first literal taken guard finally moves off
+    both replay/header `SLOAD` payers:
+    - `RESULT 1323881804`
+    - `trace 1 exit 0`
+    - runtime `guardmark curins 14`
+    - first exact taken guard is the loop-body arithmetic consumer:
+      - `TRACEIR tr=1 ins=14 op=MULOV`
+      - `op1=3`
+      - `op2=-12`
+    - the carried accumulator lane stays present but already unguarded:
+      - `TRACEIR tr=1 ins=15 op=SLOAD`
+      - `op1=3`
+      - `op2=0`
+  - payoff sibling exact run:
+    - [20260403-161839-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-161839-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
+  - `be_pack_loop` does not preserve the same live seam under that combined
+    family:
+    - `TRACE_START 1`
+    - `TRACE_STOP 1`
+    - `TEXIT_COUNT 2`
+    - dominant exit shifts to `trace 2 exit 0`
+    - dominant runtime `guardmark curins 1`
+  - conclusion:
+    - the combined root-visible-current plus `BC_ADDVV` accumulator relax is
+      not promotable
+    - it is correctness-bad on the mechanism control
+    - and it is not seam-preserving on the payoff sibling
+    - but it does identify the next real issue cleanly:
+      the first loop-body `MULOV` consumer becomes front-most once both stack
+      `SLOAD` lanes are relaxed
+  - arithmetic audit:
+    - [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+      already closes the obvious shortcut
+    - wrapped-overflow semantics are allowed to strip `ADDOV` and `SUBOV`,
+      but explicitly not `MULOV`, because multiplication needs precision
+      widening
+    - that makes a narrow `bit.tobit()`-driven `MULOV` strip a generic
+      non-starter, not the next honest remediation family
