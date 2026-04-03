@@ -12570,3 +12570,27 @@ Next hash target
       - that leaves `tc = IRSLOAD_TYPECHECK`, and the recorder emits the
         visible current-value lane as `IRSLOAD_INHERIT | IRSLOAD_TYPECHECK`
       - exactly the observed `op2=36`
+
+- Timestamp: `2026-04-02 18:24:00 PDT`
+- Direct visible-current-value typecheck relaxation is closed immediately
+  - rejected gate:
+    - `LUAJIT_S390X_FORL_VISIBLE_IDX_NO_TC`
+  - intended scope:
+    - `FORL` replay only
+    - visible current-value lane only
+    - integer loop only
+  - clean `kdz` screen:
+    - remote rebuild completed
+    - first reduced setup completed
+    - no runtime workload log was emitted after setup for
+      `pure_add_reducer`
+    - artifact directory stopped at:
+      - `build.*`
+      - `pure_add_reducer.setup.*`
+    - artifact:
+      [20260402-kdz-forl-visible-idx-no-tc-check](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-forl-visible-idx-no-tc-check)
+  - closure:
+    - direct removal of the visible `FORL_IDX` replay/typecheck is not a safe
+      performance path
+    - the next honest target is the invariant that this guard is still
+      protecting on dynamic-stop loops
