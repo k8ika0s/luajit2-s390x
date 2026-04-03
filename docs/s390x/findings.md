@@ -12686,3 +12686,42 @@ Next hash target
       after the first traced update on the same replayed loop
   - design note:
     [forl-visible-current-latch.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/forl-visible-current-latch.md)
+
+- Timestamp: `2026-04-02 18:28:00 PDT`
+- The visible-current-value latch theory is now closed on the current
+  mechanism
+  - source and cross-backend read:
+    - the surviving visible `FORL_IDX` current-value lane is generic
+      recorder/runtime policy, not backend-specific lowering
+    - snapshot replay preserves slot identity, so numeric-for slot meaning does
+      not drift after replay entry
+    - VM numeric-for paths keep `FOR_IDX` as hidden control state and
+      `FOR_EXT` as the visible mirror on every iteration
+  - new reduced `kdz` cross-checks under the promoted default:
+    - [20260402-kdz-direct-abs-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-direct-abs-current-seam)
+      - `TRACE_START 4`
+      - dominant texit `3:0 x 200`
+      - exact runtime guard:
+        - `curins 3`
+        - `sload_int ofs 16 extra 20`
+      - reduced dump:
+        - `0003 >  int SLOAD  #4    TI`
+    - [20260402-kdz-be-pack-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-current-seam)
+      - `TRACE_START 3`
+      - dominant texit `4:0 x 200`
+      - exact runtime guard:
+        - `curins 3`
+        - `sload_int ofs 16 extra 20`
+      - reduced dump:
+        - `0003 >  int SLOAD  #4    TI`
+  - with the existing `number_helper_loop` read, that means the same seam is
+    front-most across all three representative promotion-core winners:
+    - `number_helper_loop`
+    - `be_pack_loop`
+    - `direct_abs`
+  - closure:
+    - this is no longer an honest helper-only or entry-only mismatch theory
+    - once-per-replay visible-current-value latch remediation should not be
+      reopened on the current mechanism
+    - the next honest target is whether the remaining promoted-default gap is
+      simply generic dynamic-stop numeric-for replay cost
