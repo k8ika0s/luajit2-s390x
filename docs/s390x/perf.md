@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-02 16:23:53 PDT
+Last updated: 2026-04-02 19:23:54 PDT
 
 ## Latest Matrix
 
@@ -35,6 +35,12 @@ Pinned host-pair summary:
 | 2026-04-01 19:56:12 PDT | `chain_tail_add/hot` | `hotside_canon_share_uget_looproot_default` | `0.003212` | `0.002104` | `1.53x` |
 | 2026-04-01 19:56:12 PDT | `chain_tail_store/hot` | `hotside_canon_share_uget_looproot_default` | `0.002907` | `0.002036` | `1.43x` |
 | 2026-04-01 19:56:12 PDT | `mix_bits/hot` | `hotside_canon_share_uget_looproot_default` | `0.003182` | `0.002086` | `1.53x` |
+| 2026-04-02 19:10:44 PDT | `be_pack_literal_stop/hot` | `baseline` | `0.241946` | `0.047685` | `5.07x` |
+| 2026-04-02 19:10:40 PDT | `be_pack_literal_stop/hot` | `hotside_canon_share_uget_looproot_default` | `0.073034` | `0.046844` | `1.56x` |
+| 2026-04-02 19:10:44 PDT | `be_pack_literal_stop_local_ops/hot` | `baseline` | `0.126152` | `0.019453` | `6.48x` |
+| 2026-04-02 19:10:40 PDT | `be_pack_literal_stop_local_ops/hot` | `hotside_canon_share_uget_looproot_default` | `0.126189` | `0.019927` | `6.33x` |
+| 2026-04-02 19:10:44 PDT | `be_pack_loop_local_ops/hot` | `baseline` | `0.126122` | `0.019463` | `6.48x` |
+| 2026-04-02 19:10:40 PDT | `be_pack_loop_local_ops/hot` | `hotside_canon_share_uget_looproot_default` | `0.126296` | `0.019513` | `6.47x` |
 | 2026-04-01 20:20:45 PDT | `numeric_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.342594` | `0.002173` | `157.66x` |
 | 2026-04-01 20:20:45 PDT | `side_exit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.526504` | `0.004692` | `112.21x` |
 | 2026-04-01 20:20:45 PDT | `hotexit_loop/hot` | `hotside_canon_share_uget_looproot_default` | `0.611632` | `0.005619` | `108.85x` |
@@ -2627,6 +2633,59 @@ So:
 - localizing `bit` helpers frees the literal-stop `be_pack` reducer
 - but on the real dynamic-stop `be_pack` shape, helper localization only moves
   the replay seam later instead of removing the exit-dominated floor
+
+## Route-Around Quantification
+
+Helper-backed `kdz` A/B now closes the reduced route-around subgroup as a
+performance remediation lane:
+
+- baseline:
+  [20260402-kdz-route_around_reducers-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-route_around_reducers-baseline-truth-pack/summary.md)
+- promoted default:
+  [20260402-kdz-route_around_reducers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-route_around_reducers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+
+Important corrections:
+
+- `stored_abs_literal_stop` is not a valid reducer on remote `kdz`:
+  - direct reduced probes return `RESULT 0` under both baseline JIT and the
+    promoted default
+  - it was removed from the throughput family and is out as route-around
+    evidence on this host
+- the remaining valid `be_pack` subgroup stays slower than `-joff` throughout:
+  - `be_pack_literal_stop`
+    - baseline `0.241946` vs `0.047685`
+    - promoted default `0.073034` vs `0.046844`
+  - `be_pack_literal_stop_local_ops`
+    - baseline `0.126152` vs `0.019453`
+    - promoted default `0.126189` vs `0.019927`
+  - `be_pack_loop_local_ops`
+    - baseline `0.126122` vs `0.019463`
+    - promoted default `0.126296` vs `0.019513`
+
+So:
+
+- the promoted default materially helps the static-stop `be_pack` reducer
+- none of the valid reduced `be_pack` siblings cross into `jit.on < -joff`
+- the small-scale structural escape on `be_pack_literal_stop_local_ops` does
+  not survive throughput-scale work
+- corrected reduced boundary after fixing the helper:
+  - one chunk:
+    [20260402-kdz-be-pack-local-ops-chunks1-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-local-ops-chunks1-v3/summary.md)
+    - `TRACE_START 2`
+    - `TRACE_STOP 2`
+    - `TEXIT_COUNT 1`
+  - throughput-sized `run(400)`:
+    [raw stdout](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-local-ops-chunks400-v3/raw/be_pack_literal_stop_local_ops.stdout.log)
+    - `RESULT 32080000`
+    - `TRACE_START 367`
+    - `TRACE_STOP 367`
+    - `TEXIT_COUNT 365`
+- helper correction:
+  - the reduced core probe now honors `--iterations` for literal-stop reducers
+  - it also uses unique remote `/tmp/<workload>-<id>.lua` names so parallel
+    runs no longer clobber one another
+- reduced route-around siblings are evidence only, not the next promotable
+  performance lane
 
 ## Relationship To Other Docs
 

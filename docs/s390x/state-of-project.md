@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-02 18:12:00 PDT
+Last updated: 2026-04-02 19:23:54 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -3279,6 +3279,52 @@ Current owner map contract:
       under static-stop
     - but on the real dynamic-stop shape, localizing helpers only shifts the
       replay seam later; it does not remove the generic exit-dominated floor
+
+- Timestamp: `2026-04-02 19:10:44 PDT`
+- Route-around quantification closes the reduced subgroup as a performance
+  remediation lane on clean `kdz`
+  - new helper-backed family:
+    [20260402-kdz-route_around_reducers-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-route_around_reducers-baseline-truth-pack/summary.md)
+    vs
+    [20260402-kdz-route_around_reducers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-route_around_reducers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - invalid reduced FFI literal-stop legs are now explicitly out:
+    - `stored_abs_literal_stop` returns `RESULT 0` on remote `kdz` under plain
+      JIT and under the promoted default, so it is not a valid route-around
+      workload on this host
+  - valid `be_pack` subgroup read:
+    - baseline:
+      - `be_pack_literal_stop/hot 0.241946` vs `-joff 0.047685`
+      - `be_pack_literal_stop_local_ops/hot 0.126152` vs `0.019453`
+      - `be_pack_loop_local_ops/hot 0.126122` vs `0.019463`
+    - promoted default:
+      - `be_pack_literal_stop/hot 0.073034` vs `0.046844`
+      - `be_pack_literal_stop_local_ops/hot 0.126189` vs `0.019927`
+      - `be_pack_loop_local_ops/hot 0.126296` vs `0.019513`
+  - queue correction:
+    - the promoted default materially helps the static-stop `be_pack` reducer
+      (`0.241946 -> 0.073034`) but still does not cross into `jit.on < -joff`
+    - the small-scale structural escape on `be_pack_literal_stop_local_ops`
+      does not survive throughput-scale work
+    - corrected reduced boundary after fixing the probe helper:
+      - one chunk:
+        [20260402-kdz-be-pack-local-ops-chunks1-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-local-ops-chunks1-v3/summary.md)
+        - `TRACE_START 2`
+        - `TRACE_STOP 2`
+        - `TEXIT_COUNT 1`
+      - throughput-sized `run(400)`:
+        [raw stdout](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-local-ops-chunks400-v3/raw/be_pack_literal_stop_local_ops.stdout.log)
+        - `RESULT 32080000`
+        - `TRACE_START 367`
+        - `TRACE_STOP 367`
+        - `TEXIT_COUNT 365`
+    - the earlier fake flat sweep was a probe artifact:
+      - the old reduced helper ignored `--iterations` for literal-stop
+        reducers and reused one shared remote `/tmp/<workload>.lua` name across
+        concurrent runs
+      - the checked-in probe now honors iteration override for the
+        literal-stop family and writes unique remote script names
+    - reduced route-around siblings are now evidence only, not the next
+      promotable performance lane
 
 ### After that
 

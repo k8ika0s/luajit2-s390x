@@ -12795,3 +12795,71 @@ Next hash target
       `be_pack` reducer
     - but on the real dynamic-stop `be_pack` shape, localization only moves
       the replay seam later, so the generic exit-dominated floor still wins
+
+- Timestamp: `2026-04-02 19:10:44 PDT`
+- Reduced route-around quantification closes that subgroup as performance
+  evidence only
+  - helper-backed family:
+    [20260402-kdz-route_around_reducers-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-route_around_reducers-baseline-truth-pack/summary.md)
+    vs
+    [20260402-kdz-route_around_reducers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260402-kdz-route_around_reducers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - invalid FFI literal-stop leg is now explicitly out:
+    - direct reduced `kdz` probes for `stored_abs_literal_stop` return
+      `RESULT 0` under both baseline JIT and the promoted default
+    - it is not usable as route-around evidence on this host
+  - valid `be_pack` subgroup:
+    - `be_pack_literal_stop`
+      - baseline `0.241946` vs `-joff 0.047685`
+      - promoted default `0.073034` vs `0.046844`
+    - `be_pack_literal_stop_local_ops`
+      - baseline `0.126152` vs `0.019453`
+      - promoted default `0.126189` vs `0.019927`
+    - `be_pack_loop_local_ops`
+      - baseline `0.126122` vs `0.019463`
+      - promoted default `0.126296` vs `0.019513`
+  - focused runtime read:
+    - `be_pack_literal_stop` improves materially under the promoted default
+      but remains exit-dominated at hot scale:
+      - `TRACE_START 367`
+      - `TRACE_STOP 366`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 160365`
+    - `be_pack_literal_stop_local_ops` loses its small-scale structural escape
+      at throughput scale and falls back to:
+      - `TRACE_START 367`
+      - `TRACE_STOP 366`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 365`
+  - closure:
+    - the reduced route-around subgroup is not the next promotable
+      performance lane
+    - it stays useful only as evidence that the dynamic-stop replay floor can
+      be reshaped structurally in toy siblings without yet delivering a real
+      throughput win
+
+- Timestamp: `2026-04-02 19:23:54 PDT`
+- Corrected reduced boundary closes the last apparent escape on
+  `be_pack_literal_stop_local_ops`
+  - checked-in helper fix:
+    [build_core_exit_mechanism_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_core_exit_mechanism_probe.py)
+    - literal-stop reducers now honor `--iterations`
+    - each remote probe now uses a unique `/tmp/<workload>-<id>.lua` path so
+      concurrent runs do not overwrite one another
+  - clean `kdz` reduced boundary after that fix:
+    - one chunk:
+      [20260402-kdz-be-pack-local-ops-chunks1-v3](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-local-ops-chunks1-v3/summary.md)
+      - `RESULT 80200`
+      - `TRACE_START 2`
+      - `TRACE_STOP 2`
+      - `TEXIT_COUNT 1`
+    - throughput-sized `run(400)`:
+      [raw stdout](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260402-kdz-be-pack-local-ops-chunks400-v3/raw/be_pack_literal_stop_local_ops.stdout.log)
+      - `RESULT 32080000`
+      - `TRACE_START 367`
+      - `TRACE_STOP 367`
+      - `TEXIT_COUNT 365`
+  - closure:
+    - the earlier “flat clean sweep” on local-ops was a probe artifact
+    - the real reduced boundary matches the throughput-family read
+    - there is no surviving reduced route-around lane here once the probe is
+      corrected
