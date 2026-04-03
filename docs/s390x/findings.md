@@ -13360,5 +13360,22 @@ Next hash target
         - `snapshot_slots()` is too late for repair on this lane
         - the next honest target is the earlier frame-window / slot-identity
           collapse between `IR_RETF` and the later caller `RET1`
+    - exact `snap_usedef()` logging now closes that earlier target:
+      - artifact:
+        [20260403-082040-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082040-kdz-baseline-core-exit-mechanism/summary.md)
+      - the first real loss is at caller `RET0`, not at the later failing
+        `RET1`
+      - under active `IR_RETF`, the `BC_RET0/RET1` liveness rule is already
+        running with:
+        - `baseslot=2`
+        - `maxslot=18`
+        - only `idx=17` carrying `ref=1`, `type=14`
+      - conclusion:
+        - the caller-visible result identity has already been collapsed by the
+          earlier return-window rule before the failing `RET1` snapshot is
+          built
+        - `lj_record_ret()` is too early for repair
+        - the final `snapshot_slots()` pass is too late
     - the next honest remediation family is lower-frame result-alias rebasing
-      or rematerialization across `IR_RETF`
+      or rematerialization across `IR_RETF`, specifically at the active
+      `snap_usedef()` return window

@@ -138,3 +138,32 @@ Snapshot-window correction:
   - the next honest target is earlier than `snapshot_slots()` itself:
     where the caller frame window and slot identity collapse from the shifted
     lower-frame destination back to the caller-visible return slot
+
+Exact collapse-site correction:
+
+- artifact:
+  - [20260403-082040-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082040-kdz-baseline-core-exit-mechanism/summary.md)
+- targeted `snap_usedef()` logging with active `IR_RETF` now pins the first
+  real collapse point:
+  - it is not the later failing caller `RET1` pass (`op=76`)
+  - it is the earlier caller `RET0` liveness pass (`op=75`) with
+    `prevop=UCLO`
+  - there, the current window is already operating with the rebased caller
+    frame and only one live inherited result identity:
+    - `baseslot=2`
+    - `maxslot=18`
+    - `retf=3`
+    - only `idx=17` carries `ref=1`, `type=14`
+  - the `BC_RET0/RET1` liveness rule in
+    [snap_usedef()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L305)
+    then keeps only the caller-visible return window and discards everything
+    else for that continuation frame
+- conclusion:
+  - the first deep loss is the `BC_RET0` use/def collapse while `IR_RETF`
+    is still active
+  - the later failing `RET1` snapshot is only where the already-collapsed
+    identity becomes observable as `slot2=ref1[...]`
+  - `lj_record_ret()` is too early, and the final `snapshot_slots()` pass is
+    too late
+  - the next honest remediation boundary is the `snap_usedef()` return-window
+    rule under active `IR_RETF`, not another local slot assignment

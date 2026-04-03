@@ -3082,10 +3082,24 @@ That continuation is now pinned more exactly:
 - so `snapshot_slots()` itself is now closed as the local repair site on this
   lane; the remaining target is earlier, in the frame-window / slot-identity
   collapse between `IR_RETF` and the later caller `RET1`
+- exact `snap_usedef()` logging now pins that earlier collapse point:
+  - artifact:
+    [20260403-082040-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082040-kdz-baseline-core-exit-mechanism/summary.md)
+  - the first real loss is at caller `RET0`, not the later failing `RET1`
+  - under active `IR_RETF`, the `BC_RET0/RET1` liveness rule in
+    [snap_usedef()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L305)
+    is already running with:
+    - `baseslot=2`
+    - `maxslot=18`
+    - only `idx=17` carrying `ref=1`, `type=14`
+  - that means the caller-visible result identity has already been collapsed
+    by the earlier return-window rule before the failing `RET1` snapshot is
+    built
 
 So the next honest remediation lane on this slice is lower-frame result-slot
-rebasing/rematerialization across `IR_RETF`, not more caller-loop `LE`
-attribution and not local resumed-`MOV` patches.
+rebasing/rematerialization across `IR_RETF`, specifically at the active
+`snap_usedef()` return window, not more caller-loop `LE` attribution and not
+local resumed-`MOV` patches.
 
 That later path is now confirmed to be workload-local:
 

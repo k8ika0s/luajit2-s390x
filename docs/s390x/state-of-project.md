@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 07:45:41 PDT
+Last updated: 2026-04-03 08:27:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -3838,6 +3838,25 @@ Current owner map contract:
         - `snapshot_slots()` itself is too late for repair on this lane
         - the next honest target is the earlier frame-window / slot-identity
           collapse between `IR_RETF` and the later caller `RET1`
+    - exact `snap_usedef()` logging now closes that earlier target too:
+      - artifact:
+        [20260403-082040-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082040-kdz-baseline-core-exit-mechanism/summary.md)
+      - the first real collapse point is not the later caller `RET1` pass
+      - it is the earlier caller `RET0` use/def pass under active `IR_RETF`
+      - exact read:
+        - `op=75` (`RET0`)
+        - `prevop=50` (`UCLO`)
+        - `baseslot=2`
+        - `maxslot=18`
+        - `retf=3`
+        - only `idx=17` still carries `ref=1`, `type=14`
+      - queue correction:
+        - the later failing `RET1` snapshot only exposes an identity that has
+          already been collapsed by the earlier `BC_RET0` return-window rule
+        - `lj_record_ret()` is too early for repair
+        - the final `snapshot_slots()` pass is too late
+        - the next honest remediation family is the `snap_usedef()` return
+          window itself when `IR_RETF` is active
     - next honest target is lower-frame result-alias rebasing or
       rematerialization across `IR_RETF`, not more `CALLXS` narrowing, not
       more caller-loop attribution, and not more local `MOV` window
