@@ -3983,6 +3983,29 @@ Current owner map contract:
   - repeated-call shape is small and stable, not the old ladder:
     - `TRACE_START 3`
     - `TRACE_STOP 3`
+
+- Timestamp: `2026-04-03 21:00:49 PDT`
+- The branch now keeps one real signed-int backend correction and drops the
+  latest rejected consumer probes
+  - retained code fix:
+    - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - in the generic signed GC64 integer `SLOAD` compare path, expected tag is
+      now loaded as direct signed `LJ_TISNUM`
+    - this removes the old `-1` expected-constant bug on carried signed-int
+      lanes
+  - retained validation:
+    - with the hidden-current compare fix also enabled, `be_pack_loop` stays
+      correct at `2048032000`
+  - rejected this cycle:
+    - `lj_snap_replay()` replacement / unparent probes
+    - `lj_record_ret()` rematerialization probes
+    - consumer-side `FLOAD` base masking
+    - consumer-side `AHUVLOAD` base masking
+  - queue correction:
+    - the live blocker after the two compare fixes is a later post-compare
+      stable-callsite consumer crash
+    - not another signed compare bug
+    - not another replay or return-slot rematerialization fix
     - `TRACE_ABORT 0`
     - `TEXIT 401`
     - texit histogram:

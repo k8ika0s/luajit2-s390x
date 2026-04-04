@@ -3133,7 +3133,7 @@ dotypecheck:
 	}
       } else if (LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()) {
 	emit_loadu64(as, expected,
-		     (uint64_t)(((int64_t)(int32_t)LJ_TISNUM) >> 15));
+		     (uint64_t)(int64_t)(int32_t)LJ_TISNUM);
 	emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
       } else {
 	emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM >> 15));

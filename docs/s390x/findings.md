@@ -14003,8 +14003,30 @@ Next hash target
     - guard emission order in the same restored-header cluster is:
       - `curins 37`
       - `curins 35`
-      - `curins 33`
-    - nearby IR window is:
+
+- Timestamp: `2026-04-03 21:00:49 PDT`
+  - the generic signed GC64 integer `SLOAD` compare constant is a real retained
+    backend fix
+  - code change:
+    - in [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h),
+      the generic signed-int path now loads expected `LJ_TISNUM` directly
+      instead of the old `>> 15` folded value
+  - read:
+    - this matches the earlier compare-truth result on the carried int lane:
+      shifted runtime tag `-14` vs old expected `-1`
+    - with the hidden-current compare fix also enabled, `be_pack_loop` stays
+      correct at `2048032000`
+    - the compare-fixed stable-callsite reducer still crashes afterward, so the
+      next blocker is later than the signed compare itself
+  - rejected follow-ups this cycle:
+    - replay-side `lj_snap_replay()` replacement/unparent probes: both segfault
+    - `lj_record_ret()` rematerialization probes: both segfault
+    - `FLOAD` base-mask probe: crash unchanged
+    - `AHUVLOAD` base-mask probe: crash unchanged
+  - next live target:
+    - the post-compare consumer crash after the stable-callsite reducer clears
+      the old hidden-current and carried-signed compare bugs
+    - nearby IR window on the last clean carried-lane attribution remains:
       - `ins 33`: `EQ`
       - `ins 35`: `SLOAD`
       - `ins 37`: `UGT`
