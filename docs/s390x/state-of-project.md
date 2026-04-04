@@ -275,6 +275,30 @@ non-causal probe effects. The current state is cleaner:
       - dropping the visible-alias typecheck does not open a new remediation
         lane
       - it just recreates the already-closed carried-accumulator redirect
+  - signed GC64 int-tag overlay on the exact live seam is now closed too:
+    - mechanism artifact:
+      [20260403-kdz-signed-int-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-signed-int-current-seam/summary.md)
+    - truth pack:
+      [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+    - opt-in family:
+      - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+    - exact-taken result:
+      - the old hidden current-value runtime `guardmark curins 3` disappears
+      - the repeated `trace 7 exit 0` family survives
+      - the first remaining frame `sload_int` is again the carried-`total`
+        lane:
+        - `number_helper_loop`: `curins 15`, `SLOAD op1=3 op2=4`
+        - `be_pack_loop`: `curins 35`, `SLOAD op1=3 op2=4`
+      - the dominant runtime guardmark becomes unmarked `curins 0`
+    - throughput and smoke result:
+      - `number_helper_loop check 13762770`
+      - `be_pack_loop check 210`
+      - `number_helper_loop/hot 0.008709` vs `-joff 0.002304`
+      - `be_pack_loop/hot 0.023758` vs `-joff 0.018765`
+    - conclusion:
+      - the live payer is not solved by switching this seam to the signed
+        GC64 int-tag path
+      - this is not a promotable default remediation
   - next exact target:
     - not more slot-selection experiments
     - the remaining live issue is the current-value replay/typecheck contract

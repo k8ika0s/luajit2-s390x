@@ -203,6 +203,29 @@ Visible-alias no-guard redirect reject:
   - the current-value replay/typecheck contract itself
   - not another visible-alias no-guard variant
 
+Signed-int current-seam reject:
+
+- opt-in experiment:
+  - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+- mechanism artifact:
+  - [20260403-kdz-signed-int-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-signed-int-current-seam/summary.md)
+- truth pack:
+  - [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+- read:
+  - on the exact live `promotion_core` seam, the old hidden current-value
+    guard no longer dominates
+  - the repeated `trace 7 exit 0` family survives anyway
+  - smoke is wrong:
+    - `number_helper_loop check 13762770`
+    - `be_pack_loop check 210`
+  - throughput stays red:
+    - `number_helper_loop/hot 0.008709` vs `-joff 0.002304`
+    - `be_pack_loop/hot 0.023758` vs `-joff 0.018765`
+- conclusion:
+  - the signed GC64 int-tag path is not the missing default fix for the
+    hidden `FORL_IDX` seam
+  - this closes as another reject, not a promotion lane
+
 ### kdz
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |

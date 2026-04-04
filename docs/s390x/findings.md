@@ -13897,3 +13897,30 @@ Next hash target
     - it only recreates the already-classified carried-accumulator redirect
     - the next honest target remains the current-value replay/typecheck
       contract itself
+
+- Timestamp: `2026-04-03 18:41:00 PDT`
+  - signed GC64 int-tag extraction on the exact live `promotion_core` seam is
+    now classified and rejected
+  - opt-in experiment:
+    - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+  - mechanism artifact:
+    - [20260403-kdz-signed-int-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-signed-int-current-seam/summary.md)
+  - truth pack:
+    - [20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260403-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack/summary.md)
+  - structural result:
+    - the old hidden current-value runtime `guardmark curins 3` no longer
+      dominates
+    - the repeated `trace 7 exit 0` family survives
+    - the first remaining frame `sload_int` is again the carried-`total` lane:
+      - `number_helper_loop`: `curins 15`, `op1=3`, `op2=4`
+      - `be_pack_loop`: `curins 35`, `op1=3`, `op2=4`
+    - the dominant runtime guardmark becomes unmarked `curins 0`
+  - throughput and smoke result:
+    - `number_helper_loop check 13762770`
+    - `be_pack_loop check 210`
+    - `number_helper_loop/hot 0.008709` vs `-joff 0.002304`
+    - `be_pack_loop/hot 0.023758` vs `-joff 0.018765`
+  - conclusion:
+    - the live seam is not fixed by switching this path to signed GC64
+      integer-tag extraction
+    - this closes as another reject, not a promotable default remediation
