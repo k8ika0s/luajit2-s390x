@@ -304,6 +304,47 @@ non-causal probe effects. The current state is cleaner:
     - the remaining live issue is the current-value replay/typecheck contract
       itself, independent of whether the value is sourced from hidden
       `FORL_IDX` or visible `FORL_EXT`
+  - compare-truth attribution on the hidden `FORL_IDX` seam is now pinned:
+    - control artifact:
+      [20260403-kdz-cmptruth-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-cmptruth-current-seam/raw/number_helper_loop.stderr.log)
+    - the exact taken lane is a valid boxed int at runtime:
+      - `raw=0xfff9000000000013`
+      - `itype=-14`
+      - payload advances as the live current value
+    - but the backend compare constants are wrong on the live signed path:
+      - extracted tags:
+        - logical `0x1fff2`
+        - signed `0xfffffffffffffff2`
+      - emitted expected constants:
+        - logical `0x1ffff`
+        - signed `0xffffffffffffffff`
+    - conclusion:
+      - this narrows the live payer to backend compare semantics on the
+        inherited hidden `FORL_IDX` integer `SLOAD`
+      - it is not a replay-materialization or guard-attribution problem
+  - first narrow compare-lowering remediation is now classified and closed:
+    - control artifact:
+      [20260403-kdz-cmptruth-number-helper-fixed](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-cmptruth-number-helper-fixed/summary.md)
+    - payoff crash artifact:
+      [20260403-kdz-be-pack-after-int-compare-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-be-pack-after-int-compare-fix/raw/be_pack_loop.stderr.log)
+    - the direct fix was:
+      - load the signed int compare constant as `LJ_TISNUM`
+      - load the logical fallback constant as the low 17-bit tag form
+    - `number_helper_loop` proves the fix is directionally real:
+      - `RESULT 1323881804`
+      - `TRACE_START 3`
+      - `TRACE_STOP 2`
+      - `TEXIT_COUNT 202`
+      - dominant runtime guardmark becomes `curins 14`
+      - the old hidden-current `curins 3` seam disappears
+    - but `be_pack_loop` is not promotable under the same fix:
+      - remote probe exits `139`
+      - the branch is therefore back on baseline compare lowering plus
+        debug-only compare-truth instrumentation
+    - next exact target:
+      - stabilize the post-current-seam `be_pack_loop` failure that appears
+        once the hidden `FORL_IDX` compare is corrected
+      - not reopen replay/slot-selection families
 - short ISA/ABI memo for the current seam:
   [promotion-core-isa-audit.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/promotion-core-isa-audit.md)
   - blind 32-bit opcode swaps remain rejected

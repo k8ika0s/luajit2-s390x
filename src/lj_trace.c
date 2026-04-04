@@ -109,6 +109,14 @@ static int lj_trace_s390x_traceconsts_log_enabled(void)
   return enabled;
 }
 
+static int lj_trace_s390x_sload_compare_truth_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_SLOAD_COMPARE_TRUTH_LOG") != NULL);
+  return enabled;
+}
+
 #if LJ_TARGET_S390X && LJ_GC64
 static int lj_trace_s390x_gcobj_valid(GCobj *o, int want_trace)
 {
@@ -1361,6 +1369,81 @@ static uint32_t lj_trace_s390x_guard_mark(uintptr_t dispatch)
 #endif
 }
 
+static void lj_trace_s390x_sload_compare_truth_log(jit_State *J,
+						   const GCtrace *T,
+						   ExitNo exitno,
+						   const ExitState *ex)
+{
+#if LJ_TARGET_S390X
+  uint32_t guardmark;
+  IRRef ref;
+  IRIns *ir;
+  int32_t slot;
+  TValue *o;
+  uint64_t raw;
+  uint64_t logical_tag;
+  uint64_t signed_tag;
+  uint64_t expected_logical;
+  uint64_t expected_signed;
+  int32_t payload_i32;
+  uint32_t payload_u32;
+  int32_t ofs, vofs;
+
+  if (!lj_trace_s390x_sload_compare_truth_enabled() || !J || !J->L ||
+      !J->L->base || !T || !ex)
+    return;
+  guardmark = lj_trace_s390x_guard_mark((uintptr_t)ex->gpr[RID_DISPATCH]);
+  if (guardmark == 0)
+    return;
+  ref = (IRRef)(guardmark + REF_BIAS);
+  if (ref >= T->nins)
+    return;
+  ir = &T->ir[ref];
+  if (ir->o != IR_SLOAD || !irt_isinteger(ir->t) || ir->op1 != 4 ||
+      ir->op2 != (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK))
+    return;
+  slot = (int32_t)ir->op1 - 2;
+  if (slot < 0)
+    return;
+  o = &J->L->base[slot];
+  raw = o->u64;
+  logical_tag = raw >> 47;
+  signed_tag = (uint64_t)(((int64_t)raw) >> 47);
+  expected_logical = (uint64_t)((uint32_t)LJ_TISNUM & 0x1ffffu);
+  expected_signed = (uint64_t)(int64_t)(int32_t)LJ_TISNUM;
+  payload_u32 = (uint32_t)raw;
+  payload_i32 = (int32_t)payload_u32;
+  ofs = 8 * slot;
+  vofs = ofs + ((LJ_BE && !irt_isaddr(ir->t)) ? 4 : 0);
+  fprintf(stderr,
+	  "S390X_CMPTRUTH_EXIT trace=%u exit=%u guardmark=%u curins=%u ref=%u op1=%u op2=0x%x slot=%d base=%p ofs=%d vofs=%d raw=0x%016llx itype=%d logical_tag=0x%016llx signed_tag=0x%016llx expected_logical=0x%016llx expected_signed=0x%016llx logical_eq=%d signed_eq=%d payload_i32=%d payload_u32=%u guardcc=%d\n",
+	  (unsigned int)T->traceno,
+	  (unsigned int)exitno,
+	  (unsigned int)guardmark,
+	  (unsigned int)guardmark,
+	  (unsigned int)(ref - REF_BIAS),
+	  (unsigned int)ir->op1,
+	  (unsigned int)ir->op2,
+	  (int)slot,
+	  (void *)J->L->base,
+	  (int)ofs,
+	  (int)vofs,
+	  (unsigned long long)raw,
+	  (int)itype(o),
+	  (unsigned long long)logical_tag,
+	  (unsigned long long)signed_tag,
+	  (unsigned long long)expected_logical,
+	  (unsigned long long)expected_signed,
+	  (int)(logical_tag == expected_logical),
+	  (int)(signed_tag == expected_signed),
+	  (int)payload_i32,
+	  (unsigned int)payload_u32,
+	  (int)CC_NE);
+#else
+  UNUSED(J); UNUSED(T); UNUSED(exitno); UNUSED(ex);
+#endif
+}
+
 static void lj_trace_s390x_dump_ptr_bias(FILE *out, const char *label, uintptr_t p)
 {
 #if LJ_TARGET_S390X
@@ -1691,6 +1774,7 @@ static void lj_trace_s390x_exit_log(const char *phase, jit_State *J,
 	      (unsigned int)J->state);
     }
     if (CT && exitno < CT->nsnap) {
+      lj_trace_s390x_sload_compare_truth_log(J, CT, exitno, ex);
       const SnapShot *snap = &CT->snap[exitno];
       const SnapEntry *map = &CT->snapmap[snap->mapofs];
       const BCIns *snappc = snap_pc(&map[snap->nent]);

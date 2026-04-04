@@ -13924,3 +13924,49 @@ Next hash target
     - the live seam is not fixed by switching this path to signed GC64
       integer-tag extraction
     - this closes as another reject, not a promotable default remediation
+
+- Timestamp: `2026-04-03 18:59:37 PDT`
+  - hidden-current compare-truth attribution on `kdz` is now exact
+  - artifact:
+    - [20260403-kdz-cmptruth-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-cmptruth-current-seam/raw/number_helper_loop.stderr.log)
+  - debug-only env gate:
+    - `LUAJIT_S390X_SLOAD_COMPARE_TRUTH_LOG=1`
+  - read:
+    - the exact taken hidden `FORL_IDX` lane is a valid boxed int:
+      - `raw=0xfff9000000000013`
+      - `itype=-14`
+      - payload is the advancing current value
+    - the backend compare constants are wrong on that exact lane:
+      - extracted tags:
+        - logical `0x1fff2`
+        - signed `0xfffffffffffffff2`
+      - emitted expected constants:
+        - logical `0x1ffff`
+        - signed `0xffffffffffffffff`
+  - classification:
+    - this is backend compare semantics on inherited int `SLOAD`
+    - not replay/snapshot corruption
+    - not adjacent-guard ownership
+
+- Timestamp: `2026-04-03 17:59:37 PDT`
+  - first narrow hidden-current compare fix is now classified and closed
+  - control artifact:
+    - [20260403-kdz-cmptruth-number-helper-fixed](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-cmptruth-number-helper-fixed/summary.md)
+  - payoff crash artifact:
+    - [20260403-kdz-be-pack-after-int-compare-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-be-pack-after-int-compare-fix/raw/be_pack_loop.stderr.log)
+  - remediation attempt:
+    - compare the signed path against `LJ_TISNUM`
+    - compare the logical fallback against the low 17-bit tag form
+  - result:
+    - `number_helper_loop` moves cleanly off the hidden current seam:
+      - `RESULT 1323881804`
+      - `TRACE_START 3`
+      - `TRACE_STOP 2`
+      - `TEXIT_COUNT 202`
+      - dominant runtime guardmark becomes `curins 14`
+    - `be_pack_loop` is not safe under the same change:
+      - remote probe fails with exit `139`
+  - consequence:
+    - do not promote the direct compare fix yet
+    - the next real issue is the post-current-seam `be_pack_loop` failure that
+      becomes visible once the hidden `FORL_IDX` compare is corrected
