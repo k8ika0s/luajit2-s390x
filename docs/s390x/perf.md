@@ -3641,3 +3641,37 @@ localized-helper carried-`total` lane
     duplication on the exact `ref18/ref23 -> phi27` handoff
   - this is still an env-gated checkpoint, not a promoted default throughput
     restamp
+
+## 2026-04-04 08:42 PDT
+
+- The `FORL_CURRENT_COMPARE_FIX` family is now promoted to default-on with an
+  explicit opt-out.
+- Promotion artifact:
+  [20260404-hostpair-default-on-forl-compare-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-default-on-forl-compare-fix/summary.md)
+- Envless host-pair validation:
+  - exact `32768` oracle:
+    - `kdz`: `JIT 1610629120`, `INTERP 1610629120`
+    - `zkd0`: `JIT 1610629120`, `INTERP 1610629120`
+  - reduced helper validators:
+    - `number_helper_loop(64000)`:
+      - `kdz`: `-149783296 == -149783296`
+      - `zkd0`: `-149783296 == -149783296`
+    - reduced `be_pack_loop(64000)`:
+      - `kdz`: `-32000 == -32000`
+      - `zkd0`: `-32000 == -32000`
+- Focused envless `kdz` perf:
+  - `number_helper_loop/small median=0.000007`
+  - `be_pack_loop/small median=0.000017`
+  - `number_helper_loop/medium median=0.000025`
+  - `be_pack_loop/medium median=0.000068`
+  - `number_helper_loop/hot median=0.000090`
+  - `be_pack_loop/hot median=0.000270`
+- Opt-out control:
+  - `LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX=1`
+  - exact `kdz` oracle falls back to:
+    - `JIT 65536`
+    - `INTERP 1610629120`
+- Read:
+  - this is now a default-on remediation, not only a gated checkpoint
+  - the next step should quantify broader throughput and regression surface
+    under the new default
