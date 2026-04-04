@@ -815,21 +815,6 @@ static int asm_s390x_sloadmap_log_enabled(void)
   return enabled;
 }
 
-static int asm_s390x_sload_compare_truth_log_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SLOAD_COMPARE_TRUTH_LOG") != NULL);
-  return enabled;
-}
-
-static int asm_s390x_sload_compare_truth_focus(IRIns *ir)
-{
-  return ir->o == IR_SLOAD && irt_isinteger(ir->t) &&
-	 ((ir->op1 == 4 && ir->op2 == (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK)) ||
-	  (ir->op1 == 3 && ir->op2 == IRSLOAD_TYPECHECK));
-}
-
 static int asm_s390x_forl_current_compare_fix_enabled(void)
 {
   static int enabled = -1;
@@ -2502,7 +2487,7 @@ static void asm_tobit(ASMState *as, IRIns *ir)
   Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -245);
 
   emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
-  emit_u32(as, S390X_INS_RRF_M(S390XI_CFDBR, dest, 5, tmp));
+  emit_u32(as, S390X_INS_RXE(S390XI_LGDR, dest, tmp));
   emit_u32(as, S390X_INS_RXE(S390XI_ADBR, tmp, left));
   if (tmp != right)
     emit_movrr(as, ir, tmp, right);
@@ -3103,20 +3088,6 @@ dotypecheck:
 		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
 		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
 		(int)base, (int)dest, (int)tmp, (int)expected);
-      }
-      if (asm_s390x_sload_compare_truth_log_enabled() &&
-	  asm_s390x_sload_compare_truth_focus(ir)) {
-	uint64_t logical_expect = (uint64_t)((uint32_t)LJ_TISNUM & 0x1ffffu);
-	uint64_t signed_expect = (uint64_t)(int64_t)(int32_t)LJ_TISNUM;
-	fprintf(stderr,
-		"S390X_CMPTRUTH_SETUP curins=%d ref=%d op1=%d op2=0x%x ofs=%d vofs=%d base=%d dest=%d tmp=%d expected=%d guardcc=%d signed_path=%d expected_logical=0x%016llx expected_signed=0x%016llx\n",
-		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
-		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
-		(int)base, (int)dest, (int)tmp, (int)expected,
-		(int)CC_NE,
-		(int)(LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()),
-		(unsigned long long)logical_expect,
-		(unsigned long long)signed_expect);
       }
       asm_s390x_guard_log(as, "sload_int", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);

@@ -4456,3 +4456,38 @@ There are only two realistic outcomes:
     the same restored-header cluster
   - the next remediation target should start at `UGT curins 37`, not another
     `SLOAD` compare patch
+
+## 2026-04-04 00:42 PDT
+
+- The cleaned compare-fix checkpoint now holds on both `kdz` and `zkd0`.
+- Checkpoint artifact:
+  [20260404-hostpair-comparefix-phi-checkpoint](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-comparefix-phi-checkpoint/summary.md)
+- Active experimental surface:
+  - `LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX=1`
+  - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+- Retained code changes:
+  - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - generic signed GC64 int `SLOAD` compare constant correction
+    - `asm_tobit()` rewrite using the VM-style `LGDR`/`LGFR` extraction path
+  - [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c)
+    - duplicate the right PHI input into scratch on the exact
+      `ref18/ref23 -> phi27` handoff instead of birthing the PHI directly in
+      `r12`
+- Host-pair validation:
+  - exact `32768` oracle:
+    - `kdz`: `JIT 1610629120`, `INTERP 1610629120`
+    - `zkd0`: `JIT 1610629120`, `INTERP 1610629120`
+  - reduced helper validators:
+    - `number_helper_loop(64000)` matches on both hosts:
+      `-149783296 == -149783296`
+    - reduced `be_pack_loop(64000)` matches on both hosts:
+      `-32000 == -32000`
+  - focused `kdz` perf under the same gates:
+    - `number_helper_loop/hot median=0.000092`
+    - `be_pack_loop/hot median=0.000270`
+- Classification:
+  - the cleaned checkpoint is stable enough to preserve
+  - this is still experimental and env-gated, not a promoted default policy
+  - the next step should be deciding whether to promote the `asm_phi()` handoff
+    change under the compare-fix family or keep it as a narrower diagnostic
+    checkpoint

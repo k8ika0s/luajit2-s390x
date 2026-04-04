@@ -14036,3 +14036,33 @@ Next hash target
       the same restored-header cluster
     - the next remediation target should begin at `UGT curins 37`, not another
       `SLOAD` compare patch
+
+- Timestamp: `2026-04-04 00:42:00 PDT`
+  - the compare-fix checkpoint is now validated on both `kdz` and `zkd0`
+  - artifact:
+    - [20260404-hostpair-comparefix-phi-checkpoint](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-comparefix-phi-checkpoint/summary.md)
+  - retained backend changes:
+    - in [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h):
+      - correct the signed GC64 int `SLOAD` compare constant
+      - fix `asm_tobit()` to extract the converted integer through `LGDR`
+        followed by `LGFR`
+    - in [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c):
+      - on the exact `ref18/ref23 -> phi27` handoff, duplicate the right PHI
+        input into scratch instead of birthing the PHI directly in `r12`
+  - host-pair read:
+    - exact `run(32768)` oracle on `bit.tobit(total + i * 65537)` matches on
+      both hosts:
+      - `JIT 1610629120`
+      - `INTERP 1610629120`
+    - reduced helper validators also match on both hosts:
+      - `number_helper_loop(64000) -> -149783296`
+      - reduced `be_pack_loop(64000) -> -32000`
+  - focused `kdz` perf under the same envs:
+    - `number_helper_loop/hot median=0.000092`
+    - `be_pack_loop/hot median=0.000270`
+  - classification:
+    - the cleaned diff now holds a real experimental remediation lane
+    - old compare-truth and `prev` attribution scaffolding are no longer
+      needed for this checkpoint
+    - the remaining open decision is promotion strategy, not whether the
+      warmed overflow seam can be cleared under the compare-fix family
