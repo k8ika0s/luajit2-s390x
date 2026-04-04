@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 15:05:32 PDT
+Last updated: 2026-04-03 17:28:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -143,14 +143,14 @@ non-causal probe effects. The current state is cleaner:
   - on both hosts, for both `number_helper_loop` and `be_pack_loop`:
     - dominant seam stays `trace 7 exit 0`
     - first literal taken guard stays `curins 3`
-    - exact guard stays the inherited visible current-value lane:
+    - exact guard stays the inherited current-value lane:
       - `IR=SLOAD`
       - `op1=4`
       - `op2=36`
       - `ofs=16`
       - `extra=20`
   - correction:
-    - the live `promotion_core` payer is still the visible current-value
+    - the live `promotion_core` payer is still the inherited current-value
       replay/typecheck lane
     - it has not shifted to carried-`total`
     - it has not shifted to a later arithmetic/compare consumer
@@ -159,7 +159,7 @@ non-causal probe effects. The current state is cleaner:
     - `LUAJIT_S390X_FORL_FASTPATH_VISIBLE_IDX_NOGUARD=1`
   - targeted rule:
     - only on matched `FORL` fastpath reuse (`pc_match=1`, `idx_match=1`)
-    - rebuild the visible current-value lane without the replay typecheck
+    - rebuild the inherited current-value lane without the replay typecheck
   - `kdz` artifact:
     [20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-135832-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
   - result:
@@ -182,7 +182,7 @@ non-causal probe effects. The current state is cleaner:
     - [number_helper_loop](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-144356-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
     - [be_pack_loop](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-144556-kdz-hotside_canon_share_uget_looproot_default-core-exit-mechanism/summary.md)
   - structural read:
-    - the first literal taken guard does move off the visible current-value
+    - the first literal taken guard does move off the inherited current-value
       lane on both live workloads
     - `number_helper_loop`: `curins 15`, `IR=SLOAD`, `op1=3`, `op2=4`,
       `ofs=8`, `extra=12`
@@ -200,13 +200,14 @@ non-causal probe effects. The current state is cleaner:
     - root-only visible-idx no-guard is a clean reject
     - it shifts the first exact guard, but it makes the live payoff family
       slower and does not clear the repeated loop-exit floor
-- that reject also pins the next real issue cleanly:
-  - the surviving visible-current `FORL_IDX` guard is still the first literal
-    payer on the shipping default, but it is not the whole floor by itself
+  - that reject also pins the next real issue cleanly:
+    - the surviving inherited current-value `FORL_IDX` guard is still the
+      first literal payer on the shipping default, but it is not the whole
+      floor by itself
   - as soon as that root-born visible-current typecheck is relaxed, the next
     front-most exact guard becomes the loop-carried accumulator lane
   - source-backed identity:
-    - the visible-current lane is born in
+    - the inherited current-value lane is born in
       [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
       as `fori_load(... IRSLOAD_INHERIT | IRSLOAD_TYPECHECK | ...)`
     - the carried-`total` lane is not a numeric-for helper lane and not a
@@ -218,11 +219,49 @@ non-causal probe effects. The current state is cleaner:
       - `number_helper_loop`: `curins 15`, `IR=SLOAD`, `op1=3`, `op2=4`
       - `be_pack_loop`: `curins 35`, `IR=SLOAD`, `op1=3`, `op2=4`
   - implication:
-    - the next remediation family is no longer another visible-current
+    - the immediate secondary payer is the loop-carried accumulator
+      `getslot()->sload()` replay / typecheck / consumer contract
+    - but the next honest patch family is no longer another inherited-current
       no-guard tweak
-    - it is the loop-carried accumulator `getslot()->sload()` replay /
-      typecheck / consumer contract that becomes front-most immediately after
-      the visible-current lane is relaxed
+- direct slot attribution on clean `kdz` now closes the stale naming dispute
+  around `op1=4 / ofs=16 / extra=20`:
+  - artifact:
+    [20260403-kdz-visible-lane-slot-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-visible-lane-slot-attribution/summary.md)
+  - exact-taken runtime maps:
+    - `S390X_SLOADMAP curins=3 ref=3 kind=int op1=4 op2=0x24 ofs=16 vofs=20 base=2`
+  - repeated exit slots on both representative workloads show:
+    - slot `idx=2` advances `3, 4, 5, ...`
+    - slot `idx=4` stays constant `1`
+    - slot `idx=5` mirrors the advancing current value one slot later
+  - correction:
+    - `op1=4 / ofs=16` is neither hidden `STEP` nor the visible `FORL_EXT`
+      slot
+    - it is the hidden `FORL_IDX` slot itself under the live frame layout
+    - the visible current-value alias is `FORL_EXT`, but the shipping exact
+      guard is still bound to hidden `FORL_IDX`
+  - alias-rebind experiment is now closed too:
+    - artifact:
+      [20260403-kdz-forl-ext-alias-rebind](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-rebind/summary.md)
+    - opt-in family:
+      - `LUAJIT_S390X_FORL_REBIND_EXT_ALIAS=1`
+    - exact-taken result:
+      - the same repeated `trace 7 exit 0` family survives
+      - the first exact guard really does move off hidden `FORL_IDX` and onto
+        the visible alias:
+        - `number_helper_loop`: `curins 3`, `SLOAD op1=7 op2=36`,
+          `ofs=40 extra=44`
+        - `be_pack_loop`: same `SLOAD op1=7 op2=36` shift on the live loop
+          family
+    - throughput result:
+      - [20260403-kdz-forl-ext-alias-truth](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-truth/jit-on.jsonl)
+      - `number_helper_loop/hot 0.009876` vs default `0.008927`
+      - `be_pack_loop/hot 0.024501` vs default `0.023920`
+      - smoke stays correct, but both in-scope workloads get slower
+  - next exact target:
+    - not more slot-selection experiments
+    - the remaining live issue is the current-value replay/typecheck contract
+      itself, independent of whether the value is sourced from hidden
+      `FORL_IDX` or visible `FORL_EXT`
 - short ISA/ABI memo for the current seam:
   [promotion-core-isa-audit.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/promotion-core-isa-audit.md)
   - blind 32-bit opcode swaps remain rejected

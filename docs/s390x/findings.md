@@ -13815,3 +13815,66 @@ Next hash target
       removing it displaces the first literal taken guard
     - but this family is not promotable
     - it fails smoke correctness and makes the live payoff sibling slower
+
+- Timestamp: `2026-04-03 17:18:00 PDT`
+  - direct slot attribution on the live `kdz` seam closes the stale lane-name
+    dispute
+  - artifact:
+    [20260403-kdz-visible-lane-slot-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-visible-lane-slot-attribution/summary.md)
+  - exact-taken control stays the same:
+    - dominant seam `trace 7 exit 0`
+    - exact guard `curins 3`, `IR=SLOAD`, `op1=4`, `op2=36`,
+      `ofs=16`, `extra=20`
+  - new runtime slot proof from `S390X_SLOADMAP` + `S390X_SLOT`:
+    - `S390X_SLOADMAP` for the exact guard is
+      `base=2`, `op1=4`, `ofs=16`, `vofs=20`
+    - on repeated exits for `number_helper_loop`:
+      - `idx=2` advances `3, 4, 5, ...`
+      - `idx=4` stays constant `1`
+      - `idx=5` mirrors the same advancing current value one slot later
+    - `be_pack_loop` shows the same structure:
+      - `idx=2` advances
+      - `idx=4` stays constant `1`
+      - `idx=5` mirrors `idx=2`
+  - correction:
+    - `op1=4 / ofs=16` is not hidden `STEP`
+    - it is also not the visible `FORL_EXT` slot itself
+    - it is the hidden `FORL_IDX` slot under the live frame layout
+    - the visible current-value alias is present one slot later, but the
+      shipping exact guard is still bound to hidden `FORL_IDX`
+  - next real issue ready for remediation:
+    - stop treating this as a generic “visible current-value” no-guard
+      problem
+    - the next honest family is explicit rebinding or rematerialization from
+      hidden `FORL_IDX` to the already-live `FORL_EXT` alias, if that can be
+      shown to preserve the same repeated `trace 7 exit 0` seam
+
+- Timestamp: `2026-04-03 17:28:00 PDT`
+  - explicit hidden-idx to visible-alias rebinding is now classified and
+    rejected
+  - opt-in experiment:
+    - `LUAJIT_S390X_FORL_REBIND_EXT_ALIAS=1`
+  - exact-taken artifact:
+    - [20260403-kdz-forl-ext-alias-rebind](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-rebind/summary.md)
+  - throughput artifacts:
+    - [jit-on](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-truth/jit-on.jsonl)
+    - [joff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-truth/joff.jsonl)
+  - structural result:
+    - the same repeated `trace 7 exit 0` family survives
+    - the first literal taken guard really does move off hidden `FORL_IDX` and
+      onto visible `FORL_EXT`
+    - `number_helper_loop`:
+      - exact guard becomes `curins 3`, `IR=SLOAD`, `op1=7`, `op2=36`,
+        `ofs=40`, `extra=44`
+    - `be_pack_loop` mirrors the same `SLOAD op1=7 op2=36` shift on the live
+      seam
+  - throughput result on clean `kdz`:
+    - smoke stays correct
+    - `number_helper_loop/hot`: `0.009876` vs default `0.008927`
+    - `be_pack_loop/hot`: `0.024501` vs default `0.023920`
+  - conclusion:
+    - slot rebinding is a real ownership probe
+    - but it is not a remediation
+    - the remaining live issue is the current-value replay/typecheck contract
+      itself, not whether the value is sourced from hidden `FORL_IDX` or
+      visible `FORL_EXT`

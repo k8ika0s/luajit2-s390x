@@ -89,7 +89,7 @@ Exact-taken host-pair reruns on current `HEAD`:
     - `op2 36`
     - `ofs 16`
     - `extra 20`
-  - so the live payer is still the inherited visible current-value lane
+  - so the live payer is still the inherited current-value lane
 
 Matched-fastpath visible-idx no-guard reject:
 
@@ -130,24 +130,61 @@ Root-only visible-idx no-guard reject:
 
 What that reject proves about the next payer:
 
-- the shipping default still pays first on the visible current-value lane
+- the shipping default still pays first on the inherited current-value lane
   (`curins 3`, `SLOAD op1 4 op2 36`)
 - but the root-only reject shows that lane is not the whole floor by itself
-- when the root-born visible-current typecheck is relaxed, the first exact
+- when the root-born inherited-current typecheck is relaxed, the first exact
   guard immediately becomes the loop-carried accumulator lane instead:
   - `number_helper_loop`: `curins 15`, `SLOAD op1 3 op2 4`
   - `be_pack_loop`: `curins 35`, `SLOAD op1 3 op2 4`
 - source-backed read:
-  - visible current-value is born by
+  - inherited current-value is born by
     [rec_for_loop()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
     through `fori_load(... IRSLOAD_INHERIT | IRSLOAD_TYPECHECK | ...)`
   - carried `total` is the ordinary `getslot()->sload()` stack
     specialization path in
     [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
     not a numeric-for helper lane
+- direct slot attribution on clean `kdz` corrects the lane identity:
+  - artifact:
+    [20260403-kdz-visible-lane-slot-attribution](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-visible-lane-slot-attribution/summary.md)
+  - `S390X_SLOADMAP` pins the exact guard as `base=2`, `op1=4`, `ofs=16`
+  - repeated `S390X_SLOT` dumps show:
+    - `idx=2` advances as the loop current value
+    - `idx=4` stays constant `1`
+    - `idx=5` mirrors the same advancing current value one slot later
+- so the exact payer is hidden `FORL_IDX`, not hidden `STEP` and not the
+  visible `FORL_EXT` alias
+- the loop-carried accumulator lane remains the immediate secondary payer once
+  hidden `FORL_IDX` is relaxed; that evidence is still valid
 - next exact remediation target:
-  - the loop-carried accumulator `getslot()->sload()` replay/typecheck /
-    consumer contract
+  - explicit rebinding or rematerialization from hidden `FORL_IDX` to the
+    already-live `FORL_EXT` alias was the next honest experiment, and it is
+    now closed
+
+Hidden-idx to visible-alias rebind reject:
+
+- opt-in experiment:
+  - `LUAJIT_S390X_FORL_REBIND_EXT_ALIAS=1`
+- exact-taken artifact:
+  - [20260403-kdz-forl-ext-alias-rebind](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-rebind/summary.md)
+- throughput artifacts:
+  - [jit-on](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-truth/jit-on.jsonl)
+  - [joff](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-truth/joff.jsonl)
+- read:
+  - the live `trace 7 exit 0` family survives cleanly
+  - the first exact guard does move from hidden `FORL_IDX` to visible
+    `FORL_EXT`:
+    - `number_helper_loop`: `curins 3`, `SLOAD op1 7 op2 36`
+    - `be_pack_loop`: same `SLOAD op1 7 op2 36` shift
+  - smoke remains correct
+  - throughput still gets worse:
+    - `number_helper_loop/hot 0.009876` vs default `0.008927`
+    - `be_pack_loop/hot 0.024501` vs default `0.023920`
+  - so slot rebinding is evidence, not remediation
+- next exact remediation target:
+  - the current-value replay/typecheck contract itself, independent of whether
+    the value comes from hidden `FORL_IDX` or visible `FORL_EXT`
 
 ### kdz
 
