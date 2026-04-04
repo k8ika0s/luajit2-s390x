@@ -226,6 +226,43 @@ Signed-int current-seam reject:
     hidden `FORL_IDX` seam
   - this closes as another reject, not a promotion lane
 
+Compare-truth attribution and first narrow compare-fix classification:
+
+- compare-truth control artifact:
+  - [20260403-kdz-cmptruth-current-seam](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-cmptruth-current-seam/raw/number_helper_loop.stderr.log)
+- read:
+  - the live hidden `FORL_IDX` lane is a valid boxed int at the exact taken
+    guard:
+    - `raw=0xfff9000000000013`
+    - `itype=-14`
+    - payload is the advancing current value
+  - the compare constants loaded by the backend are wrong on that lane:
+    - extracted tags:
+      - logical `0x1fff2`
+      - signed `0xfffffffffffffff2`
+    - emitted expected constants:
+      - logical `0x1ffff`
+      - signed `0xffffffffffffffff`
+  - so the live issue is a backend compare-semantics bug on inherited int
+    `SLOAD`, not replay materialization and not guard ownership
+- first narrow fix artifact:
+  - [20260403-kdz-cmptruth-number-helper-fixed](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-cmptruth-number-helper-fixed/summary.md)
+- control result:
+  - `number_helper_loop`
+  - `RESULT 1323881804`
+  - `TRACE_START 3`
+  - `TRACE_STOP 2`
+  - `TEXIT_COUNT 202`
+  - dominant runtime guardmark moves to `curins 14`
+  - the old hidden-current `curins 3` seam is gone
+- payoff sibling result:
+  - [20260403-kdz-be-pack-after-int-compare-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-be-pack-after-int-compare-fix/raw/be_pack_loop.stderr.log)
+  - `be_pack_loop` crashes with remote exit `139`
+- conclusion:
+  - the compare fix is directionally real but not promotable yet
+  - the next live target is the post-current-seam `be_pack_loop` failure that
+    opens after the hidden int compare is corrected
+
 ### kdz
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |
