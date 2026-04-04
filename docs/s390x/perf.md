@@ -3588,3 +3588,22 @@ localized-helper carried-`total` lane
   - do not open another `SLOAD` compare patch on the carried accumulator lane
   - the next remediation target should start with the adjacent
     `UGT curins 37` consumer
+
+## 2026-04-03 21:00 PDT
+
+- The generic signed GC64 integer compare correction is now retained as a real
+  backend fix in [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h).
+- Exact code change:
+  - load expected signed `LJ_TISNUM` directly in the generic signed-int
+    `SLOAD` compare path
+  - drop the old arithmetic-right-shifted `-1` constant
+- Effect:
+  - with the hidden-current compare fix also enabled, the carried signed-int
+    lane no longer miscompares on `be_pack_loop`
+  - the remaining blocker is later than compare semantics; the compare-fixed
+    stable-callsite reducer still crashes after the old compare seams clear
+- Rejected follow-ups this cycle:
+  - replay-side `lj_snap_replay()` mutation probes
+  - `lj_record_ret()` rematerialization probes
+  - `FLOAD` base-mask probe
+  - `AHUVLOAD` base-mask probe
