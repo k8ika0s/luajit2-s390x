@@ -117,6 +117,13 @@ static int lj_trace_s390x_sload_compare_truth_enabled(void)
   return enabled;
 }
 
+static int lj_trace_s390x_sload_compare_truth_focus(const IRIns *ir)
+{
+  return ir->o == IR_SLOAD && irt_isinteger(ir->t) &&
+	 ((ir->op1 == 4 && ir->op2 == (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK)) ||
+	  (ir->op1 == 3 && ir->op2 == IRSLOAD_TYPECHECK));
+}
+
 #if LJ_TARGET_S390X && LJ_GC64
 static int lj_trace_s390x_gcobj_valid(GCobj *o, int want_trace)
 {
@@ -1399,8 +1406,7 @@ static void lj_trace_s390x_sload_compare_truth_log(jit_State *J,
   if (ref >= T->nins)
     return;
   ir = &T->ir[ref];
-  if (ir->o != IR_SLOAD || !irt_isinteger(ir->t) || ir->op1 != 4 ||
-      ir->op2 != (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK))
+  if (!lj_trace_s390x_sload_compare_truth_focus(ir))
     return;
   slot = (int32_t)ir->op1 - 2;
   if (slot < 0)

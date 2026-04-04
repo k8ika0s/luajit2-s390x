@@ -823,6 +823,21 @@ static int asm_s390x_sload_compare_truth_log_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_sload_compare_truth_focus(IRIns *ir)
+{
+  return ir->o == IR_SLOAD && irt_isinteger(ir->t) &&
+	 ((ir->op1 == 4 && ir->op2 == (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK)) ||
+	  (ir->op1 == 3 && ir->op2 == IRSLOAD_TYPECHECK));
+}
+
+static int asm_s390x_forl_current_compare_fix_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX") != NULL);
+  return enabled;
+}
+
 static int asm_s390x_stack_restore_log_enabled(void)
 {
   static int enabled = -1;
@@ -3090,8 +3105,7 @@ dotypecheck:
 		(int)base, (int)dest, (int)tmp, (int)expected);
       }
       if (asm_s390x_sload_compare_truth_log_enabled() &&
-	  ir->op1 == 4 &&
-	  ir->op2 == (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK)) {
+	  asm_s390x_sload_compare_truth_focus(ir)) {
 	uint64_t logical_expect = (uint64_t)((uint32_t)LJ_TISNUM & 0x1ffffu);
 	uint64_t signed_expect = (uint64_t)(int64_t)(int32_t)LJ_TISNUM;
 	fprintf(stderr,
@@ -3107,7 +3121,17 @@ dotypecheck:
       asm_s390x_guard_log(as, "sload_int", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
-      if (LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()) {
+      if (ir->op1 == 4 &&
+	  ir->op2 == (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK) &&
+	  asm_s390x_forl_current_compare_fix_enabled()) {
+	if (LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()) {
+	  emit_loadu64(as, expected, (uint64_t)(int64_t)(int32_t)LJ_TISNUM);
+	  emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
+	} else {
+	  emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM & 0x1ffffu));
+	  emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
+	}
+      } else if (LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()) {
 	emit_loadu64(as, expected,
 		     (uint64_t)(((int64_t)(int32_t)LJ_TISNUM) >> 15));
 	emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
