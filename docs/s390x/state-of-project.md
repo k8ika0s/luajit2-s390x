@@ -1,12 +1,37 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-03 17:28:00 PDT
+Last updated: 2026-04-04 11:20:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
 than appended, so this file always reflects the latest known state.
 
 ## Current State
+
+Before the older lane breakdown, the current branch-level read is:
+
+- the envless first-enable `promotion_core` set is now on the right side of
+  `-joff` on both `kdz` and `zkd0`
+- the next live blocker is no longer inside `promotion_core`
+- the current frontier is a correctness failure in `mixed_noffi`, reduced to a
+  direct generic-for `ipairs_aux` loop
+- the mirrored `ITERC_NOLOOP` fence proves the classification but is not
+  promotable:
+  - it makes the exact reducer and `mixed_noffi` correct on both `kdz` and
+    `zkd0`
+  - but it remains `3.7x` to `5.8x` slower than `-joff` across the mirrored
+    `small` / `medium` / `hot` cases
+- exact `kdz` split:
+  - `for _, value in aux, tab, ctl0 do`: wrong
+  - direct `while aux(tab, ctl)` loop: correct (`36`)
+  - `for _, value in next, numbers, nil do`: correct (`36`)
+  - plain numeric array loop: correct (`36`)
+  - `jit.opt.start('hotloop=1', '-loop')`: correct
+  - `jit.opt.start('hotloop=1', '-abc')`: still wrong
+- that means the active issue is not raw array loads, not `ipairs_aux`
+  itself, and not the old frozen `next`/lazy-key iterator family
+- the active target is the loop-optimized `ITERC/ITERL` contract for the
+  `ipairs_aux` numeric-control path
 
 The project is no longer in a broad “is s390x fundamentally stable?” phase.
 That part is far enough along that the work is now split into three separate
