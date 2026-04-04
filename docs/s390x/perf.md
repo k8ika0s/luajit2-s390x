@@ -3607,3 +3607,37 @@ localized-helper carried-`total` lane
   - `lj_record_ret()` rematerialization probes
   - `FLOAD` base-mask probe
   - `AHUVLOAD` base-mask probe
+
+## 2026-04-04 00:42 PDT
+
+- The cleaned compare-fix checkpoint is now validated on both `kdz` and
+  `zkd0`.
+- Checkpoint artifact:
+  [20260404-hostpair-comparefix-phi-checkpoint](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-comparefix-phi-checkpoint/summary.md)
+- Env surface:
+  - `LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX=1`
+  - `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD=1`
+- Exact `32768` oracle:
+  - `kdz`: `JIT 1610629120`, `INTERP 1610629120`
+  - `zkd0`: `JIT 1610629120`, `INTERP 1610629120`
+- Reduced helper validators:
+  - `number_helper_loop(64000)`:
+    - `kdz`: `-149783296 == -149783296`
+    - `zkd0`: `-149783296 == -149783296`
+  - reduced `be_pack_loop(64000)`:
+    - `kdz`: `-32000 == -32000`
+    - `zkd0`: `-32000 == -32000`
+- Focused `kdz` perf under the same gates:
+  - `number_helper_loop/small median=0.000007`
+  - `be_pack_loop/small median=0.000017`
+  - `number_helper_loop/medium median=0.000025`
+  - `be_pack_loop/medium median=0.000067`
+  - `number_helper_loop/hot median=0.000092`
+  - `be_pack_loop/hot median=0.000270`
+- Read:
+  - after stripping compare-truth and `prev` probes, the retained backend fix
+    set still holds
+  - the decisive warmed-overflow correction is the `asm_phi()` right-side
+    duplication on the exact `ref18/ref23 -> phi27` handoff
+  - this is still an env-gated checkpoint, not a promoted default throughput
+    restamp

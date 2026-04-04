@@ -332,14 +332,6 @@ static int lj_asm_s390x_spill_log_enabled(void)
   return enabled;
 }
 
-static int lj_asm_s390x_prev_log_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_PREV_LOG") != NULL);
-  return enabled;
-}
-
 static int lj_asm_s390x_rename_log_enabled(void)
 {
   static int enabled = -1;
@@ -359,21 +351,6 @@ static void lj_asm_s390x_save_log(ASMState *as, IRIns *ir, Reg r)
 	  (int)r, (int)sps_scale(ir->s), (int)ir->o, (int)irt_type(ir->t));
 }
 
-static void lj_asm_s390x_prev_log(ASMState *as, const char *phase, IRRef ref)
-{
-  IRIns *ir;
-  if (!lj_asm_s390x_prev_log_enabled())
-    return;
-  if (ref >= as->curins || ref < REF_FIRST)
-    return;
-  ir = &as->ir[ref];
-  fprintf(stderr,
-	  "S390X_PREV phase=%s curins=%d ref=%d op=%d r=%d s=%d prev=%u prev_reg=%d prev_spill=%d\n",
-	  phase, (int)(as->curins - REF_BIAS), (int)(ref - REF_BIAS),
-	  (int)ir->o, (int)ir->r, (int)ir->s, (unsigned int)ir->prev,
-	  (int)regsp_reg(ir->prev), (int)regsp_spill(ir->prev));
-}
-
 static void lj_asm_s390x_spill_log(ASMState *as, const char *phase, IRIns *ir,
 				   int32_t slot)
 {
@@ -385,6 +362,14 @@ static void lj_asm_s390x_spill_log(ASMState *as, const char *phase, IRIns *ir,
 	  (int)ir->o, (int)irt_type(ir->t), (int)ir->r, (int)ir->s, (int)slot,
 	  (unsigned int)ir->prev, (unsigned int)as->snapno,
 	  (int)(as->snapref - REF_BIAS));
+}
+
+static int lj_asm_s390x_phi_ref18_dupright_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX") != NULL);
+  return enabled;
 }
 
 static void lj_asm_s390x_rename_log(ASMState *as, Reg down, IRRef ref,
@@ -1482,12 +1467,6 @@ static int asm_snap_checkrename(ASMState *as, IRRef ren)
   if (bloomtest(as->snapfilt1, ren) &&
       bloomtest(as->snapfilt2, hashrot(ren, ren + HASH_BIAS))) {
     IRIns *ir = IR(ren);
-    if (lj_asm_s390x_prev_log_enabled()) {
-      fprintf(stderr,
-	      "S390X_SNAPRENAME curins=%d ref=%d op=%d r=%d s=%d prev=%u\n",
-	      (int)(as->curins - REF_BIAS), (int)(ren - REF_BIAS),
-	      (int)ir->o, (int)ir->r, (int)ir->s, (unsigned int)ir->prev);
-    }
     lj_asm_s390x_spill_log(as, "snap-rename-before", ir,
 			   ra_spill(as, ir));  /* Register renamed, so force a spill slot. */
     if (ra_hasreg(ir->r))
@@ -2116,7 +2095,14 @@ static void asm_phi(ASMState *as, IRIns *ir)
   if ((afree & (afree-1)) && !lj_asm_s390x_force_phi_spill()) {
     /* Two or more free registers? */
     Reg r;
-    if (ra_noreg(irr->r)) {  /* Get a register for the right PHI. */
+    if (lj_asm_s390x_phi_ref18_dupright_enabled() &&
+        ir->op1 == REF_BIAS+18 && ir->op2 == REF_BIAS+23) {
+      Reg rr;
+      r = ra_scratch(as, allow);
+      rr = ra_noreg(irr->r) ? ra_allocref(as, ir->op2, rset_exclude(allow, r))
+                            : irr->r;
+      emit_movrr(as, irr, r, rr);
+    } else if (ra_noreg(irr->r)) {  /* Get a register for the right PHI. */
       r = ra_allocref(as, ir->op2, allow);
     } else {  /* Duplicate right PHI, need a copy (rare). */
       r = ra_scratch(as, allow);
@@ -3074,8 +3060,6 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     as->sectref = as->loopref;
     as->fuseref = (as->flags & JIT_F_OPT_FUSE) ? as->loopref : FUSE_DISABLED;
     asm_setup_regsp(as);
-    lj_asm_s390x_prev_log(as, "setup", 7);
-    lj_asm_s390x_prev_log(as, "setup", 8);
     if (!as->loopref)
       asm_tail_link(as);
 
@@ -3094,8 +3078,6 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
       RA_DBG_REF();
       checkmclim(as);
       asm_ir(as, ir);
-      lj_asm_s390x_prev_log(as, "post-ir", 7);
-      lj_asm_s390x_prev_log(as, "post-ir", 8);
     }
 
     if (as->realign && J->curfinal->nins >= T->nins)
@@ -3119,8 +3101,6 @@ void lj_asm_trace(jit_State *J, GCtrace *T)
     emit_branch_track(as);
 #endif
     asm_phi_fixup(as);
-    lj_asm_s390x_prev_log(as, "phi-fixup", 7);
-    lj_asm_s390x_prev_log(as, "phi-fixup", 8);
 
     if (J->curfinal->nins >= T->nins) {  /* IR didn't grow? */
       lj_assertA(J->curfinal->nk == T->nk, "unexpected IR constant growth");
