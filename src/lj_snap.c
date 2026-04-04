@@ -78,6 +78,14 @@ static int lj_snap_s390x_retf_window_log_enabled(void)
   return enabled;
 }
 
+static int snap_s390x_ipairs_exit1_skip_body_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY") != NULL);
+  return enabled;
+}
+
 static void lj_snap_s390x_log_retf_window(jit_State *J, const char *site,
 					  BCReg nslots)
 {
@@ -1255,13 +1263,23 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
   TValue *frame;
   BloomFilter rfilt = snap_renamefilter(T, snapno);
   const BCIns *pc = snap_pc(&map[nent]);
+  const BCIns *resume_pc = pc;
   lua_State *L = J->L;
+
+  if (snap_s390x_ipairs_exit1_skip_body_enabled() &&
+      J->parent == 1 && J->exitno == 1 &&
+      pc != NULL &&
+      (bc_op(pc[1]) == BC_ITERC || bc_op(pc[1]) == BC_ITERN) &&
+      (bc_op(pc[2]) == BC_ITERL || bc_op(pc[2]) == BC_JITERL)) {
+    resume_pc = pc + 3;
+  }
 
   /* Set interpreter PC to the next PC to get correct error messages.
   ** But not for returns or tail calls, since pc+1 may be out-of-range.
   */
-  setcframe_pc(L->cframe, bc_isret_or_tail(bc_op(*pc)) ? pc : pc+1);
-  setcframe_pc(cframe_raw(cframe_prev(L->cframe)), pc);
+  setcframe_pc(L->cframe,
+	       bc_isret_or_tail(bc_op(*resume_pc)) ? resume_pc : resume_pc+1);
+  setcframe_pc(cframe_raw(cframe_prev(L->cframe)), resume_pc);
 
   /* Make sure the stack is big enough for the slots from the snapshot. */
   if (LJ_UNLIKELY(L->base + snap->topslot >= tvref(L->maxstack))) {
@@ -1385,9 +1403,9 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
   lj_assertJ(map + nent == flinks, "inconsistent frames in snapshot");
 
   /* Compute current stack top. */
-  switch (bc_op(*pc)) {
+  switch (bc_op(*resume_pc)) {
   default:
-    if (bc_op(*pc) < BC_FUNCF) {
+    if (bc_op(*resume_pc) < BC_FUNCF) {
       L->top = curr_topL(L);
       break;
     }
@@ -1410,7 +1428,7 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
     }
   }
 #endif
-  return pc;
+  return resume_pc;
 }
 
 #undef emitir_raw

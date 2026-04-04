@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-04 11:20:00 PDT
+Last updated: 2026-04-04 15:47:10 PDT
 
 ## Latest Matrix
 
@@ -15,42 +15,38 @@ perf/correctness state before any mechanism notes.
 | 2026-04-04 08:52 PDT | `zkd0` | `number_helper_loop/hot` | `0.000131` | `0.002609` | win |
 | 2026-04-04 08:52 PDT | `zkd0` | `be_pack_loop/hot` | `0.000339` | `0.022114` | win |
 | 2026-04-04 08:52 PDT | `zkd0` | `direct_abs/hot` | `0.000338` | `0.021233` | win |
-| 2026-04-04 10:40 PDT | `kdz` | `mixed_noffi/mixed_loop/small` | `wrong` | `0.000236` | blocked by `ipairs_aux` `ITERC/ITERL` loop |
-| 2026-04-04 10:40 PDT | `zkd0` | `mixed_noffi/mixed_loop/small` | `wrong` | `0.000286` | same blocker |
-| 2026-04-04 11:20 PDT | `kdz` | `mixed_noffi/mixed_loop/small` + `ITERC_NOLOOP` | `0.000921` | `0.000236` | correct stopgap, `3.90x` slower than `-joff` |
-| 2026-04-04 11:20 PDT | `zkd0` | `mixed_noffi/mixed_loop/small` + `ITERC_NOLOOP` | `0.001648` | `0.000286` | correct stopgap, `5.76x` slower than `-joff` |
+| 2026-04-04 15:47 PDT | `kdz` | `mixed_noffi/mixed_loop/hot` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.011891` | `0.003801` | exact-correct retained baseline with default-on `SIDETRACE_TYPEINS_DONE`; improved vs opt-out `0.011970` |
+| 2026-04-04 15:47 PDT | `zkd0` | `mixed_noffi/mixed_loop/hot` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.014241` | `0.004754` | exact-correct retained baseline with default-on `SIDETRACE_TYPEINS_DONE`; improved vs opt-out `0.015382` |
+| 2026-04-04 15:47 PDT | `kdz` | `mixed_noffi/mixed_loop/medium` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.002824` | n/a | exact-correct retained baseline after side-trace suppression |
+| 2026-04-04 15:47 PDT | `zkd0` | `mixed_noffi/mixed_loop/medium` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.003246` | n/a | exact-correct retained baseline after side-trace suppression |
 
-Current frontier after the envless `promotion_core` restamp:
+Current frontier after the latest `mixed_noffi` restamp:
 
 - `promotion_core` is now broadly green on both hosts and no longer the active
   limiter.
-- the next live branch-level issue is `mixed_noffi`, reduced to the direct
-  `ipairs_aux` generic-for shape:
-  - `for _, value in aux, tab, ctl0 do ... end`
-- the mirrored recorder fence confirms the issue class but is not promotable:
-  - `LUAJIT_S390X_IPAIRS_ITERC_NOLOOP=1` makes the exact reducer and
-    `mixed_noffi` correct on both `kdz` and `zkd0`
-  - but it is still materially slower than `-joff`:
-    - `kdz`:
-      - `small 0.000921` vs `0.000236`
-      - `medium 0.003588` vs `0.000943`
-      - `hot 0.014516` vs `0.003966`
-    - `zkd0`:
-      - `small 0.001648` vs `0.000286`
-      - `medium 0.004318` vs `0.001076`
-      - `hot 0.019024` vs `0.004431`
-- the exact current split on `kdz` is:
-  - generic `for` over `ipairs_aux`: wrong
-  - direct `while aux(tab, ctl)` loop: correct (`36`)
-  - `for _, value in next, numbers, nil`: correct (`36`)
-  - plain numeric array loop: correct (`36`)
-  - `jit.opt.start('hotloop=1', '-loop')`: correct (`36`)
-  - `jit.opt.start('hotloop=1', '-abc')`: still wrong
-- read:
-  - this is not the old frozen `next`/lazy-key iterator family
-  - this is a loop-optimized `ITERC/ITERL` problem specific to the
-    `ipairs_aux` numeric-control path
-  - the temporary no-loop fence is evidence only, not a shipping fix
+- the active frontier is still `mixed_noffi`, but the retained exact-correct
+  baseline moved again.
+- the current exact-correct `mixed_noffi` baseline is now:
+  - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+  - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+  - default-on helper:
+    - `lj_trace.c` side-trace `LJ_TRERR_TYPEINS` on `BC_ITERN parent!=0 exit=1`
+      now marks the parent exit `SNAPCOUNT_DONE`
+    - opt-out:
+      `LUAJIT_S390X_DISABLE_SIDETRACE_TYPEINS_DONE=1`
+- the old widened hash-child candidate is now closed and removed from the
+  active source path:
+  - `ROOT_ITERN_HASH_NIL_DESC + ROOT_JLOOP_CHILD` was exact-correct
+  - but it was slower than the retained baseline on `kdz` and only marginal on
+    `zkd0`
+- current read:
+  - the real win is not child opening or VM resume retargeting
+  - it is suppressing futile `parent=1/2 exit=1` `BC_ITERN` side-trace
+    reheats after `persistent type instability`
+  - the retained mixed-noffi baseline is still far slower than `-joff`, but it
+    is now materially better on `zkd0` and neutral-to-better on `kdz`
+  - the next live target is no longer correctness on the retained baseline; it
+    is the remaining hot `dispatch-original` / iterator loop throughput cost
 
 ## Active Shipping Throughput Slice
 

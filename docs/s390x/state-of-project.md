@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-04 11:20:00 PDT
+Last updated: 2026-04-04 15:47:10 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -13,25 +13,33 @@ Before the older lane breakdown, the current branch-level read is:
 - the envless first-enable `promotion_core` set is now on the right side of
   `-joff` on both `kdz` and `zkd0`
 - the next live blocker is no longer inside `promotion_core`
-- the current frontier is a correctness failure in `mixed_noffi`, reduced to a
-  direct generic-for `ipairs_aux` loop
-- the mirrored `ITERC_NOLOOP` fence proves the classification but is not
-  promotable:
-  - it makes the exact reducer and `mixed_noffi` correct on both `kdz` and
-    `zkd0`
-  - but it remains `3.7x` to `5.8x` slower than `-joff` across the mirrored
-    `small` / `medium` / `hot` cases
-- exact `kdz` split:
-  - `for _, value in aux, tab, ctl0 do`: wrong
-  - direct `while aux(tab, ctl)` loop: correct (`36`)
-  - `for _, value in next, numbers, nil do`: correct (`36`)
-  - plain numeric array loop: correct (`36`)
-  - `jit.opt.start('hotloop=1', '-loop')`: correct
-  - `jit.opt.start('hotloop=1', '-abc')`: still wrong
-- that means the active issue is not raw array loads, not `ipairs_aux`
-  itself, and not the old frozen `next`/lazy-key iterator family
-- the active target is the loop-optimized `ITERC/ITERL` contract for the
-  `ipairs_aux` numeric-control path
+- the current frontier is no longer bare correctness in `mixed_noffi`
+- the retained exact-correct `mixed_noffi` baseline is now:
+  - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+  - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+- that retained baseline now benefits from a new default-on recorder fix in
+  `lj_trace.c`:
+  - side-trace `LJ_TRERR_TYPEINS` on `BC_ITERN` with `parent!=0 exit=1`
+    marks the parent exit `SNAPCOUNT_DONE`
+  - opt-out:
+    `LUAJIT_S390X_DISABLE_SIDETRACE_TYPEINS_DONE=1`
+- current host-pair restamp with the retained baseline plus that new default:
+  - `kdz` `mixed_noffi/mixed_loop/hot 0.011891` vs `-joff 0.003801`
+  - `zkd0` `mixed_noffi/mixed_loop/hot 0.014241` vs `-joff 0.004754`
+- paired controls say the new default is carrying real value:
+  - `kdz` opt-out `hot 0.011970`
+  - `zkd0` opt-out `hot 0.015382`
+- the old widened hash-child candidate is now closed:
+  - `ROOT_ITERN_HASH_NIL_DESC + ROOT_JLOOP_CHILD` stayed exact-correct
+  - but it was slower than the retained baseline on `kdz` and not good enough
+    on `zkd0`
+- focused classification is now cleaner:
+  - the active fix is suppressing futile `BC_ITERN` side-trace reheats after
+    `persistent type instability`
+  - the active issue is no longer mixed-noffi correctness on the retained
+    baseline
+  - the next target is the remaining iterator hot-loop throughput cost after
+    that suppression, not hash-child opening or VM resume surgery
 
 The project is no longer in a broad “is s390x fundamentally stable?” phase.
 That part is far enough along that the work is now split into three separate

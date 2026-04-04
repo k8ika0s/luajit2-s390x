@@ -1069,6 +1069,14 @@ static Reg ra_dest_nobase(ASMState *as, IRIns *ir, RegSet allow, int32_t tag)
   return r;
 }
 
+static int lj_asm_s390x_aref_base_allgpr_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_AREF_BASE_ALLGPR") != NULL);
+  return enabled;
+}
+
 /* Keep RID_BASE available for explicit REF_BASE materialization, but do not
 ** hand it out as a generic temp/result register in ordinary lowering.
 */
@@ -2563,6 +2571,8 @@ static S390XFusedRef asm_fuseahuref(ASMState *as, IRRef ref, RegSet allow)
 	  }
 	} else {
 	  RegSet baseallow = asm_s390x_dest_gprset(IR(ir->op1)->t) & allow;
+	  if (lj_asm_s390x_aref_base_allgpr_enabled())
+	    baseallow = allow;
 	  if (baseallow == RSET_EMPTY)
 	    baseallow = allow;
 	  fr.base = ra_alloc1_nobase(as, ir->op1, baseallow, -252);
@@ -2982,7 +2992,6 @@ static void asm_fload(ASMState *as, IRIns *ir)
 	    (int)ir->op2, (int)(ir->op1 - REF_BIAS), (int)dest, (int)base,
 	    (int)ofs, (int)irt_type(t));
   }
-
   if (ir->op2 == IRFL_TAB_ARRAY) {
     int32_t abase = asm_fuseabase(as, ir->op1);
     if (abase) {
