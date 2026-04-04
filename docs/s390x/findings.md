@@ -14066,3 +14066,37 @@ Next hash target
       needed for this checkpoint
     - the remaining open decision is promotion strategy, not whether the
       warmed overflow seam can be cleared under the compare-fix family
+
+- Timestamp: `2026-04-04 08:42:00 PDT`
+  - the `FORL_CURRENT_COMPARE_FIX` family is now promoted to default-on with
+    an explicit opt-out
+  - artifact:
+    - [20260404-hostpair-default-on-forl-compare-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-default-on-forl-compare-fix/summary.md)
+  - code shape:
+    - in [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h),
+      the hidden current-value compare repair is now enabled by default and
+      can be disabled with:
+      - `LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX=1`
+    - in [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c),
+      the exact `ref18/ref23 -> phi27` right-side duplication follows that
+      same promoted family
+  - host-pair read:
+    - envless exact `32768` oracle now matches on both hosts:
+      - `JIT 1610629120`
+      - `INTERP 1610629120`
+    - envless reduced helper validators also match on both hosts:
+      - `number_helper_loop(64000) -> -149783296`
+      - reduced `be_pack_loop(64000) -> -32000`
+    - focused envless `kdz` perf stayed clean:
+      - `number_helper_loop/hot median=0.000090`
+      - `be_pack_loop/hot median=0.000270`
+  - opt-out control:
+    - with `LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX=1` on `kdz`, the
+      exact oracle falls back to the old bad result:
+      - `JIT 65536`
+      - `INTERP 1610629120`
+  - classification:
+    - promotion is real, not a gated-only illusion
+    - the warmed overflow seam is now owned by a default-on remediation family
+    - next work should shift to broader throughput/regression quant, not back
+      to hidden-current compare attribution

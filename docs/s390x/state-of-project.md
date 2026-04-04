@@ -4491,3 +4491,39 @@ There are only two realistic outcomes:
   - the next step should be deciding whether to promote the `asm_phi()` handoff
     change under the compare-fix family or keep it as a narrower diagnostic
     checkpoint
+
+## 2026-04-04 08:42 PDT
+
+- The `FORL_CURRENT_COMPARE_FIX` family is now promoted to default-on with an
+  explicit opt-out.
+- Promotion artifact:
+  [20260404-hostpair-default-on-forl-compare-fix](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-default-on-forl-compare-fix/summary.md)
+- Code shape:
+  - [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    now enables the hidden current-value compare repair by default and honors:
+    - `LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX=1`
+  - [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c)
+    ties the exact `ref18/ref23 -> phi27` right-dup handoff to the same
+    promoted family
+- Envless validation:
+  - `kdz`
+    - exact `32768` oracle: `1610629120 == 1610629120`
+    - reduced `number_helper_loop(64000)`: `-149783296 == -149783296`
+    - reduced `be_pack_loop(64000)`: `-32000 == -32000`
+    - focused perf:
+      - `number_helper_loop/hot median=0.000090`
+      - `be_pack_loop/hot median=0.000270`
+  - `zkd0`
+    - exact `32768` oracle: `1610629120 == 1610629120`
+    - reduced `number_helper_loop(64000)`: `-149783296 == -149783296`
+    - reduced `be_pack_loop(64000)`: `-32000 == -32000`
+- Opt-out control on `kdz`:
+  - `LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX=1`
+  - exact oracle falls back to the old bad result:
+    - `JIT 65536`
+    - `INTERP 1610629120`
+- Classification:
+  - this is no longer only an experimental env-gated checkpoint
+  - the warmed overflow seam is now owned by a real default-on remediation
+  - the next work should measure broader throughput/regression surface under
+    the new default, not re-open the old hidden-current compare seam

@@ -818,8 +818,11 @@ static int asm_s390x_sloadmap_log_enabled(void)
 static int asm_s390x_forl_current_compare_fix_enabled(void)
 {
   static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX") != NULL);
+  if (enabled == -1) {
+    const char *opt_in = getenv("LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX");
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX");
+    enabled = (opt_out == NULL) || opt_in != NULL;
+  }
   return enabled;
 }
 
