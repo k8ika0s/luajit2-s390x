@@ -14129,3 +14129,66 @@ Next hash target
       set
     - next work should move to the next enable frontier or to broader
       regression scanning outside `promotion_core`
+
+- Timestamp: `2026-04-04 11:20:00 PDT`
+  - the next live branch-level blocker is now pinned as a new exact
+    `mixed_noffi` surface, not the old frozen `next`/lazy-key iterator lane
+  - direct host read:
+    - envless `mixed_noffi` fails validation on both hosts
+      - `kdz`: `mixed_loop/medium expected -3362914921, got -3362914503`
+      - `zkd0`: `mixed_loop/small expected -2255192833, got -2255192415`
+  - exact reduction:
+    - first bad prefix is `ipairs_only`
+    - exact `kdz` split:
+      - `for _, value in ipairs(numbers) do`: wrong
+      - `for _, value in aux, tab, ctl0 do`: wrong
+      - direct `while true do local k, v = aux(tab, ctl) ... end`: correct
+      - `for _, value in next, numbers, nil do`: correct
+      - plain numeric `numbers[i]` loop: correct
+    - direct semantic probe:
+      - `FIRST 1`
+      - `LAST 8`
+      - `COUNT 10`
+      - `SUM` wrong
+    - read:
+      - the value path starts out correct
+      - the generic-for control/termination path overruns the iterator
+  - trace shape on `kdz` default `hotloop=1` probe:
+    - stable hot family is `trace 2 -> trace 3 -> trace 4`
+    - dominant exits:
+      - `2:0`
+      - `3:0`
+      - `4:1`
+    - bad loop carries the synthesized `ABC -> AREF -> ALOAD` array iterator
+      chain plus loop PHIs
+  - closed classifiers:
+    - `pairs(numbers)` stays correct because it goes through `ISNEXT/ITERN/IITERL`
+      instead of the bad generic `ITERC/ITERL` path
+    - `jit.opt.start('hotloop=1', '-loop')` makes the exact direct triplet
+      reducer correct (`36`)
+    - `jit.opt.start('hotloop=1', '-abc')` stays wrong
+    - `LUAJIT_S390X_FORCE_PHI_SPILL=1` hangs on the exact direct triplet
+      reducer (`timeout 20 -> RC 124`)
+    - `rec_iterl()` stale-control propagation probes were structurally inert
+    - `LUAJIT_S390X_IPAIRS_ITERC_NOLOOP=1` is a real cross-host correctness
+      stopgap, but not promotable:
+      - exact reducer:
+        - `kdz`: `IPAIRS_TRIPLET 36`, `NEXT_TRIPLET 36`
+        - `zkd0`: `IPAIRS_TRIPLET 36`, `NEXT_TRIPLET 36`
+      - `mixed_noffi`:
+        - `kdz`:
+          - `small 0.000921` vs `-joff 0.000236`
+          - `medium 0.003588` vs `0.000943`
+          - `hot 0.014516` vs `0.003966`
+        - `zkd0`:
+          - `small 0.001648` vs `-joff 0.000286`
+          - `medium 0.004318` vs `0.001076`
+          - `hot 0.019024` vs `0.004431`
+  - classification:
+    - the live issue is the loop-optimized generic-for `ITERC/ITERL` contract
+      for the `ipairs_aux` numeric-control path
+    - the next honest remediation family should start at that loop/PHI
+      contract, not at raw array loads, `ipairs_aux` itself, or the frozen
+      `next` path
+    - the recorder no-loop fence should stay documented as a reject, not a
+      retained source policy

@@ -1,13 +1,56 @@
 # s390x Performance Status
 
-Last updated: 2026-04-03 15:05:32 PDT
+Last updated: 2026-04-04 11:20:00 PDT
 
 ## Latest Matrix
 
-These tables list the latest hot-path rows with matching JIT-on and `-joff`
-artifacts. `Updated` is the timestamp of the artifact that produced the row.
-Rows without a paired `-joff` restamp are intentionally left out of the top
-matrix until they are backfilled.
+Keep this table at the top. It is the quick-glance view of the latest dated
+perf/correctness state before any mechanism notes.
+
+| Updated | Host | Workload | JIT-on | `-joff` | Status |
+| --- | --- | --- | --- | --- | --- |
+| 2026-04-04 08:52 PDT | `kdz` | `number_helper_loop/hot` | `0.000113` | `0.002241` | win |
+| 2026-04-04 08:52 PDT | `kdz` | `be_pack_loop/hot` | `0.000319` | `0.018557` | win |
+| 2026-04-04 08:52 PDT | `kdz` | `direct_abs/hot` | `0.000291` | `0.010114` | win |
+| 2026-04-04 08:52 PDT | `zkd0` | `number_helper_loop/hot` | `0.000131` | `0.002609` | win |
+| 2026-04-04 08:52 PDT | `zkd0` | `be_pack_loop/hot` | `0.000339` | `0.022114` | win |
+| 2026-04-04 08:52 PDT | `zkd0` | `direct_abs/hot` | `0.000338` | `0.021233` | win |
+| 2026-04-04 10:40 PDT | `kdz` | `mixed_noffi/mixed_loop/small` | `wrong` | `0.000236` | blocked by `ipairs_aux` `ITERC/ITERL` loop |
+| 2026-04-04 10:40 PDT | `zkd0` | `mixed_noffi/mixed_loop/small` | `wrong` | `0.000286` | same blocker |
+| 2026-04-04 11:20 PDT | `kdz` | `mixed_noffi/mixed_loop/small` + `ITERC_NOLOOP` | `0.000921` | `0.000236` | correct stopgap, `3.90x` slower than `-joff` |
+| 2026-04-04 11:20 PDT | `zkd0` | `mixed_noffi/mixed_loop/small` + `ITERC_NOLOOP` | `0.001648` | `0.000286` | correct stopgap, `5.76x` slower than `-joff` |
+
+Current frontier after the envless `promotion_core` restamp:
+
+- `promotion_core` is now broadly green on both hosts and no longer the active
+  limiter.
+- the next live branch-level issue is `mixed_noffi`, reduced to the direct
+  `ipairs_aux` generic-for shape:
+  - `for _, value in aux, tab, ctl0 do ... end`
+- the mirrored recorder fence confirms the issue class but is not promotable:
+  - `LUAJIT_S390X_IPAIRS_ITERC_NOLOOP=1` makes the exact reducer and
+    `mixed_noffi` correct on both `kdz` and `zkd0`
+  - but it is still materially slower than `-joff`:
+    - `kdz`:
+      - `small 0.000921` vs `0.000236`
+      - `medium 0.003588` vs `0.000943`
+      - `hot 0.014516` vs `0.003966`
+    - `zkd0`:
+      - `small 0.001648` vs `0.000286`
+      - `medium 0.004318` vs `0.001076`
+      - `hot 0.019024` vs `0.004431`
+- the exact current split on `kdz` is:
+  - generic `for` over `ipairs_aux`: wrong
+  - direct `while aux(tab, ctl)` loop: correct (`36`)
+  - `for _, value in next, numbers, nil`: correct (`36`)
+  - plain numeric array loop: correct (`36`)
+  - `jit.opt.start('hotloop=1', '-loop')`: correct (`36`)
+  - `jit.opt.start('hotloop=1', '-abc')`: still wrong
+- read:
+  - this is not the old frozen `next`/lazy-key iterator family
+  - this is a loop-optimized `ITERC/ITERL` problem specific to the
+    `ipairs_aux` numeric-control path
+  - the temporary no-loop fence is evidence only, not a shipping fix
 
 ## Active Shipping Throughput Slice
 
