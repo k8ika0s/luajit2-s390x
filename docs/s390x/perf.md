@@ -186,6 +186,23 @@ Hidden-idx to visible-alias rebind reject:
   - the current-value replay/typecheck contract itself, independent of whether
     the value comes from hidden `FORL_IDX` or visible `FORL_EXT`
 
+Visible-alias no-guard redirect reject:
+
+- opt-in experiment:
+  - `LUAJIT_S390X_FORL_EXT_ALIAS_NOGUARD=1`
+- exact-taken artifact:
+  - [20260403-kdz-forl-ext-alias-noguard](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-noguard/summary.md)
+- read:
+  - removing the `FORL_EXT` replay typecheck does not clear the live floor
+  - it simply redirects the first exact guard onto the carried-`total` lane:
+    - `number_helper_loop`: `curins 15`, `SLOAD op1 3 op2 4`
+    - `be_pack_loop`: `curins 35`, `SLOAD op1 3 op2 4`
+  - so this is not a new remediation family
+  - it only recreates the earlier carried-accumulator redirect
+- next exact remediation target:
+  - the current-value replay/typecheck contract itself
+  - not another visible-alias no-guard variant
+
 ### kdz
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |

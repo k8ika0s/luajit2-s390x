@@ -257,6 +257,24 @@ non-causal probe effects. The current state is cleaner:
       - `number_helper_loop/hot 0.009876` vs default `0.008927`
       - `be_pack_loop/hot 0.024501` vs default `0.023920`
       - smoke stays correct, but both in-scope workloads get slower
+  - alias no-guard experiment is now closed as well:
+    - artifact:
+      [20260403-kdz-forl-ext-alias-noguard](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-noguard/summary.md)
+    - opt-in family:
+      - `LUAJIT_S390X_FORL_EXT_ALIAS_NOGUARD=1`
+    - exact-taken result:
+      - the live loop family stays exit-dominated
+      - the first exact guard no longer lands on current-value replay
+      - instead both live `kdz` workloads redirect straight back to the
+        carried-`total` lane:
+        - `number_helper_loop`: `curins 15`, `SLOAD op1=3 op2=4`,
+          `ofs=8 extra=12`
+        - `be_pack_loop`: `curins 35`, `SLOAD op1=3 op2=4`,
+          `ofs=8 extra=12`
+    - conclusion:
+      - dropping the visible-alias typecheck does not open a new remediation
+        lane
+      - it just recreates the already-closed carried-accumulator redirect
   - next exact target:
     - not more slot-selection experiments
     - the remaining live issue is the current-value replay/typecheck contract
