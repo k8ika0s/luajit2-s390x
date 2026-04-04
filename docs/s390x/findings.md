@@ -8,6 +8,35 @@ For the current project state in plain language, use
 This file is the append-only technical notebook. New entries should be
 added at the end in chronological order.
 
+## Current Frontier
+
+- `promotion_core` remains green on the envless first-enable slice.
+- The active branch-level blocker is still `mixed_noffi`.
+- The retained exact-correct baseline for `mixed_noffi` is:
+  - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+  - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+- That retained baseline now carries a default-on recorder fix:
+  - `BC_ITERN` side-trace `LJ_TRERR_TYPEINS` on `parent!=0 exit=1` marks the
+    parent exit `SNAPCOUNT_DONE` in `lj_trace.c`
+  - opt-out:
+    `LUAJIT_S390X_DISABLE_SIDETRACE_TYPEINS_DONE=1`
+- Host-pair restamp on 2026-04-04:
+  - `kdz`
+    - retained baseline + default-on fix `mixed_noffi/mixed_loop/hot 0.011891`
+    - opt-out control `mixed_noffi/mixed_loop/hot 0.011970`
+  - `zkd0`
+    - retained baseline + default-on fix `mixed_noffi/mixed_loop/hot 0.014241`
+    - opt-out control `mixed_noffi/mixed_loop/hot 0.015382`
+- Read:
+  - the real retained win is suppressing futile `BC_ITERN` side-trace reheats
+    after `persistent type instability`
+  - the older widened hash nil-descendant opening is now closed as a rejected
+    candidate
+  - the retained mixed-noffi baseline is still slower than `-joff`, but it is
+    materially better on `zkd0` and neutral-to-better on `kdz`
+  - the next live target is now the remaining iterator hot-loop throughput
+    cost after side-trace suppression, not hash-child opening
+
 ## Harness Status
 
 - The native bring-up harness is implemented under `tools/s390x/`.
@@ -14192,3 +14221,45 @@ Next hash target
       `next` path
     - the recorder no-loop fence should stay documented as a reject, not a
       retained source policy
+
+- Timestamp: `2026-04-04 11:37:30 PDT`
+  - the first real `mixed_noffi` correctness repair is now pinned as a
+    two-part experimental pair:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+  - exact mirrored correctness:
+    - clean `zkd0` reducers:
+      - `ipairs_count_probe`: `8`
+      - `numbers_loop_warm3`: `108`
+      - `mixed_loop_warm3`: `246`
+    - real mixed-loop probe:
+      - `kdz`:
+        - `small 553416`
+        - `medium 2233504`
+        - `hot 8953472`
+      - `zkd0`:
+        - `small 553416`
+        - `medium 2233504`
+        - `hot 8953472`
+  - mirrored perf read:
+    - `kdz`:
+      - `small 0.000747` vs `-joff 0.000235`
+      - `medium 0.003049` vs `0.000950`
+      - `hot 0.011406` vs `0.003801`
+    - `zkd0`:
+      - `small 0.000838` vs `-joff 0.000262`
+      - `medium 0.003525` vs `0.001119`
+      - `hot 0.013091` vs `0.004754`
+  - focused hot-shape read on clean `zkd0`:
+    - corrected hot loop is still dominated by repeated `trace 2 exit 1`
+    - partial histogram read from the live trace log:
+      - `trace_starts=12718`
+      - repeated `trace 2 exit 1 = 726335`
+      - hot exit `snapop=87`
+  - classification:
+    - the new pair repairs semantics but does not repair the actual throughput
+      limiter
+    - the active blocker has shifted from wrong iterator-state restore to a
+      hotside/side-trace exit storm on the corrected `ITERC/ITERL` loop
+    - the next remediation family should target that `trace 2 exit 1` hot
+      exit/link contract, not more restore or nil-slot surgery
