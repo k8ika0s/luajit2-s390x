@@ -13878,3 +13878,22 @@ Next hash target
     - the remaining live issue is the current-value replay/typecheck contract
       itself, not whether the value is sourced from hidden `FORL_IDX` or
       visible `FORL_EXT`
+
+- Timestamp: `2026-04-03 18:18:00 PDT`
+  - explicit visible-alias no-guard is now classified and rejected
+  - opt-in experiment:
+    - `LUAJIT_S390X_FORL_EXT_ALIAS_NOGUARD=1`
+  - exact-taken artifact:
+    - [20260403-kdz-forl-ext-alias-noguard](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-forl-ext-alias-noguard/summary.md)
+  - structural result:
+    - the current-value replay/typecheck seam does not disappear
+    - it just stops being the first literal payer
+    - `number_helper_loop` redirects to:
+      - `curins 15`, `IR=SLOAD`, `op1=3`, `op2=4`, `ofs=8`, `extra=12`
+    - `be_pack_loop` redirects to:
+      - `curins 35`, `IR=SLOAD`, `op1=3`, `op2=4`, `ofs=8`, `extra=12`
+  - conclusion:
+    - dropping the `FORL_EXT` replay typecheck is not a new remediation lane
+    - it only recreates the already-classified carried-accumulator redirect
+    - the next honest target remains the current-value replay/typecheck
+      contract itself
