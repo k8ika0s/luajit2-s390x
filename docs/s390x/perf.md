@@ -3675,3 +3675,33 @@ localized-helper carried-`total` lane
   - this is now a default-on remediation, not only a gated checkpoint
   - the next step should quantify broader throughput and regression surface
     under the new default
+
+## 2026-04-04 08:52 PDT
+
+- Envless host-pair `promotion_core` restamp:
+  [20260404-hostpair-promotion-core-envless-restamp](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-promotion-core-envless-restamp/summary.md)
+- `kdz`
+  - `be_helpers`
+    - `number_helper_loop/hot 0.000113` vs `-joff 0.002241`
+    - `be_pack_loop/hot 0.000319` vs `0.018557`
+  - `ffi_calls`
+    - `direct_abs/hot 0.000291` vs `0.010114`
+    - `stored_abs/hot 0.000289` vs `0.007024`
+  - `bitops_mix/hot 0.000730` vs `0.002148`
+  - `logical_chain_tail_add/hot 0.000748` vs `0.002107`
+  - `logical_chain_tail_store/hot 0.000594` vs `0.002025`
+- `zkd0`
+  - `be_helpers`
+    - `number_helper_loop/hot 0.000131` vs `-joff 0.002609`
+    - `be_pack_loop/hot 0.000339` vs `0.022114`
+  - `ffi_calls`
+    - `direct_abs/hot 0.000338` vs `0.021233`
+    - `stored_abs/hot 0.000325` vs `0.014235`
+  - `bitops_mix/hot 0.000836` vs `0.002243`
+  - `logical_chain_tail_add/hot 0.000968` vs `0.002235`
+  - `logical_chain_tail_store/hot 0.000713` vs `0.002362`
+- Read:
+  - the current first-enable `promotion_core` set is now broadly green on both
+    hosts
+  - the old `promotion_core` throughput floor is no longer the active
+    branch-level blocker

@@ -14100,3 +14100,32 @@ Next hash target
     - the warmed overflow seam is now owned by a default-on remediation family
     - next work should shift to broader throughput/regression quant, not back
       to hidden-current compare attribution
+
+- Timestamp: `2026-04-04 08:52:00 PDT`
+  - envless host-pair quant now shows the whole first-enable `promotion_core`
+    set on the right side of `-joff`
+  - artifact:
+    - [20260404-hostpair-promotion-core-envless-restamp](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260404-hostpair-promotion-core-envless-restamp/summary.md)
+  - host-pair read:
+    - `kdz`
+      - `number_helper_loop/hot 0.000113` vs `-joff 0.002241`
+      - `be_pack_loop/hot 0.000319` vs `0.018557`
+      - `direct_abs/hot 0.000291` vs `0.010114`
+      - `stored_abs/hot 0.000289` vs `0.007024`
+      - `mix_bits/hot 0.000730` vs `0.002148`
+      - `chain_tail_add/hot 0.000748` vs `0.002107`
+      - `chain_tail_store/hot 0.000594` vs `0.002025`
+    - `zkd0`
+      - `number_helper_loop/hot 0.000131` vs `-joff 0.002609`
+      - `be_pack_loop/hot 0.000339` vs `0.022114`
+      - `direct_abs/hot 0.000338` vs `0.021233`
+      - `stored_abs/hot 0.000325` vs `0.014235`
+      - `mix_bits/hot 0.000836` vs `0.002243`
+      - `chain_tail_add/hot 0.000968` vs `0.002235`
+      - `chain_tail_store/hot 0.000713` vs `0.002362`
+  - classification:
+    - the old `promotion_core` floor is effectively cleared
+    - the next branch-level limiter is no longer inside the current first-enable
+      set
+    - next work should move to the next enable frontier or to broader
+      regression scanning outside `promotion_core`
