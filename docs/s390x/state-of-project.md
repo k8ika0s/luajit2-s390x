@@ -4391,3 +4391,45 @@ There are only two realistic outcomes:
   - this is useful ownership evidence for the asm-side compare
   - but not a promotable remediation family
   - it fails correctness and makes the payoff sibling slower
+
+## 2026-04-03 18:36 PDT
+
+- The next post-current-seam `be_pack_loop` issue is now pinned exactly.
+- Discovery surface:
+  - keep the shipping default frozen
+  - use opt-in hidden-current compare repair only as a discovery aid:
+    - `LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX=1`
+  - widen debug compare-truth logging to the next carried lane:
+    - `SLOAD op1=3 op2=4`
+- Carried-lane artifact:
+  [20260403-kdz-be-pack-carried-cmptruth](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-be-pack-carried-cmptruth/summary.md)
+- Read:
+  - clean direct rerun on synced `kdz` no longer reproduces the old exit `139`
+  - stripped result-only confirmation returns the correct hot value:
+    - `2048032000`
+  - exact taken guard still reports the carried accumulator lane:
+    - `guardmark=35`
+    - `curins=35`
+    - `IR=SLOAD`
+    - `op1=3`
+    - `op2=0x4`
+    - `ofs=8`
+    - `extra=12`
+  - but compare-truth now shows that lane is semantically clean:
+    - boxed int raw slot
+    - `logical_eq=1`
+    - `signed_eq=1`
+  - nearby guard cluster under the same restored-header seam is:
+    - `curins 37`
+    - `curins 35`
+    - `curins 33`
+  - nearby IR window is:
+    - `ins 33`: `EQ`
+    - `ins 35`: `SLOAD`
+    - `ins 37`: `UGT`
+- Conclusion:
+  - the carried accumulator `SLOAD` compare is not the next broken compare
+  - the next real issue is adjacent guard ownership/consumer attribution in
+    the same restored-header cluster
+  - the next remediation target should start at `UGT curins 37`, not another
+    `SLOAD` compare patch

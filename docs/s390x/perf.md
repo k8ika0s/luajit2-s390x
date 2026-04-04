@@ -3561,3 +3561,30 @@ localized-helper carried-`total` lane
 - Classification:
   - backend compare removal is real ownership evidence
   - but it is not a viable remediation lane
+
+## 2026-04-03 18:36 PDT
+
+- The next `be_pack_loop` payer after the hidden-current compare fix is now
+  classified.
+- Discovery artifact:
+  [20260403-kdz-be-pack-carried-cmptruth](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-be-pack-carried-cmptruth/summary.md)
+- Read:
+  - with opt-in `LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX=1`, the clean direct
+    `kdz` rerun returns the correct hot result:
+    - `2048032000`
+  - the exact taken guard still reports the carried accumulator lane:
+    - `curins 35 / SLOAD op1=3 op2=4`
+  - but compare-truth proves that lane is semantically clean:
+    - valid boxed int
+    - `logical_eq=1`
+    - `signed_eq=1`
+  - the live issue therefore moves to adjacent guard ownership inside the same
+    restored-header cluster:
+    - `curins 37`
+    - `curins 35`
+    - `curins 33`
+    - nearby IR: `UGT`, `SLOAD`, `EQ`
+- Classification:
+  - do not open another `SLOAD` compare patch on the carried accumulator lane
+  - the next remediation target should start with the adjacent
+    `UGT curins 37` consumer
