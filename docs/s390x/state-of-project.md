@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-04 15:47:10 PDT
+Last updated: 2026-04-05 09:10:43 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It should be updated in place. Older status snapshots should be removed rather
@@ -36,10 +36,35 @@ Before the older lane breakdown, the current branch-level read is:
 - focused classification is now cleaner:
   - the active fix is suppressing futile `BC_ITERN` side-trace reheats after
     `persistent type instability`
-  - the active issue is no longer mixed-noffi correctness on the retained
-    baseline
-  - the next target is the remaining iterator hot-loop throughput cost after
-    that suppression, not hash-child opening or VM resume surgery
+  - the retained baseline is still exact-correct, but it is not structurally
+    quiet
+  - focused `kdz` reads now pin two live costs behind that baseline:
+    - root `trace 2` still repeats
+      `BC_JLOOP -> phase=dispatch-original -> BC_ITERN`
+    - `parent=2 exit=1` still seeds `BC_JMP` nil descendants that die at
+      `rec_itern_nil_descendant`
+  - a new root-only reopen on that second seam was real but rejected:
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1` cleared the `rec_itern_nil_descendant`
+      ladder on both hosts
+    - but it was slower:
+      - `kdz 0.013209`
+      - `zkd0 0.018265`
+  - pairing that reopen with the older corrected-child stack was also exact but
+    slower again:
+    - `kdz 0.015767`
+    - `zkd0 0.018063`
+  - the important ownership read from that reject is now explicit:
+    - once the nil gate opens, the resulting child is a self-looping root-2
+      `BC_JMP` trace:
+      - `trace=3`
+      - `parent=2 exit=1`
+      - `startop=BC_JMP`
+      - `root=2`
+      - `linktype=LOOP`
+      - `link=3`
+  - the next target is therefore narrower than “fix mixed_noffi”
+  - it is the owner/runtime contract of that self-looping root-2 `BC_JMP`
+    child, plus the residual root `trace 2` `dispatch-original` replay cost
 
 The project is no longer in a broad “is s390x fundamentally stable?” phase.
 That part is far enough along that the work is now split into three separate

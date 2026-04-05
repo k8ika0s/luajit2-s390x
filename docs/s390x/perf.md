@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-04 15:47:10 PDT
+Last updated: 2026-04-05 09:10:43 PDT
 
 ## Latest Matrix
 
@@ -19,8 +19,14 @@ perf/correctness state before any mechanism notes.
 | 2026-04-04 15:47 PDT | `zkd0` | `mixed_noffi/mixed_loop/hot` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.014241` | `0.004754` | exact-correct retained baseline with default-on `SIDETRACE_TYPEINS_DONE`; improved vs opt-out `0.015382` |
 | 2026-04-04 15:47 PDT | `kdz` | `mixed_noffi/mixed_loop/medium` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.002824` | n/a | exact-correct retained baseline after side-trace suppression |
 | 2026-04-04 15:47 PDT | `zkd0` | `mixed_noffi/mixed_loop/medium` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.003246` | n/a | exact-correct retained baseline after side-trace suppression |
+| 2026-04-05 09:10 PDT | `kdz` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_CHILD_RESUME` | `0.014761` | n/a | exact-correct rejected; slower than retained mixed frontier |
+| 2026-04-05 09:10 PDT | `zkd0` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_CHILD_RESUME` | `0.019441` | n/a | exact-correct rejected; slower than retained mixed frontier |
+| 2026-04-05 09:10 PDT | `kdz` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` | `0.013209` | n/a | exact-correct rejected; clears `rec_itern_nil_descendant` but still slower |
+| 2026-04-05 09:10 PDT | `zkd0` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` | `0.018265` | n/a | exact-correct rejected; clears `rec_itern_nil_descendant` but still slower |
+| 2026-04-05 09:10 PDT | `kdz` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` + `DROP_VALUE` + `LINK_ROOT` + `ROOT_RESUMECHILD` | `0.015767` | n/a | exact-correct rejected; combined owner/runtime stack is worse again |
+| 2026-04-05 09:10 PDT | `zkd0` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` + `DROP_VALUE` + `LINK_ROOT` + `ROOT_RESUMECHILD` | `0.018063` | n/a | exact-correct rejected; combined owner/runtime stack is worse again |
 
-Current frontier after the latest `mixed_noffi` restamp:
+Current frontier after the latest `mixed_noffi` cleanup pass:
 
 - `promotion_core` is now broadly green on both hosts and no longer the active
   limiter.
@@ -40,13 +46,26 @@ Current frontier after the latest `mixed_noffi` restamp:
   - but it was slower than the retained baseline on `kdz` and only marginal on
     `zkd0`
 - current read:
-  - the real win is not child opening or VM resume retargeting
-  - it is suppressing futile `parent=1/2 exit=1` `BC_ITERN` side-trace
-    reheats after `persistent type instability`
-  - the retained mixed-noffi baseline is still far slower than `-joff`, but it
-    is now materially better on `zkd0` and neutral-to-better on `kdz`
-  - the next live target is no longer correctness on the retained baseline; it
-    is the remaining hot `dispatch-original` / iterator loop throughput cost
+  - the retained mixed-noffi baseline is still exact-correct but still pays two
+    coupled iterator costs:
+    - focused `kdz` read still shows root `trace 2` repeating
+      `BC_JLOOP -> phase=dispatch-original -> BC_ITERN` with count `5036`
+    - clean `parent=2 exit=1` still spawns `BC_JMP` descendants that abort at
+      `rec_itern_nil_descendant`
+  - the new root-only reopen `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1` is real:
+    - it drives `LLEAVE_COUNT` and matching `err=8` aborts to zero on both
+      hosts
+    - but it still loses on warm throughput
+  - when that gate is opened, the recorded child shape is:
+    - `trace=3`
+    - `parent=2 exit=1`
+    - `startop=BC_JMP`
+    - `root=2`
+    - `linktype=LOOP`
+    - `link=3`
+  - so the next live target is not the nil-descendant gate itself
+  - it is the owner/runtime contract of that self-looping root-2 `BC_JMP`
+    child, plus the residual root `trace 2` `dispatch-original` replay cost
 
 ## Active Shipping Throughput Slice
 

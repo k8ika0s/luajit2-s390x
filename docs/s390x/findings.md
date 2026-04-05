@@ -34,8 +34,18 @@ added at the end in chronological order.
     candidate
   - the retained mixed-noffi baseline is still slower than `-joff`, but it is
     materially better on `zkd0` and neutral-to-better on `kdz`
-  - the next live target is now the remaining iterator hot-loop throughput
-    cost after side-trace suppression, not hash-child opening
+  - the current live read is now tighter:
+    - root `trace 2` still pays repeated
+      `BC_JLOOP -> phase=dispatch-original -> BC_ITERN`
+    - clean `parent=2 exit=1` still seeds `BC_JMP` nil descendants that die at
+      `rec_itern_nil_descendant`
+  - a new root-only nil-descendant reopen proved that seam is real, but not
+    sufficient:
+    - it clears the `LLEAVE` ladder on both hosts
+    - it still loses on warm throughput
+  - the next live target is the owner/runtime contract of the self-looping
+    root-2 `BC_JMP` child produced by that reopen, not the nil-descendant gate
+    itself
 
 ## Harness Status
 
@@ -14259,7 +14269,79 @@ Next hash target
   - classification:
     - the new pair repairs semantics but does not repair the actual throughput
       limiter
-    - the active blocker has shifted from wrong iterator-state restore to a
+  - the active blocker has shifted from wrong iterator-state restore to a
       hotside/side-trace exit storm on the corrected `ITERC/ITERL` loop
-    - the next remediation family should target that `trace 2 exit 1` hot
+  - the next remediation family should target that `trace 2 exit 1` hot
       exit/link contract, not more restore or nil-slot surgery
+
+- Timestamp: `2026-04-05 09:10:43 PDT`
+  - the root-iterator throughput frontier was split into two exact runtime
+    branches and both are now closed.
+  - first branch: root `BC_ITERN` child-resume runtime probe
+    - env:
+      - `LUAJIT_S390X_ROOT_ITERN_CHILD_RESUME=1`
+    - targeted rule:
+      - keep root `trace 2` itself unchanged
+      - cache the exact `exit 1` `BC_JMP` child on the root
+      - let `BC_JLOOP` borrow that child’s own `resumeins/resumepc` instead of
+        replaying `BC_ITERN`
+    - exact result:
+      - `kdz`: `RESULT 553416`, `HASH_VALUE 3000`
+      - `zkd0`: `RESULT 553416`, `HASH_VALUE 3000`
+    - warm perf:
+      - `kdz`: `0.014761`
+      - `zkd0`: `0.019441`
+    - classification:
+      - exact but clearly slower
+      - rejected and reverted
+  - second branch: root-only `rec_itern_nil_descendant` reopen
+    - env:
+      - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - clean baseline classification before the reopen:
+      - `parent=2 exit=1` repeatedly aborts at
+        `site=rec_itern_nil_descendant`
+      - exact root shape:
+        - parent trace is root `BC_ITERN`
+        - child `startop=BC_JMP`
+        - nil path advances to `nextop=BC_FORL`
+      - focused `kdz` baseline:
+        - root `trace 2` still repeats
+          `BC_JLOOP -> phase=dispatch-original -> BC_ITERN`
+          with count `5036`
+    - reopened rule:
+      - allow the nil-descendant only for:
+        - `parent->root == 0`
+        - `parent->linktype == LJ_TRLINK_LOOP`
+        - `bc_op(parent->startins) == BC_ITERN`
+        - current `startop == BC_JMP`
+        - `nextop == BC_FORL`
+    - exact result:
+      - `kdz`: `RESULT 553416`
+      - `zkd0`: `RESULT 553416`
+    - direct seam result:
+      - `LLEAVE_COUNT: 0`
+      - matching `parent=2 exit=1 startop=88 err=8` abort count also drops to
+        `0`
+    - recorded child shape after the reopen:
+      - `trace=3`
+      - `parent=2 exit=1`
+      - `startop=BC_JMP`
+      - `root=2`
+      - `linktype=LOOP`
+      - `link=3`
+    - warm perf:
+      - `kdz`: `0.013209`
+      - `zkd0`: `0.018265`
+    - combined with the older corrected-child stack:
+      - `DROP_VALUE + LINK_ROOT + ROOT_RESUMECHILD`
+      - exact on both hosts
+      - still worse:
+        - `kdz`: `0.015767`
+        - `zkd0`: `0.018063`
+    - classification:
+      - the nil-descendant gate is real, but not the fix
+      - once opened, the real owner shifts to the self-looping root-2
+        `BC_JMP` child that it records
+      - next honest target:
+        - owner/runtime contract of that child
+        - plus the residual root `trace 2` `dispatch-original` replay cost
