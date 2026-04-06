@@ -1,71 +1,181 @@
 # s390x Performance Status
 
-Last updated: 2026-04-05 09:10:43 PDT
+Last updated: 2026-04-06 18:05:00 PDT
 
-## Latest Matrix
+## Canonical Perf Suite
 
-Keep this table at the top. It is the quick-glance view of the latest dated
-perf/correctness state before any mechanism notes.
+There is no existing repo-wide cross-architecture perf matrix checked into
+this tree. The stable standard already in this branch is the fixed
+`tests/s390x/perf/*.lua` suite, all built on
+[benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
+with the same `family/workload/scale` schema. This suite list should stay
+stable unless a workload is intentionally added or retired.
 
-| Updated | Host | Workload | JIT-on | `-joff` | Status |
-| --- | --- | --- | --- | --- | --- |
-| 2026-04-04 08:52 PDT | `kdz` | `number_helper_loop/hot` | `0.000113` | `0.002241` | win |
-| 2026-04-04 08:52 PDT | `kdz` | `be_pack_loop/hot` | `0.000319` | `0.018557` | win |
-| 2026-04-04 08:52 PDT | `kdz` | `direct_abs/hot` | `0.000291` | `0.010114` | win |
-| 2026-04-04 08:52 PDT | `zkd0` | `number_helper_loop/hot` | `0.000131` | `0.002609` | win |
-| 2026-04-04 08:52 PDT | `zkd0` | `be_pack_loop/hot` | `0.000339` | `0.022114` | win |
-| 2026-04-04 08:52 PDT | `zkd0` | `direct_abs/hot` | `0.000338` | `0.021233` | win |
-| 2026-04-04 15:47 PDT | `kdz` | `mixed_noffi/mixed_loop/hot` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.011891` | `0.003801` | exact-correct retained baseline with default-on `SIDETRACE_TYPEINS_DONE`; improved vs opt-out `0.011970` |
-| 2026-04-04 15:47 PDT | `zkd0` | `mixed_noffi/mixed_loop/hot` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.014241` | `0.004754` | exact-correct retained baseline with default-on `SIDETRACE_TYPEINS_DONE`; improved vs opt-out `0.015382` |
-| 2026-04-04 15:47 PDT | `kdz` | `mixed_noffi/mixed_loop/medium` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.002824` | n/a | exact-correct retained baseline after side-trace suppression |
-| 2026-04-04 15:47 PDT | `zkd0` | `mixed_noffi/mixed_loop/medium` + `AREF_BASE_ALLGPR` + `EXIT1_SKIP_BODY` | `0.003246` | n/a | exact-correct retained baseline after side-trace suppression |
-| 2026-04-05 09:10 PDT | `kdz` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_CHILD_RESUME` | `0.014761` | n/a | exact-correct rejected; slower than retained mixed frontier |
-| 2026-04-05 09:10 PDT | `zkd0` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_CHILD_RESUME` | `0.019441` | n/a | exact-correct rejected; slower than retained mixed frontier |
-| 2026-04-05 09:10 PDT | `kdz` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` | `0.013209` | n/a | exact-correct rejected; clears `rec_itern_nil_descendant` but still slower |
-| 2026-04-05 09:10 PDT | `zkd0` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` | `0.018265` | n/a | exact-correct rejected; clears `rec_itern_nil_descendant` but still slower |
-| 2026-04-05 09:10 PDT | `kdz` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` + `DROP_VALUE` + `LINK_ROOT` + `ROOT_RESUMECHILD` | `0.015767` | n/a | exact-correct rejected; combined owner/runtime stack is worse again |
-| 2026-04-05 09:10 PDT | `zkd0` | `mixed_noffi/mixed_warm_bench` + `ROOT_ITERN_NIL_DESC` + `DROP_VALUE` + `LINK_ROOT` + `ROOT_RESUMECHILD` | `0.018063` | n/a | exact-correct rejected; combined owner/runtime stack is worse again |
+For scale-based suites, the checked-in policy order is now `hot` first via
+[benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
+`bench.scale_order(scales)`. Earlier `pairs(scales)` runs were not stable
+enough for retained policy rows.
+
+| Suite file | Family | Workloads | Role in the matrix |
+| --- | --- | --- | --- |
+| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | frozen iterator gate; still bad and still important |
+| [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | active mixed frontier |
+| [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | mixed FFI regression screen |
+| [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | primary `promotion_core` controls |
+| [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua) | `ffi_calls` | `direct_abs`, `stored_abs` | recurring FFI throughput controls |
+| [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua) | `bitops_mix` | `mix_bits` | helper-light logic/bitops control |
+| [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua) | `logical_chain_tail_add` | `chain_tail_add` | recurring logic-chain sibling |
+| [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua) | `logical_chain_tail_store` | `chain_tail_store` | recurring logic-chain sibling |
+| [tests/s390x/perf/dispatch_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/dispatch_trace.lua) | `dispatch_trace` | `numeric_loop`, `side_exit_loop`, `hotexit_loop` | dispatch-side mechanism suite |
+| [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua) | `ffi_cdata` | `pair_loop`, `mixed_width_loop` | cdata regression suite |
+| [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua) | `vararg_paths` | `sum_loop`, `retlast_loop`, `retconst_loop` | vararg regression suite |
+| [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | `const_same_callsite`, `lua_abs_same_callsite` | callsite/lower-frame regression suite |
+| [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | `number_helper_literal_stop_real`, `number_helper_literal_stop_real_local_tobit`, `be_pack_literal_stop_real` | static-stop mechanism suite |
+| [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | `direct_abs_literal_stop_real`, `stored_abs_literal_stop_real` | static-stop FFI regression suite |
+| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | `number_helper_loop_local_tobit`, `be_pack_loop_local_ops_real` | localized helper experiments |
+| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | `be_pack_literal_stop`, `be_pack_literal_stop_local_ops`, `be_pack_loop_local_ops` | reducer route-around experiments |
+| [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | `add_phi_only` | narrow integer-phi experiment |
+| [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | `logic_add_phi_noboundary` | narrow logic-phi experiment |
+
+## How To Read This Page
+
+- The top matrix is the current retained row for each stable carried workload.
+- The pinned blocker table is the short view for what still hurts most.
+- Historical host tables later in the file are evidence snapshots for a
+  specific host and candidate surface. They are not the current matrix.
+- Experimental and mechanism-only suites stay out of the main matrix even when
+  they have dramatic ratios.
+
+## Full Stable Matrix
+
+This is the current retained matrix for the stable carried workloads. If a
+workload belongs to the carried suite, it should have one row here even if the
+number is ugly.
+
+| Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `pairs_sum/hot` | `iterator_table` | `0.066259` | `0.005540` | `+0.060719`, `11.96x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
+| `pairs_array_sum/hot` | `iterator_table` | `0.069155` | `0.003716` | `+0.065439`, `18.61x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
+| `mixed_loop/hot` | `mixed_noffi` | `0.015698` | `0.003734` | `+0.011964`, `4.20x` | `kdz` | `2026-04-06 18:05 PDT` | retained root-2 VM handoff win; still live blocker |
+| `mixed_ffi_loop/hot` | `mixed_ffi` | `0.059215` | `0.012404` | `+0.046811`, `4.77x` | `kdz` | `2026-04-01 16:25:27 PDT` | stable regression screen; still materially red |
+| `number_helper_loop/hot` | `be_helpers` | `0.000113` | `0.002241` | `-0.002128`, `0.05x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `be_pack_loop/hot` | `be_helpers` | `0.000319` | `0.018557` | `-0.018238`, `0.02x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `direct_abs/hot` | `ffi_calls` | `0.000291` | `0.010114` | `-0.009823`, `0.03x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `stored_abs/hot` | `ffi_calls` | `0.000289` | `0.007024` | `-0.006735`, `0.04x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `mix_bits/hot` | `bitops_mix` | `0.000730` | `0.002148` | `-0.001418`, `0.34x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic/bitops control |
+| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000748` | `0.002107` | `-0.001359`, `0.35x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
+| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000594` | `0.002025` | `-0.001431`, `0.29x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
+| `numeric_loop/hot` | `dispatch_trace` | `0.342594` | `0.002173` | `+0.340421`, `157.66x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.526504` | `0.004692` | `+0.521812`, `112.21x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.611632` | `0.005619` | `+0.606013`, `108.85x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `pair_loop/hot` | `ffi_cdata` | `0.137179` | `0.017319` | `+0.119860`, `7.92x` | `kdz` | `2026-04-01 16:25:27 PDT` | cdata regression screen; still red |
+| `mixed_width_loop/hot` | `ffi_cdata` | `0.027964` | `0.027969` | `-0.000005`, `1.00x` | `kdz` | `2026-04-01 16:25:27 PDT` | near parity control |
+| `sum_loop/hot` | `vararg_paths` | `0.675950` | `0.005150` | `+0.670800`, `131.25x` | `kdz` | `2026-04-01 16:25:27 PDT` | vararg blocker; catastrophically red |
+| `retlast_loop/hot` | `vararg_paths` | `0.003093` | `0.002025` | `+0.001068`, `1.53x` | `kdz` | `2026-04-01 17:53:04 PDT` | vararg sibling; mildly red |
+| `retconst_loop/hot` | `vararg_paths` | `0.001660` | `0.000591` | `+0.001069`, `2.81x` | `kdz` | `2026-04-01 17:53:04 PDT` | vararg sibling; still red |
+
+## Pinned Recurring Workloads
+
+This is the top progress view. It is not “best-only” anymore, and it is split
+so the live blockers stay visually dominant.
+
+### Gate And Blocker Workloads
+
+These rows should remain at the top until the branch-level gaps materially
+shrink.
+
+| Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `pairs_sum/hot` | `iterator_table` | `0.066259` | `0.005540` | `+0.060719`, `11.96x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
+| `pairs_array_sum/hot` | `iterator_table` | `0.069155` | `0.003716` | `+0.065439`, `18.61x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
+| `mixed_loop/hot` | `mixed_noffi` | `0.015698` | `0.003734` | `+0.011964`, `4.20x` | `kdz` | `2026-04-06 18:05 PDT` | retained root-2 VM handoff win; still live blocker |
+| `numeric_loop/hot` | `dispatch_trace` | `0.342594` | `0.002173` | `+0.340421`, `157.66x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.526504` | `0.004692` | `+0.521812`, `112.21x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.611632` | `0.005619` | `+0.606013`, `108.85x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `sum_loop/hot` | `vararg_paths` | `0.675950` | `0.005150` | `+0.670800`, `131.25x` | `kdz` | `2026-04-01 16:25:27 PDT` | vararg blocker; catastrophically red |
+
+### Regression And Control Workloads
+
+These rows stay pinned too, but they are controls and regression screens rather
+than the primary “still slow” blockers.
+
+| Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `number_helper_loop/hot` | `be_helpers` | `0.000113` | `0.002241` | `-0.002128`, `0.05x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `be_pack_loop/hot` | `be_helpers` | `0.000319` | `0.018557` | `-0.018238`, `0.02x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `direct_abs/hot` | `ffi_calls` | `0.000291` | `0.010114` | `-0.009823`, `0.03x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `stored_abs/hot` | `ffi_calls` | `0.000289` | `0.007024` | `-0.006735`, `0.04x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `mix_bits/hot` | `bitops_mix` | `0.000730` | `0.002148` | `-0.001418`, `0.34x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic/bitops control |
+| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000748` | `0.002107` | `-0.001359`, `0.35x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
+| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000594` | `0.002025` | `-0.001431`, `0.29x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
+
+Pinned-workload rules from here:
+
+- Do not add or remove rows casually.
+- Keep the same recurring workloads at the top even when they look good or bad.
+- If a row changes meaning, record the reason explicitly in `Status / Notes`.
+- Put one-off experiments and branch-only candidates in the chronological log
+  below, not in the pinned row set.
+
+## Experimental And Mechanism-Only Suites
+
+These checked-in perf files are real tests, but they are not part of the
+stable carried matrix. Their rows later in this document are mechanism or
+experiment evidence, not top-level progress rows.
+
+| Suite file | Family | Why it is not in the stable matrix |
+| --- | --- | --- |
+| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | localized helper experiments, not a branch-level carry set |
+| [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | static-stop mechanism suite |
+| [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | static-stop FFI mechanism suite |
+| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family |
+| [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | narrow experiment-only control |
+| [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
+| [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | checked-in regression suite, but not currently restamped into the retained carried matrix |
 
 Current frontier after the latest `mixed_noffi` cleanup pass:
 
-- `promotion_core` is now broadly green on both hosts and no longer the active
-  limiter.
-- the active frontier is still `mixed_noffi`, but the retained exact-correct
-  baseline moved again.
-- the current exact-correct `mixed_noffi` baseline is now:
+- `promotion_core` is broadly green on both hosts and is no longer the active
+  branch-level limiter.
+- the active frontier is still `mixed_noffi`.
+- the retained exact branch control is now:
   - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
   - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
-  - default-on helper:
-    - `lj_trace.c` side-trace `LJ_TRERR_TYPEINS` on `BC_ITERN parent!=0 exit=1`
-      now marks the parent exit `SNAPCOUNT_DONE`
-    - opt-out:
-      `LUAJIT_S390X_DISABLE_SIDETRACE_TYPEINS_DONE=1`
-- the old widened hash-child candidate is now closed and removed from the
-  active source path:
-  - `ROOT_ITERN_HASH_NIL_DESC + ROOT_JLOOP_CHILD` was exact-correct
-  - but it was slower than the retained baseline on `kdz` and only marginal on
-    `zkd0`
-- current read:
-  - the retained mixed-noffi baseline is still exact-correct but still pays two
-    coupled iterator costs:
-    - focused `kdz` read still shows root `trace 2` repeating
-      `BC_JLOOP -> phase=dispatch-original -> BC_ITERN` with count `5036`
-    - clean `parent=2 exit=1` still spawns `BC_JMP` descendants that abort at
-      `rec_itern_nil_descendant`
-  - the new root-only reopen `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1` is real:
-    - it drives `LLEAVE_COUNT` and matching `err=8` aborts to zero on both
-      hosts
-    - but it still loses on warm throughput
-  - when that gate is opened, the recorded child shape is:
-    - `trace=3`
-    - `parent=2 exit=1`
-    - `startop=BC_JMP`
-    - `root=2`
-    - `linktype=LOOP`
-    - `link=3`
-  - so the next live target is not the nil-descendant gate itself
-  - it is the owner/runtime contract of that self-looping root-2 `BC_JMP`
-    child, plus the residual root `trace 2` `dispatch-original` replay cost
+  - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+  - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - default-on `SIDETRACE_TYPEINS_DONE` in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+- `ROOT_ITERN_NIL_DESC` remains a real but slower classifier.
+- the narrowed root-1 replay-triplet work remains necessary, but it is no
+  longer the branch-level limiter.
+- the live branch-level seam is still the root-2 hot handoff:
+  - hot exit remains `trace 3 exit 1`
+  - runtime still reports `dispatch-original -> target=2 -> BC_ITERN`
+  - focused `TRACE_START`/`TRACE_STOP`/`TRACE_ABORT` and `TEXIT_HIST 3:1`
+    stay unchanged
+- the retained mixed bundle now includes the VM-side handoff fast path in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  for that exact retained root-2 seam
+- the checked-in policy suite now measures scale-based families in deterministic
+  hot-first order through `bench.scale_order(scales)`, so the stable `mixed`
+  row above is now valid again
+- current host-pair validation for the retained VM bundle:
+  - `kdz`: `mixed_loop/hot 0.015698`, `-joff 0.003734`
+  - `zkd0`: `mixed_loop/hot 0.017455`, `-joff 0.004387`
+  - exact on both hosts:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+- read:
+  - the root-2 handoff branch is now the retained mixed floor
+  - the branch is still materially behind `-joff`, so `mixed_noffi` remains
+    the leading carried mixed blocker
+
+## Chronological Log
+
+Everything below this heading stays chronological. Use it for run history,
+mechanism notes, rejected directions, and branch-by-branch context. When a run
+changes the retained scoreboard row above, update the row in place and then add
+the new run here with the qualifying notes.
 
 ## Active Shipping Throughput Slice
 
@@ -321,7 +431,27 @@ Compare-truth attribution and first narrow compare-fix classification:
   - the next live target is the post-current-seam `be_pack_loop` failure that
     opens after the hidden int compare is corrected
 
-### kdz
+## Historical Broader-Suite Snapshots
+
+These tables preserve one host-specific candidate-surface snapshot in the form
+it was captured. They intentionally mix stable carried workloads with
+experiment-only rows. They are evidence tables, not alternative top-level
+scoreboards.
+
+Use this rule when a row appears here and also has a row at the top:
+
+| Row class | What it means | Should it have a retained row in `Full Stable Matrix`? |
+| --- | --- | --- |
+| stable carried workload | recurring checked-in suite member that we want to track over time | yes |
+| non-retained surface result | same workload, but on an older or non-retained candidate surface | no; keep only as history |
+| experimental / mechanism row | localized, static-stop, route-around, or narrow reproducer evidence | no |
+
+If a workload is part of the stable carried suite, the current retained answer
+for that workload lives in `Full Stable Matrix` near the top. If it only
+appears in the tables below, it is historical evidence or an experiment row,
+not part of the retained current matrix.
+
+### Historical Broader-Suite Snapshot: kdz
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -366,7 +496,17 @@ Compare-truth attribution and first narrow compare-fix classification:
 | 2026-04-01 20:14:22 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.058992` | `0.005459` | `10.81x` |
 | 2026-04-01 20:14:22 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.064010` | `0.003679` | `17.40x` |
 
-### zkd0
+Read for this snapshot:
+
+- rows such as `pairs_sum`, `mixed_loop`, `numeric_loop`, and `sum_loop` are
+  stable carried workloads, but these specific numbers are still just one
+  historical candidate-surface capture
+- rows such as `add_phi_only`, `logic_add_phi_noboundary`,
+  `number_helper_loop_local_tobit`, and `be_pack_literal_stop_real` are not
+  part of the retained matrix; they stay here as experiment or mechanism
+  evidence
+
+### Historical Broader-Suite Snapshot: zkd0
 
 | Updated | Path | Surface | JIT-on | `-joff` | On/Off |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -389,6 +529,13 @@ Compare-truth attribution and first narrow compare-fix classification:
 | 2026-04-01 17:59:38 PDT | `mixed_loop/hot` | `hotside_canon_share_uget_looproot` | `0.079668` | `0.006760` | `11.79x` |
 | 2026-04-01 20:54:30 PDT | `pairs_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.082382` | `0.006774` | `12.16x` |
 | 2026-04-01 20:54:30 PDT | `pairs_array_sum/hot` | `hotside_canon_share_uget_looproot_default` | `0.106179` | `0.005346` | `19.86x` |
+
+Read for this snapshot:
+
+- this table is the `zkd0` companion evidence dump for the same broader-suite
+  candidate surface
+- it is useful for host-to-host comparison and historical context, but it does
+  not replace the retained current matrix at the top of the page
 
 ## Scope
 

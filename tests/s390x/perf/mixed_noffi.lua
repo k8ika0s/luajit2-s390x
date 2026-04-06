@@ -26,7 +26,8 @@ local function mixed_loop(n)
 end
 
 local cases = {}
-for scale, n in pairs(scales) do
+for _, scale in ipairs(bench.scale_order(scales)) do
+  local n = scales[scale]
   local expected = mixed_loop(n)
   cases[#cases + 1] = {
     workload = "mixed_loop",

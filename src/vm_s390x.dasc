@@ -2421,7 +2421,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  llgc TMPR0, TRACE:RD->resumevalid
   |  clgfi TMPR0, 0
   |  jne >7
-|6:
+  |6:
   |  lghi RC, 1
   |7:
   |  clgfi RC, 0
@@ -2468,7 +2468,7 @@ static void build_subroutines(BuildCtx *ctx)
 |9:
   |  lg PC, TRACE:RD->resumepc
   |  llgf TMPR1, TRACE:RD->resumeins
-  |6:
+|6:
   |  la PC, 4(PC)
   |  lgr OP, TMPR1
   |  sllg OP, OP, 56
@@ -2476,6 +2476,36 @@ static void build_subroutines(BuildCtx *ctx)
   |  lgr RA, TMPR1
   |  sllg RA, RA, 48
   |  srlg RA, RA, 56
+  |  cghi OP, BC_ITERN
+  |  jne >5
+  |  llgh TMPR0, TRACE:RD->root
+  |  cghi TMPR0, 0
+  |  jne >5
+  |  llgc TMPR0, TRACE:RD->linktype
+  |  cghi TMPR0, LJ_TRLINK_LOOP
+  |  jne >5
+  |  llgh TMPR0, TRACE:RD->link
+  |  cghi TMPR0, 0
+  |  je >5
+  |  llgc TMPR0, TRACE:RD->resumevalid
+  |  clgfi TMPR0, 0
+  |  jne >5
+  |  llgh TMPR0, TRACE:RD->resumechild
+  |  cghi TMPR0, 0
+  |  jne >5
+  |  llgf TMPR0, TRACE:RD->nsnap
+  |  clgfi TMPR0, 6
+  |  jne >5
+  |  llgf TMPR0, TRACE:RD->nins
+  |  clgfi TMPR0, 32785
+  |  jne >5
+  |  llgf TMPR0, TRACE:RD->mcloop
+  |  clgfi TMPR0, 216
+  |  jne >5
+  |  aghi PC, -4
+  |  hotloop TMPR0
+  |  j ->vm_IITERN_bridge
+|5:
   |  llgfr RD, TMPR1
   |  srl RD, 16
   |  cghi OP, BC_JMP

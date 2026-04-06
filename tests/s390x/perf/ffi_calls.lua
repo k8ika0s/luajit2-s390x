@@ -30,7 +30,8 @@ local function stored_abs(n)
 end
 
 local cases = {}
-for scale, n in pairs(scales) do
+for _, scale in ipairs(bench.scale_order(scales)) do
+  local n = scales[scale]
   local expected_direct = direct_abs(n)
   local expected_stored = stored_abs(n)
   cases[#cases + 1] = {

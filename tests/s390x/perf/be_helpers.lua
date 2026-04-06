@@ -28,7 +28,8 @@ local function be_pack_loop(n)
 end
 
 local cases = {}
-for scale, n in pairs(scales) do
+for _, scale in ipairs(bench.scale_order(scales)) do
+  local n = scales[scale]
   local expected_helper = number_helper_loop(n)
   local expected_pack = be_pack_loop(n)
   cases[#cases + 1] = {

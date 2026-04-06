@@ -205,6 +205,32 @@ function M.run_suite(spec)
   end
 end
 
+function M.scale_order(scales)
+  local order = {}
+  local seen = {}
+  -- Prefer the hottest policy case first so smaller scales do not perturb the
+  -- main throughput read for the same process.
+  local preferred = { "hot", "small", "medium" }
+  for i = 1, #preferred do
+    local scale = preferred[i]
+    if scales[scale] ~= nil then
+      order[#order + 1] = scale
+      seen[scale] = true
+    end
+  end
+  local extras = {}
+  for scale, _ in pairs(scales) do
+    if not seen[scale] then
+      extras[#extras + 1] = scale
+    end
+  end
+  table.sort(extras)
+  for i = 1, #extras do
+    order[#order + 1] = extras[i]
+  end
+  return order
+end
+
 M.eq = testlib.eq
 M.truthy = testlib.truthy
 

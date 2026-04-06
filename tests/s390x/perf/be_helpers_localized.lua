@@ -33,7 +33,8 @@ local function be_pack_loop_local_ops_real(n)
 end
 
 local cases = {}
-for scale, n in pairs(scales) do
+for _, scale in ipairs(bench.scale_order(scales)) do
+  local n = scales[scale]
   local expected_helper = number_helper_loop_local_tobit(n)
   local expected_pack = be_pack_loop_local_ops_real(n)
   cases[#cases + 1] = {

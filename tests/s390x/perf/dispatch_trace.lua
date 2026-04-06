@@ -41,7 +41,8 @@ local function hotexit_loop(n)
 end
 
 local cases = {}
-for scale, n in pairs(scales) do
+for _, scale in ipairs(bench.scale_order(scales)) do
+  local n = scales[scale]
   local numeric_expected = numeric_loop(n)
   local side_exit_expected = side_exit_loop(n)
   local hotexit_expected = hotexit_loop(n)
