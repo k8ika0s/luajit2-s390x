@@ -34,18 +34,33 @@ added at the end in chronological order.
     candidate
   - the retained mixed-noffi baseline is still slower than `-joff`, but it is
     materially better on `zkd0` and neutral-to-better on `kdz`
-  - the current live read is now tighter:
-    - root `trace 2` still pays repeated
-      `BC_JLOOP -> phase=dispatch-original -> BC_ITERN`
-    - clean `parent=2 exit=1` still seeds `BC_JMP` nil descendants that die at
-      `rec_itern_nil_descendant`
-  - a new root-only nil-descendant reopen proved that seam is real, but not
-    sufficient:
-    - it clears the `LLEAVE` ladder on both hosts
-    - it still loses on warm throughput
-  - the next live target is the owner/runtime contract of the self-looping
-    root-2 `BC_JMP` child produced by that reopen, not the nil-descendant gate
-    itself
+  - the current engineering lock is the narrow root-only nil-descendant
+    classifier:
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - it is exact on both hosts
+    - it clears the root-2 `rec_itern_nil_descendant` ladder
+    - it is still slower than the retained shipping baseline, so it remains a
+      classifier, not a promotable default
+  - the older root-2 `BC_ITERN` replay seam is still real, but it is no longer
+    the highest-value active target:
+    - the obvious root-child resume, `mcloop`, `BC_LOOP`, and root handoff
+      shortcut families are now closed
+  - the current live target is the separate root-1 `ITERL/JITERL` continuation
+    family:
+    - clean `kdz` root trace:
+      - `trace 1`, `startop=BC_ITERL`, `mcloop=360`
+    - live child:
+      - `trace 6`
+      - `parent=1 exit=1 root=1`
+      - `startop=BC_JMP`
+      - `startpc=root+1`
+      - `linktype=LJ_TRLINK_INTERP`
+      - `resumevalid=1`
+      - `resumeins=BC_ISNEXT`
+      - `mcloop=0`
+    - next honest remediation family should target that root-1
+      `BC_JMP -> BC_ISNEXT` continuation contract, not reopen the closed
+      root-2 shortcut families
 
 ## Harness Status
 
@@ -14345,3 +14360,2774 @@ Next hash target
       - next honest target:
         - owner/runtime contract of that child
         - plus the residual root `trace 2` `dispatch-original` replay cost
+
+- Timestamp: `2026-04-05 12:45:00 PDT`
+  - the follow-up root-2 child runtime/save family is now closed as exact but
+    non-promotable.
+  - active control for these runs:
+    - retained exact baseline plus
+      `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - exact child shape under that control:
+    - `trace=3`
+    - `parent=2 exit=1`
+    - `root=2`
+    - `startop=BC_JMP`
+    - `linktype=LOOP`
+    - `link=3`
+    - default saved state:
+      - `mcloop=216`
+      - `resumevalid=0`
+  - rejected exact branches:
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_RESUME=1`
+      - saved child as:
+        - `resumevalid=1`
+        - `resumepc=startpc+1`
+        - `resumeop=BC_ITERL`
+      - exact:
+        - `RESULT 553416`
+        - `HASH_VALUE 3000`
+      - worse:
+        - `kdz`: control `0.015710`, candidate `0.016661`
+        - `zkd0`: control `0.025089`, candidate `0.082316`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_VM_CHILD_NOMCLOOP=1`
+      - exact
+      - worse:
+        - `kdz`: `0.016032`
+        - `zkd0`: `0.042425`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_BCJMP_RESUME=1`
+      - saved child as:
+        - `resumevalid=1`
+        - `resumepc=startpc`
+        - `resumeop=BC_JMP`
+      - exact
+      - worse:
+        - `kdz`: control `0.011543`, candidate `0.012271`
+        - `zkd0`: control `0.013867`, candidate `0.017103`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_CHILD_INTERP=1`
+      - forces the exact child to `LJ_TRLINK_INTERP`
+      - exact
+      - worse:
+        - `kdz`: `0.013070`
+        - `zkd0`: `0.015347`
+  - classification:
+    - the self-looping root-2 child is helpful, not dead weight
+    - the residual cost is not explained by missing resume metadata alone
+    - simple child-to-interpreter fallback also loses
+
+- Timestamp: `2026-04-05 13:35:00 PDT`
+  - the direct root-2 replay-shortcut family is now closed as unsafe or
+    incorrect.
+  - rejected root replay branches:
+    - `LUAJIT_S390X_ROOT_ITERN_LOOP_HINT=1`
+      - changes the dominant path from
+        `phase=dispatch-original retop=BC_ITERN`
+        to
+        `phase=resume-linked retop=BC_LOOP`
+      - livelocks instead of making forward progress
+    - `LUAJIT_S390X_ROOT_ITERN_NOHOTLOOP=1`
+      - jumps straight below the normal static `BC_ITERN` entry
+      - exact reducers segfault on authoritative `kdz`
+    - `LUAJIT_S390X_ROOT_ITERN_NOHOT_ENTRY=1`
+      - preserves `ins_A` but still bypasses part of the entry contract
+      - wrong results on both hosts
+    - `LUAJIT_S390X_ROOT_ITERN_STATIC_FAST=1`
+      - unsafe:
+        - `kdz`: reducers segfault
+        - `zkd0`: wrong results
+    - `LUAJIT_S390X_ROOT_ITERN_PATCH_ORIG=1`
+      - unsafe:
+        - `kdz`: reducers segfault
+        - `zkd0`: reducers segfault
+  - body-only `BC_ITERN` probes are also closed:
+    - exact but slower:
+      - hash `LJ_TNIL` hoist only
+        - `kdz 0.011782`
+        - `zkd0 0.019248`
+      - hash `node` base hoist only
+        - `kdz 0.012961`
+        - `zkd0 0.018630`
+      - hash `hmask` hoist only
+        - `kdz 0.012469`
+        - `zkd0 0.014375`
+      - array-part dead-move removal
+        - `kdz 0.012401`
+        - `zkd0 0.014247`
+  - classification:
+    - the root `BC_JLOOP -> dispatch-original -> BC_ITERN` seam is real
+    - but the last safe lever is not a shortcut around the normal
+      `BC_ITERN` entry contract
+    - the obvious safe body-hoist family does not produce the last required
+      win either
+
+- Timestamp: `2026-04-05 15:10:00 PDT`
+  - the live frontier has shifted from the root-2 replay seam to a separate
+    root-1 `ITERL/JITERL` continuation family.
+  - clean `kdz` trace metadata under the retained baseline shows:
+    - root trace:
+      - `trace 1`
+      - `startop=BC_ITERL`
+      - `startpc=...39e4`
+      - `mcloop=360`
+    - live child:
+      - `trace 6`
+      - `parent=1 exit=1 root=1`
+      - `startop=BC_JMP`
+      - `startpc=root+1`
+      - `linktype=LJ_TRLINK_INTERP`
+      - `link=0`
+      - `resumevalid=1`
+      - `resumeins=BC_ISNEXT`
+      - `mcloop=0`
+  - rejected root-1 families:
+    - `LUAJIT_S390X_ROOT1_BCJMP_LINK_PARENT=1`
+      - mechanically changes
+        `trace 6 ... linktype=2 link=6`
+        to
+        `trace 6 ... linktype=1 link=2`
+      - exact, but neutral-to-worse versus same-binary Control B
+    - `LUAJIT_S390X_ROOT1_BCJMP_INTERP=1`
+      - forces the exact root-1 child into `LJ_TRLINK_INTERP`
+      - exact, but slower than same-binary Control B on both hosts
+    - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_JMP1=1`
+      - identifies the intended root-1 child:
+        - `parent=1 exit=1 root=1 startop=BC_JMP startpc=root+1`
+      - but does not satisfy the real promotion precondition for that family
+      - also trips an unrelated root-child promotion path
+      - rejected and reverted
+    - `LUAJIT_S390X_HOTSIDE_CANON_CHILD=1`
+      - exact
+      - focused root-1 run shows:
+        - `cand=0`
+        - `child=0`
+      - slower on `kdz`
+    - `LUAJIT_S390X_ROOT1_ITERL_PRIME_INTERP=1`
+      - exact
+      - intended `phase=prime-interp` path never fires on the live root-1
+        family
+      - slower on `kdz`
+  - classification:
+    - the current branch-level target is no longer the root-2 replay seam
+    - it is the root-1 `BC_JMP -> BC_ISNEXT` continuation contract off the
+      `BC_ITERL/JITERL` root
+    - next work should stay on that family and avoid reopening the already
+      closed root-2 replay-shortcut branches
+
+- Timestamp: `2026-04-05 18:05:00 PDT`
+  - the root-1 continuation family is now pinned one step earlier than the
+    saved child contract.
+  - exact root-1 runtime read on clean `kdz`:
+    - root trace:
+      - `trace 1`
+      - `startop=BC_ITERL`
+      - `linktype=LJ_TRLINK_LOOP`
+      - `link=1`
+      - `nchild=0`
+    - focused hotexit surface:
+      - `parent=1`
+      - `exit=1`
+      - `pc=0x...39e8`
+      - `op=54`
+      - `snapop=32`
+      - `snapcount` climbs through and past `hotexit=200`
+      - `cand=0`
+      - `child=0`
+      - repeated `phase=skip-root`
+    - opcode decode:
+      - `54 = BC_GGET`
+      - `72 = BC_ISNEXT`
+      - `82 = BC_ITERL`
+      - `84 = BC_JITERL`
+      - `87 = BC_JLOOP`
+      - `88 = BC_JMP`
+  - closed root-1 hotside runway branches:
+    - `LUAJIT_S390X_ROOT1_ITERL_PRIME_CHILD=1`
+      - exact:
+        - `RESULT 553416`
+      - mechanically real:
+        - fires immediately at `snapcount=0`
+        - logs
+          `phase=root1-prime-child`
+        - primes the exact root-1 exit to `target=199`
+      - but loses on warmed `kdz`:
+        - control `0.011509`
+        - candidate `0.012169`
+      - classification:
+        - earlier first-child formation is not the lever
+    - `LUAJIT_S390X_ROOT1_ITERL_HOTSIDE_DONE=1`
+      - exact:
+        - `RESULT 553416`
+      - mechanically real:
+        - the exact root-1 exit lands at `snapcount=255`
+          (`SNAPCOUNT_DONE`)
+      - but loses harder on warmed `kdz`:
+        - control `0.011870`
+        - candidate `0.014461`
+      - classification:
+        - suppressing that root-1 runway outright is also not the lever
+  - read:
+    - the live payer is not “saved child appears too late”
+    - and it is not “repeated futile hotexit runway” by itself
+    - the current seam is earlier than the saved
+      `BC_JMP -> BC_ISNEXT` child, on the root-1 `BC_GGET` hotexit surface
+      reached from the `BC_ITERL/JITERL` root
+
+- Timestamp: `2026-04-05 19:10:00 PDT`
+  - the root-1 family is now re-pinned as a producer problem, not just a
+    hotside runway problem.
+  - exact root-1 mechanism read on clean `kdz` under Control B:
+    - the root-1 hotexit surface still starts side trace `6` repeatedly from:
+      - `parent=1`
+      - `exit=1`
+      - `startop=BC_JMP`
+      - `pc=0x...39e8`
+      - `op=BC_GGET`
+    - each of those starts aborts in loop optimization before the later
+      interp-linked save:
+      - `S390X_TRACE_ABORT trace=6 parent=1 exit=1 startop=88 err=26`
+      - `pc=0x...39fc`
+      - `op=87` (`BC_JLOOP`)
+    - the narrow producer log in `lj_opt_loop.c` shows the exact failing lane:
+      - `irop=71` (`IR_SLOAD`)
+      - `irt=19` (`U16`)
+      - `op1=13`
+      - `op2=33` (`PARENT|INHERIT`)
+      - substituted `ref=32767`
+      - `refop=22` (`IR_KPRI`)
+    - this is the same producer shape previously pinned on the root-2
+      frontier:
+      - inherited `slot 13`
+      - collapsed to `KPRI`
+      - then rejected as `TYPEINS`
+  - root-1 replay lane map:
+    - focused `after_replay` on the exact child shape shows:
+      - `baseslot=2`
+      - `idx 9 = 9`
+      - `idx 10 = 9`
+      - `idx 11 = 8`
+    - with `baseslot=2`, inherited `slot 13` corresponds to replayed
+      `base[11]`, i.e. the carried iterator value lane
+  - closed root-1 recorder-side replay kill:
+    - `LUAJIT_S390X_ROOT1_ITERL_DROP_VALUE=1`
+      - exact:
+        - `RESULT 553416`
+        - `HASH_VALUE 3000`
+      - mechanically real:
+        - recorder nils `base[11]` after replay on the exact
+          `parent=1 exit=1 root=1 startop=BC_JMP` shape
+      - but it does not move the live producer:
+        - `S390X_ROOT1_ITERL_TYPEINS` remains unchanged
+        - `S390X_TRACE_ABORT ... err=26` remains unchanged
+      - classification:
+        - the slot mapping is right, but this kill point is too early or the
+          lane is being recreated later in recording
+  - read:
+    - root-1 has converged back onto the same inherited stale-value producer
+      as root-2
+    - the next fix should stay producer-led
+    - the next exact target is the later recreation point for inherited
+      `slot 13` on the root-1 `BC_JMP` child, not another hotside shortcut
+
+- Timestamp: `2026-04-05 21:05:00 PDT`
+  - root-1 producer audit is now tighter, and the live read has changed again:
+    - the current evidence does not support a later recorder-side rebirth in
+      `sload()`, `sloadt()`, `recff_ipairs_aux()`, or `rec_isnext()`
+    - the most likely live seam is now replay-born inherited state being
+      carried forward until `loop_unroll()` re-emits it into the same
+      `TYPEINS` abort
+  - retained exact control for these probes:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - exact root-1 child remains:
+    - `trace=6`
+    - `parent=1 exit=1 root=1`
+    - `startop=BC_JMP`
+    - hot surface at `BC_GGET`
+    - abort at `BC_JLOOP`
+  - exact producer still pinned in `lj_opt_loop.c`:
+    - `IR_SLOAD`
+    - `op1=13`
+    - `op2=33` (`PARENT|INHERIT`)
+    - substituted `refop=IR_KPRI`
+    - then `TYPEINS`
+  - negative runtime probes:
+    - plain `sload()` / `sloadt()` logs for absolute slot `13` stay silent on
+      the exact child shape
+    - `recff_ipairs_aux()` exact-entry/result logs stay silent on the exact
+      root-1 child, so this family is not being recreated there
+    - `rec_isnext()` does fire on the exact child, but the observed key lane is
+      absolute slot `11`, not the target stale lane at absolute slot `13`
+  - x64 control:
+    - mature x64 does not show the same root-1
+      `slot 13 -> KPRI -> TYPEINS` producer collapse
+    - the root-1 seam is therefore s390x-specific in mechanism, even if other
+      reducers can still be wrong for broader reasons
+  - source-driven candidate audit:
+    - `lj_snap_replay()` is still the only straightforward emitter of the exact
+      inherited `IR_SLOAD op1=13 op2=33` shape
+    - the first later site that definitely consumes that producer is
+      `loop_unroll()` re-emission in `lj_opt_loop.c`
+  - read:
+    - the earlier root-1 replay kill failed because it only nulled the replayed
+      base lane, not the replay-born inherited producer that survives into loop
+      optimization
+    - next remediation should target the replay-born root-1 lane at or after
+      `lj_snap_replay()` / `loop_unroll()`, not reopen hotside or runtime
+      continuation families
+
+- Timestamp: `2026-04-05 21:40:00 PDT`
+  - root-1 replay birth is now directly proven in `lj_snap_replay()`:
+    - on the exact child shape:
+      - `trace=6`
+      - `parent=1 exit=1 root=1`
+      - `startop=BC_JMP`
+      - `pc=BC_GGET`
+    - focused replay log shows slot `13` is restored there:
+      - `slot=13`
+      - `ref=32781`
+      - `irop=66`
+      - `irt=19`
+      - `op1=32780`
+      - `op2=0`
+      - `mode=33`
+    - opcode map correction:
+      - `irop=66` is `IR_ALOAD`
+      - so the carried iterator value lane is replay-born as a replayed
+        `ALOAD`, then later consumed into the failing
+        `IR_SLOAD op1=13 op2=33 -> IR_KPRI -> TYPEINS` shape
+  - closed first producer-led replay birth kill:
+    - `LUAJIT_S390X_ROOT1_ITERL_KILL_REPLAY_SLOAD13=1`
+    - exact scope:
+      - only the root-1 `parent=1 exit=1 startop=BC_JMP` child off the
+        `BC_ITERL` root
+      - only replay slot `13`
+    - result:
+      - bounded `mixedprobe` run hangs
+      - `RC:124`
+    - classification:
+      - replay is definitely on the seam
+      - but outright killing the replay-born value lane at birth is not viable
+  - refined read:
+    - the important later step is not a fresh child-body rebirth in
+      `sload()`, `recff_ipairs_aux()`, or `rec_isnext()`
+    - the live producer path is now best described as:
+      - replay-born `IR_ALOAD` lane at slot `13`
+      - later loop-side consumer/substitution
+      - then `IR_SLOAD op1=13 op2=33 -> IR_KPRI -> TYPEINS`
+    - next exact target:
+      - trace how replay ref `32781` / `IR_ALOAD` is consumed into the later
+        root-1 `TYPEINS` producer in `lj_opt_loop.c`
+
+- Timestamp: `2026-04-05 22:05:00 PDT`
+  - first direct `loop_unroll()` remediation family is now closed:
+    - env probe:
+      - `LUAJIT_S390X_ROOT1_ITERL_USE_LOOPSNAP_REF=1`
+    - exact scope:
+      - root-1 child only
+      - `parent=1 exit=1 root=1`
+      - `startop=BC_JMP`
+      - only the failing `IR_SLOAD op1=13 op2=33` lane
+      - only when `loopsnap->ref == invar`
+    - intended behavior:
+      - reuse the replay-born `invar`/`loopsnap_ref` instead of accepting the
+        `IR_KPRI` substitution at the `TYPEINS` seam
+  - important build-discipline correction:
+    - authoritative `kdz` rebuilds must force both object rebuild and relink
+      for mechanism probes
+    - preserving mtimes across tracked-file sync was enough to leave
+      `src/luajit` stale even when the source file and object changed
+    - after forcing relink, the binary did contain the new
+      `USE_LOOPSNAP_REF` strings and the probe became trustworthy
+  - trusted result on `kdz` after forced relink:
+    - the remediation does fire:
+      - `S390X_ROOT1_ITERL_USE_LOOPSNAP_REF trace=6 ins=32771 ref=32767 invar=32781 loopsnap_ref=32781 irop=71 irt=19 refop=22 reft=0`
+    - exactness:
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/mixedprobe.lua` times out
+      - `RC:124`
+    - classification:
+      - direct reuse of the replay-born `IR_ALOAD` as the replacement for the
+        root-1 `slot 13` `IR_SLOAD` collapse is not safe
+      - this closes the simplest producer-led invariant-reuse family at the
+        `loop_unroll()` seam
+  - updated read:
+    - the seam is now tighter, not looser:
+      - replay-born `slot 13` is real
+      - direct birth kill hangs
+      - direct `loopsnap_ref/invar` reuse also hangs
+    - so the next remediation must be later or more structured than
+      “replace the `KPRI` collapse with the replay-born invariant”
+
+- Timestamp: `2026-04-05 23:20:00 PDT`
+  - the root-1 seam is now re-pinned one step later than replay and one step
+    earlier than `loop_unroll()`:
+    - on the exact root-1 child:
+      - `trace=6`
+      - `parent=1 exit=1 root=1`
+      - `startop=BC_JMP`
+      - hot body:
+        - `BC_GGET`
+        - `MOV`
+        - `BC_CALL`
+        - `BC_ISNEXT`
+        - `BC_JLOOP`
+    - focused `ABS13` state log on clean `kdz` shows:
+      - slot `13` stays live as
+        `ref=32771`, `IR_SLOAD op1=13 op2=33`
+        through:
+        - `BC_GGET`
+        - `MOV`
+        - `BC_CALL`
+      - after the `BC_CALL` frame bump, the child runs at `baseslot=11`
+      - the first exact live-to-dead flip happens in the fast-function return
+        path before `BC_ISNEXT`:
+        - `FFRET site=entry`:
+          - `ffid=5`
+          - `ref=32771`
+          - still live
+        - `FFRET site=after_handler`:
+          - `ffid=5`
+          - `ref=32767`
+          - dead primitive lane
+        - `FFRET site=before_ret`:
+          - still `ref=32767`
+    - `ffid=5` is `FF_pairs`
+    - the exact handler is therefore `recff_xpairs()` in `lj_ffrecord.c`,
+      not `recff_ipairs_aux()`, `rec_isnext()`, or plain replay
+    - source tie-off:
+      - `recff_xpairs()` rewrites the triple as:
+        - `J->base[0] = kfunc(next)`
+        - `J->base[1] = tab`
+        - `J->base[2] = TREF_NIL`
+        - `rd->nres = 3`
+      - that matches the observed root-1 lane death on the temporary
+        `baseslot=11` frame
+  - important correction:
+    - the first exact root-1 live-to-dead transition is not just
+      `loop_unroll()` consuming a stale lane
+    - `loop_unroll()` still sees the collapse, but the lane is already dead by
+      the time unroll starts
+    - the precise later recreation/death surface is the `FF_pairs` fastfunc
+      result contract on the root-1 child
+  - closed first remediation at that later site:
+    - `LUAJIT_S390X_ROOT1_ITERL_PAIRS_SNAP13_NIL=1`
+    - exact idea:
+      - after `recff_xpairs()` has already rewritten the live third result to
+        `TREF_NIL`, patch snapshot slot `13` to `REF_NIL` at that exact later
+        point so snapshot and live state agree before unroll
+    - exactness:
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/mixedprobe.lua` times out under the clean no-log variant
+      - `RC:124`
+    - classification:
+      - later snapshot alignment at the `FF_pairs` handler is real, but not
+        safe
+      - this closes the first direct remediation family at the newly pinned
+        later seam
+  - control read:
+    - mature x64 still does not show the same root-1
+      `slot 13 -> KPRI -> TYPEINS` producer collapse
+    - this remains a s390x-specific mechanism
+  - next exact target:
+    - stay on the root-1 `FF_pairs` / fastfunc-return contract
+    - not replay birth again
+    - not `rec_isnext()`
+    - not `loop_unroll()` invariant reuse
+    - the next candidate needs to be later than replay but more structured than
+      “patch snapshot slot 13 to nil after `recff_xpairs()`”
+
+- Timestamp: `2026-04-05 23:45:00 PDT`
+  - closed the next root-1 `FF_pairs` return-contract family:
+    - `LUAJIT_S390X_ROOT1_ITERL_PAIRS_KEYINDEX0=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - in `recff_xpairs()`
+    - replace the third `pairs()` result lane from `TREF_NIL` with the already
+      canonical `lj_ir_kint(J, 0) | TREF_KEYINDEX`
+    - rationale:
+      - `BC_ISNEXT` will synthesize that exact `KEYINDEX 0` lane immediately
+        afterward anyway
+      - so this was the first later-than-handler attempt to align the fastfunc
+        return contract with the later `ISNEXT` contract without rewriting the
+        snapshot directly
+  - exactness on authoritative `kdz`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - throughput result:
+    - clean same-binary `mixed_noffi` run on `kdz` hit the 30s timeout
+    - no promotable perf result
+  - classification:
+    - the root-1 `FF_pairs` return contract is definitely the live later seam
+    - but directly pre-seeding the third result as `KEYINDEX 0` is not safe
+      enough for the hot benchmark
+    - this closes the simplest “make `recff_xpairs()` agree with `rec_isnext()`”
+      family
+
+- Timestamp: `2026-04-06 00:20:00 PDT`
+  - tightened the exact root-1 `FF_pairs -> lj_record_ret()` contract
+  - exact child and handler are unchanged:
+    - `trace=6`
+    - `parent=1`
+    - `exit=1`
+    - `root=1`
+    - `startop=BC_JMP`
+    - root trace starts at `BC_ITERL`
+    - `ffid=5` / `FF_pairs`
+  - new exact acquisition from the narrow `lj_record_ret()` handoff log:
+    - by the time `lj_record_ret()` starts, absolute slot `13` is already dead
+    - exact `kdz` log on the child:
+      - `FFRET site=before_ret`: `ref=32767`
+      - `RECRET13 site=entry`: `abs13_ref=32767`
+      - `RECRET13 site=after_getslot`: still `abs13_ref=32767`
+      - `RECRET13 site=after_adjust`: still `abs13_ref=32767`
+    - so the root-1 stale lane is not first killed by:
+      - `getslot()`
+      - result forcing in `lj_record_ret()`
+      - or lower-frame copy-down
+  - exact branch classification from `LUAJIT_S390X_RECRET_LOG=1` on clean `kdz`:
+    - the root-1 child takes:
+      - `site=lua_pre`
+      - then `site=lua_intrace_return`
+    - it does **not** take:
+      - lower-frame `IR_RETF` shift path
+      - `lj_snap_add()` top-level return path
+    - exact log:
+      - `framedepth=1`
+      - `cbase=7`
+      - `nresults=3`
+      - `site=lua_intrace_return`
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_PAIRS_NEEDSNAP=1`
+  - exact idea:
+    - on the exact root-1 `FF_pairs` child only
+    - set `J->needsnap = 1` before `lj_record_ret()`
+    - rely on the normal snapshot machinery instead of patching snapshot slot
+      `13` by hand
+  - exactness:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - classification:
+    - this does not move the live seam at all
+    - with `TYPEINS` logging still enabled, the root-1 collapse remains:
+      - `snap0_slot13_ref=32771`
+      - `slot13_ref=32767`
+      - `refop=22` (`IR_KPRI`)
+    - so snapshot refresh alone is not the fix
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_PAIRS_SLOADNIL13=1`
+  - exact idea:
+    - on the exact root-1 `FF_pairs` child only
+    - keep the third result semantically nil
+    - but materialize it as a guarded raw `IR_SLOAD nil` for absolute slot `13`
+      instead of a bare `TREF_NIL`
+  - exactness:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - useful mechanism movement:
+    - this is the first root-1 family that changed the producer collapse itself
+    - `TYPEINS` no longer sees:
+      - `ref=32767`
+      - `refop=22` (`IR_KPRI`)
+    - instead it sees a live nil `SLOAD` lane:
+      - `subst=32781`
+      - `ref=32781`
+      - `refop=71` (`IR_SLOAD`)
+      - `reft=128`
+      - `slot13_ref=32781`
+  - perf on same-binary `kdz` A/B:
+    - control surface:
+      - `0.011513`
+    - `PAIRS_SLOADNIL13`:
+      - `0.012791`
+  - classification:
+    - primitive `TREF_NIL` canonicalization is part of the visible collapse
+    - but simply replacing it with a raw nil `SLOAD` is still slower
+    - this closes the first root-1 `FF_pairs` producer-representation family
+      that materially moved the seam
+  - next exact target:
+    - stay on the root-1 `FF_pairs` / `lua_intrace_return` contract
+    - not another snapshot refresh attempt
+    - not another direct nil representation swap
+    - the next candidate must be more structured than:
+      - post-return snapshot forcing
+      - direct snapshot slot patching
+      - `KEYINDEX 0` preseed
+      - or raw nil `SLOAD` substitution
+
+- Timestamp: `2026-04-06 01:05:00 PDT`
+  - pinned the timing of the stale root-1 snapshot entry exactly
+  - exact `kdz` timing proof with `FFRET` + `SNAP13` logs:
+    - first root-1 child snapshot capture happens at:
+      - `pc=BC_GGET`
+      - `op=54`
+    - and it captures:
+      - `slot=13`
+      - `ref=32771`
+      - `IR_SLOAD`
+      - `op1=13`
+      - `op2=33`
+    - only **after** that first child snapshot is emitted do we see:
+      - `FFRET site=entry`
+      - `FFRET site=after_handler`
+      - `FFRET site=before_ret`
+    - so `snap0_slot13_ref=32771` is not a later stale-cache artifact from
+      the return path
+    - it is the exact first child snapshot entry, emitted before `FF_pairs`
+      rewrites the live lane to nil
+  - important correction:
+    - the active root-1 seam is now:
+      - first child snapshot capture at `BC_GGET`
+      - then later live-lane death in `FF_pairs`
+      - then loop-opt mismatch between:
+        - `snap0_slot13_ref=32771`
+        - live `slot13_ref=32767`
+    - this rules out the simpler “`lj_record_ret()` leaves stale absolute slot
+      cache behind” story as the primary mechanism
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SYNC_SLOT13_AFTER_RET=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - after `lj_record_ret()` result normalization
+    - synchronize absolute `J->slot[13]` to the current live lane instead of
+      leaving any stale cache behind
+  - exactness:
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - classification:
+    - this does not move the seam at all
+    - `TYPEINS` remains unchanged:
+      - `snap0_slot13_ref=32771`
+      - `slot13_ref=32767`
+      - `refop=22` (`IR_KPRI`)
+    - because the bad `snap0` entry is emitted earlier at the first child
+      snapshot
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SNAP13_NILREF=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - at first child snapshot capture
+    - rewrite the emitted `slot 13` snapshot entry from `ref=32771` to
+      `REF_NIL`
+  - result:
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/mixedprobe.lua -> RC:124`
+  - exact evidence:
+    - `SNAP13 site=nilref trace=6 slot=13 oldref=32771 newref=32767`
+    - emitted entry became:
+      - `snap_ref=32767`
+  - classification:
+    - the direct “capture stale lane as nil” family is real but unsafe
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SNAP13_SKIP=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - omit `slot 13` from the first child snapshot entirely
+  - result:
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/mixedprobe.lua -> RC:124`
+  - exact evidence:
+    - `SNAP13 site=skip trace=6 slot=13 ref=32771`
+  - classification:
+    - the direct “do not snapshot the stale inherited lane” family is also
+      unsafe
+  - next exact target:
+    - not `lj_record_ret()` cache sync
+    - not first-snapshot entry surgery
+    - not later snapshot refresh
+    - the next family must sit one level higher than the entry itself:
+      either
+      - why the first child snapshot is required to carry inherited `slot 13`
+        at `BC_GGET`,
+      - or how the later `FF_pairs` / `lua_intrace_return` contract can be
+        made compatible with that already-emitted first snapshot without direct
+        slot patching
+
+- Timestamp: `2026-04-06 01:20:00 PDT`
+  - replay-level initial snapshot policy is now explicitly classified
+  - source tie-off in `lj_snap_replay()`:
+    - after restoring inherited slots, the side-trace setup still ends with:
+      - `J->base = J->slot + J->baseslot`
+      - `J->maxslot = snap->nslots - J->baseslot`
+      - unconditional `lj_snap_add(J)`
+    - this is the exact higher-level policy point that emits the first
+      side-trace snapshot before the later root-1 `FF_pairs` rewrite runs
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SKIP_REPLAY_INITIAL_SNAP=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - skip the unconditional replay-time `lj_snap_add(J)` instead of editing
+      snapshot slot `13` directly
+  - trusted `kdz` result:
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/mixedprobe.lua -> RC:124`
+  - classification:
+    - the bad `snap0_slot13_ref` entry is definitely tied to the replay-time
+      initial side-trace snapshot
+    - but removing that whole initial snapshot is not safe either
+  - updated read:
+    - direct entry surgery is unsafe
+    - direct replay-initial-snapshot removal is unsafe
+    - the next structured family has to keep the root-1 initial snapshot
+      contract intact while making the later `FF_pairs` / return contract
+      compatible with it
+
+- Timestamp: `2026-04-06 02:10:00 PDT`
+  - closed the next structured root-1 `FF_pairs` snapshot-contract family
+  - exact control remains:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - trusted acquisition on clean `kdz`:
+    - with only `ROOT1_ITERL_SNAP13_LOG` + `FFRET_LOG`, the exact child still
+      emits only the stale first snapshot entry:
+      - `site=pre/emit`
+      - `pc=BC_GGET`
+      - `slot=13`
+      - `snap_ref=32771`
+    - there is still no later post-`FF_pairs` snapshot carrying `slot 13`
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_PAIRS_SLOADNIL13_NEEDSNAP=1`
+  - exact idea:
+    - on the exact root-1 `FF_pairs` child only
+    - materialize the third result as a nil `IR_SLOAD`
+      (`op1=13`, `op2=33`)
+    - synchronize the absolute `slot 13` cache to that same ref
+    - request a later snapshot via the normal `needsnap` path
+  - exactness:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - useful movement:
+    - live lane at the `TYPEINS` seam becomes the nil `SLOAD` again:
+      - `subst=32781`
+      - `ref=32781`
+      - `refop=12`
+      - `slot13_ref=32781`
+    - but `snap0_slot13_ref` remains the old first-snapshot entry:
+      - `snap0_slot13_ref=32771`
+    - and there is still no later `slot 13` snapshot emission before
+      `TYPEINS`
+  - same-binary `kdz` hot A/B:
+    - control:
+      - `0.011395`
+    - candidate:
+      - `0.013445`
+  - classification:
+    - “nil `SLOAD` + absolute slot sync + normal `needsnap`” is not enough
+    - the root-1 child still reaches `TYPEINS` with only the stale first
+      snapshot in play
+    - this closes the “ask the normal snapshot machinery for a later root-1
+      snapshot” family
+
+- Timestamp: `2026-04-06 03:05:00 PDT`
+  - the explicit pre-shift return snapshot hook is now proven real on the
+    exact root-1 child
+  - source tie-off in `lj_record_ret()`:
+    - on the exact root-1 `lua_intrace_return` branch, forcing `lj_snap_add()`
+      before the base/frame shift does execute
+    - proof logs:
+      - `S390X_ROOT1_ITERL_RET_SNAPHOOK site=enter`
+      - `S390X_ROOT1_ITERL_RET_SNAPHOOK site=after`
+    - exact snapshot growth on trusted `kdz`:
+      - `nsnap: 1 -> 2`
+      - `nsnapmap: 6 -> 14`
+  - exact new acquisition:
+    - the later snapshot really does carry `slot 13` as nil before the return
+      shift:
+      - `S390X_ROOT1_ITERL_SNAP13 site=pre trace=6 ... pc=BC_RETF slot=13 ref=32767`
+      - `S390X_ROOT1_ITERL_SNAP13 site=emit trace=6 slot=13 ref=32767 snap_ref=32767`
+    - after the return shift, the child still reports:
+      - `baseslot=2`
+      - `maxslot=10`
+      - `relslot=11`
+      - `abs13_ref=32767`
+      - `rel_ref=32767`
+  - decisive read:
+    - lack of a later snapshot is no longer the full explanation
+    - even with the added post-`FF_pairs`, pre-shift snapshot in place,
+      `loop_unroll()` still dies on the stale original root-1 producer:
+      - `ins=32771`
+      - `IR_SLOAD`
+      - `op1=13`
+      - `op2=33`
+      - `subst=32767`
+      - `ref=32767`
+      - `snap0_slot13_ref=32771`
+    - so the live failure is not “no later snapshot exists”
+    - it is that loop unrolling still re-emits the stale first producer even
+      after a later nil snapshot has been added
+  - next exact target:
+    - not more snapshot plumbing by itself
+    - the next family must be producer-led in `loop_unroll()` or immediately
+      around that stale root-1 `IR_SLOAD slot 13 PI` re-emission
+
+- Timestamp: `2026-04-06 03:20:00 PDT`
+  - closed the first direct loop-unroll allowlist family for the root-1 stale
+    producer
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SLOT13_LIVE_NIL=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - inside `loop_unroll()`, at the exact `TYPEINS` seam for:
+      - `IR_SLOAD`
+      - `op1=13`
+      - `op2=33`
+    - if the current relative `slot 13` in the post-`FF_pairs` return window
+      is already nil, let that later live nil ref win instead of aborting on
+      the stale `TYPEINS`
+  - trusted `kdz` result:
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/mixedprobe.lua -> RC:124`
+  - useful movement:
+    - the old immediate `TYPEINS` abort disappeared
+    - so the exact allowlist did fire at the intended stale producer
+  - classification:
+    - this is another “right seam, unsafe outcome” family
+    - direct loop-unroll substitution of the stale root-1 `slot 13` producer
+      to the later live nil state is not a promotable remediation
+  - updated read:
+    - the next producer-led family must be more structured than
+      “let the later nil live ref win”
+    - specifically, it must preserve forward progress after removing the stale
+      producer collapse, not just replace the `TYPEINS` abort with a timeout
+
+- Timestamp: `2026-04-06 03:50:00 PDT`
+  - the root-1 return-snapshot ordering is now pinned exactly
+  - trusted `kdz` proof under:
+    - `LUAJIT_S390X_ROOT1_ITERL_RET_SNAP_BEFORE_SHIFT=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_PRE13_LOG=1`
+  - exact loop-unroll state on the root-1 child:
+    - `trace=6`
+    - `nsnap=2`
+    - `snap0_ref=32772`
+    - `snap1_ref=32781`
+    - `invar=32781`
+    - `loopsnap_ref=32781`
+    - `snap0_slot13_ref=32771`
+    - current live `slot13_ref=32767`
+  - decisive read:
+    - the added post-`FF_pairs`, pre-shift root-1 snapshot exists
+    - but it lands exactly at the loop boundary:
+      - `snap1_ref == invar == loopsnap_ref`
+    - so it is too late to affect the stale root-1 producer that later dies at:
+      - `ins=32771`
+      - `IR_SLOAD`
+      - `op1=13`
+      - `op2=33`
+    - this closes the whole “a later post-`FF_pairs` snapshot can rescue the
+      stale producer before `TYPEINS`” family
+  - updated target:
+    - not more return-side snapshot work
+    - not more `needsnap` variants
+    - the next honest frontier is now earlier than any post-`FF_pairs`
+      snapshot:
+      either
+      - the first child snapshot contract at `BC_GGET`, or
+      - a structured loop-unroll remediation that does not depend on a later
+        snapshot arriving in time
+
+- Timestamp: `2026-04-06 04:15:00 PDT`
+  - closed two more exact root-1 loop-unroll producer families
+  - trusted `kdz` exact control remains:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - fresh structural acquisition:
+    - with the gated pre-shift return snapshot still enabled,
+      `loop_subst_snap()` and PHI logging stay silent for `slot 13`
+    - so the stale root-1 lane is not being rescued by snapshot-slot
+      substitution or PHI carry
+    - it is effectively a raw instruction re-emission problem before those
+      later mechanisms become relevant
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SLOT13_DROP=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - at the stale `IR_SLOAD slot 13 PI` type-instability seam
+    - drop that producer instead of trying to substitute it to a later nil/live
+      state
+  - trusted `kdz` result:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary hot:
+      - control `0.011483`
+      - candidate `0.012229`
+  - decisive read:
+    - this branch did not actually intercept the live collapse
+    - the old `TYPEINS` seam still logged unchanged:
+      - `ins=32771`
+      - `IR_SLOAD`
+      - `op1=13`
+      - `op2=33`
+      - `subst=32767`
+      - `ref=32767`
+    - so the hot delta was noise, not a real remediation
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SLOT13_RAW=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - preserve the stale producer as a raw `IR_SLOAD` during `loop_unroll()`
+      instead of letting normal fold/CSE collapse it to `IR_KPRI`
+  - trusted `kdz` result:
+    - exact reducers initially pass:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - branch-local proof shows the exact seam is intercepted:
+      - `S390X_ROOT1_ITERL_SLOT13_RAW trace=6 ins=32771 op1=13 op2=33 ...`
+    - but the logged run then crashes:
+      - `/tmp/mixedprobe.lua -> RC:139`
+  - classification:
+    - the stale producer seam is now confirmed to be a direct raw re-emission
+      point in `loop_unroll()`
+    - but preserving that producer as a raw `SLOAD` is unsafe
+  - updated target:
+    - not more post-`FF_pairs` snapshot work
+    - not raw-drop noise branches
+    - not raw-preserve of the stale producer itself
+    - the next exact frontier is now whichever earlier contract makes
+      `ins=32771` enter `loop_unroll()` at all:
+      either
+      - the first root-1 child snapshot contract at `BC_GGET`, or
+      - the exact emitter/fold path that recreates this stale `IR_SLOAD`
+        before the `TYPEINS` check
+
+- Timestamp: `2026-04-06 04:35:00 PDT`
+  - closed the exact root-1 fold-site family in `fold_fwd_sload()`
+  - trusted `kdz` exact control remains:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_SLOAD13_EMIT=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - intercept the stale `IR_SLOAD slot 13 PI` in `fold_fwd_sload()`
+    - return `EMITFOLD` instead of immediately forwarding it to
+      `J->slot[13]`
+  - decisive proof:
+    - the branch does fire on the exact seam:
+      - `S390X_ROOT1_ITERL_FWD_SLOAD13 trace=6 op1=13 op2=33 nins=32782 slot13_ref=32767`
+    - but the exact reducer does not make forward progress:
+      - `/tmp/mixedprobe.lua -> RC:124`
+  - classification:
+    - the stale root-1 lane does reach `fold_fwd_sload()`
+    - so the live collapse is not earlier than the fold-site entry itself
+    - but a bare `EMITFOLD` at that point is unsafe and turns the family
+      into another hang
+  - updated target:
+    - not more direct fold-site suppression
+    - the next honest frontier is now the earlier contract that decides why
+      this root-1 child still emits the stale first `slot 13` snapshot at
+      `BC_GGET`, or a more structured producer-side remediation than simply
+      bypassing the `SLOAD` forward
+
+- Timestamp: `2026-04-06 05:05:00 PDT`
+  - narrowed the root-1 pre-snapshot contract to the unconditional initial
+    child snapshot in `lj_snap_replay()`
+  - x64 control result:
+    - mature x64 does not reproduce the same root-1 producer collapse
+    - it forms the broad root-1 child shape, but bypasses the
+      `IR_SLOAD slot 13 op2=33 -> KPRI -> TYPEINS` seam
+    - classification:
+      - this is now best read as an s390x-specific producer collapse, not a
+        generic tracer shape with only a worse s390x consequence
+  - decisive source/trace acquisition on `kdz`:
+    - the stale first root-1 `slot 13` snapshot does not go through the
+      normal `needsnap -> lj_snap_purge()` path
+    - `LUAJIT_S390X_ROOT1_ITERL_USEDEF13_LOG=1` stays silent on the stale
+      first snapshot
+    - the stale first entry is committed by the unconditional initial
+      `lj_snap_add(J)` in `lj_snap_replay()` after:
+      - `J->base = J->slot + J->baseslot`
+      - `J->maxslot = snap->nslots - J->baseslot`
+    - exact first stale commit remains:
+      - `site=pre/emit`
+      - `pc=BC_GGET`
+      - `slot=13`
+      - `ref=32771`
+      - `IR_SLOAD`
+      - `op1=13`
+      - `op2=33`
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_PURGE=1`
+  - exact idea:
+    - on the exact root-1 child only
+    - run the normal `lj_snap_purge()` dead-slot analysis before the
+      unconditional initial `lj_snap_add()` in `lj_snap_replay()`
+  - decisive result:
+    - the stale first `BC_GGET` snapshot disappears completely
+    - only the later nil snapshot remains:
+      - `pc=op 100`
+      - `slot=13`
+      - `ref=32767`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/mixedprobe.lua -> RC:124`
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_PURGE13_ONLY=1`
+  - exact idea:
+    - use the same dead-slot analysis as above
+    - but purge only the exact carried root-1 `slot 13` lane before the
+      initial child snapshot
+  - decisive result:
+    - same structural change as full replay purge:
+      - the stale first `BC_GGET` snapshot is gone
+      - only the later nil snapshot remains
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/mixedprobe.lua -> RC:124`
+  - classification:
+    - this is the first structured family that actually removes the bad
+      first root-1 `snap0` entry without direct snapshot-entry surgery
+    - but removing that first stale snapshot alone is still not sufficient:
+      the family becomes another hang
+  - updated target:
+    - not more direct fold-site suppression
+    - not more return-side snapshot work
+    - not more raw first-snapshot patching
+    - the next honest frontier is now the contract immediately coupled to the
+      initial replay-time snapshot, since deleting the stale first entry by
+      itself is right-seam but incomplete
+
+- Timestamp: `2026-04-06 05:20:00 PDT`
+  - closed the coupled replay-time nil-`SLOAD` family on the exact root-1
+    child
+  - trusted `kdz` exact control remains:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_SLOADNIL13=1`
+  - exact idea:
+    - keep the first root-1 child snapshot structurally intact
+    - but recanonicalize the replay-time carried `slot 13` lane from the
+      stale inherited value to a fresh nil `IR_SLOAD` before the unconditional
+      initial `lj_snap_add()` in `lj_snap_replay()`
+  - decisive result:
+    - the first `BC_GGET` snapshot stays present
+    - but its producer changes exactly as intended:
+      - `site=pre`
+      - `pc=BC_GGET`
+      - `slot=13`
+      - `ref=32771`
+      - `irop=71` (`IR_SLOAD`)
+      - `irt=0` (`nil`)
+      - `op1=13`
+      - `op2=33`
+    - later nil snapshot still appears as before:
+      - `slot=13`
+      - `ref=32767`
+    - exact reducers:
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/mixedprobe.lua -> RC:124`
+  - classification:
+    - preserving the initial root-1 snapshot topology is not enough by itself
+    - and replacing the stale carried producer with a fresh nil `SLOAD`
+      still hangs
+    - this closes the whole “initial snapshot kept, producer recanonicalized
+      in replay” family
+  - updated target:
+    - not more direct replay-time `slot 13` value rewrites
+    - the next honest frontier is the contract around the initial replay-time
+      snapshot as a whole, since both
+      - deleting the first stale entry, and
+      - preserving it with a fresh nil `SLOAD`
+      are right-seam but still incomplete
+
+- Timestamp: `2026-04-06 05:40:00 PDT`
+  - root-1 initial snapshot contract is now pinned as a stale triplet, not an
+    isolated `slot 13` lane
+  - exact `kdz` control:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - fresh structural audit:
+    - `LUAJIT_S390X_ROOT1_ITERL_SNAPWIN_LOG=1`
+  - decisive result on the exact root-1 child
+    - first stale snapshot at `pc=BC_GGET` carries:
+      - `slot 11 -> ref=32770`, `IR_SLOAD`, `op1=11`, `op2=33`
+      - `slot 12 -> ref=32770`, same producer as `slot 11`
+      - `slot 13 -> ref=32771`, `IR_SLOAD`, `op1=13`, `op2=33`
+    - later corrected snapshot at `pc=op 100` carries:
+      - `slot 11 -> ref=32767` (`IR_KPRI nil`)
+      - `slot 12 -> ref=32779`, `IR_SLOAD`, `op1=4`, `op2=4`
+      - `slot 13 -> ref=32767` (`IR_KPRI nil`)
+  - closed remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_MERGE_SNAP0=1`
+  - exact idea:
+    - allow later root-1 child snapshots to merge over snapshot `#0` instead
+      of forcing `snap #0` preservation in `lj_snap_add()`
+  - decisive result:
+    - no material mechanism change
+    - the stale first snapshot remains unchanged
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - classification:
+    - the active seam is not just one bad `slot 13` entry
+    - the initial replay-time child snapshot is carrying a stale iterator
+      triplet contract across slots `11..13`
+    - later corrected state already exists, but simple `snap #0` merge policy
+      changes do not reach it
+  - updated target:
+    - not more single-lane `slot 13` rewrites
+    - not more inert `snap #0` merge toggles
+    - the next honest remediation family is a structured root-1 replay-time
+      triplet contract for slots `11..13`, not another isolated lane tweak
+
+- Timestamp: `2026-04-06 06:15:00 PDT`
+  - the first structured root-1 replay-time triplet branch is the first one
+    to remove the old `TYPEINS` seam entirely
+  - exact `kdz` control surface for this family:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+  - live structured classifier:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+  - exact idea:
+    - recanonicalize the initial root-1 child replay-time triplet together,
+      not just `slot 13`
+    - force the first `BC_GGET` child snapshot to carry the corrected shape:
+      - `slot 11 -> nil`
+      - `slot 12 -> guarded local `IR_SLOAD slot 4 TYPECHECK``
+      - `slot 13 -> nil`
+    - bypass replay dedup for exact root-1 triplet slots `11..13` so `slot 12`
+      cannot fold back onto the rewritten nil lane
+  - decisive result:
+    - the first root-1 child snapshot now matches the corrected triplet
+      contract semantically:
+      - `slot 11 -> ref=32767` (`IR_KPRI nil`)
+      - `slot 12 -> ref=32770`, `IR_SLOAD`, `irt=139`, `op1=4`, `op2=4`
+      - `slot 13 -> ref=32767` (`IR_KPRI nil`)
+    - the old root-1 `TYPEINS` seam disappears completely:
+      - `LUAJIT_S390X_ROOT1_ITERL_TYPEINS_LOG=1` produces no hits
+    - but reducers still stall without a follow-on save/link fix:
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/mixedprobe.lua -> RC:124`
+  - classification:
+    - this is the first branch that materially moves the root-1 frontier
+      forward
+    - the old `IR_SLOAD slot 13 PI -> KPRI -> TYPEINS` collapse is no longer
+      the live blocker once the corrected replay-time triplet is in place
+    - the new blocker is later, in the saved-child loop contract that follows
+      the corrected root-1 child
+
+- Timestamp: `2026-04-06 06:35:00 PDT`
+  - the corrected replay-triplet branch now saves the old root-1 child
+    successfully; the new seam is its saved loop contract at `BC_JLOOP`
+  - exact structural audit on trusted `kdz` with:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_RECSTOP_LOG=1`
+    - `LUAJIT_S390X_TRACE_META_LOG=1`
+  - decisive result:
+    - corrected root-1 child records as:
+      - `trace=6`
+      - `parent=1 exit=1 root=1`
+      - `startop=BC_JMP`
+      - `pc=BC_JLOOP`
+      - `linktype=LJ_TRLINK_LOOP`
+      - `link=6`
+      - `mcloop=292`
+      - `nsnap=2`
+    - this replaces the old failure mode:
+      - no `TYPEINS`
+      - no early `loop_unroll()` abort on inherited `slot 13`
+  - exact follow-on remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - exact idea:
+    - keep the corrected replay-time triplet branch
+    - but stop the exact root-1 `trace 6` child from self-linking at
+      `BC_JLOOP`
+    - save it as `LJ_TRLINK_ROOT` using the live `lnk=2` contract instead of
+      `LJ_TRLINK_LOOP, link=6`
+  - decisive result:
+    - exact reducers now complete again:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - structural change is exact and real:
+      - old: `trace=6 ... linktype=2 link=6`
+      - new: `trace=6 ... linktype=1 link=2`
+    - same-binary `kdz` perf is still worse than the retained control:
+      - retained control `mixed_warm_bench 0.012073`
+      - corrected replay-triplet + `LINK_PARENT` `0.013174`
+  - closed sibling remediation:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_ROOT=1`
+  - exact idea:
+    - same corrected replay-triplet branch
+    - but force the child to link directly back to root trace `1`
+  - decisive result:
+    - wrong result immediately:
+      - `/tmp/mixedprobe.lua -> RESULT 562150`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - warm bench no longer trustworthy:
+      - `/tmp/mixed_warm_bench.lua` asserts
+  - classification:
+    - the corrected replay-time triplet plus a non-self child contract is
+      enough to restore exact completion
+    - but the surviving exact variant (`LINK_PARENT`) is still slower than the
+      retained control
+    - the direct `link=1` root-link variant is unsafe and closed
+  - updated target:
+    - not more snapshot-side surgery on the old `TYPEINS` seam
+    - not direct root-link to trace `1`
+    - the next honest frontier is the runtime/use-frequency cost of the
+      corrected exact child contract:
+      - corrected replay-time triplet
+      - `trace=6`
+      - `parent=1 exit=1 root=1`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=2`
+
+- Timestamp: `2026-04-06 07:05:00 PDT`
+  - the first narrow save-time runtime-contract family on the corrected root-1
+    child is now closed as exact but non-promotable
+  - retained exact branch under test:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - new narrow follow-on:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT_RESUMECHILD=1`
+  - exact idea:
+    - keep the corrected replay-time triplet
+    - keep the exact `trace 6 -> link=2` non-self child contract
+    - additionally save `resumechild=2` for that exact child, so runtime owner
+      selection can consume the parent target directly
+  - decisive result on trusted `kdz`:
+    - exact reducers:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - save-time proof:
+      - `S390X_CHILD_RESUME_SETUP trace=6 parent=1 exit=1 startins=BC_JMP`
+      - default child resume remains:
+        - `resumepc=startpc+1`
+        - `resumeop=BC_MOV`
+      - new exact save:
+        - `link=2`
+        - `linktype=LJ_TRLINK_ROOT`
+        - `resumechild=2`
+    - same-binary `kdz` perf:
+      - retained control `0.011608`
+      - corrected replay-triplet + `LINK_PARENT` `0.017264`
+      - corrected replay-triplet + `LINK_PARENT_RESUMECHILD` `0.012766`
+  - classification:
+    - `resumechild=2` is real and materially better than plain `LINK_PARENT`
+    - but it still loses clearly to the retained control
+    - this closes the first save-time `resumechild` family for the corrected
+      root-1 child as “helps, not enough”
+
+- Timestamp: `2026-04-06 07:20:00 PDT`
+  - the sibling corrected-child save contract is also closed:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_LOOP=1`
+  - exact idea:
+    - keep the corrected replay-time triplet
+    - keep the parent target `lnk=2`
+    - but save the exact root-1 child as `LJ_TRLINK_LOOP` instead of
+      `LJ_TRLINK_ROOT`
+  - decisive result on trusted `kdz`:
+    - exact reducers:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary hot perf:
+      - corrected replay-triplet + `LINK_LOOP` `0.012979`
+      - corrected replay-triplet + `LINK_PARENT_RESUMECHILD` `0.012766`
+      - retained control `0.011608`
+  - classification:
+    - preserving `link=2` but switching the corrected child to loop-link does
+      not beat the root-linked `resumechild=2` branch
+    - this closes the obvious sibling save-contract family for the corrected
+      root-1 child
+  - updated target:
+    - the old root-1 replay-time `TYPEINS` seam is still cleared by the
+      structured replay-triplet fix
+    - the remaining blocker is the steady-state runtime/use-frequency cost of
+      the corrected exact child after that fix, not another stale snapshot lane
+      and not another trivial `rec_loop_jit()` linktype swap
+
+- Timestamp: `2026-04-06 08:05:00 PDT`
+  - focused `ipairs_only` control restamp on trusted `kdz` narrowed the
+    corrected root-1 post-fix surface
+  - retained focused control:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - focused exact output:
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `TRACE_START 5`
+    - `TRACE_ABORT 3`
+    - `TEXIT_COUNT 341`
+  - exact save shape on the focused reducer:
+    - root `trace 1`:
+      - `startop=BC_ITERL`
+      - `nsnap=2`
+      - `nins=32792`
+    - corrected child `trace 2`:
+      - `parent=1`
+      - `exit=1`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+    - duplicate child `trace 3`:
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+  - classification:
+    - after the replay-triplet fix, the focused root-1 reducer no longer
+      bottlenecks on the old `slot 13 -> KPRI -> TYPEINS` seam
+    - the surviving local limiter is the duplicated root-1 child family:
+      - corrected `trace 2`
+      - duplicate `trace 3`
+
+- Timestamp: `2026-04-06 08:20:00 PDT`
+  - the first focused duplicate-child link-destination probes are now closed
+    as inert
+  - closed families:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_EXIT0_LINK_PARENT=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_EXIT0_LINK_PARENT_LOOP=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_EXIT0_LINK_PARENT_EXACT=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_LINK_PARENT=1`
+  - exact idea:
+    - stop or save the duplicate `trace 3` child with a non-root target
+      (`link=2`) instead of preserving the default `link=1`
+  - decisive result on focused `kdz`:
+    - all four branches stayed behaviorally identical to the retained focused
+      control
+    - `trace 3` still saved as:
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+    - counters stayed unchanged:
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+  - classification:
+    - the duplicate child’s saved root-link is not being usefully redirected by
+      the obvious recorder-side or save-time `link=2` rewrites
+    - treat the naive duplicate-child link-destination family as closed
+
+- Timestamp: `2026-04-06 08:30:00 PDT`
+  - parallel audits tightened the authority story for the root-1 seam
+  - exact authority result:
+    - the first exact site after replay where the iterator triplet for
+      `slots 11..13` becomes authoritative on the root-1 child is the
+      unconditional initial side-trace snapshot emission:
+      - `lj_snap_replay()` -> `lj_snap_add()` -> `snapshot_slots()`
+    - replay shaping alone is transient; the first child snapshot at `BC_GGET`
+      is the authoritative stale contract point
+  - x64 control result:
+    - mature x64 can form the broad root-1 `BC_ITERL -> BC_JMP` child shape
+    - but it does not reproduce the same inherited `slot 13 -> KPRI -> TYPEINS`
+      collapse
+    - classify the original producer-collapse seam as s390x-specific
+  - updated target:
+    - not more duplicate-child `link=2` nudges
+    - not more stale single-lane `slot 13` surgery
+    - the next honest family must treat the replay-time root-1 child contract
+      as a structured whole:
+      - initial side-trace snapshot authority
+      - corrected replay-triplet child
+      - surviving duplicate `trace 3` recurrence/use-frequency cost
+
+- Timestamp: `2026-04-06 08:45:00 PDT`
+  - the next focused save-contract probe is also closed as inert
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_TRACE2_RESUMECHILD=1`
+  - exact idea:
+    - on the focused `ipairs_only` reducer only, give the corrected root-1
+      child (`trace 2`, `parent=1 exit=1`) a saved `resumechild=1` contract and
+      see whether the duplicate `trace 3` recurrence drops
+  - decisive result on focused `kdz`:
+    - exact output unchanged:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - save metadata unchanged:
+      - `trace 2` still `resumechild=0`
+      - `trace 3` still `linktype=LJ_TRLINK_ROOT`, `link=1`
+  - classification:
+    - the obvious focused save-time `resumechild` rewrite for the corrected
+      root-1 child did not take effect and can be treated as closed
+
+- Timestamp: `2026-04-06 09:05:00 PDT`
+  - the first post-stop duplicate-child contract family is now closed as real
+    but non-promotable
+  - closed families:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_POSTSTOP_LINK_PARENT=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_POSTSTOP_LINK_PARENT_RESUMECHILD=1`
+  - exact idea:
+    - move the duplicate root-1 child contract rewrite to `trace_stop()`,
+      after the final stop/link decision is known
+    - target only the exact focused duplicate child:
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+  - decisive focused proof on `kdz`:
+    - `DUP_POSTSTOP_LINK_PARENT` really takes:
+      - `trace 3` changes from `link=1` to `link=2`
+    - `DUP_POSTSTOP_LINK_PARENT_RESUMECHILD` really takes:
+      - `trace 3` changes to `link=2`, `resumechild=2`
+    - focused counters do not improve:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+  - decisive broad gate on trusted `kdz`:
+    - both branches stay exact:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary `mixed_warm_bench`:
+      - retained replay-triplet control `0.011918`
+      - `DUP_POSTSTOP_LINK_PARENT` `0.012127`
+      - `DUP_POSTSTOP_LINK_PARENT_RESUMECHILD` `0.012372`
+  - classification:
+    - the duplicate root-1 child contract is now proven mutable at
+      post-stop/save time
+    - but simply redirecting it to `trace 2`, with or without
+      `resumechild=2`, does not produce a win
+    - this closes the direct duplicate-child `link=2` runtime-contract family
+
+- Timestamp: `2026-04-06 09:15:00 PDT`
+  - the stronger post-stop duplicate-child runtime variant is also closed
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_POSTSTOP_LINK_PARENT_RESUMECHILD=1`
+  - exact idea:
+    - on the exact focused duplicate child after final stop-time link
+      resolution:
+      - set `link=2`
+      - set `resumechild=2`
+    - keep the retained replay-triplet control otherwise unchanged
+  - decisive result on focused `kdz`:
+    - save metadata changes exactly as intended:
+      - `trace 3` becomes `link=2`, `resumechild=2`
+    - focused counters still do not improve:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+  - decisive broad gate on trusted `kdz`:
+    - exact reducers:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary `mixed_warm_bench`:
+      - retained replay-triplet control `0.011918`
+      - `DUP_POSTSTOP_LINK_PARENT_RESUMECHILD` `0.012372`
+  - classification:
+    - the duplicate child’s post-stop runtime contract is mutable
+    - but even the stronger `link=2 + resumechild=2` contract is slower
+    - this closes the obvious post-stop duplicate-child runtime family
+
+- Timestamp: `2026-04-06 09:45:00 PDT`
+  - the focused root-1 recurrence trigger is now pinned more tightly
+  - retained replay-triplet control, on trusted `kdz`, keeps the same
+    focused exact save pair:
+    - `trace 2`:
+      - `parent=1`
+      - `exit=1`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+    - `trace 3`:
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+  - new focused acquisition:
+    - the remaining focused cost is not a steady-state exit storm between
+      `trace 2` and `trace 3`
+    - counted exact exits on the replay-triplet control show:
+      - `trace2_exit0=200`
+      - `trace3_exit0=0`
+      - `trace3_exit1=1`
+      - `trace2_exit1=0`
+    - classification:
+      - the focused residual cost is the untraced `trace 2 exit 0` runway
+        needed to form `trace 3`
+      - once `trace 3` exists, this focused harness does not keep paying a
+        repeated `trace 2 exit 0` runtime storm
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_PRIME_EXIT0=1`
+  - exact idea:
+    - prime the exact corrected `trace 2 exit 0` hotside surface so the
+      duplicate child forms immediately instead of after the `200`-exit runway
+  - decisive result:
+    - on the exact focused harness, the branch did not take at all:
+      - no `root1-prime-exit0` focus log
+      - no counter movement
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - the external focused shape still remained:
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `startop=BC_JMP`
+      - `pc=BC_ITERL`
+  - classification:
+    - the first exact hotside-prime branch is inert and closed
+    - that means the remaining recurrence seam is not just “a visible
+      `trace 2 exit 0` hotcount surface” from outside the recorder
+    - some earlier/internal predicate in the root-1 hotside path still does
+      not match the obvious external trace shape
+
+- Timestamp: `2026-04-06 10:05:00 PDT`
+  - corrected the exact hotside-prime predicate for the replay-triplet root-1
+    family and closed that stronger branch as real but non-promotable
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_PRIME_EXIT0=1`
+  - corrected exact scope:
+    - retained replay-triplet control
+    - `parent=2`
+    - `exit=0`
+    - `state=LJ_TRACE_IDLE`
+    - root-1 child:
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+    - no existing child recorded for that exact hotside
+  - decisive focused result on trusted `kdz`:
+    - the corrected branch does fire:
+      - `phase=root1-prime-check`
+      - `phase=root1-prime-exit0`
+      - `target=199`
+    - it materially reduces the focused runway:
+      - old focused counters:
+        - `TRACE_START 5`
+        - `TRACE_ABORT 3`
+        - `TEXIT_COUNT 341`
+      - corrected-prime counters:
+        - `TRACE_START 4`
+        - `TRACE_ABORT 2`
+        - `TEXIT_COUNT 142`
+    - exact focused output stays correct:
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - broad exactness on `kdz`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - same-binary `kdz` perf gate:
+    - retained replay-triplet control:
+      - `/tmp/mixed_warm_bench.lua -> 0.012779`
+    - corrected-prime candidate:
+      - `/tmp/mixed_warm_bench.lua -> 0.0303`
+  - classification:
+    - the `trace 2 exit 0` formation runway is a real focused cost
+    - directly collapsing it through hotcount priming is exact but much slower
+      on broader mixed hot perf
+    - this closes the corrected exact hotside-prime family as non-promotable
+
+- Timestamp: `2026-04-06 10:20:00 PDT`
+  - closed the inverse recurrence branch as exact but much worse
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_SUPPRESS_EXIT0=1`
+  - exact idea:
+    - on the retained replay-triplet root-1 control
+    - for the exact duplicate-formation runway only:
+      - `parent=2`
+      - `exit=0`
+      - `state=LJ_TRACE_IDLE`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+      - no existing child for that exact hotside
+    - set `snap->count = SNAPCOUNT_DONE` to suppress duplicate-child start
+      instead of accelerating it
+  - decisive focused result on trusted `kdz`:
+    - exact output:
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but focused counters blow up:
+      - `TRACE_START 9`
+      - `TRACE_ABORT 8`
+      - `TEXIT_COUNT 16000`
+    - read:
+      - the duplicate child is helpful
+      - suppressing its formation is much worse than allowing the current
+        runway
+  - broad exactness on `kdz`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - same-binary `kdz` perf gate:
+    - retained replay-triplet control:
+      - `/tmp/mixed_warm_bench.lua -> 0.013171`
+    - suppression candidate:
+      - `/tmp/mixed_warm_bench.lua -> 0.030079`
+  - classification:
+    - the root-1 duplicate `trace 3` is not dead weight
+    - the live problem is not “formation should be suppressed”
+    - this closes the direct duplicate-formation suppression family
+
+- Timestamp: `2026-04-06 10:35:00 PDT`
+  - clean `kdz` replay-triplet control now pins the makeup of the focused
+    duplicate-formation runway more tightly
+  - retained focused control:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - focused exact output remains:
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `TRACE_START 5`
+    - `TRACE_ABORT 3`
+    - `TEXIT_COUNT 341`
+  - new exact acquisition from `TRACE_START` / `TRACE_ABORT` audit:
+    - the focused duplicate runway is not just `200` counted `parent=2 exit=0`
+      exits
+    - before the final child pair settles, the exact formation path also hits
+      explicit `LJ_TRERR_LINNER` aborts:
+      - repeated root-style aborts:
+        - `trace=2`
+        - `startpc=...cc1c`
+        - `startop=79` (`BC_FORL`)
+        - `err=9` (`LJ_TRERR_LINNER`)
+      - companion root-style aborts:
+        - `trace=2`
+        - `startpc=...cbe8`
+        - `startop=89` (`BC_FUNCF`)
+        - `err=9` (`LJ_TRERR_LINNER`)
+      - duplicate abort:
+        - `trace=3`
+        - `startpc=...cc1c`
+        - `startop=79` (`BC_FORL`)
+        - `err=9` (`LJ_TRERR_LINNER`)
+      - one separate non-target abort is still present:
+        - `trace=2`
+        - `startpc=...13a0`
+        - `startop=89` (`BC_FUNCF`)
+        - `err=7`
+  - classification:
+    - after the replay-triplet fix, the next exact focused mechanism is not
+      just “visible `trace 2 exit 0` hotcount”
+    - the duplicate root-1 formation path still crosses a concrete
+      `LJ_TRERR_LINNER` abort surface before the final pair settles
+    - the next honest remediation target is now the exact `LINNER` formation
+      path for the corrected root-1 duplicate family, not another prime/suppress
+      hotside tweak
+
+- Timestamp: `2026-04-06 11:05:00 PDT`
+  - the first exact `LINNER` remediation in `rec_loop_jit_root()` is now
+    closed as inert
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_ROOT_GGET_LINNER_STOP=1`
+  - exact idea:
+    - on the retained replay-triplet control
+    - catch the observed root-style duplicate-formation abort surface in
+      `rec_loop_jit_root()`:
+      - `parent=0`
+      - `exit=0`
+      - `lnk=1`
+      - `prevop=88` at the loop edge
+      - root starts saving as `startop=79` or `startop=89`
+    - stop/link to the already-compiled loop instead of throwing
+      `LJ_TRERR_LINNER`
+  - decisive result on trusted `kdz`:
+    - no
+      `root1_replay_triplet_root_gget_linner_stop=1`
+      hit ever appears
+    - focused counters stay unchanged:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - the same `LINNER` aborts remain:
+      - `trace=2 ... startop=79 ... err=9`
+      - `trace=2 ... startop=89 ... err=9`
+      - `trace=3 ... startop=79 ... err=9`
+  - classification:
+    - the exact duplicate-formation waste is still on the `LINNER` surface
+    - but the obvious stop/link rewrite in `rec_loop_jit_root()` is not where
+      that surface is still mutable
+    - the next honest target is one step earlier in root-start formation, not a
+      later stop-time rewrite at the same `LINNER` site
+
+- Timestamp: `2026-04-06 11:40:00 PDT`
+  - closed the focused root-start blacklist family for the corrected
+    replay-triplet control
+  - closed families:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINNER_BLACKLIST=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINNER_BLACKLIST_FORL=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINNER_BLACKLIST_FUNCF=1`
+  - exact idea:
+    - on the retained replay-triplet control, intercept root trace abort in
+      `trace_abort()` for the exact root-start `LINNER` attempts
+    - when the same reducer already has the root `BC_ITERL` trace, blacklist
+      the dead root-start bytecode immediately instead of paying the repeated
+      root `LINNER` retries
+  - decisive result on trusted `kdz`:
+    - `FUNCF`-only is inert:
+      - focused counters stay at:
+        - `TRACE_START 5`
+        - `TRACE_ABORT 3`
+        - `TEXIT_COUNT 341`
+    - `FORL`-only is real and behaves the same as the combined branch:
+      - focused exact output stays:
+        - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - but counters blow up:
+        - `TRACE_START 11`
+        - `TRACE_ABORT 9`
+        - `TEXIT_COUNT 348`
+      - the branch does remove the earlier root `LINNER` start at
+        `startop=79`, but it replaces the settled corrected child family with a
+        worse interp-linked path:
+        - `trace 2` becomes `linktype=6`, `link=0`
+        - repeated child aborts switch to `err=5`
+        - saved stop lands at `op=80` (`BC_IFORL`)
+    - combined `FORL+FUNCF` blacklist behaves the same as `FORL`-only
+  - broad gate on trusted `kdz`:
+    - exact reducers stay correct:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary warm bench regresses:
+      - retained replay-triplet control `0.012005`
+      - combined blacklist `0.012362`
+  - classification:
+    - direct root-start blacklisting is not the fix
+    - removing the dead root `LINNER` starts by mutating the start bytecode
+      just pushes the corrected root-1 family onto a worse interp-linked
+      continuation contract
+    - this closes the root-start blacklist family
+    - the next honest target is not another blacklist/bytecode-mutation path,
+      but the earlier root-start penalty/hotcount contract that can deflect the
+      same dead starts without turning `FORL` into `IFORL`
+
+- Timestamp: `2026-04-06 07:54:03 PDT`
+  - closed the first exact root-start hotcount deferral family for the
+    corrected replay-triplet control
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DEFER_LINNER_FORL=1`
+  - exact idea:
+    - move one step earlier than `trace_abort()`
+    - in `trace_hot()`, when the exact root-1 reducer has already earned a
+      cached `LJ_TRERR_LINNER` penalty at the dead `BC_FORL` root start and the
+      same-proto root `BC_ITERL` trace already exists, defer that root start
+      before allocating another root trace
+    - keep bytecode unchanged and only raise the hotcount cooldown
+  - decisive result on trusted `kdz`:
+    - the branch is real and hits the intended seam:
+      - `S390X_ROOT1_REPLAY_TRIPLET_DEFER_LINNER_FORL pc=...cc1c op=79 val=15000`
+    - focused `ipairs_only` counters improve materially while staying exact:
+      - retained control:
+        - `TRACE_START 5`
+        - `TRACE_ABORT 3`
+        - `TEXIT_COUNT 341`
+      - candidate:
+        - `RESULT 576000`
+        - `TRACE_START 3`
+        - `TRACE_ABORT 1`
+        - `TEXIT_COUNT 341`
+      - the repeated dead root `BC_FORL` starts are reduced to a single initial
+        `LINNER` abort before the pre-start deferral takes over
+  - broad gate on trusted `kdz`:
+    - exact reducers stay correct:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary warm bench still regresses:
+      - retained replay-triplet control `0.011997`
+      - deferral candidate `0.012620`
+  - classification:
+    - earlier root-start hotcount deferral is the right mechanism and it
+      materially reduces the dead `FORL` root-start runway
+    - but this first coarse cooldown value is not promotable because mixed hot
+      still regresses on `kdz`
+    - the next honest target is not another blacklist or stop-time rewrite, but
+      a narrower root-start admission/cooldown contract than this first
+      `trace_hot()` deferral
+
+- Timestamp: `2026-04-06 08:05:00 PDT`
+  - closed the cached-cooldown variant of the root-start hotcount deferral
+    family
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DEFER_LINNER_FORL_CACHED=1`
+  - exact idea:
+    - keep the same pre-start `trace_hot()` deferral seam as the coarse branch
+    - but instead of forcing a large synthetic cooldown, reuse the exact cached
+      `LJ_TRERR_LINNER` penalty value already attached to the dead `BC_FORL`
+      root-start site
+  - decisive result on trusted `kdz`:
+    - the branch is real and hits the intended site with the cached penalty:
+      - `S390X_ROOT1_REPLAY_TRIPLET_DEFER_LINNER_FORL_CACHED pc=...cc1c op=79 val=72`
+    - focused exact counters stay improved:
+      - `RESULT 576000`
+      - `TRACE_START 3`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 341`
+    - but the deferral still fires repeatedly before and after `trace 2`
+      settles, so it is still broader than the truly helpful formation window
+  - broad gate on trusted `kdz`:
+    - exact reducers stay correct:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary warm bench still regresses:
+      - retained replay-triplet control `0.011997`
+      - cached-cooldown candidate `0.012536`
+  - classification:
+    - cached penalty reuse is tighter than the coarse `15000` holdoff and still
+      attacks the right root-start runway
+    - but it remains non-promotable because it delays the corrected root-1
+      family too broadly
+    - the next honest target is a phase-gated admission rule that only defers
+      the dead root `BC_FORL` starts after the corrected `trace 2` child is
+      already present
+
+- Timestamp: `2026-04-06 08:18:00 PDT`
+  - closed the phase-gated root-start hotcount deferral family
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DEFER_LINNER_FORL_AFTER_CHILD=1`
+  - exact idea:
+    - keep the same `trace_hot()` deferral seam and the same cached
+      `LJ_TRERR_LINNER` penalty reuse
+    - but only begin deferring the dead root `BC_FORL` starts after the
+      corrected replay-triplet child has already been saved
+    - avoid delaying the useful `trace 2` formation step, and suppress only the
+      later redundant root starts
+  - decisive result on trusted `kdz`:
+    - the branch is real and phase-gated as intended:
+      - before `trace 2` saves, the root `BC_FORL` start still runs and aborts
+      - after `trace 2` saves, the deferral hits:
+        - `S390X_ROOT1_REPLAY_TRIPLET_DEFER_LINNER_FORL_AFTER_CHILD pc=...cc1c op=79 val=308`
+    - focused exact counters land between control and the broader cached branch:
+      - `RESULT 576000`
+      - `TRACE_START 4`
+      - `TRACE_ABORT 2`
+      - `TEXIT_COUNT 341`
+  - broad gate on trusted `kdz`:
+    - exact reducers stay correct:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary warm bench regresses harder:
+      - retained replay-triplet control `0.011997`
+      - phase-gated candidate `0.013582`
+  - classification:
+    - phase-gating proves the remaining root-start admission waste is later than
+      the initial useful `trace 2` formation step
+    - but even the narrower after-child deferral is still not promotable
+    - this closes the current `trace_hot()` deferral family and pushes the next
+      honest target away from raw cooldown deferral and toward the exact
+      root-start admission predicate itself
+
+- Timestamp: `2026-04-06 08:33:00 PDT`
+  - closed the first exact root-start admission skip family
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_SKIP_LINNER_FORL_AFTER_CHILD=1`
+  - exact idea:
+    - in `trace_hot()`, once the corrected replay-triplet child already exists
+      and the dead root `BC_FORL` site has already proven itself as
+      `LJ_TRERR_LINNER`, refuse that root start outright instead of launching a
+      trace or applying any synthetic cooldown
+  - decisive result on trusted `kdz`:
+    - the branch is real and exact:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - focused counters show the same narrowed effect as the phase-gated
+      deferral family:
+      - `RESULT 576000`
+      - `TRACE_START 4`
+      - `TRACE_ABORT 2`
+      - `TEXIT_COUNT 341`
+    - but the exact skip predicate fires repeatedly after the child exists:
+      - repeated
+        `S390X_ROOT1_REPLAY_TRIPLET_SKIP_LINNER_FORL_AFTER_CHILD pc=...cc1c op=79`
+      - so this is still a broad recurring admission shim, not a one-shot fix
+  - broad gate on trusted `kdz`:
+    - same-binary warm bench still regresses:
+      - retained replay-triplet control `0.011997`
+      - skip-after-child candidate `0.012585`
+  - classification:
+    - outright root-start refusal is tighter than cooldown deferral, but it
+      still loses because the repeated after-child admission pressure remains
+      high
+    - this closes the current raw `trace_hot()` skip family
+    - the next honest target is a more selective admission predicate than
+      “after child exists + prior `LINNER` at `BC_FORL`”
+
+- Timestamp: `2026-04-06 08:47:00 PDT`
+  - closed the pair-gated root-start admission skip family as inert
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_SKIP_LINNER_FORL_AFTER_PAIR=1`
+  - exact idea:
+    - stay in `trace_hot()`
+    - but only refuse the dead root `BC_FORL` start after the corrected replay-triplet
+      pair is already fully present:
+      - same-proto root `BC_ITERL`
+      - two saved corrected root-1 `BC_JMP` children with the exact replay-triplet
+        shape (`linktype=ROOT`, `link=1`, `nsnap=4`, `nins=32794`)
+  - decisive result on trusted `kdz`:
+    - focused probe is completely inert:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - no
+      `S390X_ROOT1_REPLAY_TRIPLET_SKIP_LINNER_FORL_AFTER_PAIR`
+      hit ever appears
+  - classification:
+    - there is no meaningful post-pair root-start admission tail left to trim
+    - the residual runway is still pre-pair formation
+    - this closes the pair-gated admission family and pushes the next honest
+      target back to the exact `trace 2 exit 0` duplicate-formation path, not
+      any post-pair root-start cleanup
+
+- Timestamp: `2026-04-06 08:28:25 PDT`
+  - closed the first exact early-hotside equivalence family for the corrected
+    replay-triplet duplicate runway
+  - retained focused control under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_HOTSIDE_EARLY_EQUIV=1`
+    - probed with:
+      - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1`
+      - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1`
+  - exact idea:
+    - remove the legacy `min_parent/min_cand` threshold block for the exact
+      pre-pair root-1 duplicate runway:
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+    - ask whether the existing `trace_hotside()` canon/share machinery already
+      has an earlier reusable equivalent once that threshold block is removed
+  - decisive result on trusted `kdz`:
+    - the probe is real and reaches the exact focused runway:
+      - `S390X_HOTSIDE_FOCUS phase=root1-early-equiv parent=2 exit=0 ...`
+    - but the only candidate it ever finds is the current parent itself:
+      - `S390X_HOTSIDE_EQUIV phase=reject-order parent=2 exit=0 root=1 cand=2 candroot=1 candstart=88`
+    - there is still no earlier reusable predecessor:
+      - focused start remains `cand=0 child=0`
+      - counters stay unchanged:
+        - `RESULT 576000`
+        - `TRACE_START 5`
+        - `TRACE_ABORT 3`
+        - `TEXIT_COUNT 341`
+    - both exact probe modes are inert from a behavior standpoint:
+      - `HOTSIDE_CANON_EQUIV`
+      - `HOTSIDE_SHARE_EQUIV`
+  - classification:
+    - the pre-pair `trace 2 exit 0` runway is not blocked by a hidden
+      threshold on an already-usable equivalence path
+    - once the legacy threshold block is removed, the only matching candidate
+      is `trace 2` itself, which is rejected by order as the current parent
+    - this closes the “existing hotside canon/share can collapse the replay-triplet
+      duplicate runway if we just open it earlier” family
+    - the next honest target is no longer hotside equivalence reuse; it is the
+      exact formation contract that still requires `trace 2 exit 0` to create a
+      brand-new `trace 3`
+
+- Timestamp: `2026-04-06 09:00:17 PDT`
+  - closed the first exact save-time seed family for the corrected
+    replay-triplet duplicate runway
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_TRACE2_SEED_EXIT0=1`
+  - exact idea:
+    - move the old `trace 2 exit 0` hotcount-prime effect out of the runtime
+      hotside path and into `trace_save()`
+    - on the exact corrected root-1 child only:
+      - `parent=1`
+      - `exit=1`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+    - seed `snap[0].count` once to `hotexit-1` (`199`) before save so the
+      duplicate `trace 3` forms on the next `exit 0` without repeated runtime
+      hotcount manipulation
+  - decisive focused result on trusted `kdz`:
+    - the branch is real and takes exactly once at save time:
+      - `S390X_ROOT1_REPLAY_TRIPLET_TRACE2_SEED_EXIT0 trace=2 ... snap0=199 target=199`
+    - focused `ipairs_only` counters improve materially while staying exact:
+      - retained control:
+        - `RESULT 576000`
+        - `TRACE_START 5`
+        - `TRACE_ABORT 3`
+        - `TEXIT_COUNT 341`
+      - candidate:
+        - `RESULT 576000`
+        - `TRACE_START 4`
+        - `TRACE_ABORT 2`
+        - `TEXIT_COUNT 142`
+  - broad exact gate on trusted `kdz`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - same-binary warm perf on trusted `kdz`:
+    - retained replay-triplet control:
+      - `/tmp/mixed_warm_bench.lua -> 0.012281`
+    - save-time seed candidate:
+      - `/tmp/mixed_warm_bench.lua -> 0.012484`
+  - classification:
+    - one-shot save-time seeding is cleaner than the earlier runtime prime and
+      it does reduce the focused duplicate-formation runway
+    - but it is still non-promotable on mixed hot perf
+    - this closes the “just make `trace 3` form sooner” family in both of its
+      exact forms:
+      - runtime hotcount prime
+      - save-time snapshot-count seed
+    - the next honest target is no longer duplicate-formation timing; it is the
+      exact formation/use contract that makes the new `trace 3` worth paying for
+
+- Timestamp: `2026-04-06 09:17:13 PDT`
+  - closed both exact duplicate-child saved-resume families for the corrected
+    replay-triplet branch
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed families:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_RESUME=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_JLOOP_RESUME=1`
+  - exact idea:
+    - keep the corrected replay-triplet and `link=1` duplicate child intact
+    - only change the saved resume metadata for the exact duplicate child:
+      - `trace 3`
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+    - first branch:
+      - save plain `startpc+1` resume (`resumeop=BC_MOV`)
+    - second branch:
+      - save direct self-`BC_JLOOP` resume (`resumeop=BC_JLOOP`,
+        `ownerop=BC_LOOP`)
+  - decisive focused result on trusted `kdz`:
+    - both branches are real and exact:
+      - plain resume:
+        - `S390X_ROOT1_REPLAY_TRIPLET_DUP_RESUME trace=3 ... resumepc=startpc+1 resumeop=76`
+      - self-`JLOOP` resume:
+        - `S390X_ROOT1_REPLAY_TRIPLET_DUP_JLOOP_RESUME trace=3 ... resumepc=startpc resumeop=87 ownerop=85`
+    - but both are behaviorally inert on the focused reducer:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+  - broad exact gate on trusted `kdz`:
+    - both stayed exact:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - same-binary warm perf on trusted `kdz`:
+    - retained replay-triplet control:
+      - `/tmp/mixed_warm_bench.lua -> 0.012155`
+    - plain duplicate resume:
+      - `/tmp/mixed_warm_bench.lua -> 0.012996`
+    - duplicate self-`JLOOP` resume:
+      - `/tmp/mixed_warm_bench.lua -> 0.014078`
+  - classification:
+    - saved resume metadata on the duplicate child can be changed cleanly
+    - but neither the plain `MOV` resume contract nor the direct self-`JLOOP`
+      contract improves the corrected replay-triplet branch
+    - this closes the exact duplicate-child save/consume metadata family
+    - the next honest target is no longer “give `trace 3` different saved
+      resume metadata”; it is the runtime/use contract that actually consumes
+      `trace 3` once it exists
+
+- Timestamp: `2026-04-06 09:42:38 PDT`
+  - closed the exact duplicate-child `resumechild-only` save contract on the
+    corrected replay-triplet branch
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_RESUMECHILD=1`
+  - exact idea:
+    - keep the duplicate corrected child otherwise unchanged
+    - only give the exact duplicate `trace 3`
+      - `parent=2`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+      a saved `resumechild=2` owner hint in `trace_save()`
+  - decisive result on trusted `kdz`:
+    - the branch is real:
+      - `S390X_ROOT1_REPLAY_TRIPLET_DUP_RESUMECHILD trace=3 ... resumechild=2`
+    - focused reducer is behaviorally inert:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - broad exactness holds:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary warm perf regresses:
+      - retained replay-triplet control: `0.012155`
+      - candidate: `0.013032`
+  - classification:
+    - `resumechild` alone is not the missing runtime/use contract for the
+      corrected duplicate child
+    - this closes the narrow owner-hint-only save family
+
+- Timestamp: `2026-04-06 09:51:54 PDT`
+  - closed the exact duplicate-child sidechain reorder family on the corrected
+    replay-triplet branch
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_CHAIN_SWAP=1`
+  - exact idea:
+    - keep both corrected traces and their saved link contracts intact
+    - only reorder the root sidechain after saving the exact duplicate child so
+      `trace 2` stays at the root head and `trace 3` hangs off it
+  - decisive result on trusted `kdz`:
+    - the reorder is real:
+      - `S390X_ROOT1_REPLAY_TRIPLET_DUP_CHAIN_SWAP trace=3 ... head=2 next=0`
+    - focused reducer stays unchanged:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - broad exactness holds:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary warm perf regresses:
+      - retained replay-triplet control: `0.012155`
+      - candidate: `0.013231`
+  - classification:
+    - sidechain order alone does not explain the corrected duplicate child’s
+      residual cost
+    - this closes the “rethread the root sidechain but keep both traces”
+      family
+
+- Timestamp: `2026-04-06 09:58:32 PDT`
+  - closed the exact duplicate-child sidechain unlink family on the corrected
+    replay-triplet branch
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_UNCHAIN=1`
+  - exact idea:
+    - keep the duplicate corrected child saved and patchable
+    - but remove it from the root sidechain after insertion so later sidechain
+      lookup only sees the older `trace 2`
+  - decisive result on trusted `kdz`:
+    - the unlink is real:
+      - `S390X_ROOT1_REPLAY_TRIPLET_DUP_UNCHAIN trace=3 ... head=2`
+    - focused reducer stays unchanged:
+      - `RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - broad exactness holds:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - same-binary warm perf still regresses:
+      - retained replay-triplet control: `0.012155`
+      - candidate: `0.012599`
+  - classification:
+    - merely hiding the duplicate child from later root sidechain lookup is
+      not enough
+    - this closes the stronger sidechain-registry family too
+    - the next honest target is no longer sidechain threading or owner hints;
+      it is the exact patched-exit / entry contract that makes the corrected
+      `trace 3` worth executing at all
+
+- Timestamp: `2026-04-06 10:41:12 PDT`
+  - closed the exact duplicate-child `skip_patchexit` family on the corrected
+    replay-triplet branch
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_SKIP_PATCHEXIT=1`
+  - exact idea:
+    - on the exact duplicate child only
+      - `parent=3`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `linktype=ROOT`
+      - `link=1`
+      - `nsnap=4`
+      - `nins=32794`
+    - do not patch `trace 3 exit 0` directly to the duplicate child mcode
+  - decisive result on trusted `kdz`:
+    - the branch is real:
+      - `S390X_ROOT1_REPLAY_TRIPLET_DUP_SKIP_PATCHEXIT trace=4 ...`
+    - exactness still holds:
+      - focused `ipairs_only`: `RESULT 576000`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - focused runway explodes:
+      - control:
+        - `TRACE_START 5`
+        - `TRACE_ABORT 2`
+        - `TEXIT_COUNT 341`
+      - candidate:
+        - `TRACE_START 10`
+        - `TRACE_ABORT 7`
+        - `TEXIT_COUNT 16000`
+    - same-binary warm perf collapses:
+      - retained replay-triplet control: `0.011973`
+      - candidate: `0.281932`
+  - classification:
+    - the direct patched exit from the corrected child into the duplicate child
+      is decisively helping and must stay
+    - the live residual payer is not “patched exit versus unpatched exit” any
+      longer; it is the contract of the duplicate child reached by that patch
+
+- Timestamp: `2026-04-06 10:57:44 PDT`
+  - closed the exact duplicate-child post-stop loop-parent contract on the
+    corrected replay-triplet branch
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_DUP_POSTSTOP_LOOP_PARENT=1`
+  - exact idea:
+    - on the exact duplicate child only
+      - `parent=3`
+      - `exit=0`
+      - `root=1`
+      - `startop=BC_JMP`
+      - `nsnap=4`
+      - `nins=32794`
+    - rewrite the saved duplicate child after stop so it loop-links to its
+      exact parent instead of staying root-linked
+  - decisive result on trusted `kdz`:
+    - the branch is real:
+      - `S390X_ROOT1_REPLAY_TRIPLET_DUP_POSTSTOP_LOOP_PARENT trace=4 ... link=3 linktype=2 nins=32794 nsnap=4`
+    - broad exactness still holds:
+      - focused `ipairs_only`: `RESULT 576000`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - focused runway is inert:
+      - `TRACE_START 5`
+      - `TRACE_ABORT 2`
+      - `TEXIT_COUNT 341`
+    - same-binary warm perf regresses:
+      - candidate: `0.014576`
+  - classification:
+    - the duplicate child is mutable after stop, but switching it to a
+      loop-parent contract does not reduce the live focused runway
+    - this closes the “post-stop loop-link the duplicate child to its exact
+      parent” family
+
+- Timestamp: `2026-04-06 10:15:51 PDT`
+  - corrected the branch-level mixed-bench read on trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - decisive mixed-bench acquisition:
+    - the narrowed `ipairs_only` duplicate-child seam is real, but it is too
+      narrow to explain the branch-level `mixed_warm_bench` hot number
+    - clean `TRACE_META` on real `mixed_warm_bench.lua` shows:
+      - `trace 2`: root `BC_ITERN`, `link=2`, `linktype=LOOP`, `mcloop=216`
+      - `trace 3`: `parent=2 exit=1 root=2 startop=BC_JMP link=3 linktype=LOOP nins=32785 nsnap=6 mcloop=216`
+      - `trace 6`: separate root-1 child, `parent=1 exit=1 root=1 startop=BC_JMP link=2 linktype=ROOT nins=32781 nsnap=2`
+    - clean `jit.attach("texit")` counters on real mixed warm bench show the
+      steady-state payer directly:
+      - `TRACE_START 7`
+      - `TRACE_STOP 6`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 244429`
+      - `TEXIT_HIST 1:1 200`
+      - `TEXIT_HIST 2:1 200`
+      - `TEXIT_HIST 3:1 244029`
+    - so the branch-level warm surface is overwhelmingly the root-2 child,
+      not the narrowed root-1 duplicate-child pair
+    - focused `JLOOP_EXIT` on that exact live seam confirms repeated
+      root-2 replay:
+      - `parent=3 exit=1`
+      - `target=2 target_exec=2`
+      - `retop=70` (`BC_ITERN`)
+      - `phase=dispatch-original`
+      - `target_resumevalid=0`
+      - `target_resumechild=0`
+      - `target_mcloop=216`
+  - classification:
+    - the next branch-level probe must pivot back to the live root-2
+      `trace 3 exit 1` replay seam on real mixed bench
+    - the root-1 duplicate-child work remains valid as a narrowed reducer
+      acquisition, but it is not the current mixed-bench hot payer
+
+- Timestamp: `2026-04-06 10:15:51 PDT`
+  - closed the inert root-2 child save-time seed family on trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT2_NILDESC_CHILD_SEED_EXIT1=1`
+  - exact idea:
+    - on the exact dominant mixed-bench root-2 child only
+      - `parent=2`
+      - `exit=1`
+      - `root=2`
+      - `startop=BC_JMP`
+      - `linktype=LOOP`
+      - `mcloop=216`
+    - seed the child’s own `exit 1` hotcount once at save time so the huge
+      steady-state `trace 3 exit 1` runway can form its next consumer sooner
+  - decisive result on trusted `kdz`:
+    - broad exactness held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - but the branch never actually fired on real `mixed_warm_bench`
+      - no `S390X_ROOT2_NILDESC_CHILD_SEED_EXIT1` log hit
+      - `TRACE_META` still shows the same root-2 child:
+        - `trace 3 parent=2 exit=1 root=2 link=3 linktype=LOOP nins=32785 nsnap=6 mcloop=216`
+      - mixed warm runtime stayed in the same range:
+        - `0.012881`
+      - mixed warm `texit` histogram stayed unchanged:
+        - `TEXIT_HIST 3:1 244029`
+  - classification:
+    - the exact save-time shape used for this seed is not the live one at the
+      point where the dominant mixed-bench root-2 child is finalized
+    - this closes the simple “seed the root-2 child’s own exit-1 runway”
+      family as inert
+
+- Timestamp: `2026-04-06 11:24:00 PDT`
+  - closed the first real root-2 loop-descendant reopen on trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT2_LOOPDESC_NIL_DESC=1`
+  - exact idea:
+    - on the exact dominant mixed-bench root-2 replay seam only
+      - live steady-state child: `trace 3 parent=2 exit=1 root=2 startop=BC_JMP`
+      - repeated runtime handoff: `parent=3 exit=1 -> dispatch-original -> BC_ITERN`
+      - attempted descendant: `trace 6 parent=3 exit=1`
+    - reopen the nil-descendant path only for the loop-descendant shape that
+      currently dies at `rec_itern_nil_loop_descendant`
+      - root trace starts at `BC_ITERN`
+      - parent child is a loop-linked `BC_JMP`
+      - child continues toward `BC_FORL` / `BC_IFORL` / `BC_JFORL`
+  - decisive result on trusted `kdz`:
+    - broad exactness held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - the reopen is real and moves the recorder seam exactly as intended:
+      - old live abort:
+        - `trace=6 parent=3 exit=1 ... site=rec_itern_nil_loop_descendant`
+      - new live path:
+        - `trace=6 parent=3 exit=1 ... allow=1`
+        - deeper abort:
+          - `trace=7 parent=6 exit=1 ... site=rec_itern_nil_descendant`
+    - mixed warm texit histogram shows no aggregate relief, only a ladder shift:
+      - retained control:
+        - `TRACE_START 7`
+        - `TRACE_STOP 6`
+        - `TRACE_ABORT 1`
+        - `TEXIT_COUNT 244429`
+        - `TEXIT_HIST 3:1 244029`
+      - candidate:
+        - `TRACE_START 8`
+        - `TRACE_STOP 7`
+        - `TRACE_ABORT 1`
+        - `TEXIT_COUNT 244429`
+        - `TEXIT_HIST 3:1 200`
+        - `TEXIT_HIST 6:1 243829`
+    - same-binary warm perf regresses:
+      - retained control: `0.014106`
+      - candidate: `0.014391`
+  - classification:
+    - this is the right root-2 recorder seam, but it is still an incomplete fix
+    - reopening `rec_itern_nil_loop_descendant` simply transfers the same
+      steady-state texit mass to the next child in the ladder
+    - this closes the plain “root-2 loop-descendant reopen” family as another
+      ladder-shift-only branch
+
+- Timestamp: `2026-04-06 11:46:00 PDT`
+  - closed the broader root-2 descendant-chain reopen on trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT2_ITERN_DESC_CHAIN=1`
+  - exact idea:
+    - generalize the root-2 reopen from only the first
+      `rec_itern_nil_loop_descendant` rung to the whole non-root
+      `BC_JMP -> IFORL/JFORL` descendant chain under the same `BC_ITERN` root
+  - decisive result on trusted `kdz`:
+    - broad exactness held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - the family is real but pathological:
+      - recorder admits the chain repeatedly:
+        - `trace=71 parent=70 exit=1 ... allow=1`
+        - ...
+        - `trace=106 parent=105 exit=1 ... allow=1`
+      - the chain only stops when the parent finally becomes interp-linked:
+        - `trace=107 parent=106 exit=1 ... parent_linktype=6 allow=0`
+        - `site=rec_itern_nil_descendant`
+        - `err=8` (`LJ_TRERR_LLEAVE`)
+    - logged mixed warm regresses hard:
+      - `0.029797`
+  - classification:
+    - this does not settle into a reusable root-2 child family
+    - it explodes into a long root-2 descendant ladder until an interp-linked
+      stop finally aborts it
+    - this closes the plain “open the whole root-2 descendant chain” family
+
+- Timestamp: `2026-04-06 11:52:00 PDT`
+  - closed the root-2 descendant-chain self-loop stop follow-on on trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_ROOT2_ITERN_DESC_CHAIN=1`
+    - `LUAJIT_S390X_ROOT2_ITERN_DESC_CHAIN_LOOP_SELF=1`
+  - exact idea:
+    - keep the chain reopen live
+    - but in `rec_loop_jit()` stop each admitted root-2 descendant as a
+      self-loop instead of letting it save as another root-linked `BC_JMP`
+      rung
+  - decisive result on trusted `kdz`:
+    - broad exactness still holds:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - the self-loop stop is real:
+      - repeated `S390X_RECLOOP ... root2_itern_desc_chain_loop_self=1`
+    - but it still does not collapse the ladder:
+      - admitted descendants continue through alternating
+        `parent_linktype=1` / `parent_linktype=2`
+      - the chain still runs out only at:
+        - `trace=107 parent=106 exit=1 ... parent_linktype=6 allow=0`
+        - `site=rec_itern_nil_descendant`
+    - logged mixed warm stays pathological:
+      - `0.030037`
+    - focused texit harness no longer completes in time:
+      - `timeout 10 ./src/luajit /tmp/mixed_warm_focus_texit.lua -> RC:124`
+  - classification:
+    - the reopen seam is not enough
+    - and the admitted child’s simple self-loop stop is not enough either
+    - this closes the “open the root-2 chain and self-loop each admitted rung”
+      family as another pathological ladder
+
+- Timestamp: `2026-04-06 12:16:00 PDT`
+  - closed the exact first-admitted root-2 child save-contract micro-family on
+    trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - exact setup used for the micro-family:
+    - reopen only the first live root-2 loop-descendant rung:
+      - `LUAJIT_S390X_ROOT2_LOOPDESC_NIL_DESC=1`
+    - then rewrite only the first admitted child contract:
+      - saved child is `trace 6 parent=3 exit=1 root=2 startop=BC_JMP`
+      - exact saved baseline under reopen:
+        - `link=4`
+        - `linktype=ROOT`
+        - `nsnap=5`
+        - `nins=32781`
+        - `mcloop=0`
+  - decisive contract acquisition:
+    - the saved contract is mutable and real:
+      - `LUAJIT_S390X_ROOT2_LOOPDESC_SAVE_LINK_PARENT=1`
+      - rewrites `trace 6` to `link=3`, `linktype=ROOT`
+    - broad exactness holds for all variants in this micro-family:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - same-binary warm on trusted `kdz`:
+    - retained control:
+      - `0.011885`
+      - `0.012564`
+    - reopen only:
+      - `0.012244`
+      - `0.013914`
+    - reopen + save-link-parent:
+      - `0.012493`
+      - `0.013357`
+    - reopen + save-link-parent + resumevalid (`resumeop=82`):
+      - `0.013759`
+    - reopen + save-link-parent + `resumechild=3`:
+      - `0.013813`
+  - runtime-use acquisition:
+    - even with the best save-contract rewrite (`link=3`), the hot runtime
+      consumer of `trace 6` still does not execute its own contract
+    - focused `JLOOP_EXIT` on `parent=6 exit=1` shows repeated:
+      - `phase=dispatch-original`
+      - `trace=6`
+      - `target=2`
+      - `target_exec=2`
+      - `retop=70` (`BC_ITERN`)
+      - `target_resumevalid=0`
+      - `target_resumechild=0`
+    - the mixed warm `texit` histogram stays unchanged across the micro-family:
+      - `TRACE_START 8`
+      - `TRACE_STOP 7`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 244429`
+      - `TEXIT_HIST 3:1 200`
+      - `TEXIT_HIST 6:1 243829`
+  - classification:
+    - the first admitted root-2 child save-contract fields matter slightly for
+      throughput, but they are not the dominant consumer seam
+    - the hot steady-state for `trace 6` still falls straight back to root
+      `trace 2` through `dispatch-original -> BC_ITERN`
+    - this closes the “first admitted root-2 child save-contract” micro-family
+      as non-promotable by itself
+
+- Timestamp: `2026-04-06 12:34:00 PDT`
+  - closed the late root-2 runtime-owner follow-ons on trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - exact probe surface used here:
+    - reopen only the first root-2 loop-descendant rung:
+      - `LUAJIT_S390X_ROOT2_LOOPDESC_NIL_DESC=1`
+    - keep the directionally best saved child contract:
+      - `LUAJIT_S390X_ROOT2_LOOPDESC_SAVE_LINK_PARENT=1`
+      - admitted `trace 6` rewrites from `link=4` to `link=3`
+  - closed follow-on families:
+    - `LUAJIT_S390X_ROOT2_LOOPDESC_EXEC_LINK=1`
+    - `LUAJIT_S390X_ROOT2_LOOPDESC_ROOT_RESUMECHILD=1`
+    - `LUAJIT_S390X_ROOT2_LOOPDESC_PARENT_RESUMECHILD=1`
+  - decisive results on trusted `kdz`:
+    - `ROOT2_LOOPDESC_EXEC_LINK`
+      - exact:
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - but non-promotable:
+        - focused texit histogram snaps back to control shape:
+          - `TEXIT_HIST 3:1 244029`
+        - warm explodes:
+          - focused handoff run: `0.028878`
+          - warm: `0.028098`
+      - classification:
+        - direct runtime retarget from hot `trace 6 exit 1` to its own
+          saved `link=3` is wrong
+    - `ROOT2_LOOPDESC_ROOT_RESUMECHILD`
+      - exact
+      - but inert on real mixed bench:
+        - root `trace 2` still saves with `resumechild=0`
+        - mixed texit histogram stays at retained-control shape:
+          - `TEXIT_HIST 3:1 244029`
+        - first warm read came back near control (`0.012188`), but the branch
+          did not actually hit the intended root-side save contract
+      - classification:
+        - the root-side `resumechild` seed is not the live seam for this
+          branch-level hot path
+    - `ROOT2_LOOPDESC_PARENT_RESUMECHILD`
+      - exact
+      - but also inert at the live handoff:
+        - focused `JLOOP_EXIT` on `parent=3 exit=1` still shows:
+          - `phase=dispatch-original`
+          - `target=2`
+          - `target_exec=2`
+          - `retop=70` (`BC_ITERN`)
+          - `target_resumevalid=0`
+          - `target_resumechild=0`
+        - mixed texit histogram stays at retained-control shape:
+          - `TEXIT_HIST 3:1 244029`
+        - warm regresses:
+          - `0.014761`
+      - classification:
+        - attaching `resumechild=6` to the corrected root-2 child owner
+          (`trace 3`) does not change the actual runtime handoff
+  - net acquisition:
+    - the current late root-2 seam is not “how do we annotate the admitted
+      child or its immediate owner?”
+    - hot `trace 3 exit 1` still falls straight through
+      `dispatch-original -> target=2 -> BC_ITERN`
+    - and the next honest target is the runtime handoff predicate itself,
+      not more save-time owner metadata on `trace 3` or `trace 6`
+
+- Timestamp: `2026-04-06 14:25:00 PDT`
+  - closed two retained root-2 duplicate runtime/save probes on trusted `kdz`
+  - retained exact branch under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - exact hot retained shape restamped on `mixed_warm_focus_texit.lua`:
+    - `trace 2`: root `BC_ITERN`, `link=2`, `linktype=LOOP`, `mcloop=216`
+    - `trace 3`: `parent=2 exit=1 root=2 startop=BC_JMP link=3 linktype=LOOP`
+    - repeated runtime handoff remains:
+      - `parent=3 exit=1`
+      - `phase=dispatch-original`
+      - `target=2`
+      - `target_exec=2`
+      - `retop=70` (`BC_ITERN`)
+  - closed branches:
+    - `LUAJIT_S390X_ROOT2_DUP_EXEC_SELF=1`
+      - exact:
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - but inert:
+        - no focused `root2-dup-exec-self` hit
+        - focused texit histogram unchanged:
+          - `TRACE_START 7`
+          - `TRACE_STOP 6`
+          - `TRACE_ABORT 1`
+          - `TEXIT_HIST 3:1 244029`
+      - classification:
+        - direct self-reentry of the retained hot root-2 duplicate does not
+          become live at the current `BC_JLOOP` handoff site
+    - `LUAJIT_S390X_ROOT2_DUP_POSTSTOP_LINK_PARENT=1`
+      - exact:
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - but inert:
+        - no `S390X_ROOT2_DUP_POSTSTOP_LINK_PARENT` hit on trusted `kdz`
+        - focused `JLOOP_EXIT` still shows the unchanged retained seam
+        - focused texit histogram unchanged:
+          - `TRACE_START 7`
+          - `TRACE_STOP 6`
+          - `TRACE_ABORT 1`
+          - `TEXIT_HIST 3:1 244029`
+      - classification:
+        - a simple post-stop root-link rewrite is not hitting the finalized
+          retained duplicate at the real branch-level hot site
+  - net acquisition:
+    - the retained root-2 duplicate is still the real payer, but both:
+      - direct duplicate self-reentry, and
+      - simple post-stop duplicate root-link rewrites
+      are now closed as inert
+    - the next honest target remains inside the runtime handoff path itself,
+      but it is narrower than the first obvious retained-duplicate hooks
+
+- Timestamp: `2026-04-06 15:05:00 PDT`
+  - corrected the remote-sync discipline for authoritative `kdz` runs:
+    - `rsync -a src/lj_trace.c .../repo/` was copying probe files into the repo
+      root as stray `lj_trace.c` / `lj_record.c`, not into tracked paths under
+      `src/`
+    - exact authoritative sync for tracked files must use preserved relative
+      paths, e.g. `rsync -aR src/lj_trace.c .../repo/`
+    - after the correction:
+      - the remote `src/lj_trace.c` actually contained the new branch strings
+      - `strings src/luajit` matched the expected probe strings
+  - that correction materially changed the classification of the retained
+    root-2 duplicate runtime branch:
+    - `LUAJIT_S390X_ROOT2_DUP_EXEC_SELF=1`
+    - exact intended seam:
+      - `parent=3`
+      - `exit=1`
+      - `trace=3`
+      - `target=2`
+      - retained duplicate:
+        - `startop=BC_JMP`
+        - `link=3`
+        - `linktype=LOOP`
+      - root target:
+        - `startop=BC_ITERN`
+        - `mcloop=216`
+    - exact predicate audit under the corrected remote binary showed every gate
+      true on the live hot seam:
+      - `p_parent3=1`
+      - `p_exit1=1`
+      - `p_trace3=1`
+      - `p_target2=1`
+      - `p_target_root0=1`
+      - `p_target_itern=1`
+      - `p_pc_jloop=1`
+      - `p_start_jmp=1`
+      - `p_link_loop=1`
+      - `p_link_self=1`
+    - but the real branch result is unsafe:
+      - `/tmp/mixedprobe.lua` segfaults immediately on trusted `kdz`
+      - classification:
+        - direct retained root-2 duplicate self-reentry is closed as unsafe,
+          not inert
+  - corrected classification of the retained post-stop duplicate rewrite:
+    - `LUAJIT_S390X_ROOT2_DUP_POSTSTOP_LINK_PARENT=1`
+    - with the corrected sync it is still exact:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - but it remains inert at the live hot seam:
+      - no `S390X_ROOT2_DUP_POSTSTOP_LINK_PARENT` hit on `kdz`
+      - focused `mixed_warm_focus_texit.lua` stays unchanged:
+        - `TRACE_START 7`
+        - `TRACE_STOP 6`
+        - `TRACE_ABORT 1`
+        - `TEXIT_HIST 3:1 244029`
+      - `JLOOP_EXIT` still shows:
+        - `parent=3 exit=1`
+        - `phase=dispatch-original`
+        - `target=2`
+        - `target_exec=2`
+        - `retop=BC_ITERN`
+    - classification:
+      - the simple retained post-stop duplicate root-link rewrite is truly
+        inert under the corrected authoritative sync
+  - net acquisition:
+    - the corrected remote-sync discipline invalidates the earlier “inert”
+      classification for retained root-2 self-reentry
+    - that family is now closed as a real crash
+    - the retained post-stop duplicate root-link family stays closed as inert
+    - the next honest branch is still earlier than duplicate save metadata and
+      narrower than raw retained self-reentry
