@@ -1,13 +1,13 @@
 # s390x Documentation Index
 
-This directory now has one canonical current-status page and three supporting
-technical references.
+This directory now has one current-status page, one append-only notebook, and
+one performance scoreboard.
 
-The branch should now be treated as having a frozen implementation baseline:
+The branch should still be treated as having a frozen implementation baseline:
 
-- Lane A is the shipping build and stability floor
-- Lane B is the shipping recorder-side iterator baseline
-- Lane C is parked research and should not leak back into perf work
+- Lane A is the shipping build and stability floor.
+- Lane B is the shipping recorder-side iterator baseline.
+- Lane C is parked research and should not leak back into perf work.
 
 ## Read This First
 
@@ -16,22 +16,21 @@ The branch should now be treated as having a frozen implementation baseline:
   - plain-language status
   - latest proven state only
   - current next steps and timeline
-- Technical findings notebook:
+- Primary technical notebook:
   [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
-  - append-only lab notebook
-  - raw findings, rejects, and validation notes
-- Current perf status:
+  - append-only historical record
+  - raw findings, rejects, corrections, and validation notes
+- Canonical performance scoreboard:
   [perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md)
-  - frozen iterator baseline
-  - current owner map
-  - current perf gate
-- Current validation workflow:
+  - recurring benchmark table first
+  - historical run log below
+  - current perf gate and retained baselines
+- Validation and sync workflow:
   [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
-  - authoritative worktrees
-  - rebuild and restamp rules
-  - checked-in helper:
-    [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
-  - low-noise validation discipline
+  - canonical local and remote layout
+  - authoritative mirror sync entrypoint
+  - rebuild and run-output discipline
+  - deterministic scale-order perf policy
 
 ## Current Reading Order
 
@@ -40,13 +39,24 @@ The branch should now be treated as having a frozen implementation baseline:
    for the latest branch state in common language.
 2. Read
    [perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md)
-   for the current iterator performance baseline and remaining gate.
+   for the recurring benchmark scoreboard and current perf gate.
 3. Read
    [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
-   before running new host validation.
+   before syncing, rebuilding, or running anything on `kdz` or `zkd0`.
 4. Use
    [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
-   when you need the detailed experimental record or the reject pile.
+   when you need the detailed experiment record or the reject pile.
+
+## Focused Technical References
+
+- Signed-int compare repair:
+  [gc64-sload-int-repair.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/gc64-sload-int-repair.md)
+- Shipping `promotion_core` throughput policy:
+  [hotside-uget-looproot-promotion.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/hotside-uget-looproot-promotion.md)
+- Static-stop FFI correction:
+  [ffi-static-stop-retf-rebase.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/ffi-static-stop-retf-rebase.md)
+- Non-`UGET` canon/share reject history:
+  [non-uget-canonshare-policy.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/non-uget-canonshare-policy.md)
 
 ## Current Freeze Point
 
@@ -57,24 +67,27 @@ The branch should now be treated as having a frozen implementation baseline:
     [src/lj_ir.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ir.h)
   - JIT-enabled-by-default s390x clean rebuilds in
     [src/lj_arch.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_arch.h)
-- Lane B: promotable recorder-side iterator perf only
-  - four-piece split in
+- Lane B: promotable iterator perf only
+  - retained mixed repair bundle in
+    [src/lj_snap.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c),
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+    and
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - deterministic hot-first scale ordering in
+    [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
+    for carried perf suites
+  - active runtime-handoff classification in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - focused reducer guardrail in
     [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    and
+    [src/lj_ffrecord.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ffrecord.c)
 - Lane C: parked bridge and continuation research only
-
-## Current Default
-
-The default from here is to ship the frozen Lane A plus Lane B stack unless a
-genuinely new root-trace storage/control materialization target appears.
-
-Any future perf idea must clear three gates before code starts:
-
-1. name the remaining payer
-2. define the structural proof target
-3. explain why the idea is not already in the reject pile
 
 ## Documentation Maintenance Rule
 
-- `state-of-project.md` should be updated in place and keep only the latest
-  state.
-- `findings.md` stays append-only and keeps the historical experiment record.
+- `state-of-project.md` is current-state only and should be updated in place.
+- `findings.md` stays append-only and remains the primary technical notebook.
+- `perf.md` keeps the canonical recurring benchmark table at the top and the
+  chronological log below it.
+- `runbook.md` is the authoritative sync, layout, and validation contract.

@@ -784,6 +784,14 @@ static int lj_record_s390x_restart_desc_loop_enabled(void)
   return enabled;
 }
 
+static int lj_record_s390x_root_itern_nil_desc_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ROOT_ITERN_NIL_DESC") != NULL);
+  return enabled;
+}
+
 static int lj_record_s390x_mark_nil_desc_done_enabled(void)
 {
   static int enabled = -1;
@@ -1402,6 +1410,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
     int payload_desc_loop = 0;
     int s390x_link_loop_desc = 0;
     int s390x_loopdesc_self_owner_stop = 0;
+    int s390x_root1_replay_triplet_link_parent = 0;
     if (lj_record_s390x_stop_log_enabled()) {
       fprintf(stderr,
 	      "S390X_RECLOOP trace=%u parent=%u exit=%u pc=%p startpc=%p op=%u startop=%u ev=%u lnk=%u framedepth=%u retdepth=%u\n",
@@ -1528,6 +1537,15 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
 	(unsigned int)J->exitno, (unsigned int)J->cur.root,
 	(unsigned int)lnk);
 #endif
+    if (getenv("LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT") != NULL &&
+	getenv("LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET") != NULL &&
+	J->parent == 1 && J->exitno == 1 &&
+	J->cur.root == 1 &&
+	J->framedepth + J->retdepth == 0 &&
+	bc_op(J->cur.startins) == BC_JMP &&
+	bc_op(*J->pc) == BC_JLOOP) {
+      s390x_root1_replay_triplet_link_parent = 1;
+    }
     if (lj_record_s390x_side_focus_enabled() &&
 	J->parent != 0 && J->exitno == 0 &&
 	J->cur.root == 1 &&
@@ -1555,6 +1573,8 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
     J->instunroll = 0;  /* Cannot continue across a compiled loop op. */
     if (s390x_loopdesc_self_owner_stop)
       lj_record_stop(J, LJ_TRLINK_ROOT, lnk);  /* Reuse existing loop-desc owner. */
+    else if (s390x_root1_replay_triplet_link_parent)
+      lj_record_stop(J, LJ_TRLINK_ROOT, lnk);  /* Avoid self-loop on corrected root-1 child. */
     else if (!s390x_link_loop_desc &&
 	(J->pc == J->startpc || iterator_restart_loop || payload_desc_loop) &&
 	J->framedepth + J->retdepth == 0)
@@ -1699,6 +1719,17 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
       TraceNo root = parent->root;
       if (root != 0 && J->parent != root &&
 	  bc_op(J->cur.startins) == BC_JMP && nextop == BC_FORL)
+	allow_numkey_nil_desc = 1;
+    }
+    if (lj_record_s390x_root_itern_nil_desc_enabled() &&
+	J->parent != 0 && J->exitno == 1) {
+      GCtrace *parent = traceref(J, J->parent);
+      TraceNo root = parent->root ? parent->root : parent->traceno;
+      if (root == parent->traceno &&
+	  parent->linktype == LJ_TRLINK_LOOP &&
+	  bc_op(parent->startins) == BC_ITERN &&
+	  bc_op(J->cur.startins) == BC_JMP &&
+	  (nextop == BC_FORL || nextop == BC_IFORL || nextop == BC_JFORL))
 	allow_numkey_nil_desc = 1;
     }
     if (allow_numkey_nil_desc)

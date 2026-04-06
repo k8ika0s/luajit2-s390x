@@ -36,7 +36,8 @@ local function mixed_width_loop(n)
 end
 
 local cases = {}
-for scale, n in pairs(scales) do
+for _, scale in ipairs(bench.scale_order(scales)) do
+  local n = scales[scale]
   local expected_pair = pair_loop(n)
   local expected_width = mixed_width_loop(n)
   cases[#cases + 1] = {

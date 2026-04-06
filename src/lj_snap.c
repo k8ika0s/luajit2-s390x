@@ -86,6 +86,14 @@ static int snap_s390x_ipairs_exit1_skip_body_enabled(void)
   return enabled;
 }
 
+static int lj_snap_s390x_root1_iterl_replay_triplet_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET") != NULL);
+  return enabled;
+}
+
 static void lj_snap_s390x_log_retf_window(jit_State *J, const char *site,
 					  BCReg nslots)
 {
@@ -762,7 +770,12 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
   MSize n, nent = snap->nent;
   BloomFilter seen = 0;
   int pass23 = 0;
+  int root1_iterl_child = 0;
   J->framedepth = 0;
+  if (J->parent == 1 && J->exitno == 1 && bc_op(J->cur.startins) == BC_JMP) {
+    GCtrace *parentT = traceref(J, J->parent);
+    root1_iterl_child = parentT && bc_op(parentT->startins) == BC_ITERL;
+  }
   /* Emit IR for slots inherited from parent snapshot. */
   for (n = 0; n < nent; n++) {
     SnapEntry sn = map[n];
@@ -770,8 +783,13 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
     IRRef ref = snap_ref(sn);
     IRIns *ir = &T->ir[ref];
     TRef tr;
+    int replay_triplet_root1 = 0;
+    if (root1_iterl_child && s >= 11 && s <= 13 &&
+	lj_snap_s390x_root1_iterl_replay_triplet_enabled())
+      replay_triplet_root1 = 1;
     /* The bloom filter avoids O(nent^2) overhead for de-duping slots. */
-    if (bloomtest(seen, ref) && (tr = snap_dedup(J, map, n, ref)) != 0)
+    if (!replay_triplet_root1 &&
+	bloomtest(seen, ref) && (tr = snap_dedup(J, map, n, ref)) != 0)
       goto setslot;
     bloomset(seen, ref);
     if (irref_isk(ref)) {
@@ -790,7 +808,14 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
       if (LJ_SOFTFP32 && (sn & SNAP_SOFTFPNUM)) t = IRT_NUM;
       if (ir->o == IR_SLOAD) mode |= (ir->op2 & IRSLOAD_READONLY);
       if ((sn & SNAP_KEYINDEX)) mode |= IRSLOAD_KEYINDEX;
-      tr = emitir_raw(IRT(IR_SLOAD, t), s, mode);
+      if (replay_triplet_root1 && s == 11)
+	tr = TREF_NIL;
+      else if (replay_triplet_root1 && s == 12)
+	tr = emitir_raw(IRTG(IR_SLOAD, IRT_TAB), 4, IRSLOAD_TYPECHECK);
+      else if (replay_triplet_root1 && s == 13)
+	tr = TREF_NIL;
+      else
+	tr = emitir_raw(IRT(IR_SLOAD, t), s, mode);
     }
   setslot:
     /* Same as TREF_* flags. */

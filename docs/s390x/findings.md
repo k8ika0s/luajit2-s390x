@@ -6,15 +6,20 @@ It is intentionally focused on observed behavior, run IDs, and next actions.
 For the current project state in plain language, use
 [state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md).
 This file is the append-only technical notebook. New entries should be
-added at the end in chronological order.
+added at the end in chronological order. Corrections and reclassifications
+belong in new timestamped entries at the end; only `## Current Frontier` is
+maintained in place so the top of the file reflects the current validated
+read.
 
 ## Current Frontier
 
 - `promotion_core` remains green on the envless first-enable slice.
 - The active branch-level blocker is still `mixed_noffi`.
-- The retained exact-correct baseline for `mixed_noffi` is:
+- The retained exact branch control for `mixed_noffi` is:
   - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
   - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+  - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+  - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
 - That retained baseline now carries a default-on recorder fix:
   - `BC_ITERN` side-trace `LJ_TRERR_TYPEINS` on `parent!=0 exit=1` marks the
     parent exit `SNAPCOUNT_DONE` in `lj_trace.c`
@@ -32,35 +37,44 @@ added at the end in chronological order.
     after `persistent type instability`
   - the older widened hash nil-descendant opening is now closed as a rejected
     candidate
-  - the retained mixed-noffi baseline is still slower than `-joff`, but it is
-    materially better on `zkd0` and neutral-to-better on `kdz`
+  - the retained control remains the policy floor, but the current leading
+    branch has now moved below it on both hosts
   - the current engineering lock is the narrow root-only nil-descendant
     classifier:
     - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
     - it is exact on both hosts
     - it clears the root-2 `rec_itern_nil_descendant` ladder
-    - it is still slower than the retained shipping baseline, so it remains a
+    - it is still slower than the retained exact control, so it remains a
       classifier, not a promotable default
-  - the older root-2 `BC_ITERN` replay seam is still real, but it is no longer
-    the highest-value active target:
-    - the obvious root-child resume, `mcloop`, `BC_LOOP`, and root handoff
-      shortcut families are now closed
-  - the current live target is the separate root-1 `ITERL/JITERL` continuation
-    family:
-    - clean `kdz` root trace:
-      - `trace 1`, `startop=BC_ITERL`, `mcloop=360`
-    - live child:
-      - `trace 6`
-      - `parent=1 exit=1 root=1`
-      - `startop=BC_JMP`
-      - `startpc=root+1`
-      - `linktype=LJ_TRLINK_INTERP`
-      - `resumevalid=1`
-      - `resumeins=BC_ISNEXT`
-      - `mcloop=0`
-    - next honest remediation family should target that root-1
-      `BC_JMP -> BC_ISNEXT` continuation contract, not reopen the closed
-      root-2 shortcut families
+  - the narrowed root-1 replay-triplet work remains necessary, but it is no
+    longer the branch-level limiter
+  - scale-based perf suites now use deterministic hot-first ordering through
+    [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
+    `bench.scale_order(scales)`; prior `pairs(scales)` order drift is invalid
+    policy evidence for `mixed_noffi`
+  - the retained mixed bundle now includes the root-2 VM-side static handoff
+    fast path in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    for the exact hot `trace 3 exit 1 -> target=2 -> BC_ITERN` seam
+  - official deterministic `mixed_noffi` host-pair restamp:
+    - `kdz`
+      - retained previous control (manual hot-first equivalent): `0.016121`
+      - current retained bundle: `mixed_loop/hot 0.015698`
+      - `-joff`: `0.003734`
+    - `zkd0`
+      - retained previous control (manual hot-first equivalent): `0.017859`
+      - current retained bundle: `mixed_loop/hot 0.017455`
+      - `-joff`: `0.004387`
+    - exact on both hosts:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - read:
+    - the branch-level mixed floor moved right again on both hosts
+    - the root-2 handoff cost is now reduced without changing visible trace
+      topology
+    - `mixed_noffi` remains slower than `-joff`, so it stays the leading mixed
+      blocker, but the current retained bundle is now the VM-handoff branch,
+      not the older pre-handoff floor
 
 ## Harness Status
 
@@ -76,6 +90,10 @@ added at the end in chronological order.
   run artifacts instead of failing without a traceback trail.
 - The hardened tracked-files-only tar-over-ssh transport is now the
   authoritative structured sync path for native remote runs.
+- The checked-in manual sync entrypoint is now
+  [tools/s390x/sync_remote_mirror.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/sync_remote_mirror.py),
+  which always lands tracked files under the canonical nongit mirror path
+  `.../canon/repo` and verifies preserved relative paths.
 - The harness now has a final `closure` stage with two new suites:
   - `coverage_audit`
   - `downstream`
@@ -17131,3 +17149,207 @@ Next hash target
     - the retained post-stop duplicate root-link family stays closed as inert
     - the next honest branch is still earlier than duplicate save metadata and
       narrower than raw retained self-reentry
+
+- Timestamp: `2026-04-06 15:35:00 PDT`
+  - restamped the cleaned-harness root-2 runtime-handoff branch using the
+    canonical nongit mirrors and tracked-path sync only:
+    - [docs/s390x/runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md)
+      is now the authoritative layout/sync contract
+    - authoritative sync used
+      [tools/s390x/sync_remote_mirror.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/sync_remote_mirror.py)
+      with verified tracked paths under `.../canon/repo`
+    - `rsync -aR` preserved-relative-path discipline is now part of the floor;
+      earlier single-file root copies are invalid evidence
+  - retained exact branch control under test:
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+    - default-on `SIDETRACE_TYPEINS_DONE`
+    - `ROOT_ITERN_NIL_DESC` remains classifier-only and was not promoted into
+      this branch
+  - exact retained hot root-2 seam restamped on trusted `kdz`:
+    - `trace 2`: root `BC_ITERN`, `link=2`, `linktype=LOOP`, `mcloop=216`
+    - `trace 3`: `parent=2 exit=1 root=2 startop=BC_JMP link=3 linktype=LOOP`
+    - repeated runtime handoff remains:
+      - `parent=3 exit=1`
+      - `phase=dispatch-original`
+      - `target=2`
+      - `target_exec=2`
+      - `retop=70` (`BC_ITERN`)
+    - focused counters on retained control:
+      - `TRACE_START 7`
+      - `TRACE_STOP 6`
+      - `TRACE_ABORT 1`
+      - `TEXIT_COUNT 244429`
+      - `TEXIT_HIST 3:1 244029`
+  - mapped the full selector chain in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `BC_JLOOP` chooses `targetT = traceref(J, bc_d(*pc))`
+    - on the live seam `bc_d(*pc)=2`, `execno=2`
+    - `retpc = &targetT->startins`, `retop = BC_ITERN`
+    - `use_resume_contract` stays `0`
+    - no earlier `child-query`, `exec-child`, or saved-contract branch becomes
+      reachable on the retained seam
+  - closed the first selector-led `lj_trace.c` family:
+    - early hotside canon/share equivalence for the exact `trace 2 exit 0`
+      runway found no reusable predecessor
+    - the only visible equivalent candidate was the current parent itself
+    - classification:
+      - the retained root-2 payer is not blocked by a hidden hotside
+        canon/share threshold
+  - opened the first VM-side runtime-handoff family in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+    - exact scope:
+      - static `BC_JLOOP -> original BC_ITERN` dispatch only
+      - root-owned target trace
+      - `linktype=LOOP`
+      - `resumevalid=0`
+      - `resumechild=0`
+      - `nsnap=6`
+      - `nins=32785`
+      - `mcloop=216`
+    - exact mechanism:
+      - after static `startins` decode, when the retained root-2 target matches
+        the exact seam above, back up `PC` by one instruction, run `hotloop`,
+        and jump directly to `->vm_IITERN_bridge`
+      - otherwise fall through to the generic static dispatch path unchanged
+  - candidate exactness:
+    - `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `zkd0`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - candidate perf and mechanism:
+    - `kdz` same-binary A/B:
+      - reverted retained control:
+        - `mixed_warm_bench.lua -> 0.015415`
+      - candidate:
+        - `mixed_warm_focus_texit.lua` unchanged:
+          - `TRACE_START 7`
+          - `TRACE_STOP 6`
+          - `TRACE_ABORT 1`
+          - `TEXIT_COUNT 244429`
+          - `TEXIT_HIST 3:1 244029`
+        - `mixed_warm_bench.lua -> 0.011904`
+    - `zkd0` same-binary A/B:
+      - reverted retained control:
+        - `mixed_warm_bench.lua -> 0.017580`
+      - candidate:
+        - `mixed_warm_bench.lua -> 0.013973`
+  - side guardrail:
+    - the candidate is exact on the retained mixed reducers on both hosts
+    - focused root-1 guardrail on trusted `kdz` stays exact:
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - `TRACE_START 5`
+      - `TRACE_ABORT 3`
+      - `TEXIT_COUNT 341`
+    - it is root-2-only in the static `BC_JLOOP -> BC_ITERN` consume path and
+      does not reopen the parked root-1 producer/snapshot families
+  - net acquisition:
+    - this is the first cleaned-harness cross-host root-2 runtime-handoff
+      branch that is:
+      - exact on both hosts
+      - faster than the retained control on both hosts
+      - and still preserving the visible retained trace topology
+    - the dominant mixed cost now sits below the visible `JLOOP_EXIT` /
+      `TEXIT_HIST` signatures
+    - the next honest work is promotion-quality validation and doc/perf
+      harmonization, not another broad root-2 selector hunt or a return to the
+      older root-1 continuation frontier
+
+- Timestamp: `2026-04-06 18:05:00 PDT`
+  - closed the first promotion-quality validation pass on the retained root-2
+    VM handoff branch and resolved the earlier suite disagreement as a harness
+    issue, not a mechanism regression
+  - exact retained code under validation:
+    - recorder bundle:
+      - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+      - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+      - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+      - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+    - runtime bundle:
+      - exact root-2 static `BC_JLOOP -> BC_ITERN` handoff fast path in
+        [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+        guarded by:
+        - `root=0`
+        - `linktype=LJ_TRLINK_LOOP`
+        - `link!=0`
+        - `resumevalid=0`
+        - `resumechild=0`
+        - `nsnap=6`
+        - `nins=32785`
+        - `mcloop=216`
+  - candidate simplification audit:
+    - dropping `nsnap` is unsafe:
+      - `/tmp/mixedprobe.lua -> RC 139`
+    - dropping `mcloop==216` exactness guard is unsafe:
+      - `/tmp/mixedprobe.lua -> RC 139`
+    - keeping `nsnap==6` but dropping `nins==32785` is exact but slower on
+      trusted `kdz`:
+      - `mixed_warm_bench.lua -> 0.014444`
+    - read:
+      - `nsnap==6` and `nins==32785` are both part of the live winning seam;
+        this branch does not generalize safely yet
+  - root cause of the apparent truth-pack mismatch:
+    - checked-in scale-based perf suites were still building cases with
+      `pairs(scales)`
+    - order drift was real on the same host and same binary:
+      - trusted `kdz` candidate:
+        - manual `hot-first`:
+          - `mixed_loop/hot 0.015912`
+        - manual `hot-last`:
+          - `mixed_loop/hot 0.016062`
+      - trusted `zkd0` candidate:
+        - manual `hot-first`:
+          - `mixed_loop/hot 0.017162`
+        - manual `hot-last`:
+          - `mixed_loop/hot 0.017516`
+    - control order drift was also real:
+      - trusted `kdz` control manual `hot-first`:
+        - `mixed_loop/hot 0.016121`
+      - trusted `zkd0` control manual `hot-first`:
+        - `mixed_loop/hot 0.017859`
+    - read:
+      - earlier unordered `mixed_noffi` full-suite comparisons are not valid
+        policy evidence
+      - the suite needed a deterministic carried order before the branch could
+        be restamped
+  - harness cleanup promoted into the checked-in suite:
+    - added `bench.scale_order(scales)` in
+      [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
+    - policy order is now hot-first for scale-based perf suites so the main
+      carried hot case is measured before smaller same-process cases perturb it
+    - migrated current scale-table suites away from `pairs(scales)`:
+      - [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
+      - [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua)
+      - [tests/s390x/perf/dispatch_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/dispatch_trace.lua)
+      - [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua)
+      - [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua)
+      - [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua)
+      - [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua)
+  - official deterministic host-pair restamp on the retained candidate:
+    - `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `tests/s390x/perf/mixed_noffi.lua`:
+        - `mixed_loop/hot 0.015698`
+        - `mixed_loop/small 0.000997`
+        - `mixed_loop/medium 0.004036`
+      - `-joff`:
+        - `mixed_loop/hot 0.003734`
+    - `zkd0`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `tests/s390x/perf/mixed_noffi.lua`:
+        - `mixed_loop/hot 0.017455`
+        - `mixed_loop/small 0.001074`
+        - `mixed_loop/medium 0.004446`
+      - `-joff`:
+        - `mixed_loop/hot 0.004387`
+  - net acquisition:
+    - the retained root-2 VM handoff fast path is now validated as a real
+      cross-host JIT-on throughput gain over the previous retained mixed floor
+    - the mixed carried blocker remains red against `-joff`, but the branch is
+      no longer blocked on proof quality for this root-2 family
