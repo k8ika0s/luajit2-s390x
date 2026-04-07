@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-06 18:05:00 PDT
+Last updated: 2026-04-07 10:52:47 PDT
 
 ## Canonical Perf Suite
 
@@ -56,7 +56,7 @@ number is ugly.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `pairs_sum/hot` | `iterator_table` | `0.066259` | `0.005540` | `+0.060719`, `11.96x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
 | `pairs_array_sum/hot` | `iterator_table` | `0.069155` | `0.003716` | `+0.065439`, `18.61x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
-| `mixed_loop/hot` | `mixed_noffi` | `0.015698` | `0.003734` | `+0.011964`, `4.20x` | `kdz` | `2026-04-06 18:05 PDT` | retained root-2 VM handoff win; still live blocker |
+| `mixed_loop/hot` | `mixed_noffi` | `0.013527` | `0.003734` | `+0.009793`, `3.62x` | `kdz` | `2026-04-06 15:05 PDT` | retained root-2 hash-bridge target-hoist win; still live blocker |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.059215` | `0.012404` | `+0.046811`, `4.77x` | `kdz` | `2026-04-01 16:25:27 PDT` | stable regression screen; still materially red |
 | `number_helper_loop/hot` | `be_helpers` | `0.000113` | `0.002241` | `-0.002128`, `0.05x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
 | `be_pack_loop/hot` | `be_helpers` | `0.000319` | `0.018557` | `-0.018238`, `0.02x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
@@ -65,9 +65,9 @@ number is ugly.
 | `mix_bits/hot` | `bitops_mix` | `0.000730` | `0.002148` | `-0.001418`, `0.34x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic/bitops control |
 | `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000748` | `0.002107` | `-0.001359`, `0.35x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
 | `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000594` | `0.002025` | `-0.001431`, `0.29x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
-| `numeric_loop/hot` | `dispatch_trace` | `0.342594` | `0.002173` | `+0.340421`, `157.66x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.526504` | `0.004692` | `+0.521812`, `112.21x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.611632` | `0.005619` | `+0.606013`, `108.85x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `numeric_loop/hot` | `dispatch_trace` | `0.000162` | `0.002173` | `-0.002011`, `0.07x` | `kdz` | `2026-04-07 10:52:47 PDT` | env-gated dispatch FORL win; exact on both hosts |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.000391` | `0.004692` | `-0.004301`, `0.08x` | `kdz` | `2026-04-07 10:52:47 PDT` | env-gated dispatch FORL win; exact on both hosts |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.018571` | `0.005619` | `+0.012952`, `3.30x` | `kdz` | `2026-04-07 10:52:47 PDT` | host-pair exact again; still materially red |
 | `pair_loop/hot` | `ffi_cdata` | `0.137179` | `0.017319` | `+0.119860`, `7.92x` | `kdz` | `2026-04-01 16:25:27 PDT` | cdata regression screen; still red |
 | `mixed_width_loop/hot` | `ffi_cdata` | `0.027964` | `0.027969` | `-0.000005`, `1.00x` | `kdz` | `2026-04-01 16:25:27 PDT` | near parity control |
 | `sum_loop/hot` | `vararg_paths` | `0.675950` | `0.005150` | `+0.670800`, `131.25x` | `kdz` | `2026-04-01 16:25:27 PDT` | vararg blocker; catastrophically red |
@@ -88,10 +88,10 @@ shrink.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `pairs_sum/hot` | `iterator_table` | `0.066259` | `0.005540` | `+0.060719`, `11.96x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
 | `pairs_array_sum/hot` | `iterator_table` | `0.069155` | `0.003716` | `+0.065439`, `18.61x` | `kdz` | checkpoint baseline | frozen iterator gate; still badly behind |
-| `mixed_loop/hot` | `mixed_noffi` | `0.015698` | `0.003734` | `+0.011964`, `4.20x` | `kdz` | `2026-04-06 18:05 PDT` | retained root-2 VM handoff win; still live blocker |
-| `numeric_loop/hot` | `dispatch_trace` | `0.342594` | `0.002173` | `+0.340421`, `157.66x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.526504` | `0.004692` | `+0.521812`, `112.21x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.611632` | `0.005619` | `+0.606013`, `108.85x` | `kdz` | `2026-04-01 20:20:45 PDT` | dispatch blocker; catastrophically red |
+| `mixed_loop/hot` | `mixed_noffi` | `0.013527` | `0.003734` | `+0.009793`, `3.62x` | `kdz` | `2026-04-06 15:05 PDT` | retained root-2 hash-bridge target-hoist win; still live blocker |
+| `numeric_loop/hot` | `dispatch_trace` | `0.000162` | `0.002173` | `-0.002011`, `0.07x` | `kdz` | `2026-04-07 10:52:47 PDT` | env-gated dispatch FORL win; exact on both hosts |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.000391` | `0.004692` | `-0.004301`, `0.08x` | `kdz` | `2026-04-07 10:52:47 PDT` | env-gated dispatch FORL win; exact on both hosts |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.018571` | `0.005619` | `+0.012952`, `3.30x` | `kdz` | `2026-04-07 10:52:47 PDT` | host-pair exact again; still materially red |
 | `sum_loop/hot` | `vararg_paths` | `0.675950` | `0.005150` | `+0.670800`, `131.25x` | `kdz` | `2026-04-01 16:25:27 PDT` | vararg blocker; catastrophically red |
 
 ### Regression And Control Workloads
@@ -139,6 +139,7 @@ Current frontier after the latest `mixed_noffi` cleanup pass:
   branch-level limiter.
 - the active frontier is still `mixed_noffi`.
 - the retained exact branch control is now:
+  - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
   - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
   - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
@@ -148,25 +149,56 @@ Current frontier after the latest `mixed_noffi` cleanup pass:
 - `ROOT_ITERN_NIL_DESC` remains a real but slower classifier.
 - the narrowed root-1 replay-triplet work remains necessary, but it is no
   longer the branch-level limiter.
+- `dispatch_trace` is exact on both hosts again under the retained dispatch
+  env gate:
+  - `kdz`
+    - `numeric_loop/hot 0.000162`
+    - `side_exit_loop/hot 0.000391`
+    - `hotexit_loop/hot 0.018571`
+  - `zkd0`
+    - `numeric_loop/hot 0.000469`
+    - `side_exit_loop/hot 0.000613`
+    - `hotexit_loop/hot 0.030236`
+  - `numeric_loop` and `side_exit_loop` are now on the right side of `-joff`
+  - `hotexit_loop` is exact again, but still materially red
 - the live branch-level seam is still the root-2 hot handoff:
-  - hot exit remains `trace 3 exit 1`
-  - runtime still reports `dispatch-original -> target=2 -> BC_ITERN`
-  - focused `TRACE_START`/`TRACE_STOP`/`TRACE_ABORT` and `TEXIT_HIST 3:1`
-    stay unchanged
-- the retained mixed bundle now includes the VM-side handoff fast path in
+  - the retained `JLOOP_EXIT` surface still reports
+    `dispatch-original -> target=2 -> BC_ITERN`
+  - but the focused topology moved with the retained bridge win:
+    - `TRACE_START 61`
+    - `TRACE_STOP 5`
+    - `TRACE_ABORT 56`
+    - `TEXIT_HIST 1:1 200, 2:1 81375`
+  - the visible payer is now the hot root `trace 2 exit 1` runway on the
+    `pairs(map)` loop, including repeated `parent=2 exit=1 startop=BC_JMP`
+    `LJ_TRERR_LLEAVE` side-trace attempts
+- the latest exact recorder-policy cut on that visible runway is closed:
+  - `LUAJIT_S390X_ROOT2_NIL_DESC_DONE=1`
+  - focused `kdz` churn drops from `TRACE_START 61 / TRACE_ABORT 56` to
+    `TRACE_START 6 / TRACE_ABORT 1`
+  - but same-host deterministic perf regresses:
+    - candidate `mixed_loop/hot 0.016000`
+    - clean control `mixed_loop/hot 0.014724`
+- the retained mixed bundle now includes the VM-side handoff fast path and the
+  narrower hash-only bridge specialization in
   [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
   for that exact retained root-2 seam
 - the checked-in policy suite now measures scale-based families in deterministic
   hot-first order through `bench.scale_order(scales)`, so the stable `mixed`
   row above is now valid again
 - current host-pair validation for the retained VM bundle:
-  - `kdz`: `mixed_loop/hot 0.015698`, `-joff 0.003734`
-  - `zkd0`: `mixed_loop/hot 0.017455`, `-joff 0.004387`
+  - `kdz`: `mixed_loop/hot 0.013527`, `-joff 0.003734`
+  - `zkd0`: `mixed_loop/hot 0.015202`, `-joff 0.004387`
   - exact on both hosts:
     - `/tmp/mixedprobe.lua -> RESULT 553416`
     - `/tmp/hash_value.lua -> HASH_VALUE 3000`
 - read:
-  - the root-2 handoff branch is now the retained mixed floor
+- the root-2 handoff branch is still the retained mixed floor, with the
+  exact `ITERL` target-load hoist as the current retained edge
+  - the visible recorder-side `LLEAVE` runway is real but not promotable
+  - the remaining live work is later in the same retained family:
+    the runtime handoff and bridge-tail cost below
+    `dispatch-original -> target=2 -> BC_ITERN`
   - the branch is still materially behind `-joff`, so `mixed_noffi` remains
     the leading carried mixed blocker
 
