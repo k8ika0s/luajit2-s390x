@@ -12,12 +12,17 @@
 #include "lj_str.h"
 #include "lj_char.h"
 #include "lj_prng.h"
+#include "lj_s390x_text.h"
 
 /* -- String helpers ------------------------------------------------------ */
 
 /* Ordered compare of strings. Assumes string data is 4-byte aligned. */
 int32_t LJ_FASTCALL lj_str_cmp(GCstr *a, GCstr *b)
 {
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(lj_s390x_text_cmp_active()))
+    return lj_s390x_text_str_cmp(a, b);
+#endif
   MSize i, n = a->len > b->len ? b->len : a->len;
 #ifdef LUAJIT_USE_VALGRIND
   for (i = 0; i < n; i++) {
@@ -51,6 +56,10 @@ int32_t LJ_FASTCALL lj_str_cmp(GCstr *a, GCstr *b)
 /* Find fixed string p inside string s. */
 const char *lj_str_find(const char *s, const char *p, MSize slen, MSize plen)
 {
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(lj_s390x_text_find_active()))
+    return lj_s390x_text_find(s, p, slen, plen);
+#endif
   if (plen <= slen) {
     if (plen == 0) {
       return s;
@@ -403,4 +412,3 @@ void LJ_FASTCALL lj_str_init(lua_State *L)
   g->str.seed = lj_prng_u64(&g->prng);
   lj_str_resize(L, LJ_MIN_STRTAB-1);
 }
-

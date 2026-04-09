@@ -26,6 +26,9 @@
 #include "lj_char.h"
 #include "lj_strfmt.h"
 #include "lj_lib.h"
+#if LJ_TARGET_S390X
+#include "lj_s390x_text.h"
+#endif
 
 /* ------------------------------------------------------------------------ */
 
@@ -284,9 +287,20 @@ static const char *matchbalance(MatchState *ms, const char *s, const char *p)
 }
 
 static const char *max_expand(MatchState *ms, const char *s,
-			      const char *p, const char *ep)
+				      const char *p, const char *ep)
 {
   ptrdiff_t i = 0;  /* counts maximum expand for item */
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(lj_s390x_text_pattern_active()) &&
+      *p == L_ESC && ep == p+2) {
+    MSize span = lj_s390x_text_pattern_span(s, ms->src_end, uchar(*(p+1)));
+    if (span != ~(MSize)0)
+      i = (ptrdiff_t)span;
+    else
+      while ((s+i)<ms->src_end && singlematch(uchar(*(s+i)), p, ep))
+	i++;
+  } else
+#endif
   while ((s+i)<ms->src_end && singlematch(uchar(*(s+i)), p, ep))
     i++;
   /* keeps trying to match with the maximum repetitions */
@@ -298,8 +312,29 @@ static const char *max_expand(MatchState *ms, const char *s,
   return NULL;
 }
 
+#if LJ_TARGET_S390X
+static const char *s390x_pattern_prefilter(MatchState *ms, const char *s,
+					   const char *p)
+{
+  if (LJ_LIKELY(!lj_s390x_text_pattern_active()))
+    return s;
+  if (*p == '^' || *p != L_ESC || *(p+1) == '\0' || lj_char_isdigit(uchar(*(p+1))))
+    return s;
+  switch (*(p+2)) {
+  case '*':
+  case '?':
+  case '-':
+    return s;
+  default: {
+    MSize off = lj_s390x_text_pattern_seek(s, ms->src_end, uchar(*(p+1)));
+    return off != ~(MSize)0 ? s + off : s;
+    }
+  }
+}
+#endif
+
 static const char *min_expand(MatchState *ms, const char *s,
-			      const char *p, const char *ep)
+				      const char *p, const char *ep)
 {
   for (;;) {
     const char *res = match(ms, s, ep+1);
@@ -498,6 +533,10 @@ static int str_find_aux(lua_State *L, int find)
     do {  /* Loop through string and try to match the pattern. */
       const char *q;
       ms.level = ms.depth = 0;
+#if LJ_TARGET_S390X
+      if (!anchor)
+	sstr = s390x_pattern_prefilter(&ms, sstr, pstr);
+#endif
       q = match(&ms, sstr, pstr);
       if (q) {
 	if (find) {
@@ -538,6 +577,11 @@ LJLIB_NOREG LJLIB_CF(string_gmatch_aux)
   for (; src <= ms.src_end; src++) {
     const char *e;
     ms.level = ms.depth = 0;
+#if LJ_TARGET_S390X
+    src = s390x_pattern_prefilter(&ms, src, p);
+    if (src > ms.src_end)
+      break;
+#endif
     if ((e = match(&ms, src, p)) != NULL) {
       int32_t pos = (int32_t)(e - s);
       if (e == src) pos++;  /* Ensure progress for empty match. */
@@ -687,4 +731,3 @@ LUALIB_API int luaopen_string(lua_State *L)
 #endif
   return 1;
 }
-

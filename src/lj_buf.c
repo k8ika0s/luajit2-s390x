@@ -13,6 +13,7 @@
 #include "lj_str.h"
 #include "lj_tab.h"
 #include "lj_strfmt.h"
+#include "lj_s390x_text.h"
 
 /* -- Buffer management --------------------------------------------------- */
 
@@ -170,10 +171,19 @@ SBuf * LJ_FASTCALL lj_buf_putstr(SBuf *sb, GCstr *s)
 SBuf * LJ_FASTCALL lj_buf_putstr_reverse(SBuf *sb, GCstr *s)
 {
   MSize len = s->len;
-  char *w = lj_buf_more(sb, len), *e = w+len;
-  const char *q = strdata(s)+len-1;
-  while (w < e)
-    *w++ = *q--;
+  char *w = lj_buf_more(sb, len);
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(lj_s390x_text_transform_active())) {
+    sb->w = lj_s390x_text_copy_reverse(w, strdata(s), len);
+    return sb;
+  }
+#endif
+  {
+    char *e = w+len;
+    const char *q = strdata(s)+len-1;
+    while (w < e)
+      *w++ = *q--;
+  }
   sb->w = w;
   return sb;
 }
@@ -183,6 +193,12 @@ SBuf * LJ_FASTCALL lj_buf_putstr_lower(SBuf *sb, GCstr *s)
   MSize len = s->len;
   char *w = lj_buf_more(sb, len), *e = w+len;
   const char *q = strdata(s);
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(lj_s390x_text_transform_active())) {
+    sb->w = lj_s390x_text_copy_lower(w, q, len);
+    return sb;
+  }
+#endif
   for (; w < e; w++, q++) {
     uint32_t c = *(unsigned char *)q;
 #if LJ_TARGET_PPC
@@ -201,6 +217,12 @@ SBuf * LJ_FASTCALL lj_buf_putstr_upper(SBuf *sb, GCstr *s)
   MSize len = s->len;
   char *w = lj_buf_more(sb, len), *e = w+len;
   const char *q = strdata(s);
+#if LJ_TARGET_S390X
+  if (LJ_UNLIKELY(lj_s390x_text_transform_active())) {
+    sb->w = lj_s390x_text_copy_upper(w, q, len);
+    return sb;
+  }
+#endif
   for (; w < e; w++, q++) {
     uint32_t c = *(unsigned char *)q;
 #if LJ_TARGET_PPC
@@ -300,4 +322,3 @@ uint32_t LJ_FASTCALL lj_buf_ruleb128(const char **pp)
   *pp = (const char *)w;
   return v;
 }
-
