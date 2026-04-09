@@ -20,6 +20,7 @@ snapshot_host() {
   uname -a >"$BOOTSTRAP_DIR/uname.txt"
   cat /etc/os-release >"$BOOTSTRAP_DIR/os-release.txt"
   lscpu >"$BOOTSTRAP_DIR/lscpu.txt"
+  cat /proc/sys/kernel/perf_event_paranoid >"$BOOTSTRAP_DIR/perf_event_paranoid.txt" 2>/dev/null || true
   {
     echo "gcc: $(gcc --version | head -n 1 2>/dev/null || true)"
     echo "clang: $(clang --version | head -n 1 2>/dev/null || true)"
@@ -29,13 +30,25 @@ snapshot_host() {
     echo "perf: $(perf --version 2>/dev/null || true)"
     echo "perl: $(perl -v | head -n 2 | tail -n 1 2>/dev/null || true)"
     echo "python3: $(python3 --version 2>/dev/null || true)"
+    if command -v ccache >/dev/null 2>&1; then
+      echo "ccache: $(ccache --version | head -n 1 2>/dev/null || true)"
+    else
+      echo "ccache: unavailable"
+    fi
+    if command -v rg >/dev/null 2>&1; then
+      echo "rg: $(rg --version | head -n 1 2>/dev/null || true)"
+    else
+      echo "rg: unavailable"
+    fi
+    echo "jq: $(jq --version 2>/dev/null || true)"
+    echo "taskset: $(taskset --version | head -n 1 2>/dev/null || true)"
   } >"$BOOTSTRAP_DIR/tool-versions.txt"
   dnf list installed >"$BOOTSTRAP_DIR/package-inventory.txt" 2>&1 || true
 }
 
 log "ensuring baseline system packages"
 : >"$BOOTSTRAP_DIR/dnf-install.log"
-for pkg in gcc clang make git rsync python3 perl perl-Test-Harness curl gdb perf binutils elfutils elfutils-libelf-devel libunwind-devel ccache diffutils which; do
+for pkg in gcc clang make git rsync python3 perl perl-Test-Harness curl gdb perf binutils elfutils elfutils-libelf-devel libunwind-devel ccache diffutils which jq util-linux kernel-tools ripgrep; do
   dnf install -y "$pkg" >>"$BOOTSTRAP_DIR/dnf-install.log" 2>&1 || {
     printf 'warning: package unavailable: %s\n' "$pkg" >>"$BOOTSTRAP_DIR/dnf-install.log"
   }
@@ -55,6 +68,14 @@ EOF
 fi
 
 printf '{\n  "perl_dependency_source": "%s",\n  "perl_ready": %s\n}\n' "$perl_source" "$perl_ready" >"$BOOTSTRAP_DIR/perl-deps.json"
+
+perf_smoke="false"
+if command -v perf >/dev/null 2>&1; then
+  if perf stat true >"$BOOTSTRAP_DIR/perf-smoke.stdout.log" 2>"$BOOTSTRAP_DIR/perf-smoke.stderr.log"; then
+    perf_smoke="true"
+  fi
+fi
+
 snapshot_host
 
 cat >"$BOOTSTRAP_DIR/bootstrap-manifest.txt" <<EOF
@@ -62,4 +83,5 @@ run_root=$RUN_ROOT
 repo_root=$REPO_ROOT
 perl_dependency_source=$perl_source
 perl_ready=$perl_ready
+perf_smoke=$perf_smoke
 EOF

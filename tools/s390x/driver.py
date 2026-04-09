@@ -28,12 +28,13 @@ from typing import Dict, Iterable, List, Optional
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-ARTIFACTS_ROOT = ROOT / "artifacts" / "s390x"
-REMOTE_BASE = "/root/luajit2-s390x"
+DEFAULT_ARTIFACTS_ROOT = ROOT / "artifacts" / "s390x"
+DEFAULT_REMOTE_BASE = "/root/luajit2-s390x"
 REMOTE_REPO_NAME = "repo"
 REMOTE_ARTIFACTS_NAME = "artifacts"
-HOSTS = ("kdz", "zkd0")
-LATEST_LINK = ARTIFACTS_ROOT / "latest"
+DEFAULT_HOSTS = ("kdz", "zkd0")
+DEFAULT_STREAM_LABEL = "bringup"
+REMOTE_ENV_PREFIXES = ("LUAJIT_S390X_",)
 
 PURE_LUA_T_FILES = [
     "cli-errors.t",
@@ -165,6 +166,55 @@ PERF_FAMILY_METADATA = {
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Mixed Lua + FFI workload.",
+    },
+    "string_kernels": {
+        "default_gate": False,
+        "promotion_order": 9,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Fixed-string search/compare and ASCII transform probe for s390x text helper experiments.",
+    },
+    "string_hash": {
+        "default_gate": False,
+        "promotion_order": 10,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "String interning/hash probe for s390x sparse-hash experiments.",
+    },
+    "text_casefold": {
+        "default_gate": False,
+        "promotion_order": 11,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "ASCII lower/upper transform probe for s390x text helper experiments.",
+    },
+    "text_patterns": {
+        "default_gate": False,
+        "promotion_order": 12,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Pattern-class span probe for s390x string.match/string.gmatch experiments.",
+    },
+    "text_mixed": {
+        "default_gate": False,
+        "promotion_order": 13,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Mixed text/tokenization family used to qualify s390x pattern acceleration outside isolated microbenches.",
+    },
+    "text_combo": {
+        "default_gate": False,
+        "promotion_order": 14,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Combined pattern and ASCII casefold family used to qualify span8+ascii8 together on s390x.",
+    },
+    "large_immediates": {
+        "default_gate": False,
+        "promotion_order": 15,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Backend immediate-form qualification for large constant adds and constant-index array references on s390x.",
     },
 }
 
@@ -360,6 +410,11 @@ class CommandLogger:
 class Context:
     def __init__(self, args: argparse.Namespace):
         self.args = args
+        self.artifacts_root: pathlib.Path = args.artifacts_root
+        self.latest_link = self.artifacts_root / "latest"
+        self.remote_base: str = args.remote_base
+        self.hosts: tuple[str, ...] = args.hosts
+        self.remote_env: Dict[str, str] = collect_remote_env()
         self.run_id, self.local_run_dir = self._init_run_dir()
         self.local_remote_dir = self.local_run_dir / "remote"
         self.local_binaries_dir = self.local_run_dir / "binaries"
@@ -380,7 +435,7 @@ class Context:
         self.host: Optional[str] = None
         self.primary_host: Optional[str] = None
         self.failover_from: Optional[str] = None
-        self.remote_run_root = f"{REMOTE_BASE}/{self.run_id}"
+        self.remote_run_root = f"{self.remote_base}/{self.run_id}"
         self.remote_repo_root = f"{self.remote_run_root}/{REMOTE_REPO_NAME}"
         self.remote_artifacts_root = f"{self.remote_run_root}/{REMOTE_ARTIFACTS_NAME}"
         self.results: List[StepResult] = []
@@ -400,6 +455,11 @@ class Context:
             "keep_remote": self.args.keep_remote,
             "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
             "root": str(ROOT),
+            "stream_label": self.args.stream_label,
+            "artifacts_root": str(self.artifacts_root),
+            "remote_base": self.remote_base,
+            "configured_hosts": list(self.hosts),
+            "remote_env": self.remote_env,
             "host": None,
             "primary_host": None,
             "failover_from": None,
@@ -416,11 +476,11 @@ class Context:
         return f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-p{os.getpid()}"
 
     def _init_run_dir(self) -> tuple[str, pathlib.Path]:
-        ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
+        self.artifacts_root.mkdir(parents=True, exist_ok=True)
         if self.args.run_id == "auto":
             return self._create_unique_auto_run_dir()
 
-        run_dir = ARTIFACTS_ROOT / self.args.run_id
+        run_dir = self.artifacts_root / self.args.run_id
         if self.args.resume:
             if not run_dir.exists():
                 raise DriverError(f"cannot resume missing run directory: {run_dir}")
@@ -439,7 +499,7 @@ class Context:
     def _create_unique_auto_run_dir(self) -> tuple[str, pathlib.Path]:
         for _ in range(32):
             run_id = self._auto_run_id()
-            run_dir = ARTIFACTS_ROOT / run_id
+            run_dir = self.artifacts_root / run_id
             try:
                 run_dir.mkdir(parents=True, exist_ok=False)
                 return run_id, run_dir
@@ -484,7 +544,27 @@ class Context:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the native s390x bring-up loop.")
-    parser.add_argument("--host", choices=("auto", "kdz", "zkd0"), default="auto")
+    parser.add_argument("--host", default=os.environ.get("S390X_DRIVER_HOST", "auto"))
+    parser.add_argument(
+        "--hosts",
+        default=os.environ.get("S390X_DRIVER_HOSTS", ",".join(DEFAULT_HOSTS)),
+        help="Comma-separated host preference order for auto-selection and failover.",
+    )
+    parser.add_argument(
+        "--artifacts-root",
+        default=os.environ.get("S390X_DRIVER_ARTIFACTS_ROOT", str(DEFAULT_ARTIFACTS_ROOT)),
+        help="Local directory for copied run artifacts.",
+    )
+    parser.add_argument(
+        "--remote-base",
+        default=os.environ.get("S390X_DRIVER_REMOTE_BASE", DEFAULT_REMOTE_BASE),
+        help="Remote directory that owns per-run workspaces.",
+    )
+    parser.add_argument(
+        "--stream-label",
+        default=os.environ.get("S390X_DRIVER_STREAM_LABEL", DEFAULT_STREAM_LABEL),
+        help="Short label stamped into manifests and summaries for stream separation.",
+    )
     parser.add_argument("--stage", choices=tuple(STAGE_ORDER), required=True)
     parser.add_argument("--suite", choices=("all", *SUITES), default="all")
     parser.add_argument("--compiler", choices=("gcc", "clang", "both"), default="gcc")
@@ -500,7 +580,53 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="Run only the selected perf family or families instead of the default gate set.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.hosts = parse_host_list(args.hosts)
+    if args.host != "auto" and args.host not in args.hosts:
+        parser.error(f"--host {args.host!r} is not present in --hosts {','.join(args.hosts)!r}")
+    args.artifacts_root = resolve_path(args.artifacts_root)
+    args.remote_base = normalize_remote_base(args.remote_base)
+    args.stream_label = slugify_label(args.stream_label) or DEFAULT_STREAM_LABEL
+    return args
+
+
+def parse_host_list(raw: str) -> tuple[str, ...]:
+    hosts = tuple(part.strip() for part in raw.split(",") if part.strip())
+    if not hosts:
+        raise argparse.ArgumentTypeError("host list must include at least one hostname")
+    return hosts
+
+
+def resolve_path(raw: str) -> pathlib.Path:
+    path = pathlib.Path(raw)
+    if not path.is_absolute():
+        path = ROOT / path
+    return path.resolve()
+
+
+def normalize_remote_base(raw: str) -> str:
+    value = raw.strip()
+    if not value:
+        raise argparse.ArgumentTypeError("remote base must not be empty")
+    return value.rstrip("/")
+
+
+def collect_remote_env() -> Dict[str, str]:
+    env: Dict[str, str] = {}
+    for key in sorted(os.environ):
+        if any(key.startswith(prefix) for prefix in REMOTE_ENV_PREFIXES):
+            env[key] = os.environ[key]
+    return env
+
+
+def prepend_remote_env(command: str, env_map: Dict[str, str]) -> str:
+    if not env_map:
+        return command
+    exports = "\n".join(
+        f"export {key}={shlex.quote(value)}"
+        for key, value in sorted(env_map.items())
+    )
+    return exports + "\n" + command
 
 
 def shell_join(parts: Iterable[str]) -> str:
@@ -627,14 +753,14 @@ def choose_host(ctx: Context) -> str:
         return requested
 
     available: List[str] = []
-    for host in HOSTS:
+    for host in ctx.hosts:
         proc = run_ssh(ctx, host, "true")
         if proc.returncode == 0:
             available.append(host)
     if not available:
         raise DriverError("no configured s390x host is reachable")
 
-    ctx.primary_host = HOSTS[0]
+    ctx.primary_host = ctx.hosts[0]
     ctx.host = available[0]
     if ctx.host != ctx.primary_host:
         ctx.failover_from = ctx.primary_host
@@ -1895,18 +2021,18 @@ def run_coverage_audit(ctx: Context) -> StepResult:
     return run_local_step(ctx, suite="coverage_audit", step_name="coverage-audit", command=command)
 
 
-def downstream_remote_root(prefix: str, run_id: str) -> str:
-    return f"{REMOTE_BASE}/{slugify_label(f'{prefix}-{run_id}')}"
+def downstream_remote_root(ctx: Context, prefix: str, run_id: str) -> str:
+    return f"{ctx.remote_base}/{slugify_label(f'{prefix}-{run_id}')}"
 
 
 def run_downstream(ctx: Context) -> StepResult:
     if not ctx.host:
         raise DriverError("host not selected for downstream suite")
-    fallback_host = next((candidate for candidate in HOSTS if candidate != ctx.host), ctx.host)
+    fallback_host = next((candidate for candidate in ctx.hosts if candidate != ctx.host), ctx.host)
     openresty_label = slugify_label(f"closure-openresty-{ctx.run_id}")
     kong_label = slugify_label(f"closure-kong-{ctx.run_id}")
-    openresty_root = downstream_remote_root("closure-openresty", ctx.run_id)
-    kong_root = downstream_remote_root("closure-kong", ctx.run_id)
+    openresty_root = downstream_remote_root(ctx, "closure-openresty", ctx.run_id)
+    kong_root = downstream_remote_root(ctx, "closure-kong", ctx.run_id)
     openresty_json = ctx.local_downstream_dir / "openresty.json"
     kong_json = ctx.local_downstream_dir / "kong.json"
     command = textwrap.dedent(
@@ -1976,6 +2102,7 @@ def run_remote_step(ctx: Context, variant: Variant, suite: str, command: str) ->
     remote_step = f"{ctx.remote_artifacts_root}/steps/{suite}/{variant.key()}"
     local_step = ctx.local_remote_dir / "steps" / suite / variant.key()
     local_step.mkdir(parents=True, exist_ok=True)
+    command = prepend_remote_env(command, ctx.remote_env)
     wrapped = shell_join(
         [
             f"{ctx.remote_repo_root}/tools/s390x/remote_run.sh",
@@ -2046,9 +2173,10 @@ def bootstrap_remote(ctx: Context, host: str) -> None:
     )
     collect_remote_artifacts(ctx, host, required=True, failure_type="step-artifact-collection")
     if proc.returncode != 0:
-        if host == "kdz":
-            ctx.failover_from = "kdz"
-            ctx.host = "zkd0"
+        fallback_host = next((candidate for candidate in ctx.hosts if candidate != host), None)
+        if fallback_host is not None:
+            ctx.failover_from = host
+            ctx.host = fallback_host
             ensure_remote_dirs(ctx, ctx.host)
             sync_repo(ctx, ctx.host)
             proc = run_ssh(
@@ -2076,18 +2204,22 @@ def write_summary(ctx: Context) -> None:
         next_stage = ctx.args.stage
     summary = textwrap.dedent(
         f"""
-        # s390x Bring-Up Run Summary
+        # s390x {ctx.args.stream_label} Run Summary
 
         - Run ID: `{ctx.run_id}`
+        - Stream: `{ctx.args.stream_label}`
         - Stage: `{ctx.args.stage}`
         - Requested suite: `{ctx.args.suite}`
         - Host used: `{ctx.host}`
         - Primary host: `{ctx.primary_host}`
         - Failover from: `{ctx.failover_from or "none"}`
+        - Configured hosts: `{", ".join(ctx.hosts)}`
+        - Remote env: `{", ".join(f"{k}={v}" for k, v in sorted(ctx.remote_env.items())) if ctx.remote_env else "none"}`
         - Success: `{str(success).lower()}`
         - Executed suites: `{", ".join(suites) if suites else "none"}`
         - Failure count: `{len(ctx.failures)}`
         - Local artifacts: `{ctx.local_run_dir}`
+        - Local artifacts root: `{ctx.artifacts_root}`
         - Remote run root: `{ctx.remote_run_root}`
         - Next stage: `{next_stage or "none"}`
         """
@@ -2139,14 +2271,14 @@ def write_summary(ctx: Context) -> None:
     write_text(ctx.local_run_dir / "failures.json", json.dumps(ctx.failures, indent=2, sort_keys=True) + "\n")
 
 
-def update_latest_symlink(run_dir: pathlib.Path) -> None:
-    ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
-    temp_link = ARTIFACTS_ROOT / f".latest.tmp.{os.getpid()}"
+def update_latest_symlink(ctx: Context) -> None:
+    ctx.artifacts_root.mkdir(parents=True, exist_ok=True)
+    temp_link = ctx.artifacts_root / f".latest.tmp.{os.getpid()}"
     try:
         if temp_link.exists() or temp_link.is_symlink():
             temp_link.unlink()
-        temp_link.symlink_to(run_dir.name)
-        os.replace(temp_link, LATEST_LINK)
+        temp_link.symlink_to(ctx.local_run_dir.name)
+        os.replace(temp_link, ctx.latest_link)
     finally:
         if temp_link.exists() or temp_link.is_symlink():
             temp_link.unlink()
@@ -2167,7 +2299,7 @@ def record_exception(ctx: Context, failure_type: str, exc: BaseException) -> Non
 def finalize_run(ctx: Context) -> None:
     write_summary(ctx)
     ctx.save_manifest()
-    update_latest_symlink(ctx.local_run_dir)
+    update_latest_symlink(ctx)
 
 
 def maybe_cleanup_remote(ctx: Context) -> None:

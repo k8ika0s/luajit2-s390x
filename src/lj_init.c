@@ -35,8 +35,15 @@
 #ifdef LJ_HAS_OPTIMISED_HASH
 static void str_hash_init(uint32_t flags)
 {
+#if LJ_HAS_OPTIMISED_HASH == 1
   if (flags & JIT_F_SSE4_2)
     str_hash_init_sse42 ();
+#elif LJ_HAS_OPTIMISED_HASH == 2
+  UNUSED(flags);
+  str_hash_init_s390x();
+#else
+  UNUSED(flags);
+#endif
 }
 
 /* CPU detection for interpreter features such as string hash function

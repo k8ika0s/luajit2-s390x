@@ -38,6 +38,7 @@ extern str_dense_hashfn hash_dense;
 #endif
 
 extern void str_hash_init_sse42 (void);
+extern void str_hash_init_s390x (void);
 #endif
 
 #endif

@@ -190,6 +190,12 @@ function M.run_suite(spec)
         samples_sec = samples,
         correct = true,
         result = final_result,
+        s390x_text_mode = os.getenv("LUAJIT_S390X_TEXT_MODE") or "auto",
+        s390x_text_compare_mode = os.getenv("LUAJIT_S390X_TEXT_COMPARE_MODE") or "auto",
+        s390x_text_find_mode = os.getenv("LUAJIT_S390X_TEXT_FIND_MODE") or "auto",
+        s390x_text_transform_mode = os.getenv("LUAJIT_S390X_TEXT_TRANSFORM_MODE") or "auto",
+        s390x_text_pattern_mode = os.getenv("LUAJIT_S390X_TEXT_PATTERN_MODE") or "auto",
+        s390x_hash_mode = os.getenv("LUAJIT_S390X_HASH_MODE") or "auto",
       }
     )
     io.stdout:write(
