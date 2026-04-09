@@ -18708,3 +18708,3515 @@ Next hash target
   - `numeric_loop` and `side_exit_loop` moved to the right side of `-joff`
   - `hotexit_loop` is exact again, but still materially red
   - the branch-level active blocker remains `mixed_noffi`
+
+2026-04-07 12:24 PDT - closed three `hotexit_loop` arithmetic families on the
+retained dispatch floor:
+
+- Exact root else-arm numeric widening in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+  under `LUAJIT_S390X_DISPATCH_HOTEXIT_NUM_ELSE=1` is closed.
+  - Mechanism moved exactly where expected on `kdz`: the hot root else-arm
+    stopped using pure int `ADDOV` and re-recorded as a numeric lane with
+    `num CONV`/`num ADD`.
+  - But it was not exact:
+    - `kdz /tmp/mixedprobe.lua -> RESULT -3596352977`
+    - `kdz /tmp/ipairs_only_probe.lua -> RESULT -31124910097`
+  - The official hot row barely moved:
+    - candidate `hotexit_loop/hot 0.017486`
+    - immediate control `0.017543`
+  - Read: right symptom surface, wrong remediation. Reverted.
+
+- Exact hotexit side-arm checked-int preservation in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+  under `LUAJIT_S390X_DISPATCH_HOTEXIT_SIDE_INT=1` is closed.
+  - Intended scope was the three hotexit side arms only, keyed to the dispatch
+    reducer bytecode shape.
+  - It was not exact:
+    - `kdz /tmp/mixedprobe.lua -> RESULT -3947625937`
+    - `kdz /tmp/ipairs_only_probe.lua -> RESULT -17742436193`
+  - The resulting dump did not stabilize the intended side-trace set; repeated
+    root traces appeared instead of a cleaner int-preserving side-arm family.
+  - Read: collision or bad contract, not promotable. Reverted.
+
+- Backend `% 3` / `% 5` magic-remainder lowering in
+  [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  is closed for now.
+  - The probe replaced the exact hotexit root-family `IR_MOD` constant fastpath
+    with a `MSGFR` multiply-high sequence for divisors `3` and `5`.
+  - First version matched only the hotexit root `FORL` shape by `nsnap/nins`;
+    refined version also required the dispatch chunk name.
+  - Both versions were unsafe on the exactness gate:
+    - broad match:
+      - `kdz /tmp/mixedprobe.lua -> RESULT -3114008017`
+      - `kdz /tmp/ipairs_only_probe.lua -> RESULT -4184873329`
+    - chunk-gated match:
+      - `kdz /tmp/mixedprobe.lua -> RESULT -4072406481`
+      - `kdz /tmp/ipairs_only_probe.lua -> RESULT -11283812577`
+  - Since exactness failed even after chunk-gating, the family is closed as
+    unsafe before host-pair screening. Reverted.
+
+- Current read after these closures:
+  - The retained dispatch fix stands.
+  - The remaining `hotexit_loop` cost is not solved by local arithmetic-lane
+    rewrites in narrowing or by the first exact backend `% 3` / `% 5` rewrite.
+  - The next honest seam is still the retained hot root plus short side-trace
+    steady-state contract itself, especially the common else-path bounce at
+    root exit `1:3` and the root/side-trace ownership split that keeps the
+    hotexit surface materially red even after correctness is restored.
+
+2026-04-07 13:37 PDT - closed the exact retained-root `ADDVN +1` numeric-lane
+probe for `dispatch_trace/hotexit_loop`:
+
+- The exact probe was a new env-gated matcher in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+  under `LUAJIT_S390X_DISPATCH_HOTEXIT_ROOT_NUM_ELSE=1`.
+  - Scope:
+    - `parent=0`
+    - `exit=0`
+    - `startop=BC_FORL`
+    - current op `BC_ADDVN`
+    - literal `+1`
+    - exact chunk `@tests/s390x/perf/dispatch_trace.lua`
+  - Intended effect: force only the retained hot root else arm onto the numeric
+    lane, attacking the root-int vs side-num accumulator split behind hotexit
+    root exit `1:3`.
+
+- Mechanism proof on `kdz` was real.
+  - The matcher fired exactly on the official `dispatch_trace.lua` root family:
+    - `S390X_DISPATCH_HOTEXIT_ROOT_NUM_ELSE_MATCH trace=1407 ...`
+    - through `trace=1416`
+  - It did not require recorder or VM changes and did not reopen the older
+    arithmetic-wide probes.
+
+- Exactness was clean on the real retained mixed floor when run with the full
+  retained env bundle:
+  - `kdz /tmp/mixedprobe.lua -> RESULT 553416`
+  - `kdz /tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `kdz /tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- But the same-host `kdz` policy A/B closed it as non-winning.
+  - Candidate:
+    - `numeric_loop/hot 0.000158`
+    - `side_exit_loop/hot 0.000358`
+    - `hotexit_loop/hot 0.017759`
+  - Immediate retained control:
+    - `numeric_loop/hot 0.000162`
+    - `side_exit_loop/hot 0.000342`
+    - `hotexit_loop/hot 0.017704`
+  - Read: the exact retained-root numeric-lane idea is real and safe, but not
+    a `kdz` win. Closed and reverted before host-pair screening.
+
+- Important harness note from this branch:
+  - an earlier draft used `strstr()` on raw Lua chunk storage and produced
+    false guardrail failures because Lua chunk strings are not NUL-terminated.
+  - The final classification above is based only on the corrected length-checked
+    `GCstr` compare, not on that bad draft.
+
+- Current read after the closure:
+  - The retained `hotexit_loop` payer is still the steady-state root/side-trace
+    contract, but the first exact root-else numeric-lane probe is now closed.
+  - The next honest seam is later than local root else-arm arithmetic shape.
+
+2026-04-07 14:02 PDT - closed the exact hotexit side-int probe as inert on the
+official suite:
+
+- The live probe in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+  under `LUAJIT_S390X_DISPATCH_HOTEXIT_SIDE_INT_EXACT=1` was intended to attack
+  the retained hotexit side families only.
+  - Final intended scope after the gating fix:
+    - any side trace (`parent != 0`, `root != 0`)
+    - retained hot exits `1` or `2`
+    - `startop=BC_JMP`
+    - arithmetic op `IR_ADD` or `IR_SUB`
+    - current bytecode `BC_ADDVV` or `BC_SUBVV`
+    - exact chunk `@tests/s390x/perf/dispatch_trace.lua`
+  - Intended effect: preserve the side-arm accumulator as checked-int and emit
+    `ADDOV`/`SUBOV` only for the exact retained dispatch side traces, without
+    reopening the older broad and unsafe side-int family.
+
+- On the official `dispatch_trace.lua` suite, the matcher never fired after the
+  corrected `parent != 0` / `root != 0` scope was in place.
+  - No `S390X_DISPATCH_HOTEXIT_SIDE_INT_MATCH` lines appeared on `kdz`.
+  - The official perf row therefore stayed on the retained floor shape:
+    - `numeric_loop/hot 0.000162`
+    - `side_exit_loop/hot 0.000370`
+    - `hotexit_loop/hot 0.018374`
+
+- Read:
+  - The exact side-int family is inert on the real hot path and is now closed.
+  - That means the remaining `hotexit_loop` payer is later than the local
+    `BC_ADDVV` / `BC_SUBVV` narrowing seam inside the short side traces.
+  - The next honest target is no longer arithmetic-lane ownership in
+    `lj_opt_narrow.c`, but a later steady-state root/side contract seam.
+
+2026-04-07 14:34 PDT - closed the exact retained-floor `BC_SUBVV` side-family
+probe for `dispatch_trace/hotexit_loop`:
+
+- A narrow info-only pass in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+  re-mapped the live retained dispatch floor before opening another arithmetic
+  branch.
+  - The active side arithmetic seam on the current retained floor is not the
+    older three-exit family from the stale pre-fix artifact.
+  - On the official suite, the live matched side trace came back as:
+    - `parent=2`
+    - `exit=5`
+    - `startop=BC_JMP`
+    - `pcop=33` which is `BC_SUBVV`
+    - operand types `rb=IRT_NUM`, `rc=IRT_INT`
+  - Read: the current hot side contract is already narrower and shifted
+    relative to the old dump, so future probes must key off the current
+    retained topology, not the older artifact.
+
+- Based on that mapping, the exact probe
+  `LUAJIT_S390X_DISPATCH_HOTEXIT_SIDE_SUB_INT_EXACT=1` tried to preserve the
+  live `BC_SUBVV` side family as checked-int:
+  - exact scope:
+    - any side trace with `parent != 0`, `root != 0`
+    - exact live side exit `5`
+    - `startop=BC_JMP`
+    - `pcop=BC_SUBVV`
+    - `op=IR_SUB`
+    - exact chunk `@tests/s390x/perf/dispatch_trace.lua`
+  - mechanism moved as intended on `kdz`:
+    - `S390X_DISPATCH_HOTEXIT_SIDE_SUB_INT_MATCH trace=3 parent=2 exit=5 pcop=33 rb=14 rc=19`
+
+- Exactness was clean on the real retained mixed floor:
+  - `kdz /tmp/mixedprobe.lua -> RESULT 553416`
+  - `kdz /tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `kdz /tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- But it did not survive same-host policy A/B.
+  - First candidate run on `kdz`:
+    - `numeric_loop/hot 0.000157`
+    - `side_exit_loop/hot 0.000391`
+    - `hotexit_loop/hot 0.017371`
+  - Immediate candidate rerun on the same binary:
+    - `numeric_loop/hot 0.000161`
+    - `side_exit_loop/hot 0.000397`
+    - `hotexit_loop/hot 0.018477`
+  - Read: the family is real and exact, but not stable enough to classify as a
+    retained win. Closed and reverted before host-pair screening.
+
+- Current read after the closure:
+  - The remaining `hotexit_loop` payer is not solved by the exact current
+    `BC_SUBVV` side-family int-preservation cut.
+  - The next honest step is a fresh retained-floor dispatch truth-pack restamp
+    so the next target is keyed to the current trace graph instead of the stale
+    pre-fix artifact.
+
+2026-04-07 15:04 PDT - current-floor truth-pack restamp exposed tool drift, and
+closed the exact `BC_ADDVV` side-family probe:
+
+- A fresh retained-floor dispatch truth-pack restamp on `kdz` using
+  [tools/s390x/build_dispatch_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_dispatch_truth_pack.py)
+  did produce the current raw `hotexit_loop` artifacts, but the helper still
+  aborted on the stale numeric-loop seam assertion:
+  - `expected loop-body-entry-after-JFORI, got None`
+  - new partial artifact:
+    [20260407-130249-kdz-retained_baseline-dispatch-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260407-130249-kdz-retained_baseline-dispatch-truth-pack)
+  - The focused `hotexit_loop` trace counts stayed on the retained exact shape:
+    - `TRACE_START 4`
+    - `TRACE_STOP 4`
+    - `TRACE_ABORT 0`
+    - `TEXIT_HIST 1:1=188,1:2=187,1:3=173,1:7=1,6:1=1`
+  - Read: the current hotexit focused topology is still the same retained
+    three-exit split; the tool’s seam classifier is now stale and needs a
+    dispatch refresh before it can be trusted as a gating oracle.
+
+- The next arithmetic probe,
+  `LUAJIT_S390X_DISPATCH_HOTEXIT_SIDE_ADD_INT_EXACT=1`, targeted the
+  multiply-add side family in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c):
+  - exact intended scope:
+    - side trace only (`parent != 0`, `root != 0`)
+    - `startop=BC_JMP`
+    - `pcop=BC_ADDVV`
+    - `op=IR_ADD`
+    - exact chunk `@tests/s390x/perf/dispatch_trace.lua`
+  - It never fired on the official suite:
+    - no `S390X_DISPATCH_HOTEXIT_SIDE_ADD_INT_MATCH` lines on `kdz`
+  - Same-host policy result was slower anyway:
+    - `numeric_loop/hot 0.000162`
+    - `side_exit_loop/hot 0.000343`
+    - `hotexit_loop/hot 0.017958`
+  - Read: the multiply-add side family is not where the retained official
+    throughput loss is surfacing. Closed and reverted.
+
+- Current read after these closures:
+  - The current retained `hotexit_loop` bottleneck is not in the local
+    arithmetic narrowing seam for either the exact `BC_SUBVV` or the exact
+    `BC_ADDVV` side-family cuts.
+  - The next honest target is the later steady-state root/side ownership
+    contract itself, with the current focused trace counts as the authoritative
+    map rather than the stale numeric-loop seam logic in the truth-pack helper.
+
+2026-04-07 16:09 PDT - exact `hotexit_loop` typed-handoff arithmetic probes are
+closed harder:
+
+- The first exact line-gated side-int preservation family in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+  was initially keyed too tightly to the isolated truth-pack trace numbering
+  (`parent=1`). That made it inert on the official suite and it was closed.
+
+- I then reopened the same seam as a pure info pass, dropping the hard-coded
+  parent and logging the actual arithmetic owner identity for any dispatch side
+  trace:
+  - candidate env:
+    - `LUAJIT_S390X_DISPATCH_HOTEXIT_LINE_INFO=1`
+  - log payload:
+    - `trace`
+    - `parent`
+    - `exit`
+    - `line`
+    - `pcop`
+    - `irop`
+    - operand types
+    - `firstline`
+    - `numline`
+    - start chunk
+
+- On authoritative `kdz`, the only official-suite hits were still the old
+  `side_exit_loop` seam, not `hotexit_loop`:
+  - `S390X_DISPATCH_HOTEXIT_LINE_INFO trace=3 parent=2 exit=5 line=21 pcop=33 irop=42 rb=14 rc=19 firstline=17 numline=10 chunk=@tests/s390x/perf/dispatch_trace.lua`
+  - repeated later as the same family on a higher trace number
+
+- There were no `hotexit_loop` hits at lines `18`, `20`, or `22`, and no
+  matching arithmetic owner in the official policy workload.
+
+- Read:
+  - the retained `hotexit_loop` payer is not coming through
+    `lj_opt_narrow_arith()` on the official suite at all.
+  - That closes the arithmetic-lane and typed-handoff hypothesis more cleanly
+    than the earlier exact `BC_SUBVV`/`BC_ADDVV` results.
+  - The next honest target is the tiny side-trace runtime contract itself:
+    traces `3`, `4`, and `5` each `stop -> 1`, so the remaining cost has moved
+    out of local arithmetic specialization and into the recurring side-trace
+    ownership / reentry path.
+
+2026-04-07 16:42 PDT - existing runtime-only owner/reentry hooks are not the
+next `hotexit_loop` remediation:
+
+- After closing the arithmetic-lane hypothesis, I sampled the dormant runtime
+  ownership hooks already present in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  instead of opening new recorder or VM families.
+
+- `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP=1` by itself is not enough:
+  - official `kdz` run:
+    - `numeric_loop/hot 0.000162`
+    - `side_exit_loop/hot 0.000392`
+    - `hotexit_loop/hot 0.017849`
+  - same-host immediate retained control:
+    - `hotexit_loop/hot 0.017492`
+  - read: slightly worse than control.
+
+- The paired owner/runtime handoff family
+  `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP=1` +
+  `LUAJIT_S390X_ROOT_JLOOP_CHILD=1` is also non-promotable:
+  - official `kdz` run:
+    - `numeric_loop/hot 0.000160`
+    - `side_exit_loop/hot 0.000372`
+    - `hotexit_loop/hot 0.017794`
+  - exact isolated reducer stayed correct:
+    - `/tmp/hotexit_focus.lua -> 1322639`
+  - but same-host immediate retained control was still better:
+    - `hotexit_loop/hot 0.017492`
+  - no useful `resume-child` / `retarget-child` logging surfaced on the
+    isolated reducer, so this path did not prove active on the retained floor.
+
+- `LUAJIT_S390X_JLOOP_OWNER_STATIC_REENTER=1` is also worse:
+  - official `kdz` run:
+    - `numeric_loop/hot 0.000159`
+    - `side_exit_loop/hot 0.000385`
+    - `hotexit_loop/hot 0.017881`
+  - exact isolated reducer stayed correct:
+    - `/tmp/hotexit_focus.lua -> 1322639`
+
+- `LUAJIT_S390X_JLOOP_EXEC_SELF_REENTER=1` likewise does not beat the retained
+  floor:
+  - official `kdz` run:
+    - `numeric_loop/hot 0.000162`
+    - `side_exit_loop/hot 0.000364`
+    - `hotexit_loop/hot 0.017681`
+  - still worse than the immediate retained control at `0.017492`
+
+- Read:
+  - the existing runtime-only child/owner reentry hook cluster in `lj_trace.c`
+    has now been sampled from the exact retained `hotexit_loop` seam and does
+    not produce the next win.
+  - The remaining honest target is therefore narrower:
+    - not arithmetic narrowing,
+    - not dormant `JLOOP` child/owner reentry toggles,
+    - but whatever still makes the retained root-family `BC_FORL` fix spill
+      into the steady-state `hotexit_loop` ownership pattern.
+
+2026-04-07 15:31 PDT - exact `hotexit_loop` proto-gated side-int preservation is
+closed as inert:
+
+- After the earlier false-positive correction, the next arithmetic probe in
+  [src/lj_opt_narrow.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_opt_narrow.c)
+  tightened the gate to the real `hotexit_loop` proto identity instead of
+  chunk-only matching:
+  - exact chunk `@tests/s390x/perf/dispatch_trace.lua`
+  - exact proto:
+    - `firstline=29`
+    - `numline=12`
+  - side trace only:
+    - `parent != 0`
+    - `root != 0`
+    - `startop=BC_JMP`
+  - live arithmetic only:
+    - `op=IR_ADD || IR_SUB`
+    - `pcop=BC_ADDVN || BC_ADDVV || BC_SUBVV`
+  - candidate env:
+    - `LUAJIT_S390X_DISPATCH_HOTEXIT_SIDE_INT_HOTLOOP_EXACT=1`
+
+- On authoritative `kdz`, the official suite never hit the exact gate:
+  - no `S390X_DISPATCH_HOTEXIT_SIDE_INT_HOTLOOP_MATCH` lines on
+    `tests/s390x/perf/dispatch_trace.lua`
+
+- Same-host policy result was slower anyway:
+  - `numeric_loop/hot 0.000161`
+  - `side_exit_loop/hot 0.000399`
+  - `hotexit_loop/hot 0.017922`
+
+- Read:
+  - once the arithmetic family is correctly keyed to the real `hotexit_loop`
+    proto rather than the shared file chunk, it goes inert.
+  - That closes the arithmetic-lane hypothesis for the retained `hotexit_loop`
+    payer even more cleanly.
+  - The next honest target remains the later steady-state root/side ownership
+    contract behind the retained `1:1 / 1:2 / 1:3` split, not another local
+    narrowing rewrite in `lj_opt_narrow.c`.
+
+2026-04-07 16:09 PDT - exact parked-root cooldown family is real for
+`dispatch_trace/hotexit_loop`, but not retainable yet:
+
+- In
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  I opened a narrow post-stop cooldown family for the retained dispatch fix:
+  - env-gated behind
+    `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_COOLDOWN=1`
+  - applied only after successful `trace_stop()` on the parked hotexit root
+    families
+  - first exact match set:
+    - `nsnap=9 nins=32795`
+    - `nsnap=8 nins=32793`
+
+- Factor-8 full cooldown:
+  - exact on both hosts:
+    - `/tmp/dispatch_hotexit_3calls_80000.lua`
+      - `1 1322639`
+      - `2 1322639`
+      - `3 1322639`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - official same-binary `dispatch_trace.lua`:
+    - `kdz`:
+      - control `hotexit_loop/hot 0.017773`
+      - candidate `0.008713`
+    - `zkd0`:
+      - control `0.031834`
+      - candidate `0.023418`
+  - but not clean enough to retain cross-family:
+    - `kdz` `mixed_noffi/mixed_loop/hot`
+      - control samples `0.013275`, `0.014401`
+      - candidate samples `0.013831`, `0.014818`
+
+- `32795`-only cooldown is closed as too narrow:
+  - tiny 3-call reducer stayed exact
+  - but official `dispatch_trace/hotexit_loop/hot` failed exactness:
+    - `expected 1322639, got 1322621`
+
+- Factor-4 full cooldown is also closed:
+  - exact dispatch win on both hosts:
+    - `kdz` `0.017773 -> 0.008834`
+    - `zkd0` `0.035336 -> 0.015134`
+  - mixed guardrails stayed exact on both hosts:
+    - `RESULT 553416`
+    - `HASH_VALUE 3000`
+    - `RESULT 576000`
+  - but it regressed the retained branch-level blocker:
+    - `kdz` `mixed_noffi/mixed_loop/hot 0.014401 -> 0.013382`
+      was acceptable/noisy
+    - `zkd0` `0.016538 -> 0.018563`
+      was not
+
+- Important discriminator:
+  - with `LUAJIT_S390X_TRACE_START_LOG=1`, the cooldown path did not visibly
+    fire during `mixed_noffi` on `kdz`
+  - so the mixed regression is not explained by a simple direct cooldown hit on
+    the same parked-root families
+
+- Read:
+  - the parked-root cooldown family is real for `dispatch_trace/hotexit_loop`
+  - but no tested form is retainable yet
+ - if this seam is revisited, the next honest target is not another raw
+    cooldown magnitude sweep
+  - it is a narrower dispatch-only discriminator around the retained `BC_FORL`
+    hotexit root family, since the broad cooldown leaks cross-family cost
+    without a simple direct-fire explanation
+
+2026-04-07 17:18 PDT - parked-root chain dedup is closed as unsafe on the
+retained dispatch floor:
+
+- I reopened the retained hotexit root family in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  with a new env-gated parked-root dedup pass under
+  `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_DEDUP=1`.
+  - The probe flushed older parked roots from the same proto chain when the
+    current root matched the retained hotexit parked family and reused the same
+    `BC_FORL` `startpc`.
+  - Exact match set:
+    - `parent=0`
+    - `exit=0`
+    - `startop=BC_FORL`
+    - `nsnap=9 nins=32795`
+    - `nsnap=9 nins=32791`
+    - `nsnap=8 nins=32793`
+
+- The mechanism was real.
+  - On `kdz`, the retained pushed floor still emits a long parked-root chain at
+    the same hot `BC_FORL` `startpc=0x3ff97cd3bb8`, with repeated:
+    - `S390X_TRACE_START pc=0x3ff97cd3bb8 op=79`
+    - `S390X_DISPATCH_FORL_TRACE ... startpc=0x3ff97cd3bb8 ...`
+    - `S390X_DISPATCH_FORL_PARK_ROOT ...`
+  - So chain growth is a real artifact of the retained hotexit correctness
+    fix, not a logging illusion.
+
+- Focused exact reducers stayed clean under the dedup branch:
+  - `kdz /tmp/dispatch_hotexit_3calls_80000.lua`
+    - `1 1322639`
+    - `2 1322639`
+    - `3 1322639`
+  - `kdz /tmp/mixedprobe.lua -> RESULT 553416`
+
+- But the official repo-root `dispatch_trace.lua` exactness gate failed on the
+  same branch:
+  - `kdz src/luajit tests/s390x/perf/dispatch_trace.lua`
+  - `numeric_loop/hot: expected 3839172, got 0`
+
+- Read:
+ - parked-root chain dedup is an attractive seam, but naive same-`startpc`
+    root flushing is not safe on the retained dispatch floor
+  - the next honest target is still inside the retained parked `BC_FORL`
+    hotexit root family, but not hotcount cooldown and not chain dedup
+
+2026-04-07 18:14 PDT - exact proto-gated parked-root cooldown is the right
+`hotexit_loop` seam, but it is not retainable yet:
+
+- I reopened the parked-root cooldown family in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  but this time gated it to the exact `dispatch_trace.lua` `hotexit_loop`
+  proto instead of the earlier broad `nsnap/nins` family.
+  - exact proto gate:
+    - chunk `@tests/s390x/perf/dispatch_trace.lua`
+    - `firstline=29`
+    - `numline=12`
+  - mechanism: post-stop `hotcount_set(pc+1, value)` on retained parked
+    hotexit roots only
+
+- The broad exact proto-gated family is real.
+  - Value `8` still fails official `dispatch_trace` exactness:
+    - `hotexit_loop/hot: expected 1322639, got 1322621`
+  - Values `12` and `16` are exact on the full official `dispatch_trace.lua`
+    suite on `kdz` and `zkd0`, and both massively reduce `hotexit_loop/hot`:
+    - `kdz` control `0.017518`
+      - value `12` -> `0.001085`
+      - value `16` -> `0.001117`
+    - `zkd0` control `0.033953`
+      - value `12` -> `0.001207`
+      - value `16` -> `0.001181`
+  - Mixed/root guardrails stayed exact on both hosts for value `12`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- But the family is not retainable cross-family yet.
+  - `kdz` `mixed_noffi/mixed_loop/hot`
+    - control `0.013253`
+    - value `12` `0.012548`
+    - value `16` `0.012700`
+  - `zkd0` `mixed_noffi/mixed_loop/hot`
+    - control `0.014708` / rerun `0.014589`
+    - value `12` `0.015204`
+    - value `16` `0.016184`
+  - Read: the exact proto gate fixes the earlier broad-family leak on `kdz`,
+    but there is still a host-specific cross-family cost on `zkd0`.
+
+- I checked the simplest host-specific explanation and it does not hold.
+  - On `zkd0`, the cooled dispatch `hotexit_loop` startpc bucket is:
+    - `startpc=0x3ffae8e0e10`
+    - hotcount bucket `4`
+  - The dominant mixed starts seen on the same floor land elsewhere:
+    - `0x3ff81260aa4` -> bucket `41`
+    - `0x3ff81260aac` -> bucket `43`
+    - `0x3ff81260a8c` -> bucket `35`
+  - So the remaining `zkd0` mixed regression is not explained by the most
+    obvious direct hotcount-slot collision.
+
+- The first narrowing follow-on is also closed.
+  - Restricting the exact proto-gated cooldown to only `nsnap=9` parked roots
+    breaks official `dispatch_trace` exactness again:
+    - `hotexit_loop/hot: expected 1322639, got 1322621`
+  - That means the rarer parked `nsnap=8 nins=32793` member is part of the
+    exact retained dispatch contract and cannot simply be dropped.
+
+- Current read after this closure:
+  - the parked-root cooldown mechanism is still the right `hotexit_loop`
+    throughput seam
+  - exact proto gating is the right discriminator
+  - but the remaining blocker is now the unexplained host-specific
+    `mixed_noffi` regression on `zkd0`, not dispatch exactness and not a simple
+    visible hotcount bucket collision
+
+2026-04-07 19:02 PDT - the apparent `zkd0 mixed_noffi` leak from the exact
+proto-gated parked-root cooldown is probably not a real direct interaction:
+
+- I reopened the exact proto-gated cooldown candidate in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  with the same retained dispatch candidate env:
+  - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
+  - exact gate:
+    - chunk `@tests/s390x/perf/dispatch_trace.lua`
+    - `firstline=29`
+    - `numline=12`
+    - retained parked-root family from the `BC_FORL` dispatch fix
+
+- To isolate the `zkd0` mixed regression story, I added a temporary info-only
+  hook in `lj_trace_hot()` that logs only one selected hotcount bucket via:
+  - `LUAJIT_S390X_HOT_BUCKET_LOG=<bucket>`
+
+- On retained-floor `zkd0 mixed_noffi`, bucket `4` never hot-triggers at all.
+  - No `S390X_HOT_BUCKET` lines appeared for
+    `LUAJIT_S390X_HOT_BUCKET_LOG=4`
+  - This is stronger than the earlier startpc audit:
+    - not only are there no visible mixed trace starts in bucket `4`
+    - there are also no mixed hotcount triggers in bucket `4` at the
+      `lj_trace_hot()` hook itself
+
+- The visible mixed trace-start topology is also unchanged between control and
+  candidate on `zkd0`.
+  - Both logs reduced to the same start set and counts:
+    - dominant `pc=...aa4 op=87` in bucket `41`
+    - one `op=82` in bucket `35`
+    - one `op=70` in bucket `41`
+    - one `BC_FORL` in bucket `43`
+    - one extra root in bucket `60`
+  - The only difference in the reduced logs is the expected ASLR address bias
+    between separate processes, not a changed mixed trace graph.
+
+- Same-binary `zkd0` A/B on the candidate binary is noisy enough that the old
+  single-run mixed regression is no longer convincing as a direct blocker.
+  - Candidate binary, control env off:
+    - run 1 `0.014595`
+    - run 2 `0.014976`
+    - run 3 `0.021184`
+  - Same binary, candidate env on:
+    - run 1 `0.020136`
+    - run 2 `0.020683`
+    - run 3 `0.015721`
+  - Read:
+    - the candidate still crushes `dispatch_trace/hotexit_loop` on both hosts
+    - but the earlier `zkd0 mixed_noffi` difference is now best treated as host
+      noise or a colder second-order layout effect, not a proven direct
+      interaction through the visible mixed trace or hotcount bucket surface
+
+- Current read after this acquisition:
+  - the exact proto-gated cooldown at value `12` remains the live candidate
+    for `dispatch_trace/hotexit_loop`
+  - the remaining work is validation/landing discipline, not seam discovery
+  - before retaining it, remove the temporary bucket logger and restamp on the
+    clean candidate source
+
+2026-04-07 19:02 PDT - retained the exact proto-gated parked-root cooldown at
+value `12` as the new `dispatch_trace/hotexit_loop` floor:
+
+- Clean candidate source in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  now keeps only:
+  - the existing retained `BC_FORL` dispatch fix
+  - the exact proto-gated parked-root cooldown helper
+  - no temporary hot-bucket logging
+
+- Exactness recheck on the clean candidate source:
+  - `kdz`
+    - `/tmp/dispatch_hotexit_3calls_80000.lua`
+      - `1 1322639`
+      - `2 1322639`
+      - `3 1322639`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Retained host-pair dispatch restamp:
+  - `kdz`
+    - `numeric_loop/hot 0.000158`
+    - `side_exit_loop/hot 0.000353`
+    - `hotexit_loop/hot 0.001047`
+  - `zkd0`
+    - `numeric_loop/hot 0.000232`
+    - `side_exit_loop/hot 0.000402`
+    - `hotexit_loop/hot 0.001191`
+
+- Same-source `mixed_noffi` comparison is acceptable enough to carry this
+  dispatch win forward:
+  - `kdz`
+    - control `mixed_loop/hot 0.012285`
+    - candidate `0.012632`
+  - `zkd0`
+    - control `mixed_loop/hot 0.015602`
+    - candidate `0.015544`
+  - Read:
+    - no clean host-pair mixed regression remains
+    - the earlier `zkd0` mixed scare is now best treated as host noise or a
+      colder second-order layout effect
+
+- Retained read:
+  - `dispatch_trace` is now fully back on the right side of `-joff` on both
+    hosts
+  - `mixed_noffi` remains the active branch-level blocker
+  - the next honest frontier is back in the retained root-2 `mixed_noffi`
+    handoff / bridge-tail family
+
+2026-04-07 20:03 PDT - retained a bridge-only shift-based `Node*` address cut
+as the next `mixed_noffi` floor in
+[src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+
+- Exact cut:
+  - scope: retained `vm_IITERN_root2_hashbridge` only
+  - keep the retained compare path, key/value loads, stores, and tail
+    unchanged
+  - replace only:
+    - `llgfr ITYPE, RC`
+    - `mghi ITYPE, #NODE`
+    - `ag NODE:ITYPE, TAB:RB->node`
+  - with:
+    - `llgfr ITYPE, RC`
+    - `sllg ITYPE, ITYPE, 5`
+    - `ag NODE:ITYPE, TAB:RB->node`
+  - read:
+    - on this retained GC64 floor, `sizeof(Node) == 32`, so the bridge can use
+      a pure shift instead of the multiply-immediate slot-address step
+
+- Exactness held on both hosts under the retained env bundle:
+  - `kdz`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Authoritative same-host policy A/B:
+  - `kdz`
+    - candidate:
+      - `mixed_loop/hot 0.012544`
+      - `mixed_loop/small 0.000785`
+      - `mixed_loop/medium 0.003137`
+    - immediate reverted clean control:
+      - `mixed_loop/hot 0.012734`
+      - `mixed_loop/small 0.000795`
+      - `mixed_loop/medium 0.003197`
+  - `zkd0`
+    - candidate:
+      - `mixed_loop/hot 0.014926`
+      - `mixed_loop/small 0.001177`
+      - `mixed_loop/medium 0.004905`
+    - immediate reverted clean control:
+      - `mixed_loop/hot 0.015279`
+      - `mixed_loop/small 0.000891`
+      - `mixed_loop/medium 0.003597`
+
+- Retained read:
+  - this is a clean host-pair mixed win
+  - the active branch-level blocker is still `mixed_noffi`
+  - but the retained root-2 bridge floor moved right again on both hosts
+  - the next honest target remains later in the same root-2 handoff /
+    bridge-tail family, not a dispatch reopen
+
+2026-04-07 20:24 PDT - closed the bridge-body nil-check alignment family on the
+new shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the retained shift-based `Node*` address formation
+  - replace the bridge-body nil-hole test:
+    - old retained shape:
+      - `cg TMPR0, NODE:ITYPE->val; je >9`
+      - then later `lg RC, NODE:ITYPE->val`
+    - candidate:
+      - `lg RC, NODE:ITYPE->val`
+      - `cghi RC, LJ_TNIL; je >9`
+      - reuse the already loaded `RC` on the success path
+  - rationale:
+    - this matches the existing s390x helper style already used in
+      `vm_next` and other table fast paths, which compare the tag lane with
+      `cghi ... LJ_TNIL`
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy result on trusted `kdz`:
+  - candidate:
+    - `mixed_loop/hot 0.012710`
+    - `mixed_loop/small 0.000842`
+    - `mixed_loop/medium 0.003204`
+  - retained shift-address control:
+    - `mixed_loop/hot 0.012544`
+    - `mixed_loop/small 0.000785`
+    - `mixed_loop/medium 0.003137`
+
+- Read:
+  - the bridge-body `cghi` nil-check alignment is exact
+  - but it is slower than the retained shift-address floor on `kdz`
+  - so this family is closed before host-pair screening
+
+2026-04-07 20:43 PDT - closed the control-var increment formation family on the
+retained shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the retained bridge body unchanged except for the control writeback
+    source:
+    - old retained shape:
+      - `lgr TMPR1, RC`
+      - `ahi TMPR1, 1`
+    - candidate:
+      - `lay TMPR1, 1(RC)`
+  - rationale:
+    - test whether the control-var increment can be formed more cheaply as a
+      single address-generation instruction than the retained register-copy plus
+      add-immediate pair
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy result on trusted `kdz`:
+  - candidate:
+    - `mixed_loop/hot 0.012954`
+    - `mixed_loop/small 0.000815`
+    - `mixed_loop/medium 0.003254`
+  - retained shift-address control:
+    - `mixed_loop/hot 0.012544`
+    - `mixed_loop/small 0.000785`
+    - `mixed_loop/medium 0.003137`
+
+- Read:
+  - the single-instruction `lay` control increment is exact
+  - but it is slower than the retained shift-address floor on `kdz`
+  - so this family is closed before host-pair screening
+
+2026-04-07 21:04 PDT - closed the hash-slot index copy-elision family on the
+retained shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - old retained shape:
+    - `llgfr ITYPE, RC`
+    - `sllg ITYPE, ITYPE, 5`
+  - candidate:
+    - `sllg ITYPE, RC, 5`
+  - rationale:
+    - `RC` already comes from `llgf`, so it is zero-extended on entry to the
+      retained bridge body; the extra `llgfr` copy looked redundant
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy result on trusted `kdz`:
+  - candidate:
+    - `mixed_loop/hot 0.012597`
+    - `mixed_loop/small 0.000784`
+    - `mixed_loop/medium 0.003187`
+  - retained shift-address control:
+    - `mixed_loop/hot 0.012544`
+    - `mixed_loop/small 0.000785`
+    - `mixed_loop/medium 0.003137`
+
+- Read:
+  - the `llgfr` copy-elision is exact
+  - but it is still slower than the retained shift-address floor on `kdz`
+  - so this family is closed before host-pair screening
+
+2026-04-07 21:18 PDT - closed the pre-scaled `ITERL` target handoff family on
+the retained shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the retained bridge body and selector intact
+  - at bridge entry:
+    - old retained shape:
+      - `llgh RD, PC_RD`
+    - candidate:
+      - `llgh RD, PC_RD`
+      - `sllg RD, RD, 2`
+  - on the success path:
+    - old retained shape:
+      - `branchPC RD`
+    - candidate:
+      - `lay PC, (-BCBIAS_J*4)(RD, PC)`
+  - rationale:
+    - pre-scale the exact `ITERL` target once so the hot success path no longer
+      pays `branchPC`'s per-hit shift
+
+- Exactness held on both hosts under the retained env bundle:
+  - `kdz`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Host-pair policy result:
+  - `kdz`
+    - candidate:
+      - `mixed_loop/hot 0.012278`
+      - `mixed_loop/small 0.000769`
+      - `mixed_loop/medium 0.003023`
+    - retained shift-address control:
+      - `mixed_loop/hot 0.012544`
+      - `mixed_loop/small 0.000785`
+      - `mixed_loop/medium 0.003137`
+  - `zkd0`
+    - candidate:
+      - `mixed_loop/hot 0.016240`
+      - `mixed_loop/small 0.000882`
+      - `mixed_loop/medium 0.003830`
+    - retained shift-address control:
+      - `mixed_loop/hot 0.014926`
+      - `mixed_loop/small 0.001177`
+      - `mixed_loop/medium 0.004905`
+
+- Read:
+  - the pre-scaled `branchPC` handoff is a real `kdz` win
+  - but it is a clean host-pair reject on `zkd0`
+  - so this family is closed and the retained shift-address floor stays policy
+
+2026-04-07 21:30 PDT - closed the in-place `branchPC` tail family on the
+retained shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep bridge entry unchanged
+  - replace the success tail:
+    - old retained shape:
+      - `branchPC RD`
+    - candidate:
+      - `sllg RD, RD, 2`
+      - `lay PC, (-BCBIAS_J*4)(RD, PC)`
+  - rationale:
+    - keep the whole handoff cut on the hot success tail so the bridge entry
+      stays untouched, unlike the rejected pre-scaled-`RD` family
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy result on trusted `kdz`:
+  - candidate:
+    - `mixed_loop/hot 0.013300`
+    - `mixed_loop/small 0.000832`
+    - `mixed_loop/medium 0.003157`
+  - retained shift-address control:
+    - `mixed_loop/hot 0.012544`
+    - `mixed_loop/small 0.000785`
+    - `mixed_loop/medium 0.003137`
+
+- Read:
+  - the in-place `branchPC` tail cut is exact
+  - but it is clearly slower than the retained shift-address floor on `kdz`
+  - so this family is closed before host-pair screening
+
+2026-04-07 21:42 PDT - closed the hole-walk self-check family on the retained
+shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the success body and `branchPC RD` handoff unchanged
+  - rewrite the hole path:
+    - old retained shape:
+      - `ahi RC, 1`
+      - `j <8`
+      - then top-of-loop `cl RC, TAB:RB->hmask; jh ->vm_IITERN_root2_hashdone`
+    - candidate:
+      - `ahi RC, 1`
+      - `cl RC, TAB:RB->hmask; jh ->vm_IITERN_root2_hashdone`
+      - `j ->vm_IITERN_root2_hashbody`
+  - rationale:
+    - avoid paying the unconditional backedge to the top compare on each hole;
+      let the hole path perform its own end-of-hash test and jump directly back
+      into the body
+
+- Exactness held on both hosts under the retained env bundle:
+  - `kdz`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Host-pair policy result:
+  - `kdz`
+    - candidate:
+      - `mixed_loop/hot 0.012381`
+      - `mixed_loop/small 0.000765`
+      - `mixed_loop/medium 0.003016`
+    - retained shift-address control:
+      - `mixed_loop/hot 0.012544`
+      - `mixed_loop/small 0.000785`
+      - `mixed_loop/medium 0.003137`
+  - `zkd0`
+    - candidate:
+      - `mixed_loop/hot 0.020548`
+      - `mixed_loop/small 0.001319`
+      - `mixed_loop/medium 0.005565`
+    - retained shift-address control:
+      - `mixed_loop/hot 0.014926`
+      - `mixed_loop/small 0.001177`
+      - `mixed_loop/medium 0.004905`
+
+- Read:
+  - the remaining room is not “let the hole path self-check and jump straight
+    back into the body”
+  - this family is a real `kdz` win, but a catastrophic host-pair reject on
+    `zkd0`
+  - so it is closed and the retained shift-address floor stays policy
+
+2026-04-07 22:06 PDT - closed the exact `BC_FORL` hashdone specialization on
+the retained shift-address mixed floor:
+
+- Exact bytecode attribution on trusted `kdz`:
+  - dumped `mixed_loop` bytecode with `jit.util`
+  - confirmed the inner `pairs(map)` loop ends with:
+    - `035 ITERN`
+    - `036 ITERL`
+    - `037 FORL`
+    - `038 RET1`
+  - so for this workload, the retained root-2 bridge hashdone path reaches a
+    fixed `BC_FORL` after `ITERL`, not an arbitrary next opcode
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - old retained shape:
+    - `->vm_IITERN_root2_hashdone:`
+    - `ins_next`
+  - candidate:
+    - `llgc TMPR1, PC_OP`
+    - `cghi TMPR1, BC_FORL`
+    - if equal:
+      - `llgh RD, PC_RD`
+      - `llgc RA, PC_RA`
+      - `la PC, 4(PC)`
+      - `j =>BC_FORL`
+    - else:
+      - fall back to the old `ins_next`
+  - rationale:
+    - remove the generic decode/dispatch from the exact confirmed
+      `ITERN -> ITERL -> FORL` end-of-iteration case while keeping a safe
+      generic fallback for any non-`FORL` next opcode
+
+- Exactness held on both hosts under the retained env bundle:
+  - `kdz`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Host-pair policy result:
+  - `kdz`
+    - candidate:
+      - `mixed_loop/hot 0.012471`
+      - `mixed_loop/small 0.000782`
+      - `mixed_loop/medium 0.003082`
+    - retained shift-address control:
+      - `mixed_loop/hot 0.012544`
+      - `mixed_loop/small 0.000785`
+      - `mixed_loop/medium 0.003137`
+  - `zkd0`
+    - candidate:
+      - `mixed_loop/hot 0.015978`
+      - `mixed_loop/small 0.000949`
+      - `mixed_loop/medium 0.003960`
+    - retained shift-address control:
+      - `mixed_loop/hot 0.014926`
+      - `mixed_loop/small 0.001177`
+      - `mixed_loop/medium 0.004905`
+
+- Read:
+  - the post-`ITERL` next-op contract is now known exactly for this workload
+  - but specializing hashdone directly to `BC_FORL` is still a host-pair reject
+  - so the remaining room is even narrower than “avoid generic `ins_next` on
+    the exact end-of-iteration opcode”
+
+2026-04-07 22:23 PDT - closed the narrower `BC_FORL_shared` setup cut on the
+retained shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - follow-on to the closed exact `BC_FORL` hashdone specialization
+  - instead of jumping to `=>BC_FORL`, the candidate changed
+    `->vm_IITERN_root2_hashdone` to:
+    - check `PC_OP == BC_FORL`
+    - run local `hotloop RB`
+    - decode just `RD`/`RA`
+    - `la PC, 4(PC)`
+    - jump to a new local `->BC_FORL_shared` label placed immediately before
+      the shared `BC_FORI/BC_IFORL` body after `ins_AJ`
+  - fallback stayed the old `ins_next`
+  - rationale:
+    - remove only the `FORL` case dispatch/setup overhead while keeping the
+      rest of the retained `FORL` body intact
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy A/B on `kdz` from the same mirror path:
+  - candidate:
+    - `mixed_loop/hot 0.012664`
+    - `mixed_loop/small 0.000795`
+    - `mixed_loop/medium 0.003166`
+  - immediate reverted retained control:
+    - `mixed_loop/hot 0.012534`
+    - `mixed_loop/small 0.000785`
+    - `mixed_loop/medium 0.003301`
+
+- Read:
+  - the smaller “enter the shared `FORL` body directly” follow-on does not
+    preserve the tiny `kdz` gain seen from the broader exact `=>BC_FORL`
+    specialization
+  - so the remaining room is not in the obvious `FORL` setup path after
+    `ITERL`
+
+2026-04-07 22:45 PDT - closed the guarded inline positive-step `BC_FORL` fast
+path on the retained shift-address mixed floor:
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - follow-on to the exact `ITERN -> ITERL -> FORL -> RET1` attribution
+  - in `->vm_IITERN_root2_hashdone`, when `PC_OP == BC_FORL`, the candidate:
+    - advanced `PC` to the `FORL`
+    - decoded `RD`/`RA`
+    - loaded the loop frame directly with raw offsets
+    - guarded on tagged-int `idx`, tagged-int `stop`, and positive tagged-int
+      `step`
+    - ran local `hotloop RB`
+    - inlined the positive-step `BC_FORL` compare/store/branch contract
+    - fell back to `=>BC_FORL` on any guard failure
+  - rationale:
+    - keep the exact post-`ITERL` next-op specialization, but move later than
+      case dispatch and later than the already-closed shared-body jump by
+      testing the real positive-step integer loop contract directly
+
+- Exactness held on both hosts under the retained env bundle:
+  - `kdz`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Host-pair policy result:
+  - `kdz`
+    - candidate:
+      - `mixed_loop/hot 0.012273`
+      - `mixed_loop/small 0.000840`
+      - `mixed_loop/medium 0.003086`
+    - immediate reverted retained control:
+      - `mixed_loop/hot 0.012534`
+      - `mixed_loop/small 0.000785`
+      - `mixed_loop/medium 0.003301`
+  - `zkd0`
+    - candidate:
+      - `mixed_loop/hot 0.017051`
+      - `mixed_loop/small 0.001148`
+      - `mixed_loop/medium 0.003932`
+    - retained shift-address control:
+      - `mixed_loop/hot 0.014926`
+      - `mixed_loop/small 0.001177`
+      - `mixed_loop/medium 0.004905`
+
+- Read:
+  - the exact remaining room is not in the obvious positive-step integer
+    `FORL` setup contract after `ITERL`
+  - this family is another strong `kdz` local win but a hard host-pair reject
+    on `zkd0`
+
+2026-04-07 23:02 PDT - closed the `FORL -> RET1` exit-side specialization on
+the retained shift-address mixed floor:
+
+- Exact source-driven target:
+  - from the trusted `jit.util` dump on `kdz`, the inner `pairs(map)` loop for
+    `mixed_loop` ends as:
+    - `035 ITERN`
+    - `036 ITERL`
+    - `037 FORL`
+    - `038 RET1`
+  - so after ruling out `FORL` setup families, the next exact cut was the
+    `BC_FORL` termination path when the following opcode is the fixed `RET1`
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - in the shared `BC_IFORL`/runtime-`BC_FORL` termination label before
+    `ins_next`, the candidate:
+    - checked `PC_OP == BC_FORL`
+    - checked the next opcode byte at `3(PC)` for `BC_RET1`
+    - advanced `PC` by one instruction
+    - jumped directly to `=>BC_RET1`
+  - rationale:
+    - keep the `FORL` loop body untouched and only trim the generic
+      end-of-loop dispatch when the exact next opcode is known
+
+- Result on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> RC:139` (segfault)
+
+- Read:
+  - this exact exit-side specialization is unsafe
+  - so the remaining room is not in the obvious `FORL` termination handoff to
+    the fixed `RET1` that follows in this workload
+
+2026-04-07 23:21 PDT - closed the exact one-result `RET1` fast path on the
+retained shift-address mixed floor:
+
+- Exact operand attribution:
+  - dumped a standalone replica of `mixed_loop` locally with `jit.util.funcbc`
+  - final return bytecode is:
+    - `pc=38`
+    - `op=76` (`BC_RET1`)
+    - `a=1`
+    - `c=2`
+  - so the live return is the simplest one-result path:
+    - return local slot `1`
+    - `RD = nresults+1 = 2`
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - in the shared `BC_RET1` / `BC_RET0` body, after loading `PC_RB`, the
+    candidate:
+    - checked `PC_RB == 2`
+    - skipped the generic `cgr TMPR1, RD` compare in that exact one-result
+      case
+  - rationale:
+    - move later than the unsafe direct `RET1` jump and only trim the
+      simplest fixed-result compare in the actual workload’s return path
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy A/B on `kdz` from the same mirror path:
+  - candidate:
+    - `mixed_loop/hot 0.012717`
+    - `mixed_loop/small 0.000773`
+    - `mixed_loop/medium 0.003105`
+  - retained control:
+    - `mixed_loop/hot 0.012544`
+    - `mixed_loop/small 0.000785`
+    - `mixed_loop/medium 0.003137`
+
+- Read:
+  - the remaining room is not in the obvious fixed one-result compare inside
+    `BC_RET1`
+
+2026-04-07 23:34 PDT - closed the corrected `FORL -> RET1` fast-entry on the
+retained shift-address mixed floor:
+
+- Source-driven correction:
+  - the earlier direct `FORL -> =>BC_RET1` jump was unsafe because it skipped
+    `RET1` decode/setup entirely
+  - from local `jit.util` dumps:
+    - synthetic caller shape around the callee return is:
+      - `CALL`
+      - `ADDVV`
+      - `FORL`
+      - `RET1`
+    - standalone `mixed_loop` itself ends with:
+      - `FORL`
+      - `RET1 a=1 c=2`
+  - so the corrected family decoded the next `RET1`’s `RA`/`RD` from the
+    callee bytecode and jumped into the common `BC_RET1` body only after that
+    setup, via a new `->BC_RET1_from_forl` label
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - on the shared `BC_FORL` termination path:
+    - guard `current op == BC_FORL`
+    - guard `next opcode == BC_RET1`
+    - decode next `RET1` `RD` from `0(PC)` and `RA` from `2(PC)`
+    - shift `RA`
+    - jump into the common `BC_RET1` body after `ins_AD` setup
+
+- Exactness held on both hosts under the retained env bundle:
+  - `kdz`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Host-pair policy result:
+  - `kdz`
+    - candidate:
+      - `mixed_loop/hot 0.012073`
+      - `mixed_loop/small 0.000746`
+      - `mixed_loop/medium 0.002966`
+    - retained control:
+      - `mixed_loop/hot 0.012544`
+      - `mixed_loop/small 0.000785`
+      - `mixed_loop/medium 0.003137`
+  - `zkd0`
+    - candidate:
+      - `mixed_loop/hot 0.017023`
+      - `mixed_loop/small 0.001197`
+      - `mixed_loop/medium 0.004852`
+    - retained control:
+      - `mixed_loop/hot 0.014926`
+      - `mixed_loop/small 0.001177`
+      - `mixed_loop/medium 0.004905`
+
+- Read:
+  - the direct `FORL -> RET1` family is now closed in both naive and corrected
+    forms
+  - it can win hard on `kdz`, but it is another strong host-pair reject on
+    `zkd0`
+
+2026-04-07 23:49 PDT - closed the exact caller-side `RET1 -> ADDVV -> FORL ->
+RET1` consumer fast path on the retained shift-address mixed floor:
+
+- Exact caller/use attribution from local `jit.util`:
+  - synthetic caller around `mixed_loop` is:
+    - `CALL`
+    - `ADDVV`
+    - `FORL`
+    - `RET1`
+  - with exact terminal fields:
+    - caller `RET1 a=2 c=2`
+    - callee `RET1 a=1 c=2`
+
+- Exact cut in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - after `BC_RET1` restored the caller frame/base and KBASE, but before the
+    normal `ins_next`, the candidate:
+    - checked the exact next-op chain:
+      - `PC_OP == BC_ADDVV`
+      - `7(PC) == BC_FORL`
+      - `11(PC) == BC_RET1`
+    - decoded the next `ADDVV` operands from `PC`
+    - inlined the integer `ADDVV` fast path directly
+    - advanced `PC`
+    - then fell back to the ordinary next-op dispatch
+  - rationale:
+    - move later than the closed `FORL -> RET1` families and target the first
+      exact caller-side consumer of the returned value
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy A/B on `kdz` from the same mirror path:
+  - candidate:
+    - `mixed_loop/hot 0.016009`
+    - `mixed_loop/small 0.000814`
+    - `mixed_loop/medium 0.003259`
+  - retained control:
+    - `mixed_loop/hot 0.012544`
+    - `mixed_loop/small 0.000785`
+    - `mixed_loop/medium 0.003137`
+
+- Read:
+  - the remaining room is not in the first exact caller-side consumer chain
+    after `mixed_loop` returns
+  - inlining the concrete `ADDVV` use path makes the hot row materially worse,
+    so this whole direct caller-consumer lane is closed at its first exact cut
+
+2026-04-08 00:11 PDT - closed the structural shared-hash-body family on the
+retained shift-address mixed floor:
+
+- Exact source-driven idea:
+  - after closing the direct `FORL`, `RET1`, and caller-consumer lanes, I tried
+    collapsing the retained root-2 bridge onto the generic `BC_ITERN` hash
+    walker in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - first draft jumped from `->vm_IITERN_root2_hashbridge` into the generic
+    hash body with `TMPR1 = 0`; that was immediately wrong because the root-2
+    bridge does not use the generic absolute `next()` control-var contract
+
+- Corrected structural cut:
+  - added a temporary shared entry before the generic hash subtract:
+    - `->vm_IITERN_hashstart`
+    - generic hash body still begins with `sr RC, TMPR1`
+  - root-2 bridge then supplied:
+    - `RC = control var`
+    - `TMPR1 = TAB->asize`
+    - `PC += 4`
+    - jump to `->vm_IITERN_hashstart`
+  - rationale:
+    - preserve the generic hash walker’s expected array/hash split while still
+      sharing the actual hole/value/key walk body
+
+- Exactness failed immediately on trusted `kdz`:
+  - `/tmp/mixedprobe.lua:10: attempt to perform arithmetic on local 'value' (a string value)`
+
+- Read:
+  - the retained root-2 bridge is semantically distinct from the generic
+    `BC_ITERN` hash walker even after correcting for `TAB->asize`
+  - its control-var / result contract is not safely shareable with the generic
+    walker in this form
+  - this family is unsafe and closed
+
+2026-04-08 00:44 PDT - closed two more exact root-2 success-hit carry-shape
+families and cleaned the active VM floor:
+
+- Exact carry-shape cut 1 in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - keep the retained bridge body unchanged except for the success-hit carry
+    order:
+    - old retained shape:
+      - `lgr TMPR1, RC`
+      - `ahi TMPR1, 1`
+      - `cg TMPR0, NODE:ITYPE->val; je >9`
+    - candidate:
+      - `lgr TMPR1, RC`
+      - `cg TMPR0, NODE:ITYPE->val; je >9`
+      - `ahi TMPR1, 1`
+  - rationale:
+    - stop paying the increment on the hole path while leaving the value/key
+      loads, stores, and tail otherwise unchanged
+  - exactness held on trusted `kdz` under the retained env bundle:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - same-host `kdz` A/B from the active mirror path:
+    - candidate:
+      - `mixed_loop/hot 0.015152`
+      - `mixed_loop/small 0.000934`
+      - `mixed_loop/medium 0.003971`
+    - immediate control:
+      - `mixed_loop/hot 0.013998`
+      - `mixed_loop/small 0.000907`
+      - `mixed_loop/medium 0.003559`
+  - read:
+    - avoiding only the hole-path `ahi` is exact
+    - but it is clearly slower on `kdz`
+
+- Exact carry-shape cut 2 in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  - follow-on to the previous cut
+  - old retained shape:
+    - `lgr TMPR1, RC`
+    - `ahi TMPR1, 1`
+    - `cg TMPR0, NODE:ITYPE->val; je >9`
+  - candidate:
+    - `cg TMPR0, NODE:ITYPE->val; je >9`
+    - `lgr TMPR1, RC`
+    - `ahi TMPR1, 1`
+  - rationale:
+    - stop paying both the temp carry copy and the increment on the hole path,
+      while preserving the success-hit loads, stores, and tail
+  - exactness held on trusted `kdz` under the retained env bundle:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - same-host `kdz` A/B from the active mirror path:
+    - candidate:
+      - `mixed_loop/hot 0.014834`
+      - `mixed_loop/small 0.000906`
+      - `mixed_loop/medium 0.003637`
+    - immediate control:
+      - `mixed_loop/hot 0.013998`
+      - `mixed_loop/small 0.000907`
+      - `mixed_loop/medium 0.003559`
+  - read:
+    - avoiding both hole-path carry ops is still exact
+    - but it is also clearly slower on `kdz`
+
+- Harness correction:
+  - an older local-only `vm_root_entry` logging call in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    had drifted into the active probe file even though it was not part of the
+    retained mixed floor on the authoritative mirrors
+  - that logger was removed from the active local VM file and the current
+    bridge probes were restamped from the real retained root-2 bridge floor
+    again
+
+- Current read:
+  - the structural shared-hash-body family is unsafe
+  - the latest success-hit carry-shape family is exact but slower in both
+    plausible “don’t pay carry work on holes” forms
+  - the next honest `mixed_noffi` target remains inside the retained root-2
+    bridge/runtime contract, but it is later than these carry-shape cuts
+
+2026-04-08 01:07 PDT - closed the bridge-body compare-and-branch nil-check
+family on the retained root-2 mixed floor:
+
+- Source-driven setup:
+  - the local success-hit carry/store-order families were already exhausted
+  - the next materially different bridge-body consumer was a fused nil-hole
+    branch
+  - I confirmed the real assembler bytes on `kdz` first with a tiny kernel:
+    - `cgije %r1,-1,label` -> `ec 18 00 06 ff 7c`
+    - `cgijne %r2,5,label` -> `ec 26 00 04 05 7c`
+  - that proved the exact `CGIJ` packing needed for a minimal local DynASM
+    experiment:
+    - opcode `EC7C`
+    - high nibble of byte 1 is `R1`
+    - low nibble of byte 1 is the compare-and-branch mask
+    - middle halfword is the relative target
+    - high byte of the final halfword is the signed 8-bit immediate
+
+- Minimal DynASM extension attempt:
+  - temporarily added a local `RIE-g` parser and only the tiny aliases needed:
+    - `cgije`
+    - `cgijne`
+  - then rewired the retained root-2 bridge body in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+    - drop `lghi TMPR0, LJ_TNIL`
+    - load `NODE->val` once into `RC`
+    - replace the memory compare + branch with:
+      - `cgije RC, LJ_TNIL, >9`
+    - reuse `RC` for the stored value
+
+- Exactness held on trusted `kdz` under the retained env bundle:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+
+- Same-host policy result on trusted `kdz`:
+  - candidate:
+    - `mixed_loop/hot 0.014107`
+    - `mixed_loop/small 0.000878`
+    - `mixed_loop/medium 0.003651`
+  - immediate clean control:
+    - `mixed_loop/hot 0.013998`
+    - `mixed_loop/small 0.000907`
+    - `mixed_loop/medium 0.003559`
+
+- Read:
+  - the bridge-body `CGIJ` nil-check family is exact and buildable
+  - but it is still a clean `kdz` loss on the retained mixed floor
+  - so the compare-and-branch bridge-body lane is closed before host-pair
+    screening
+
+2026-04-07 19:36 PDT - closed three more exact root-2 bridge-body families on
+the retained shift-address mixed floor:
+
+- Redundant zero-extend removal is closed as a host-pair reject.
+  - Exact cut in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+    - old retained shape:
+      - `llgfr ITYPE, RC`
+      - `sllg ITYPE, ITYPE, 5`
+    - candidate:
+      - `sllg ITYPE, RC, 5`
+  - rationale:
+    - `RC` already comes from `llgf`, so the extra zero-extend into `ITYPE`
+      looked redundant on the exact bridge path
+  - Exactness held on both hosts under the retained env bundle:
+    - `RESULT 553416`
+    - `HASH_VALUE 3000`
+    - `RESULT 576000`
+  - Host-pair policy result:
+    - `kdz`
+      - candidate `mixed_loop/hot 0.014667`
+      - immediate reverted control `0.015246`
+    - `zkd0`
+      - candidate `mixed_loop/hot 0.016393`
+      - retained control stayed materially better (`0.014926`)
+  - Read:
+    - the one-instruction slot-address cut is a real `kdz` win
+    - but it is another clear `zkd0` reject, so the family is closed
+
+- Computed-destination `stmg` pair-store is closed as a hard host-pair reject.
+  - Exact cut in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+    - success path loads:
+      - `lg RD, NODE:ITYPE->key`
+      - `lg RB, NODE:ITYPE->val`
+      - `lay TMPR0, 0(RA, BASE)`
+      - `stmg RD, RB, 0(TMPR0)`
+      - `sty TMPR1, -4(TMPR0)`
+      - `llgh RD, PC_RD`
+  - rationale:
+    - the earlier indexed-`stmg` idea was impossible, but a computed pointer
+      made a real pair-store candidate worth screening
+  - Exactness held on both hosts under the retained env bundle:
+    - `RESULT 553416`
+    - `HASH_VALUE 3000`
+    - `RESULT 576000`
+  - Host-pair policy result:
+    - `kdz`
+      - candidate `mixed_loop/hot 0.014912`
+    - `zkd0`
+      - candidate `mixed_loop/hot 0.024057`
+  - Read:
+    - the bridge does not want this store-pair shape
+    - the family is decisively closed
+
+- Cleaner single-load immediate-compare value path is also closed as a
+  host-pair reject.
+  - Exact cut in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+    - drop entry-time `lghi TMPR0, LJ_TNIL`
+    - load `NODE->val` once into `TMPR1`
+    - compare with `cghi TMPR1, LJ_TNIL`
+    - keep `RC` as the carried control var and store it directly with `sty RC`
+  - rationale:
+    - this is materially different from the older rejected RC-based single-load
+      family because it eliminates both the retained nil-register setup and the
+      success-path control-var copy
+  - Exactness held on both hosts under the retained env bundle:
+    - `RESULT 553416`
+    - `HASH_VALUE 3000`
+    - `RESULT 576000`
+  - Host-pair policy result:
+    - `kdz`
+      - candidate `mixed_loop/hot 0.014262`
+    - `zkd0`
+      - candidate `mixed_loop/hot 0.016994`
+- Read:
+    - even the cleaner single-load/value-compare contract still diverges by
+      host
+    - so the remaining `mixed_noffi` room is no longer in these obvious
+      bridge-body value/carry/store micro-shapes
+
+2026-04-07 20:04 PDT - restamped `mixed_noffi` attribution on the retained
+mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
+
+- Factor split on trusted `kdz` using the retained env bundle:
+  - JIT-on:
+    - `band_only dt=0.002260 result=8177472`
+    - `select_only dt=0.049233 result=40000`
+    - `ipairs_only dt=0.037067 result=576000`
+    - `pairs_only dt=1.160981 result=160000`
+  - `-joff`:
+    - `band_only dt=0.031656 result=8177472`
+    - `select_only dt=0.090919 result=40000`
+    - `ipairs_only dt=0.192140 result=576000`
+    - `pairs_only dt=0.055518 result=160000`
+
+- Matching factor split on trusted `zkd0` using the retained env bundle:
+  - JIT-on:
+    - `band_only dt=0.003472 result=8177472`
+    - `select_only dt=0.055219 result=40000`
+    - `ipairs_only dt=0.044321 result=576000`
+    - `pairs_only dt=1.351063 result=160000`
+  - `-joff`:
+    - `band_only dt=0.039833 result=8177472`
+    - `select_only dt=0.099469 result=40000`
+    - `ipairs_only dt=0.207286 result=576000`
+    - `pairs_only dt=0.093236 result=160000`
+
+- Read:
+  - `band_only`, `select_only`, and `ipairs_only` are already to the right
+    side of `-joff`
+  - the residual `mixed_noffi` blocker is no longer a blended benchmark-level
+    story
+  - it is now decisively the pure `pairs_only` subpath on both hosts
+
+- Initial focused `pairs_only` runtime restamp on retained-floor `kdz`:
+  - root trace starts at `op=70` (`BC_ITERN`)
+  - repeated runtime surface is still:
+    - `parent=1`
+    - `exit=1`
+    - `phase=dispatch-original`
+    - `retop=70`
+  - Read:
+    - the active `pairs_only` blocker is still the retained root-2
+      `dispatch-original -> BC_ITERN` handoff family
+    - the next exact target is the pure `pairs_only` runtime contract under
+      that same root-2 seam, not the whole mixed harness
+
+- The synthetic `pairs_only` contract is not the whole mixed story on the
+  current retained floor.
+  - On trusted `kdz`, the real `mixedprobe` seam restamps as:
+    - `trace=3`
+    - `parent=2`
+    - `exit=1`
+    - `startop=88` (`BC_JMP`)
+    - repeated abort `err=8` (`LJ_TRERR_LLEAVE`)
+    - exact recorder site:
+      - `S390X_LLEAVE site=rec_itern_nil_descendant`
+  - Focused recorder/runtime proof:
+    - repeated `BC_JLOOP` root hot-starts appear at the same site before each
+      side attempt
+    - after saturation, `sidecheck_interp` also repeats on the same family:
+      - `root=2`
+      - `startop=88`
+      - `op=87`
+      - `snapcount >= hotexit + tryside`
+      - `root_nchild=0`
+  - Read:
+    - the live mixed blocker is not just the synthetic root-2
+      `dispatch-original -> BC_ITERN` self-owned `pairs_only` loop
+    - the real mixed churn is the exact root-2 nil-descendant side family
+      behind it
+
+- Closed exact mixed root-2 throttling families on that live seam:
+  - `LUAJIT_S390X_MIXED_PAIRS_EXIT1_EXACT_COOLDOWN=12` in
+    [`lj_trace.c`](../../src/lj_trace.c):
+    - exact on `kdz`
+    - slower on same-host policy A/B:
+      - `pairs_only dt=1.137254`
+      - `mixed_loop/hot 0.015167`
+      - immediate reverted control `mixed_loop/hot 0.013748`
+  - recorder-side exact cooldown inside `rec_itern_nil_descendant` in
+    [`lj_record.c`](../../src/lj_record.c):
+    - exact on `kdz`
+    - catastrophically slower:
+      - `mixed_loop/hot 0.067640`
+  - exact `BC_JLOOP` root-start fixed cooldown in [`lj_trace.c`](../../src/lj_trace.c):
+    - value `12`:
+      - `kdz` win:
+        - `pairs_only dt=1.058599`
+        - `mixed_loop/hot 0.014786`
+      - hard host-pair reject on `zkd0`:
+        - `pairs_only dt=1.498176`
+        - `mixed_loop/hot 0.022090`
+    - values `8` and `4`:
+      - both already lose on `kdz`
+      - `8`:
+        - `pairs_only dt=1.168498`
+        - `mixed_loop/hot 0.015485`
+      - `4`:
+        - `pairs_only dt=1.112924`
+        - `mixed_loop/hot 0.016583`
+  - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_INTERP_SKIP_ITERN=1` in
+    [`lj_record.c`](../../src/lj_record.c):
+    - exact
+    - effectively neutral / slightly slower on `kdz`:
+      - `pairs_only dt=1.132481`
+      - `mixed_loop/hot 0.015307`
+      - immediate control `mixed_loop/hot 0.015325`
+  - `LUAJIT_S390X_MIXED_PAIRS_ABORT_PENALTY=1` in [`lj_trace.c`](../../src/lj_trace.c):
+    - uses existing `penalty_pc()` on the exact saturated `BC_JLOOP` restart
+      site after `rec_itern_nil_descendant`
+    - exact
+    - `kdz` win:
+      - `pairs_only dt=1.134501`
+      - `mixed_loop/hot 0.014988`
+    - host-pair reject on `zkd0`:
+      - `pairs_only dt=1.432921`
+      - `mixed_loop/hot 0.018190`
+
+- Current read after those closures:
+  - the remaining `mixed_noffi` room is still on the root-2 nil-descendant
+    mixed side family
+  - but broad/fixed throttling of the repeated `BC_JLOOP` restart path helps
+    `kdz` and hurts `zkd0`
+  - the next honest target is no longer another simple cooldown/penalty family
+    on the saturated restart site
+
+- Timestamp: `2026-04-07 21:16 PDT`
+  - closed the first recorder-side exact root-exit parking family on the live
+    mixed nil-descendant seam
+  - retained branch floor under test:
+    - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
+    - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_ROOT_EXIT_DONE=1`
+  - exact idea:
+    - when the exact live `trace=3 parent=2 exit=1 startop=BC_JMP`
+      `rec_itern_nil_descendant` family fires under
+      `@tests/s390x/perf/mixed_noffi.lua` `mixed_loop` (`firstline=12`,
+      `numline=14`), mark the root `BC_ITERN` exit `DONE` immediately instead
+      of only marking the immediate parent exit done
+  - decisive result on trusted `kdz`:
+    - broad exactness held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but it is too early and loses badly on same-host policy A/B:
+      - candidate `mixed_loop/hot 0.014544`
+      - immediate reverted control `0.012738`
+  - classification:
+    - exact root-exit parking at the first nil-descendant abort is not the
+      right structural cut
+    - it suppresses too much useful work before the family reaches the real
+      saturated `sidecheck_interp` seam
+
+- Timestamp: `2026-04-07 21:27 PDT`
+  - closed the later saturated-only root-exit parking follow-on on the same
+    mixed seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_ROOT_DONE=1`
+  - exact idea:
+    - move the same root-exit `DONE` cut later, so it only fires at the exact
+      saturated `sidecheck_interp` site:
+      - `parent != 0`
+      - `exit = 1`
+      - `root != 0`
+      - `startop = BC_JMP`
+      - `op = BC_JLOOP`
+      - root startop `BC_ITERN`
+      - exact mixed proto match
+      - `snap_limit` only
+  - decisive result on trusted `kdz`:
+    - broad exactness still held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but the family is still a same-host miss:
+      - candidate `mixed_loop/hot 0.012912`
+      - immediate reverted control `0.012738`
+  - classification:
+    - later exact root-exit parking is directionally better than the early cut,
+      but still not a retained fix
+    - this closes the whole “park the exact mixed root exit as `DONE`” family
+      on the current retained floor
+
+- Current read after those closures:
+  - the live seam is still the exact root-2 nil-descendant mixed side family
+  - but the next remediation is not root-exit parking, either early or at the
+    saturated `sidecheck_interp` gate
+  - the next honest target is a different structural ownership change on the
+    same `trace 3 / parent 2 / exit 1 / rec_itern_nil_descendant` family
+
+- Timestamp: `2026-04-07 21:43 PDT`
+  - closed the first exact sidecheck root-link ownership cut on the live mixed
+    nil-descendant family
+  - retained branch floor under test:
+    - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
+    - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_ROOT_LINK=1`
+  - exact idea:
+    - on the exact saturated `sidecheck_interp` seam for the live mixed proto
+      (`@tests/s390x/perf/mixed_noffi.lua`, `firstline=12`, `numline=14`),
+      stop the child as `LJ_TRLINK_ROOT` to the existing `BC_ITERN` owner
+      instead of falling into the current `rec_itern()` / `LJ_TRLINK_INTERP`
+      path
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but the hot row is unsafe:
+      - `timeout 15 ... src/luajit tests/s390x/perf/mixed_noffi.lua -> RC:124`
+  - classification:
+    - direct root-link ownership at the exact saturated `sidecheck_interp`
+      seam is not valid on the current retained floor
+    - this closes the first explicit root-link ownership family as unsafe
+
+- Timestamp: `2026-04-07 22:04 PDT`
+  - closed the loop-side sibling of the same exact sidecheck ownership seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_LOOP_SELF=1`
+  - exact idea:
+    - on the exact saturated `sidecheck_interp` seam for the mixed nil-
+      descendant family, stop the child as `LJ_TRLINK_LOOP` to itself instead
+      of following the current `rec_itern()` / `LJ_TRLINK_INTERP` path
+  - decisive result on trusted `kdz`:
+    - exactness pack still held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but the hot row is unsafe in the same way:
+      - `timeout 20 ... src/luajit tests/s390x/perf/mixed_noffi.lua -> RC:124`
+  - classification:
+    - direct loop-side ownership at the exact saturated `sidecheck_interp`
+      seam is also invalid on the current retained floor
+    - this closes the whole first explicit ownership-rewrite pair there:
+      - `LJ_TRLINK_ROOT`
+      - `LJ_TRLINK_LOOP`
+
+- Timestamp: `2026-04-07 22:28 PDT`
+  - closed the exact saturated nil-descendant reopen on the live mixed seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SATURATED_NIL_DESC=1`
+  - exact idea:
+    - reopen the nil-descendant only for the exact mixed proto and only after
+      the direct root child exit has already reached the saturated
+      `hotexit + tryside` threshold
+    - unlike the older broad `ROOT_ITERN_NIL_DESC` family, this cut does not
+      reopen early and does not touch unrelated iterator roots
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but the hot row still regresses against the immediate retained control:
+      - candidate `mixed_loop/hot 0.013477`
+      - immediate reverted control `0.012213`
+  - classification:
+    - late exact nil-descendant reopen is cleaner than the old broad reopen,
+      but it is still not a retained fix
+    - this closes the first saturated-only reopen family on the current
+      retained mixed floor
+
+- Timestamp: `2026-04-07 22:55 PDT`
+  - closed the exact saturated sidecheck bypass on the live mixed nil-descendant seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_BYPASS=1`
+  - exact idea:
+    - on the exact saturated `sidecheck_interp` seam for the mixed nil-descendant family, bypass the existing `rec_itern()` plus `LJ_TRLINK_INTERP` stop and keep moving without changing saved ownership metadata
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but same-host policy A/B lost:
+      - candidate `mixed_loop/hot 0.012573`
+      - immediate reverted control `0.012213`
+  - classification:
+    - pure sidecheck bypass moves the right seam, but does not improve the retained mixed floor
+
+- Timestamp: `2026-04-07 23:10 PDT`
+  - closed the parent-exit state-shaping follow-on on the same exact mixed seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SKIP_PARENT_DONE=1`
+  - exact idea:
+    - on the exact mixed `trace 3 / parent 2 / exit 1 / startop BC_JMP / nextop BC_FORL` nil-descendant family, do not mark the immediate parent exit `SNAPCOUNT_DONE` before the existing `rec_itern_nil_descendant` leave
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but same-host policy A/B still lost:
+      - candidate `mixed_loop/hot 0.012355`
+      - immediate reverted control `0.012253`
+  - classification:
+    - skipping the parent-side `DONE` mark is directionally clean, but too weak to beat the retained floor
+
+- Timestamp: `2026-04-07 23:29 PDT`
+  - closed the first loop-aware continuation cut at the exact saturated sidecheck seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_CONTINUE=1`
+  - exact idea:
+    - at the exact saturated `sidecheck_interp` seam for the mixed proto, run `rec_itern()` through `rec_loop_interp()` and continue tracing instead of immediately forcing the old `LJ_TRLINK_INTERP` stop
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but it lost badly on the hot row:
+      - candidate `mixed_loop/hot 0.013746`
+      - immediate reverted control `0.012253`
+  - classification:
+    - the seam does not want loop-aware continuation grafted onto the saturated sidecheck path
+    - this closes the first “carry loop state forward instead of stopping” family on the current retained mixed floor
+
+- Timestamp: `2026-04-07 23:47 PDT`
+  - closed the first abort-classification rewrite on the live mixed nil-descendant seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_NIL_DESC_LINNER=1`
+  - exact idea:
+    - on the exact mixed `trace 3 / parent 2 / exit 1 / startop BC_JMP / nextop BC_FORL` nil-descendant family, keep the existing state and ownership flow but reclassify the abort from `LLEAVE` to `LINNER`
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but the hot row still regressed against the retained floor:
+      - candidate `mixed_loop/hot 0.013468`
+      - retained control `0.012253`
+  - classification:
+    - the seam does not merely want a different abort reason while keeping the same ownership/state shape
+    - this closes the first abort-classification family on the current retained mixed floor
+
+- Timestamp: `2026-04-08 00:10 PDT`
+  - closed the second abort-classification sibling on the same exact mixed seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_NIL_DESC_LUNROLL=1`
+  - exact idea:
+    - on the exact mixed `trace 3 / parent 2 / exit 1 / startop BC_JMP / nextop BC_FORL` nil-descendant family, keep the same ownership/state flow but reclassify the abort from `LLEAVE` to `LUNROLL`
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but the hot row still regressed against the retained floor:
+      - candidate `mixed_loop/hot 0.012425`
+      - retained control `0.012253`
+  - classification:
+    - the seam does not want a different loop-budget/abort reason while keeping the same ownership/state shape
+    - this closes the remaining obvious abort-classification sibling on the current retained mixed floor
+
+- Timestamp: `2026-04-08 07:46 PDT`
+  - refreshed the retained mixed seam attribution on trusted `kdz`
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - focused restamp:
+    - the exact mixed proto still reaches `sidecheck_interp` because
+      `snap_limit` is true, not because `root_limit` is true
+    - the exact saturated gate still shows:
+      - `root=2`
+      - `startop=88` (`BC_JMP`)
+      - `op=87` (`BC_JLOOP`)
+      - `root_nchild=0`
+      - `snapcount >= hotexit + tryside`
+    - `rec_itern()` is still called immediately before the forced
+      `LJ_TRLINK_INTERP` stop, and that call still falls straight into
+      `rec_itern_nil_descendant`
+  - classification:
+    - the live `mixed_noffi` seam is now firmly one level up from the
+      nil-descendant branch itself
+    - the next honest cuts belong at the saturated `sidecheck_interp` gate in
+      `lj_record_setup()`, not deeper in `rec_itern()`
+
+- Timestamp: `2026-04-08 07:46 PDT`
+  - closed two final nil-descendant branch-state cuts on the live mixed seam
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed families:
+    - `LUAJIT_S390X_MIXED_PAIRS_SKIP_NIL_LOOP_DESC=1`
+    - `LUAJIT_S390X_MIXED_PAIRS_SKIP_NIL_LOOP_DESC_SKIP_DONE=1`
+  - exact ideas:
+    - skip only the earlier `rec_itern_nil_loop_descendant` branch for the
+      exact mixed proto, but keep the later root-only
+      `rec_itern_nil_descendant` path intact
+    - follow-on: combine that branch skip with suppressing the parent-exit
+      `SNAPCOUNT_DONE` mark before the later root-only leave
+  - decisive result on trusted `kdz`:
+    - exactness pack held for both:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - but both still lost against the immediate retained control:
+      - `SKIP_NIL_LOOP_DESC`:
+        - candidate `mixed_loop/hot 0.012431`
+        - control `0.012253`
+      - `SKIP_NIL_LOOP_DESC_SKIP_DONE`:
+        - candidate `mixed_loop/hot 0.013536`
+        - control `0.012253`
+  - classification:
+    - the current nil-descendant branch structure is now effectively
+      exhausted as a profitable local edit surface
+    - branch-order and local state shaping inside `rec_itern()` are no longer
+      the right target
+
+- Timestamp: `2026-04-08 08:24 PDT`
+  - closed the direct saturated `sidecheck_interp` skip-`rec_itern()` split on
+    the retained mixed floor
+  - retained branch floor under test:
+    - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
+    - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
+    - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
+    - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
+    - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
+    - retained root-2 shift-address bridge cut in
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_SNAP_SKIP_RECITERN=1`
+  - exact idea:
+    - for the exact mixed proto only, when saturated `sidecheck_interp` is
+      reached because `snap_limit` is true and `root_limit` is false, skip only
+      the `rec_itern()` call and keep the existing `LJ_TRLINK_INTERP` stop
+      unchanged
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - focused logging proved the intended state change:
+      - `S390X_RECSETUP ... sidecheck_interp ... skip_rec_itern=1`
+    - but the real hot row timed out:
+      - `tests/s390x/perf/mixed_noffi.lua -> RC:124`
+  - classification:
+    - exact but invalid
+    - skipping `rec_itern()` at the saturated gate is not a retainable fix
+
+- Timestamp: `2026-04-08 08:30 PDT`
+  - closed the one-shot child-accounting cut at the same saturated gate
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_SIDECHECK_CHILD_CREDIT=1`
+  - exact idea:
+    - for the exact mixed proto only, at saturated `sidecheck_interp`, if
+      `root_nchild == 0`, consume exactly one child-budget slot before the
+      existing `rec_itern()` plus `LJ_TRLINK_INTERP` stop
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - focused logging proved the intended state change exactly once:
+      - first saturated gate moved to `root_nchild=1 ... child_credit=1`
+      - later saturated gates showed `child_credit=0`
+      - `rec_itern_nil_descendant` still fired afterward
+    - but the hot row lost clearly against the immediate retained control:
+      - candidate `mixed_loop/hot 0.014537`
+      - control `0.013345`
+  - classification:
+    - exact but not a narrow miss
+    - the direct one-shot child-budget idea is not worth carrying into a
+      combined sidecheck state cut
+
+- Timestamp: `2026-04-08 08:46 PDT`
+  - refreshed retained-floor mixed attribution after the saturated
+    `sidecheck_interp` tranche exhausted
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - retained-floor split timings on `kdz` using a workload-shaped reducer:
+    - JIT-on:
+      - `band_only 0.001170`
+      - `select_only 0.024764`
+      - `ipairs_only 0.026126`
+      - `pairs_only 0.526762`
+      - `band_select_ipairs 0.047278`
+      - `full 0.555028`
+    - `-joff`:
+      - `band_only 0.015851`
+      - `select_only 0.043679`
+      - `ipairs_only 0.075638`
+      - `pairs_only 0.088317`
+      - `band_select_ipairs 0.133387`
+      - `full 0.218688`
+  - isolated trace restamp on `kdz`:
+    - a standalone `pairs_only` reducer reproduces the same retained pathology
+      without the outer numeric/select/ipairs body:
+      - repeated side-entry off the `pairs(map)` owner
+      - repeated saturated `sidecheck_interp`
+      - repeated `rec_itern_nil_descendant`
+      - `root_nchild` still `0` at the saturated gate
+  - classification:
+    - the remaining retained `mixed_noffi` cost is still dominated by the
+      `pairs(map)` root-2 saturated side family itself
+    - the outer numeric loop and immediate caller continuation are no longer
+      credible primary targets
+    - the direct `lj_record.c` saturated-gate shaping tranche is effectively
+      exhausted; the next honest subsystem is a new exact family on that same
+      `pairs(map)` side-trace contract, not more local `sidecheck_interp` or
+      bridge-tail micro-edits
+
+- Timestamp: `2026-04-08 09:05 PDT`
+  - closed the first exact abort-side state family on the refreshed
+    `pairs(map)` frontier
+  - retained branch floor under test:
+    - same retained env bundle as above
+  - closed family:
+    - `LUAJIT_S390X_MIXED_PAIRS_ABORT_CHILD_CREDIT=1`
+  - exact idea:
+    - move the one-shot child-accounting change earlier than the exhausted
+      saturated-gate cut by consuming a single child-budget slot in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      at the exact `mixed_noffi` `pairs(map)` nil-descendant abort
+      (`LJ_TRERR_LLEAVE`) instead of at `sidecheck_interp`
+  - decisive result on trusted `kdz`:
+    - exactness pack held:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - focused logging proved the intended earlier state change:
+      - `S390X_MIXED_PAIRS_ABORT_CHILD_CREDIT trace=3 parent=2 exit=1 root=2 startop=88 nchild=1`
+    - same-host policy A/B did not separate cleanly enough to retain:
+      - candidate run `0.013820`
+      - candidate rerun `0.013320`
+      - immediate reverted control rerun `0.013081`
+  - classification:
+    - real and exact, but not a stable `kdz` win
+    - moving child accounting earlier to the abort edge is not the next
+      retained fix on this family
+
+- Timestamp: `2026-04-08 08:56 PDT`
+  - stopped the first trace-side admission-control tranche at the attribution
+    gate and reverted the candidate out of
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - plan under test:
+    - exact `trace_hotside()` admission reject for the retained `mixed_noffi`
+      `pairs(map)` family
+    - initial matcher assumed the older child shape:
+      - chunk `@tests/s390x/perf/mixed_noffi.lua`
+      - `J->parent=2`
+      - `J->exitno=1`
+      - `bc_op(J->cur.startins) == BC_JMP`
+      - parent root starts at `BC_ITERN`
+      - parent `linktype == LJ_TRLINK_LOOP`
+  - refreshed retained-floor attribution on trusted `kdz` showed that this
+    assumption is no longer current:
+    - focused `trace_hotside()` state on the live seam is:
+      - `parent=2 exit=1 root=2 linktype=2 link=2`
+      - `nsnap=6`
+      - `nchild=0`
+      - parent `startop=BC_ITERN`
+      - current `J->cur.startins=BC_ITERN`, not `BC_JMP`
+      - `pcop=snapop=87`
+    - the real active proto on this floor is:
+      - chunk `@tests/s390x/perf/mixed_noffi.lua`
+      - `firstline=12`
+      - `numline=14`
+    - the first candidate never actually fired because the exact family has
+      shifted out from under the older `BC_JMP` hotside assumptions
+  - classification:
+    - by plan, this is a stop-and-replan point, not a license to broaden the
+      matcher blindly
+    - the next honest subsystem still lives above the exhausted
+      `sidecheck_interp` shaping lane, but it must be re-attributed from the
+      real current `trace_hotside()` / ownership state on the retained floor,
+      not from the older `BC_JMP` side-child model
+
+- Timestamp: `2026-04-08 09:18 PDT`
+  - closed the corrected `trace_hotside()` admission-control pair for the real
+    retained `mixed_noffi` `pairs(map)` owner family in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - refreshed exact family under the retained floor:
+    - chunk `@tests/s390x/perf/mixed_noffi.lua`
+    - proto `firstline=12`, `numline=14`
+    - `parent=2`
+    - `exit=1`
+    - `J->cur.startins=BC_ITERN`
+    - owner trace `2` is still the root:
+      - `root=0`
+      - `startop=BC_ITERN`
+      - `linktype=LJ_TRLINK_LOOP`
+      - `link=2`
+      - `nsnap=6`
+      - `nchild=0`
+    - `pcop=snapop=BC_JLOOP`
+  - candidate 1:
+    - `LUAJIT_S390X_MIXED_PAIRS_HOTSIDE_REJECT_SNAP_LIMIT=1`
+    - exact idea:
+      - at `trace_hotside()`, reject another side start for only the exact
+        retained owner family once `snapcount >= hotexit + tryside`
+      - leave recorder-side shaping, ownership, and interpreter fallback
+        unchanged
+    - exactness stayed clean on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - hot-row result on `kdz`:
+      - candidate `mixed_loop/hot 0.029833`
+      - decisively worse than the retained floor
+  - candidate 2:
+    - `LUAJIT_S390X_MIXED_PAIRS_HOTSIDE_REJECT_POST_THRESHOLD=1`
+    - exact idea:
+      - same exact family, but reject only once the seam is strictly past the
+        first saturated hit
+    - exactness stayed clean on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - hot-row result on `kdz`:
+      - candidate `mixed_loop/hot 0.046705`
+      - even worse than the snap-limit reject
+  - classification:
+    - the corrected trace-side admission-reject family is exact but
+      non-promotable
+    - the remaining `pairs(map)` cost does not want direct hotside admission
+      suppression, either at first saturation or only after the threshold is
+      crossed
+    - this exhausts the current direct `trace_hotside()` admission-reject lane
+
+- Timestamp: `2026-04-08 09:39 PDT`
+  - closed the first trace-side / recorder-side start-contract cluster above
+    the retained `pairs(map)` seam
+  - exact live family under test remained:
+    - chunk `@tests/s390x/perf/mixed_noffi.lua`
+    - `parent=2`
+    - `exit=1`
+    - retained owner trace starts at `BC_ITERN`
+    - saturated gate still enters through `sidecheck_interp`
+  - closed trace-side candidates in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - root retarget of the live start contract
+    - side-preserving unpatch of the live start contract
+    - both held the exactness pack, but the official `mixed_noffi` hot row on
+      trusted `kdz` timed out / cored and is therefore unsafe
+  - closed recorder-side candidates in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - saturated `sidecheck_interp` `setup_itern`
+      - exact, safe, but slower:
+        - `mixed_loop/hot 0.013482`
+    - same cut with `startins=BC_ITERN` preserved through stop
+      - exact, safe, but slower:
+        - `mixed_loop/hot 0.013733`
+  - classification:
+    - the seam does not want simple start-contract retargets, either from
+      `trace_hotside()` or from the saturated `sidecheck_interp` call into
+      `rec_itern()`
+    - that moved the next honest work from start/admission shaping to the
+      stop/save side of the same exact family
+
+- Timestamp: `2026-04-08 10:02 PDT`
+  - closed the first one-shot saturated-save family at the retained
+    `pairs(map)` seam in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  - candidate:
+    - `LUAJIT_S390X_MIXED_PAIRS_SATURATED_ALLOW_ONCE=1`
+  - exact idea:
+    - on the exact first saturated `sidecheck_interp` hit for the live
+      `parent=2 exit=1` family, allow `rec_itern()` to pass through once so
+      the later saturated gate reaches the ordinary `LJ_TRLINK_INTERP` stop
+      instead of aborting early in `rec_itern_nil_descendant`
+  - decisive mechanism result on trusted `kdz`:
+    - exactly one one-shot allow marker:
+      - `S390X_MIXED_PAIRS_ALLOW_ONCE trace=3 parent=2 exit=1 snapcount=204 limit=204 nextop=79 startop=88`
+    - exactly one matching saved stop:
+      - `S390X_RECSTOP trace=3 parent=2 exit=1 ... linktype=6 ... root=2`
+      - this is a real `LJ_TRLINK_INTERP` save for the exact family
+  - exactness held on both hosts:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - perf:
+    - candidate on `kdz`:
+      - `mixed_loop/hot 0.012489`
+    - candidate on `zkd0`:
+      - `mixed_loop/hot 0.014418`
+    - immediate reverted retained-floor control rerun on `kdz`:
+      - `mixed_loop/hot 0.011752`
+  - classification:
+    - structurally real and exact, but non-retainable
+    - saving exactly one interp-linked trace for this saturated family is not
+      enough to beat the current retained floor
+
+- Timestamp: `2026-04-08 10:11 PDT`
+  - closed the one-shot root-stop sibling of the saturated-save family in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  - candidate:
+    - `LUAJIT_S390X_MIXED_PAIRS_ALLOW_ONCE_ROOT_STOP=1`
+  - exact idea:
+    - same exact first saturated allow-through as above, but once
+      `sidecheck_interp` regains control, stop as `LJ_TRLINK_ROOT` to the
+      existing `BC_ITERN` owner instead of as `LJ_TRLINK_INTERP`
+  - decisive mechanism result on trusted `kdz`:
+    - exactly one root-stop allow marker:
+      - `S390X_MIXED_PAIRS_ALLOW_ONCE_ROOT trace=3 parent=2 exit=1 snapcount=204 limit=204 nextop=79 startop=88`
+    - exactly one matching saved root stop:
+      - `S390X_RECSTOP trace=3 parent=2 exit=1 ... linktype=1 link=2 ... root=2`
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - perf on trusted `kdz`:
+    - candidate `mixed_loop/hot 0.014452`
+    - clearly slower than the retained floor
+  - classification:
+    - the one-shot save seam does not want either stop contract:
+      - `LJ_TRLINK_INTERP`
+      - `LJ_TRLINK_ROOT`
+    - the next honest work must therefore move past “save exactly once” and
+      focus on whether the family can ever save a useful trace under a
+      different stop/save contract at all
+
+- Timestamp: `2026-04-08 11:05 PDT`
+  - closed the remaining one-shot saved-stop siblings on the exact saturated
+    `pairs(map)` seam in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  - candidate 1:
+    - `LUAJIT_S390X_MIXED_PAIRS_ALLOW_ONCE_LOOP_STOP=1`
+  - exact idea:
+    - same exact first saturated allow-through as the prior families, but when
+      `sidecheck_interp` regains control, save the trace as a real
+      `LJ_TRLINK_LOOP` self-loop instead of as `INTERP` or `ROOT`
+  - mechanism on trusted `kdz`:
+    - exactly one allow marker:
+      - `S390X_MIXED_PAIRS_ALLOW_ONCE_LOOP trace=3 parent=2 exit=1 snapcount=204 limit=204 nextop=79 startop=88`
+    - exactly one matching saved stop:
+      - `S390X_RECSTOP trace=3 parent=2 exit=1 ... linktype=2 link=3 ... root=2`
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - perf on trusted `kdz`:
+    - candidate `mixed_loop/hot 0.014668`
+  - candidate 2:
+    - `LUAJIT_S390X_MIXED_PAIRS_ALLOW_ONCE_STITCH_STOP=1`
+  - exact idea:
+    - same exact first saturated allow-through, but save the trace as
+      `LJ_TRLINK_STITCH`
+  - mechanism on trusted `kdz`:
+    - exactly one allow marker:
+      - `S390X_MIXED_PAIRS_ALLOW_ONCE_STITCH trace=3 parent=2 exit=1 snapcount=204 limit=204 nextop=79 startop=88`
+    - exactly one matching saved stop:
+      - `S390X_RECSTOP trace=3 parent=2 exit=1 ... linktype=8 link=0 ... root=2`
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - perf on trusted `kdz`:
+    - candidate `mixed_loop/hot 0.014705`
+  - classification:
+    - the one-shot save seam has now been sampled across all meaningful stop
+      contracts for this family:
+      - `LJ_TRLINK_INTERP`
+      - `LJ_TRLINK_ROOT`
+      - `LJ_TRLINK_LOOP`
+      - `LJ_TRLINK_STITCH`
+    - all four are exact, structurally real, and non-retainable
+    - this exhausts the simple one-shot stop/save-contract lane on the
+      saturated `pairs(map)` family
+
+- Timestamp: `2026-04-08 11:18 PDT`
+  - closed the compound “save once, then canonically reuse the saved child”
+    lane on the exact `pairs(map)` family
+  - candidate family:
+    - `LUAJIT_S390X_MIXED_PAIRS_ALLOW_ONCE_LOOP_CANON_CHILD=1`
+  - exact idea:
+    - save the exact `parent=2 exit=1` child once as `LJ_TRLINK_LOOP`
+    - then in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      let `trace_hotside()` directly canon-child into that saved trace on later
+      hits of the same root-owned `BC_ITERN` seam
+  - late-save variant:
+    - saved at the first saturated hit (`snapcount=204`)
+    - exactness held on `kdz`
+    - mechanism was real:
+      - one save marker:
+        - `S390X_MIXED_PAIRS_ALLOW_ONCE_LOOP_CANON_CHILD ... snapcount=204`
+      - one saved stop:
+        - `S390X_RECSTOP trace=3 parent=2 exit=1 ... linktype=2 link=3 ...`
+    - but the focused log never showed `phase=mixed-loop-canon-child`
+      afterward, and there were no later `parent=2 exit=1` root-owner starts
+      after the save to reuse it
+    - perf on trusted `kdz`:
+      - `mixed_loop/hot 0.015301`
+  - early-save variant:
+    - same compound family, but force the exact seam through
+      `sidecheck_interp` at the first hot hit (`snapcount=200`) instead of the
+      first saturated hit
+    - mechanism was real:
+      - `S390X_RECSETUP ... sidecheck_interp ... snapcount=200 ... early=1`
+      - one save marker:
+        - `S390X_MIXED_PAIRS_ALLOW_ONCE_LOOP_CANON_CHILD ... snapcount=200`
+      - one saved loop stop:
+        - `S390X_RECSTOP trace=3 parent=2 exit=1 ... linktype=2 link=3 ...`
+    - exactness held on `kdz`
+    - but again there was no `phase=mixed-loop-canon-child`, and after the save
+      there were no later root-owner starts to reuse the child
+    - perf on trusted `kdz`:
+      - `mixed_loop/hot 0.016872`
+  - classification:
+    - the compound save-plus-reuse idea is exact but non-retainable
+    - the saved child arrives too late in the late-save version, and even when
+      forced early it still does not get reused and makes the hot row worse
+    - this exhausts the direct “save once, then canon-child” lane for the
+      current `pairs(map)` seam
+
+- Timestamp: `2026-04-08 12:23 PDT`
+  - re-attributed the remaining `mixed_noffi` `pairs(map)` cost to the runtime
+    helper path instead of the old root-2 bridge family
+  - decisive runtime attribution on trusted `kdz`:
+    - the standalone `/tmp/pairs_only_probe.lua` and the workload-shaped
+      `/tmp/mixed_split_one.lua pairs_only ...` both dump as a root trace with:
+      - `CALLL lj_vm_next`
+      - helper result unpack
+      - `ADDOV`
+    - the recurring side traces do not run through the retained
+      `vm_IITERN_root2_hashbridge` runtime path
+    - repeated side attempts still abort as:
+      - `leaving loop in root trace`
+      - `inner loop in root trace`
+  - classification:
+    - the hot `pairs(map)` payer is now the helper/runtime path around
+      `lj_vm_next()`, not the old bridge-tail ownership family
+
+- Timestamp: `2026-04-08 12:31 PDT`
+  - closed the first direct `lj_vm_next()` helper-side arithmetic family in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - candidate:
+    - fuse hash-hit and end-of-iteration result-index formation with `lay`
+      instead of:
+      - `llgfr CARG1, NEXT_IDX`
+      - `agr CARG1, NEXT_ASIZE`
+      - `aghi CARG1, 1`
+  - exactness held on trusted `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - decisive perf on trusted `kdz`:
+    - candidate:
+      - `pairs_only dt=1.042240`
+      - `mixed_loop/hot 0.013024`
+    - immediate reverted control:
+      - `pairs_only dt=0.923172`
+      - `mixed_loop/hot 0.012967`
+  - classification:
+    - the helper-side result-index formation lane is exact but slower and
+      closed
+
+- Timestamp: `2026-04-08 12:44 PDT`
+  - closed the next direct `lj_vm_next()` runtime family in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - candidate:
+    - hoist `NEXT_TAB->node` out of the hash walk once at hash-entry, then use
+      a temporary register for the per-iteration `Node*` address
+  - exactness held on both hosts:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - trusted `kdz` win:
+    - control:
+      - `pairs_only dt=0.932644`
+      - `mixed_loop/hot 0.012967`
+    - candidate:
+      - `pairs_only dt=0.887313`
+      - `mixed_loop/hot 0.012693`
+  - host-pair reject on `zkd0`:
+    - control:
+      - `pairs_only dt=1.069729`
+      - `mixed_loop/hot 0.013432`
+    - candidate:
+      - `pairs_only dt=1.025237`
+      - `mixed_loop/hot 0.014842`
+  - classification:
+    - helper-side hash-walk node-base hoisting is real and exact
+    - it helps the standalone `pairs_only` runtime on both hosts
+    - but it regresses the full mixed hot row on `zkd0`, so it is not
+      retainable
+    - the next honest target stays in the `lj_vm_next()` / helper-runtime
+      subsystem, but not this node-base hoist shape
+
+- Timestamp: `2026-04-08 13:02 PDT`
+  - closed the next direct `lj_vm_next()` helper/runtime family in
+    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  - candidate:
+    - hoist `NEXT_TAB->hmask` into a register at hash-entry and compare the
+      live index against that register on each hash-walk iteration
+  - exactness held on both hosts:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - trusted `kdz` win:
+    - candidate:
+      - `pairs_only dt=0.849949`
+      - `mixed_loop/hot 0.011685`
+    - immediate reverted control:
+      - `pairs_only dt=0.932644`
+      - `mixed_loop/hot 0.012967`
+  - hard host-pair reject on `zkd0`:
+    - control:
+      - `pairs_only dt=1.069729`
+      - `mixed_loop/hot 0.013432`
+    - candidate:
+      - `pairs_only dt=1.134284`
+      - `mixed_loop/hot 0.016388`
+  - classification:
+    - the helper-side hash-limit compare is a real `kdz` payer
+    - but its register-hoist form is not host-stable and cannot be retained
+    - the remaining `pairs(map)` runtime work stays in the helper path, but not
+      the direct `hmask` hoist shape
+
+- Timestamp: `2026-04-08 13:24 PDT`
+  - closed the trace-side root-abort parking family on the real checked-in
+    `mixed_noffi` `pairs(map)` seam in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - exact matcher/read:
+    - official workload only:
+      - chunk `@tests/s390x/perf/mixed_noffi.lua`
+      - function `firstline=12 numline=14`
+    - live family on the official hot row:
+      - `parent=2`
+      - `exit=1`
+      - parent root-owned loop trace
+      - `nsnap=6`
+      - `nchild=0`
+      - parent `startop=BC_ITERN`
+      - current `pcop=BC_JLOOP`
+      - abort reason `LLEAVE` on the real marker:
+        - `S390X_MIXED_PAIRS_ROOT_ABORT_DONE parent=2 exit=1 ... op=87 err=8`
+  - candidate 1:
+    - `LUAJIT_S390X_MIXED_PAIRS_ROOT_ABORT_DONE=1`
+    - exact idea:
+      - on the first exact `LLEAVE`/`LINNER` abort of this family, set the
+        parent exit snapcount to `SNAPCOUNT_DONE`
+    - exactness held on both hosts:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - `kdz` win:
+      - candidate `mixed_loop/hot 0.011862`
+      - retained control `0.012967`
+    - `zkd0` reject:
+      - candidate `0.014096`
+      - rerun `0.014194`
+      - retained control `0.013432`
+  - candidate 2:
+    - `LUAJIT_S390X_MIXED_PAIRS_ROOT_ABORT_DONE_LATE=1`
+    - exact idea:
+      - same exact family, but only park it once the parent exit count has
+        churned well past `hotexit` (`hotexit + 32`)
+    - exactness held on both hosts:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - `kdz` win:
+      - candidate `mixed_loop/hot 0.012462`
+    - `zkd0` reject:
+      - candidate `0.014169`
+      - retained control `0.013432`
+  - classification:
+    - the root-abort parking seam is real and exact on the official checked-in
+      `pairs(map)` family
+    - both immediate and later-threshold parking help `kdz`
+    - both still regress `zkd0`
+    - this closes the direct trace-side root-abort `DONE` family as another
+      host-divergent near-miss
+
+- Timestamp: `2026-04-08 14:03 PDT`
+  - reopened the residual `mixed_noffi` runtime seam one level lower around
+    `IRCALL_lj_vm_next` and the immediate `CALLL -> VLOAD -> ADDOV` hot root on
+    retained-floor `kdz`
+  - retained-floor attribution from built-in s390x asm logs:
+    - on `hash_value.lua`, the hot root is still:
+      - `CALLL lj_vm_next`
+      - dead `HIOP`
+      - `VLOAD #0`
+      - `ADDOV`
+    - the built-in logs show the value load already fuses directly off
+      `RID_RETLO/r3`:
+      - `S390X_IR kind=vload ... fused=3 ... ofs=0`
+    - so there is no extra move between the helper return pointer and the hot
+      value load on this backend
+  - candidate 1:
+    - exact dead-`HIOP` pair-return cut in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact idea:
+      - for `IRCALL_lj_vm_next` only, if the synthetic `IR_HIOP` is dead,
+        stop forcing `ra_destpair()` in `asm_setupresult()`
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - same-host result:
+      - candidate `mixed_loop/hot 0.012296`
+      - immediate reverted control `0.012217`
+    - classification:
+      - exact, but slower
+      - the dead `HIOP` lane is not the retained payer
+  - candidate 2:
+    - exact s390x-only `lj_vm_next` extra-spill removal in
+      [src/lj_asm.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm.c)
+    - exact idea:
+      - stop reserving the extra two-`TValue` `lj_vm_next` spill tax on s390x
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - same-host result:
+      - candidate `mixed_loop/hot 0.012234`
+      - immediate reverted control `0.012217`
+    - classification:
+      - exact, but neutral-to-slower
+      - the obvious dead spill reservation is not the retained payer
+  - candidate 3:
+    - exact `CCI_NOFPRCLOBBER` callinfo cut in
+      [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h)
+    - exact idea:
+      - mark `lj_vm_next` as not clobbering FPRs
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - same-host result:
+      - candidate `mixed_loop/hot 0.013080`
+      - immediate retained control `0.012217`
+    - classification:
+      - exact, but clearly slower
+      - small call-contract flag tuning is exhausted
+  - overall read:
+    - the residual `pairs(map)` payer is no longer an obvious local bridge-body
+      micro-shape
+    - it is also not an extra move between `lj_vm_next` return and `VLOAD`
+    - the next honest runtime target is a larger `lj_vm_next` lowering/handoff
+      attempt, not another tiny `CALLL` flag or spill tweak
+
+- Timestamp: `2026-04-08 14:31 PDT`
+  - retained the first host-pair-clean `lj_vm_next` lowering win in
+    [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  - exact seam:
+    - `asm_gencall_sload()` call-arg lowering for hidden `IRSLOAD_KEYINDEX`
+      live-ins feeding `IRCALL_lj_vm_next`
+    - on retained-floor `hash_value.lua`, the hot key-lane `SLOAD` was still
+      coming through the special `KEYINDEX` mapping path, but s390x was
+      needlessly rematerializing `jit_base` into a scratch GPR before loading
+      the helper argument
+  - retained patch:
+    - for `IRSLOAD_KEYINDEX` only, reuse live `RID_BASE` directly in
+      `asm_gencall_sload()` instead of allocating a scratch base register and
+      emitting `emit_getgl(..., jit_base)`
+    - keep the existing typecheck and load shape unchanged otherwise
+  - exactness held on both hosts:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - host-pair result:
+    - `kdz`
+      - candidate `mixed_loop/hot 0.012123`
+      - immediate reverted control `0.012217`
+    - `zkd0`
+      - candidate `mixed_loop/hot 0.014944`
+      - immediate reverted control `0.015679`
+  - classification:
+    - host-pair clean retained mixed-floor win
+    - next required step is regression screening against `dispatch_trace` and
+      `iterator_table`, then restamping the retained status docs
+
+- Timestamp: `2026-04-08 16:02 PDT`
+  - closed three more `lj_vm_next` helper-side families on top of the retained
+    KEYINDEX base-reuse floor:
+  - candidate 1:
+    - exact one-load `IRSLOAD_KEYINDEX` helper-arg special case in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact idea:
+      - keep the retained `RID_BASE` reuse, but also use the destination GPR as
+        the typecheck carrier so the hot `KEYINDEX` path avoids the extra
+        scratch register and second load
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - same-host result:
+      - candidate `mixed_loop/hot 0.013734`
+      - retained control `0.012123`
+    - classification:
+      - exact, but clearly slower
+      - the retained base-reuse win does not extend to a one-load special case
+  - candidate 2:
+    - exact helper-side direct shift cut in
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    - exact idea:
+      - in `lj_vm_next()` hash traversal, replace the helper-side
+        `mghi NEXT_NODE, #NODE` with `sllg NEXT_NODE, NEXT_NODE, 5`, matching
+        the retained root-2 bridge shape
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - same-host result:
+      - candidate `mixed_loop/hot 0.013343`
+      - retained control `0.012123`
+    - classification:
+      - exact, but slower
+      - the bridge-side shift win does not carry over directly to the generic
+        helper-side hash walk
+  - candidate 3:
+    - exact helper-side node-base hoist re-screen in
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    - exact idea:
+      - hoist `NEXT_TAB->node` once per helper-side hash traversal and use
+        `agr` with a register-held node base on the hot hash slot path
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - same-host result:
+      - candidate `mixed_loop/hot 0.013126`
+      - retained control `0.012123`
+    - classification:
+      - exact, but slower even after the retained asm-side KEYINDEX win
+      - the obvious helper-side node-base hoist is still closed on the new
+        retained floor
+  - overall read:
+    - the retained mixed win in `asm_gencall_sload()` is real
+    - but the next helper-side `lj_vm_next` step is not another direct hash-walk
+      arithmetic reshuffle
+    - the next honest target is the larger returned-value consumer/handoff lane
+      in the backend, not more local helper-side multiply/base hoists
+
+- Timestamp: `2026-04-08 18:26 PDT`
+  - closed the first returned-value consumer cut in the `lj_vm_next`
+    call/return handoff lane:
+  - candidate:
+    - exact signed-load consumer cut in
+      [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h)
+      and
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact idea:
+      - for the `IRCALL_lj_vm_next` `int VLOAD` consumer only, replace the
+        carried `LLGF + LGFR` load/sign-extend pair with a single signed
+        32-bit memory load
+  - exactness held on both hosts:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - `kdz` results were initially promising:
+    - first candidate run `mixed_loop/hot 0.012290`
+    - after restoring the control and rerunning, the retained floor came back
+      much slower than the carried baseline:
+      - control rerun `0.012868`
+      - control rerun `0.013060`
+    - candidate rerun on the same source came back at `0.012105`
+  - but `zkd0` did not hold the improvement stably enough to retain:
+    - first candidate run `0.014915`
+    - later same-binary reruns `0.019013` and `0.016337`
+  - classification:
+    - the signed-load consumer cut is exact and can help `kdz`
+    - but it is not host-stable enough to carry on the current floor
+    - closed and reverted
+
+- Timestamp: `2026-04-08 19:07 PDT`
+  - closed the next returned-value consumer cut in the `lj_vm_next`
+    call/return handoff lane:
+  - candidate:
+    - exact in-place `RID_RETLO` reuse cut in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact idea:
+      - for the `IRCALL_lj_vm_next` value-only `int VLOAD` case with dead
+        synthetic `HIOP`, reuse `RID_RETLO` itself as the destination of the
+        fused value load instead of allocating a fresh destination GPR
+  - result on `kdz`:
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+    - `mixedprobe` segfaulted:
+      - `RC:139`
+  - classification:
+    - unsafe
+    - the next `lj_vm_next` handoff step is not in-place reuse of `RID_RETLO`
+      for the fused consumer
+
+- Timestamp: `2026-04-08 20:05 PDT`
+  - closed the first carried-total `SLOAD` consumer cut in the `lj_vm_next`
+    root handoff lane:
+  - candidate:
+    - exact signed-load `int SLOAD` cut in
+      [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h)
+      and
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact idea:
+      - on the generic GC64 non-frame `int SLOAD` path, replace the carried
+        `LLGF + LGFR` value-load pair with one signed 32-bit load
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - same-binary `kdz` results did not separate cleanly enough to retain:
+    - candidate run `mixed_loop/hot 0.012106`
+    - candidate rerun `0.012203`
+    - carried retained floor is `0.012123`
+  - classification:
+    - exact, but too small and unstable on same-host `kdz` to justify a
+      host-pair screen
+    - the next `lj_vm_next` step is not the generic signed-load replacement
+      for the carried-total `SLOAD`
+
+- Timestamp: `2026-04-08 20:17 PDT`
+  - closed the next `lj_vm_next` root-handoff typecheck cut:
+  - candidate:
+    - exact constant-register `SLOAD` typecheck cut in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact idea:
+      - on the generic `int` / `num` / hidden `KEYINDEX` `SLOAD` typecheck
+        paths, replace the per-use `emit_loadu64()` tag materialization with
+        `ra_allock()` constant registers
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - same-host result:
+    - candidate `mixed_loop/hot 0.045287`
+  - classification:
+    - exact, but catastrophically slower
+    - constant-register type materialization is not viable on this hot
+      `lj_vm_next` root
+
+- Timestamp: `2026-04-08 20:33 PDT`
+  - closed the first native 32-bit guarded-add lowering cut on the hot
+    `lj_vm_next` root:
+  - candidate:
+    - exact `ar` / `ahi` guarded-int `ADDOV` cut in
+      [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h)
+      and
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+    - exact idea:
+      - replace the scratch-heavy `addov_rr_int_eq` / `addov_k_int_eq`
+        lowering with true 32-bit `ar` / `ahi` overflow-checking adds, then
+        sign-extend the result once
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - same-host result:
+    - candidate `mixed_loop/hot 0.035902`
+  - classification:
+    - exact, but catastrophically slower
+    - the remaining `mixed_noffi` payer is not fixed by swapping the guarded
+      backend add into the VM-style `ar` / `ahi` overflow contract
+
+- Timestamp: `2026-04-08 22:16 PDT`
+  - re-attributed the current retained `mixed_noffi` stitched trace families on
+    the real carried floor:
+  - retained-floor trace meta on `kdz` shows:
+    - `trace 4` is a root `BC_FORL` trace with
+      `linktype=LJ_TRLINK_STITCH`, `nsnap=2`, `nins=32798`, `mcloop=0`
+    - `trace 13` is a side trace rooted at `4` with
+      `startop=BC_JMP`, `linktype=LJ_TRLINK_STITCH`, `nsnap=2`,
+      `nins=32798`, `mcloop=0`
+    - a separate later sidechain exists as `19 -> 20 -> ...`, all rooted at
+      `1`, with `startop=BC_JMP`, `startpc` at `ADDVV`, `linktype=LOOP`,
+      `nsnap=2`, `nins=32792`, `mcloop=360`
+  - exact live retry surfaces on official `mixed_noffi`:
+    - repeated DONE hotside on `parent=2 exit=1` at `BC_JLOOP`
+    - repeated DONE hotside on `parent=13 exit=0` at `BC_UGET`
+    - repeated later root starts at `BC_FORL`
+  - hotside equivalence proof:
+    - on the stitched `root=4` family, later side traces do find a real
+      equivalent:
+      - repeated `S390X_HOTSIDE_EQUIV phase=accept parent=22 exit=0 root=4 cand=13`
+      - repeated focused state also shows `child=22`
+  - classification:
+    - the remaining `mixed_noffi` room is not a single seam anymore
+    - it includes:
+      - the old root-owned `trace 2` family
+      - a stitched `trace 4/13` family with a real equivalence path
+      - and a later `root=1` `ADDVV` sidechain
+
+- Timestamp: `2026-04-08 22:28 PDT`
+  - closed the exact stitched-root cooldown family in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - candidate:
+    - `LUAJIT_S390X_MIXED_FORL_STITCH_EXACT_COOLDOWN=12`
+    - exact idea:
+      - on the exact retained `mixed_noffi` `trace 4` root shape only
+        (`BC_FORL`, `linktype=STITCH`, `nsnap=2`, `nins=32798`, `mcloop=0`)
+        set a root hotcount cooldown at `trace_stop()`
+  - mechanism proof on `kdz`:
+    - repeated
+      `S390X_MIXED_FORL_STITCH_EXACT_COOLDOWN trace=4 ... linktype=8 ... val=12`
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - same-host result:
+    - candidate `mixed_loop/hot 0.040004`
+  - classification:
+    - exact and mechanism-real, but catastrophically slower
+    - root-stop cooldown on the stitched `BC_FORL` family is closed
+
+- Timestamp: `2026-04-08 22:37 PDT`
+  - closed the exact stitched-side DONE-path cooldown sibling in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - candidate:
+    - `LUAJIT_S390X_MIXED_STITCH_HOTSIDE_DONE_COOLDOWN=12`
+    - exact idea:
+      - on the exact retained stitched side family only
+        (`parent!=0`, `exit=0`, `snapcount=DONE`, `root!=0`,
+        `startop=BC_JMP`, `pcop=BC_UGET`, `linktype=STITCH`, `nsnap=2`,
+        `nins=32798`, `mcloop=0`)
+        set a hotside cooldown and continue the ordinary path
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - mechanism:
+    - no positive hit logged on the official hot row
+  - same-host result:
+    - candidate `mixed_loop/hot 0.043598`
+  - classification:
+    - exact, but the matcher did not hit the intended official family and the
+      result was catastrophically slower anyway
+    - direct stitched-side DONE-path mutation is closed
+
+- Timestamp: `2026-04-08 22:52 PDT`
+  - closed the stitched-family hotside reuse screens on the retained floor:
+  - exact screens on `kdz`:
+    - `LUAJIT_S390X_HOTSIDE_CANON_EQUIV=1`
+      - exact
+      - `mixed_loop/hot 0.028937`
+    - `LUAJIT_S390X_HOTSIDE_SHARE_EQUIV=1`
+      - exact
+      - `mixed_loop/hot 0.028893`
+    - `LUAJIT_S390X_HOTSIDE_CANON_CHILD=1`
+      - exact
+      - `mixed_loop/hot 0.029506`
+    - `LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`
+      - exact
+      - `mixed_loop/hot 0.057743`
+  - mechanism read:
+    - the stitched `root=4` family really does have an equivalence path
+      (`parent=22 exit=0 -> cand=13`, with `child=22` visible)
+    - but every available built-in reuse strategy makes the hot row much worse
+  - classification:
+    - the stitched-family hotside canon/share/canon-child lane is exhausted
+    - the next honest subsystem is not more reuse toggles on that family
+
+- Timestamp: `2026-04-08 21:02 PDT`
+  - closed the first direct `trace_hotside()` DONE-path fast-return cut on the
+    current official `mixed_noffi` root-owner family:
+  - candidate:
+    - exact matcher and early-return path in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - exact live family proved on the retained floor:
+      - root owner `parent=2 exit=1`
+      - `J->cur.startins=BC_ITERN`
+      - owner `linktype=LJ_TRLINK_LOOP`, `link=self`
+      - `pcop=BC_JLOOP`
+      - `nsnap=6`
+      - `nchild=0`
+      - `snapcount=SNAPCOUNT_DONE`
+      - chunk
+        `@tests/s390x/perf/mixed_noffi.lua`
+        `firstline=12 numline=14`
+    - exact idea:
+      - on that DONE-marked root-owner family only, return out of
+        `trace_hotside()` before the dead hotside bookkeeping
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - mechanism proof on official `mixed_noffi`:
+    - repeated
+      `S390X_MIXED_PAIRS_HOTSIDE_DONE_FASTRETURN ... parent=2 exit=1 ... startop=70 link=2 linktype=2 nsnap=6 nchild=0`
+  - same-host result:
+    - candidate `mixed_loop/hot 0.041369`
+  - classification:
+    - exact and mechanism-real, but catastrophically slower
+    - the current `mixed_noffi` root-owner seam does not want direct
+      `trace_hotside()` fast-return mutation on its DONE path
+
+- Timestamp: `2026-04-08 21:18 PDT`
+  - closed the direct DONE-path hotcount cooldown sibling on the same current
+    official `mixed_noffi` root-owner family:
+  - candidate:
+    - exact `trace_hotside()` cooldown path in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - exact idea:
+      - on the same DONE-marked root-owner family only, set
+        `hotcount_set(pc+1, 12)` and continue the ordinary `trace_hotside()`
+        path
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - mechanism proof on official `mixed_noffi`:
+    - repeated
+      `S390X_MIXED_PAIRS_HOTSIDE_DONE_COOLDOWN ... parent=2 exit=1 ... startop=70 link=2 linktype=2 nsnap=6 nchild=0 val=12`
+  - same-host result:
+    - candidate `mixed_loop/hot 0.040331`
+  - classification:
+    - exact and mechanism-real, but catastrophically slower
+    - the trace-side DONE-path mutation family in `trace_hotside()` is
+      effectively exhausted on the current retained mixed floor
+
+- Timestamp: `2026-04-08 15:35 PDT`
+  - closed the later `ADDVV` trace-side save/admission subsystem on the
+    current retained mixed floor:
+  - retained-floor re-attribution for the target family:
+    - root resolves to trace `1`
+    - saved sidechain starts at `BC_JMP`
+    - restart path is `BC_JMP -> BC_ADDVV -> BC_FORL`
+    - `linktype=LJ_TRLINK_LOOP`
+    - `nsnap=2`
+    - `nins=32792`
+    - repeated same-shape loop-child saves continue far past the first child
+      (`trace 3`, `5`, `6`, ... through `105` in the focused retained run)
+  - candidate 1:
+    - exact repeated-save admission reject in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - env:
+      `LUAJIT_S390X_MIXED_ADDVV_EQUIV_REJECT=1`
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - mechanism result:
+      - no `S390X_MIXED_ADDVV_EQUIV_REJECT` hits on the official
+        `mixed_noffi` run, so the matcher did not engage on the live hot row
+    - same-host result:
+      - `mixed_loop/hot 0.042687`
+    - classification:
+      - exact, but catastrophically slower
+      - direct repeated-save admission suppression is closed
+  - candidate 2:
+    - exact post-save retry cooldown in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - env:
+      `LUAJIT_S390X_MIXED_ADDVV_POST_SAVE_COOLDOWN=12`
+    - exactness held on `kdz`:
+      - `mixedprobe -> RESULT 553416`
+      - `hash_value -> HASH_VALUE 3000`
+      - `ipairs_only_probe -> RESULT 576000`
+    - mechanism result:
+      - no `S390X_MIXED_ADDVV_POST_SAVE_COOLDOWN` hits on the official
+        `mixed_noffi` run
+    - official hot-row result:
+      - `tests/s390x/perf/mixed_noffi.lua` segfaulted on `kdz` (`RC:139`)
+    - classification:
+      - exact on the small pack, but invalid on the real hot row
+      - save-side retry cooldown is closed
+  - combined read:
+    - the later `ADDVV` trace-side save/admission family in `lj_trace.c` is
+      exhausted
+    - the next honest subsystem is runtime attribution of that same later
+      `ADDVV` path, not another trace-side save/admission sweep
+
+- Timestamp: `2026-04-08 16:42 PDT`
+  - re-attributed the official retained `mixed_noffi` hot row, then closed the
+    first broader runtime-handoff family on that exact floor:
+  - fresh official-row attribution on trusted `kdz`:
+    - run shape:
+      - official
+        [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua)
+        hot row only
+      - retained env bundle only
+      - focused logs cut at the first
+        `PERF mixed_noffi/mixed_loop/hot`
+    - exact dominance counts in the hot-row prelude:
+      - `parent=2 exit=1`: `962209`
+      - stitched `parent=13 exit=0`: `566233`
+      - `nins=32798` stitched saves: `4`
+      - later `ADDVV` `nins=32792`: `101`
+      - root-4 equivalence accepts: `188543`
+    - read:
+      - the dominant payer is still the root-owned `parent=2 exit=1`
+        `pairs(map)` family
+      - stitched `trace 4/13` is visible but secondary
+      - the later `root=1` `ADDVV` sidechain is present but not the dominant
+        official hot-row payer
+  - candidate:
+    - broader runtime-handoff cut in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      and
+      [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h)
+    - env:
+      `LUAJIT_S390X_VM_NEXT_AGF_ADDOV=1`
+    - exact idea:
+      - on guarded integer `ADDOV` consuming an `int VLOAD` from
+        `IRCALL_lj_vm_next`, fold the returned-value load into a direct
+        `AGF` memory add from the helper-returned pointer instead of first
+        materializing the visible `VLOAD` into a register
+      - keep the rest of the root contract unchanged
+  - exactness held on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+  - mechanism proof on `kdz`:
+    - repeated
+      `S390X_ADD kind=addov_vmnext_agf`
+    - paired with
+      `S390X_IR kind=vload ... fused=3 ... ofs=0`
+    - so the new path really fired on the intended `lj_vm_next` returned-value
+      consumer lane
+  - same-host policy result:
+    - candidate `mixed_loop/hot 0.040201`
+    - retained floor to beat: `0.012123`
+  - classification:
+    - exact and mechanism-real, but catastrophically slower
+    - this closes the first fresh runtime-handoff family after the official
+      retained-floor re-attribution
+    - by project policy, the current `mixed_noffi` lane is now explicitly
+      exhausted on this retained floor
+    - re-rank the next active blockers in this order:
+      - `vararg_paths/sum_loop`
+      - `iterator_table`
+      - `mixed_ffi`
+      - `ffi_cdata`
+
+- Timestamp: `2026-04-08 18:15 PDT`
+  - refreshed the retained-floor `vararg_paths` baseline and current `sum_loop`
+    seam before any recorder edits:
+  - helper refresh in
+    [tools/s390x/build_throughput_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_throughput_truth_pack.py):
+    - `vararg_paths` selection reason now names it as the active blocker after
+      the carried `mixed_noffi` lane exhausted
+    - the older hotside candidate scope no longer labels `sum_loop` as
+      `same_seam_but_dominated`; it is explicitly out of scope for that old
+      mechanism because the live vararg seam is different in kind
+  - tracked-file sync + direct `src/` rebuild completed on both mirrors before
+    baseline reads
+  - fresh authoritative `vararg_paths` hot rows:
+    - `kdz`
+      - `sum_loop/hot 0.424816` vs `-joff 0.004722`
+      - `retlast_loop/hot 0.003188` vs `-joff 0.001990`
+      - `retconst_loop/hot 0.001804` vs `-joff 0.000598`
+    - `zkd0`
+      - `sum_loop/hot 0.942412`
+      - `retlast_loop/hot 0.005299`
+      - `retconst_loop/hot 0.004051`
+  - fresh retained-floor truth pack:
+    - [20260408-kdz-vararg_paths-baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260408-kdz-vararg_paths-baseline-truth-pack/summary.md)
+    - focused `kdz` read:
+      - `sum_loop/hot`: JIT-on `0.450358`, `-joff 0.004452`
+      - `retlast_loop/hot`: `0.027567`, `-joff 0.002020`
+      - `retconst_loop/hot`: `0.026993`, `-joff 0.000542`
+    - `sum_loop` remains the dominant payer by a wide margin
+  - exact seam check on the retained-floor reduced `sum_loop` harness:
+    - no `lua_lower_frame_retf`
+    - explicit `S390X_JFORI_HANDOFF trace=3 mode=interp ... target=2`
+    - current stop still comes from the nested callee `BC_JFORI` boundary into
+      the existing inner loop
+    - root stop shape:
+      - `parent=0 exit=0`
+      - `startop=FUNCF`
+      - current `pc` is already in the callee body after `BC_JFORI`
+      - `linktype=INTERP`
+  - read:
+    - the older April 1 `sum_loop` baseline and narrative were stale
+    - the first live recorder attack should still be the exact nested-callee
+      `BC_JFORI` handoff in
+      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+
+- Timestamp: `2026-04-08 18:39 PDT`
+  - closed the first exact recorder-side nested-`BC_JFORI` handoff family in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+  - candidate:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_JFORI_ROOT_HANDOFF=1`
+    - exact idea:
+      - for the exact `vararg_paths/sum_loop` nested callee-loop family only,
+        bypass the current interpreter-style `BC_JFORI` handoff and stop as
+        `LJ_TRLINK_ROOT` to the existing loop target instead
+      - leave all other `BC_JFORI` cases unchanged
+  - exactness on `kdz`:
+    - `mixedprobe -> RESULT 553416`
+    - `hash_value -> HASH_VALUE 3000`
+    - `ipairs_only_probe -> RESULT 576000`
+    - official
+      [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+      stayed exact
+  - mechanism read:
+    - the exact matcher did not engage on the official hot row at all
+    - no `S390X_SUM_LOOP_JFORI_ROOT_HANDOFF` hits on the official run
+    - official hot-row result on `kdz`:
+      - `sum_loop/hot 0.424894`
+      - `retlast_loop/hot 0.003195`
+      - `retconst_loop/hot 0.001747`
+    - compared to the freshly restamped control:
+      - `sum_loop/hot 0.424816`
+    - so the candidate is effectively neutral-to-slightly-worse and not
+      mechanism-real on the official family
+  - classification:
+    - the reduced retained-floor seam still shows explicit
+      `S390X_JFORI_HANDOFF`, but the official hot row no longer matches the
+      exact recorder-side predicate tightly enough to make this a valid active
+      family
+    - the first recorder-side nested-`BC_JFORI` runtime-handoff lane is
+      closed
+    - the next honest step is a fresh runtime attribution note for the live
+      `sum_loop` execution path, not another blind `lj_record.c` mutation
+
+- Timestamp: `2026-04-08 18:53 PDT`
+  - re-attributed the live retained-floor `sum_loop` payer after the closed
+    recorder-side nested-`BC_JFORI` handoff attempt:
+  - reduced retained-floor runtime map on trusted `kdz`:
+    - isolated `sum_loop(16000)` under the retained branch env bundle
+    - saved trace totals:
+      - `TRACE_TOTAL 328`
+      - `interpreter/nins=4`: `222`
+      - `loop/nins=35`: `101`
+      - `root/nins=25`: `3`
+      - `stitch/nins=11`: `2`
+  - read:
+    - the current residual payer is no longer best described as the first
+      nested callee `BC_JFORI` handoff itself
+    - it is also not the later caller-side continuation after return
+    - the live cost now sits inside the inner `sum(...)` callee runtime trace
+      family:
+      - repeated tiny `INTERP` traces (`nins=4`)
+      - repeated loop-clone saves (`nins=35`)
+      - with only a small number of roots/stitches around them
+  - classification:
+    - the next honest subsystem is the inner `sum(...)` callee runtime trace
+      contract
+    - do not reopen the first recorder-side nested-`BC_JFORI` mutation
+    - do not jump blindly to helper lowering or caller-continuation work
+
+- Timestamp: `2026-04-08 18:30 PDT`
+  - corrected the exact live `sum_loop` stopper in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+    after the first inner-runtime probe missed on stale stop assumptions:
+  - stale assumption that is now closed:
+    - the tiny retained family is not `RET1/FORL`
+    - it is the inner `sum(...)` callee stop at:
+      - `pcop=BC_GGET`
+      - `prevop=BC_JFORI`
+      - `startop=BC_JMP`
+      - `linktype=LJ_TRLINK_INTERP`
+      - `parent=110`
+      - `exit=0`
+      - `root=1`
+      - proto `@tests/s390x/perf/vararg_paths.lua`, `firstline=11`,
+        `numline=6`
+  - retained candidate:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE=1`
+    - exact idea:
+      - in `lj_record_stop()`, for that exact stopper only, set
+        `J->cur.snap[0].count = SNAPCOUNT_DONE`
+      - leave all other recorder, trace, helper, and VM paths unchanged
+  - mechanism proof on trusted `kdz`:
+    - exact hit:
+      - `S390X_SUM_LOOP_SELECT_EXIT0_DONE trace=111 parent=110 exit=0 root=1`
+    - phase-count collapse on isolated `sum_loop`:
+      - control `431 -> 752 -> 1024`
+      - candidate `112 -> 113 -> 113`
+    - read:
+      - the retained win is a one-shot stopper on the first tiny `INTERP`
+        trace in the inner callee runtime family
+      - it collapses the trace-creation ladder into a small stitched fallback
+        instead of letting the ladder run to saturation
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact
+    - `zkd0`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact
+  - host-pair performance:
+    - `kdz`
+      - candidate:
+        - `sum_loop/hot 0.021297`
+        - `retlast_loop/hot 0.003208`
+        - `retconst_loop/hot 0.001749`
+      - immediate reverted control:
+        - `sum_loop/hot 0.417766`
+        - `retlast_loop/hot 0.003255`
+        - `retconst_loop/hot 0.001799`
+    - `zkd0`
+      - candidate:
+        - `sum_loop/hot 0.033115`
+        - `retlast_loop/hot 0.004328`
+        - `retconst_loop/hot 0.002997`
+      - retained-floor reference before the win:
+        - `sum_loop/hot 0.942412`
+        - `retlast_loop/hot 0.005299`
+        - `retconst_loop/hot 0.004051`
+  - classification:
+    - retained host-pair win
+    - `sum_loop` is no longer catastrophic, but it remains materially red
+    - the active `vararg_paths` lane stays on `sum_loop`, with the remaining
+      work now later than the first tiny `INTERP` stopper inside the same inner
+      callee runtime family
+
+- Timestamp: `2026-04-08 19:02 PDT`
+  - corrected a misleading `sum_loop` phase-count readback before opening the
+    next inner-runtime family:
+    - the apparent stitched `112 -> 113 -> 113` ladder from
+      `/tmp/vararg_sum_phase_counts.lua` was coming from the wrapper's own
+      `jit.util.traceinfo` traffic
+    - the real hot payer stayed on `trace 110` at
+      `@tests/s390x/perf/vararg_paths.lua:14`
+  - closed exact candidate:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_FIXED_VARG4=1`
+    - exact idea:
+      - in
+        [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+        `rec_varg()`, for the exact inner `sum(...)` dynamic `select(i, ...)`
+        path only, guard the fixed four-arg frame once and skip recomputing the
+        live vararg shape
+    - mechanism proof on `kdz`:
+      - `S390X_SUM_LOOP_SELECT_FIXED_VARG4 trace=91..110 fr=51 nvararg=4`
+    - performance:
+      - `kdz`
+        - candidate:
+          - `sum_loop/hot 0.021343`
+        - carried control:
+          - `sum_loop/hot 0.021297`
+    - classification:
+      - exact and engaging, but too small/noisy to retain
+  - retained exact candidate:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
+    - exact idea:
+      - in
+        [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+        `select_detect()`, for the exact inner `sum(...)` proto under
+        `@tests/s390x/perf/vararg_paths.lua`, skip emitting the `FF_select`
+        equality guard so the dead `GGET/select` guard prefix can disappear
+        from the hot trace
+    - mechanism proof:
+      - `S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ trace=91..110`
+      - trusted `kdz` dump still shows the carried payer as
+        `trace 110 start 109/0 vararg_paths.lua:14`, now without needing that
+        dead `select` guard/equality chain in front of the vararg address path
+    - exactness:
+      - `kdz`
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+        - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+        - official
+          [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+          stayed exact
+      - `zkd0`
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+        - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+        - official
+          [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+          stayed exact
+    - host-pair performance:
+      - `kdz`
+        - candidate:
+          - `sum_loop/hot 0.019045`
+          - `retlast_loop/hot 0.003216`
+          - `retconst_loop/hot 0.001761`
+        - immediate same-binary control:
+          - `sum_loop/hot 0.021247`
+          - `retlast_loop/hot 0.003169`
+          - `retconst_loop/hot 0.001764`
+      - `zkd0`
+        - candidate:
+          - `sum_loop/hot 0.023863`
+          - `retlast_loop/hot 0.003786`
+          - `retconst_loop/hot 0.002156`
+        - immediate same-binary control:
+          - `sum_loop/hot 0.025948`
+          - `retlast_loop/hot 0.003588`
+          - `retconst_loop/hot 0.002050`
+    - classification:
+    - retained host-pair win
+    - the remaining `sum_loop` work is later than the first tiny `INTERP`
+      stopper and later than the dead `select` guard/prefix
+      - the next honest seam stays inside the same line-14 inner `sum(...)`
+        runtime after the vararg-address path is already live
+
+- Timestamp: `2026-04-08 19:20 PDT`
+  - retained the next exact `sum_loop` inner-runtime win in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
+    - exact idea:
+      - for the exact inner `sum(...)` proto under
+        `@tests/s390x/perf/vararg_paths.lua`, fold `BC_GGET select` directly to
+        the known `FF_select` constant instead of recording the live
+        `func.env -> hmask -> node -> HREFK -> HLOAD` lookup chain
+  - mechanism proof on trusted `kdz`:
+    - exact engagement:
+      - `S390X_SUM_LOOP_SELECT_CONST_GGET trace=91..110`
+    - hot trace delta:
+      - retained carried `trace 110` drops from `34` IRs to `27`
+      - removed prefix is the dead `select` global-lookup lane:
+        - `SLOAD fun`
+        - `FLOAD func.env`
+        - `FLOAD tab.hmask`
+        - `EQ`
+        - `FLOAD tab.node`
+        - `HREFK "select"`
+        - `HLOAD`
+    - read:
+      - after the first tiny `INTERP` stopper and after the
+        `select_detect()` equality-guard cut, the next real payer was still the
+        same inner `sum(...)` runtime trace
+      - the remaining hot path is now later than the exact `BC_GGET select`
+        lookup prefix too
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact
+    - `zkd0`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact
+  - host-pair performance:
+    - `kdz`
+      - candidate:
+        - `sum_loop/hot 0.018707`
+        - `retlast_loop/hot 0.003203`
+        - `retconst_loop/hot 0.001738`
+      - immediate same-binary control:
+        - `sum_loop/hot 0.019204`
+        - `retlast_loop/hot 0.003204`
+        - `retconst_loop/hot 0.001754`
+    - `zkd0`
+      - candidate:
+        - `sum_loop/hot 0.022269`
+        - `retlast_loop/hot 0.003770`
+        - `retconst_loop/hot 0.002067`
+      - immediate same-binary control:
+        - `sum_loop/hot 0.026834`
+        - `retlast_loop/hot 0.004883`
+        - `retconst_loop/hot 0.002706`
+  - branch-wide note:
+    - broad `dispatch_trace`, `mixed_noffi`, and `iterator_table` reruns on the
+      current dirty local branch still show the same contamination pattern seen
+      earlier, so they are not used as policy evidence for this retain
+    - the trusted retain signal is the exact host-pair `vararg_paths` A/B on
+      rebuilt mirrors plus the direct `trace 110` IR delta
+  - classification:
+    - retained host-pair win
+    - `sum_loop` moves right again on both hosts and remains the active
+      branch-level blocker
+    - the next honest seam stays inside the same line-14 inner `sum(...)`
+      runtime, but later than:
+      - the tiny `INTERP` stopper
+      - the `select_detect()` equality guard
+      - the exact `BC_GGET select` lookup prefix
+
+- Timestamp: `2026-04-08 19:28 PDT`
+  - closed the additive `sum_loop` fixed-vararg probe on top of the retained
+    `BC_GGET select` floor:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_FIXED_VARG4=1`
+    - exact idea:
+      - reuse the older exact fixed-four-vararg guard in `rec_varg()` on top of
+        the new carried runtime, to see whether the surviving payer was now the
+        dynamic vararg-count / base-shape contract
+    - exactness:
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact on `kdz`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.020471`
+        - `retlast_loop/hot 0.003201`
+        - `retconst_loop/hot 0.001726`
+      - carried control:
+        - `sum_loop/hot 0.018707`
+        - `retlast_loop/hot 0.003203`
+        - `retconst_loop/hot 0.001738`
+  - classification:
+    - exact, but clearly slower on the new carried floor
+    - the remaining `sum_loop` payer is not the already-screened fixed-four
+      vararg-count guard
