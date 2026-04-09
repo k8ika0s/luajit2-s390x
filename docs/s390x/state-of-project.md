@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-08 19:20 PDT
+Last updated: 2026-04-09 15:59 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -12,7 +12,9 @@ It is intentionally current-state only. Historical experiment detail lives in
   `-joff` on both `kdz` and `zkd0`.
 - `mixed_noffi` remains a carried red row, but its current runtime lane is now
   explicitly exhausted on the retained floor.
-- The active branch-level blocker is now `vararg_paths/sum_loop`.
+- The latest retained host-pair win is in `ffi_cdata`; the active queue now
+  returns to fresh `iterator_table` attribution unless a newer subsystem is
+  first named.
 - Fresh retained `sum_loop` host-pair win on rebuilt mirrors:
   - `kdz`
     - `sum_loop/hot 0.018707` vs `-joff 0.004722`
@@ -81,11 +83,61 @@ It is intentionally current-state only. Historical experiment detail lives in
       - immediate same-binary control `0.026834`
   - read:
     - `sum_loop` is no longer catastrophic and moved right again on both hosts,
-      but it is still the active red row
+      but it is still a carried red row
     - the remaining work is later than the first tiny `INTERP` stopper, later
       than the dead `select` equality guard, and later than the exact
       `BC_GGET select` lookup prefix inside the same inner callee runtime
       family
+    - the later whole-loop-contract lane on the carried `trace 110` body is
+      closed as exact-but-not-retainable, so the active queue has moved to
+      `iterator_table`
+- Current `iterator_table` read:
+  - the official carried hot rows remain materially behind `-joff`:
+    - `pairs_sum/hot 0.094653` vs `-joff 0.004135`
+    - `pairs_array_sum/hot 0.095170` vs `-joff 0.003651`
+  - closed exact iterator probes include direct tail `BRXH`, compare-side
+    `CGRJ`, keyindex/HIOP register-home variants, accumulator PHI save skip,
+    guarded `ADDOV` 32-bit `AR`, and signed `VLOAD` contraction
+  - fresh official-row attribution moves the active seam out of the planned
+    backend handoff micro-lane and into the `root=2`, `BC_JMP`,
+    `LJ_TRLINK_INTERP`, `nsnap=2`, `nins=32773` stop-classification ladder
+- Retained `mixed_ffi` win:
+  - exact cut in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
+  - mechanism:
+    - one-shot save-time `SNAPCOUNT_DONE` on the exact post-stitch
+      `BC_TGETB` child:
+      `trace=102 parent=101 exit=0 root=1 startop=BC_JMP linktype=LJ_TRLINK_INTERP nsnap=2 nins=32773`
+    - `mixed_noffi` does not hit the marker
+  - host-pair result:
+    - `kdz`: `mixed_ffi_loop/hot 0.017600` against immediate controls
+      `0.044956` and `0.044900`
+    - `zkd0`: candidate examples `0.026970` and `0.023683` against immediate
+      controls `0.056937` and `0.085072`
+- Retained `ffi_cdata` win:
+  - exact cut in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
+  - mechanism:
+    - one-shot save-time `SNAPCOUNT_DONE` on the exact pair-loop `BC_TGETB`
+      interpreter child:
+      `trace=102 parent=101 exit=0 root=1 startop=BC_JMP link=0 linktype=LJ_TRLINK_INTERP topslot=9 spadjust=8 nsnap=2 nins=32773`
+    - marker fires exactly once on both hosts:
+      `S390X_FFI_CDATA_PAIR_SAVE_DONE trace=102 parent=101 exit=0 root=1 startop=88 link=0 linktype=6 nsnap=2 nins=32773 snap=0 op=58`
+  - host-pair result:
+    - `kdz`: `pair_loop/hot 0.023094` against immediate controls `0.136461`
+      and `0.133813`
+    - `zkd0`: repeated candidate examples `0.026214`, `0.026737`,
+      `0.027103` against immediate controls `0.137762`, `0.139439`,
+      `0.140058`
+    - `mixed_width_loop/hot` is noisy but neutral overall and stays a
+      regression screen
+  - read:
+    - the live payer was trace-control churn through a same-start root-1
+      `BC_JMP` sidechain degrading to `LJ_TRLINK_INTERP`
+    - after this retained win, `ffi_cdata` moves to regression-screen status
+      and the active queue returns to `iterator_table`
 - The retained exact branch control is now:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -96,6 +148,8 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
+  - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
+  - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the retained root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -221,15 +275,13 @@ It is intentionally current-state only. Historical experiment detail lives in
 - `mixed_noffi` is still materially slower than `-joff`.
 - The current retained mixed floor has not been brought to parity, but the
   present runtime-handoff lane is explicitly exhausted.
-- The next active queue after the current `sum_loop` lane is:
-  - `iterator_table`
-  - `mixed_ffi`
-  - `ffi_cdata`
+- The next active queue is now `iterator_table`, with `vararg_paths/sum_loop`,
+  `mixed_noffi`, and `ffi_cdata` only re-entered after fresh attribution.
 
 ## What The Freeze Point Means
 
 The current branch should be treated as a shipping baseline plus one active
-mixed frontier.
+throughput frontier.
 
 - Lane A: build and stability floor
 - Lane B: retained mixed iterator throughput floor
@@ -244,7 +296,7 @@ From here:
   duplicate self-reentry, post-stop duplicate rewrite, broad hotcount priming,
   the exhausted bridge-tail micro-lane, or the exhausted recorder-side
   `sidecheck_interp` shaping tranche as the primary target
-- keep exactly one active mixed probe family at a time
+- keep exactly one active throughput family at a time
 
 ## What Is Parked
 
@@ -261,10 +313,9 @@ From here:
    the tracked-file contract in
    [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md).
 3. Keep the active engineering frontier narrow:
-  - `vararg_paths/sum_loop` first
-  - then `iterator_table`
-  - then `mixed_ffi`
-  - then `ffi_cdata`
+  - `iterator_table` first, with a fresh attribution before any new mutation
+  - keep `vararg_paths/sum_loop`, `mixed_noffi`, and `ffi_cdata` parked unless
+    a fresh attribution names a new subsystem
   - treat `dispatch_trace` as green again and only reopen it if a later change
     regresses the retained floor
   - no reopening of root-1 as a primary target
@@ -303,21 +354,20 @@ interpretation.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the next honest target is now `vararg_paths/sum_loop`
+- the latest retained host-pair win is in `ffi_cdata`
+- the next honest target is now fresh `iterator_table` attribution
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
   closed as non-engaging on the official hot row
-- the next honest subsystem is now the inner `sum(...)` callee runtime trace
-  family, not another recorder-side handoff mutation
+- the inner `sum(...)` callee runtime trace family is closed for the current
+  whole-loop-contract lane, so `sum_loop` is parked as a carried red row
 
-### After The Next Mixed Step
+### After The Current FFI CData Step
 
 - Burn down the remaining red rows in this order:
-  1. `vararg_paths/sum_loop`
-  2. `iterator_table`
-  3. `mixed_ffi`
-  4. `ffi_cdata`
-  5. later re-entry to `mixed_noffi` only if a newly attributed subsystem
-     appears
+  1. `iterator_table`
+  2. `vararg_paths/sum_loop` only after a fresh attribution names a new subsystem
+  3. later re-entry to `mixed_noffi`, `mixed_ffi`, or `ffi_cdata` only if a
+     newly attributed subsystem appears
 
 ## Where To Look Next
 

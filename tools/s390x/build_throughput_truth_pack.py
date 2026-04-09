@@ -42,10 +42,11 @@ CANDIDATE_SCOPE: dict[str, dict[str, Any]] = {
             "Treat reduced UGET/looproot siblings, be_helpers, and ffi_calls as "
             "core promotion evidence. Carry retconst_loop, retlast_loop, and "
             "mixed_loop as same-seam secondary evidence. Keep sum_loop out of "
-            "promotion evidence because the parked nested-callee vararg frontier "
-            "still dominates it. Treat dispatch_trace, iterator_table, mixed_ffi, "
-            "ffi_cdata, int_add_phi_only, and logic_add_phi_noboundary as out of "
-            "scope on the current mechanism."
+            "this candidate's evidence because the active vararg frontier is a "
+            "distinct nested-callee handoff seam, not a same-seam dominated "
+            "tail. Treat dispatch_trace, iterator_table, mixed_ffi, ffi_cdata, "
+            "int_add_phi_only, and logic_add_phi_noboundary as out of scope on "
+            "the current mechanism."
         ),
         "workloads": {
             "add_phi_only": "out_of_scope",
@@ -60,7 +61,7 @@ CANDIDATE_SCOPE: dict[str, dict[str, Any]] = {
             "retconst_loop": "promotion_secondary",
             "retlast_loop": "promotion_secondary",
             "mixed_loop": "promotion_secondary",
-            "sum_loop": "same_seam_but_dominated",
+            "sum_loop": "out_of_scope",
             "mixed_ffi_loop": "out_of_scope",
             "pair_loop": "out_of_scope",
             "mixed_width_loop": "out_of_scope",
@@ -1977,9 +1978,10 @@ FAMILY_CONFIGS = {
         "bench_file": "tests/s390x/perf/vararg_paths.lua",
         "focus_label": "vararg throughput",
         "selection_reason": (
-            "first broader-throughput target because it stresses arg-bank, "
-            "call, return, and select/vararg flow without reopening iterator "
-            "or dispatch seams"
+            "active blocker after the carried mixed_noffi lane exhausted; "
+            "restamp the live vararg seam on the retained floor because it "
+            "stresses arg-bank, call, return, and select/vararg flow without "
+            "reopening iterator or dispatch seams"
         ),
         "focused_bench_script": VARARG_FOCUSED_BENCH,
         "check_scripts": VARARG_CHECK_SCRIPTS,

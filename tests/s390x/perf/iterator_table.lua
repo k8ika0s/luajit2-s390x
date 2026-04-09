@@ -1,11 +1,11 @@
 local bench = dofile("tests/s390x/perf/benchlib.lua")
 
-local scale_order = { "small", "medium", "hot" }
 local scales = {
   small = 4000,
   medium = 20000,
   hot = 80000,
 }
+local scale_order = bench.scale_order(scales)
 
 local base_table = { a = 1, b = 2, c = 3, d = 4, e = 5 }
 local base_array = { 1, 3, 5, 7, 9 }

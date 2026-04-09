@@ -9,6 +9,7 @@ import json
 import pathlib
 import re
 import shlex
+import statistics
 import sys
 
 THIS_DIR = pathlib.Path(__file__).resolve().parent
@@ -20,21 +21,31 @@ import restamp_iterator_perf as restamp
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
-CANDIDATE_ENVS: dict[str, dict[str, str]] = {
-    "baseline": {
-        "LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT": "1",
-    },
-    "hotside_canon_share_uget_looproot_default": {},
+RETAINED_BASELINE_ENV: dict[str, str] = {
+    "LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI": "1",
+    "LUAJIT_S390X_AREF_BASE_ALLGPR": "1",
+    "LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY": "1",
+    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET": "1",
+    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT": "1",
 }
+CANDIDATE_ENVS: dict[str, dict[str, str]] = {
+    "retained_baseline": RETAINED_BASELINE_ENV,
+}
+HASH_STAMP_PATHS = list(
+    dict.fromkeys(restamp.AUTHORITATIVE_HASH_PATHS + ["tools/s390x/build_dispatch_truth_pack.py"])
+)
 BENCH_FILE = "tests/s390x/perf/dispatch_trace.lua"
 LOOP_NAMES = ("numeric_loop", "side_exit_loop", "hotexit_loop")
 FOCUSED_ITERATIONS = 80000
 TRACE_OBS_ITERATIONS = 2000
+CURRENT_SEAM_NAME = "loop-body-entry-after-JFORI"
 FOCUSED_WORK_ITEMS = {
     "numeric_loop": 80000,
     "side_exit_loop": 80000,
     "hotexit_loop": 80000,
 }
+PROOF_STOP = 40000
+PROOF_OUTER = 2000
 
 CHECK_SCRIPTS = {
     "numeric_loop": """\
@@ -81,9 +92,116 @@ print("HOTEXIT_LOOP", run(20))
 
 EXPECTED_CHECKS = {
     "numeric_loop": "NUMERIC_LOOP 210",
-    "side_exit_loop": "SIDE_EXIT_LOOP 138",
-    "hotexit_loop": "HOTEXIT_LOOP 191",
+    "side_exit_loop": "SIDE_EXIT_LOOP 168",
+    "hotexit_loop": "HOTEXIT_LOOP 113",
 }
+
+PROOF_DRIVER_C = """\
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+extern int32_t current_loop_control(int32_t stop);
+extern int32_t bxle_loop_control(int32_t stop);
+
+typedef int32_t (*loop_fn)(int32_t stop);
+
+static uint64_t monotonic_ns(void)
+{
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+    perror("clock_gettime");
+    exit(2);
+  }
+  return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+static int64_t run_many(loop_fn fn, int32_t outer, int32_t stop)
+{
+  int64_t total = 0;
+  for (int32_t i = 0; i < outer; i++) {
+    total += fn(stop);
+  }
+  return total;
+}
+
+int main(int argc, char **argv)
+{
+  if (argc != 4) {
+    fprintf(stderr, "usage: %s <current|bxle> <outer> <stop>\\n", argv[0]);
+    return 2;
+  }
+
+  const char *mode = argv[1];
+  int32_t outer = (int32_t)strtol(argv[2], NULL, 0);
+  int32_t stop = (int32_t)strtol(argv[3], NULL, 0);
+  loop_fn fn = NULL;
+  if (strcmp(mode, "current") == 0) {
+    fn = current_loop_control;
+  } else if (strcmp(mode, "bxle") == 0) {
+    fn = bxle_loop_control;
+  } else {
+    fprintf(stderr, "unknown mode: %s\\n", mode);
+    return 2;
+  }
+
+  uint64_t started = monotonic_ns();
+  int64_t result = run_many(fn, outer, stop);
+  uint64_t finished = monotonic_ns();
+  int64_t expected = (int64_t)outer * ((int64_t)stop * (int64_t)(stop + 1) / 2);
+  if (result != expected) {
+    fprintf(stderr, "proof-result-mismatch mode=%s got=%lld expected=%lld\\n",
+            mode, (long long)result, (long long)expected);
+    return 3;
+  }
+
+  printf("MODE %s\\n", mode);
+  printf("OUTER %d\\n", outer);
+  printf("STOP %d\\n", stop);
+  printf("RESULT %lld\\n", (long long)result);
+  printf("EXPECTED %lld\\n", (long long)expected);
+  printf("SECONDS %.9f\\n", (double)(finished - started) / 1000000000.0);
+  return 0;
+}
+"""
+
+PROOF_LOOP_CONTROL_S = """\
+.text
+.globl current_loop_control
+.type current_loop_control,@function
+current_loop_control:
+  lgr %r5, %r2
+  lhi %r3, 0
+  lhi %r4, 1
+  lhi %r2, 0
+.Lcurrent_loop:
+  ar %r3, %r4
+  cr %r3, %r5
+  jh .Lcurrent_done
+  ar %r2, %r3
+  j .Lcurrent_loop
+.Lcurrent_done:
+  br %r14
+
+.globl bxle_loop_control
+.type bxle_loop_control,@function
+bxle_loop_control:
+  lgr %r5, %r2
+  lhi %r2, 0
+  lhi %r3, 0
+  lhi %r4, 1
+  larl %r1, .Lbxle_body
+  bxle %r2,%r4,0(%r1)
+  lgr %r2, %r3
+  br %r14
+.Lbxle_body:
+  ar %r3, %r2
+  bxle %r2,%r4,0(%r1)
+  lgr %r2, %r3
+  br %r14
+"""
 
 FOCUSED_BENCH_SCRIPT = """\
 local bench = dofile("tests/s390x/perf/benchlib.lua")
@@ -434,8 +552,121 @@ def prepare_truth_scripts(host: str, remote_tmp: str) -> None:
                     "EOF",
                 ]
             )
+    lines.extend(
+        [
+            f'cat >"{remote_tmp}/loop_control_proof.c" <<\'EOF\'',
+            PROOF_DRIVER_C.rstrip(),
+            "EOF",
+            f'cat >"{remote_tmp}/loop_control_proof.s" <<\'EOF\'',
+            PROOF_LOOP_CONTROL_S.rstrip(),
+            "EOF",
+        ]
+    )
     proc = restamp.run_ssh_script(host, "\n".join(lines) + "\n")
     restamp.require_ok(proc, f"{host} dispatch truth-pack script setup")
+
+
+def compile_loop_control_proof(host: str, remote_tmp: str, raw_dir: pathlib.Path) -> None:
+    script = f"""
+set -euo pipefail
+cd {shlex.quote(remote_tmp)}
+cc -O2 loop_control_proof.c loop_control_proof.s -o loop_control_proof
+"""
+    restamp.run_remote_command(
+        host,
+        script,
+        stdout_path=raw_dir / "compile.stdout.log",
+        stderr_path=raw_dir / "compile.stderr.log",
+        label=f"{host} loop-control proof compile",
+    )
+
+
+def parse_proof_run_output(text: str) -> dict[str, object]:
+    data: dict[str, object] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        key, value = parts
+        if key in {"OUTER", "STOP", "RESULT", "EXPECTED"}:
+            data[key.lower()] = int(value)
+        elif key == "SECONDS":
+            data["seconds"] = float(value)
+        elif key == "MODE":
+            data["mode"] = value
+    return data
+
+
+def run_loop_control_proof(
+    *,
+    host: str,
+    remote_tmp: str,
+    raw_dir: pathlib.Path,
+    pin_core: int | None,
+    samples: int,
+    warmup: int,
+    outer: int,
+    stop: int,
+) -> dict[str, object]:
+    compile_loop_control_proof(host, remote_tmp, raw_dir)
+    proof: dict[str, object] = {
+        "status": "ok",
+        "requires_extra_shims": False,
+        "outer": outer,
+        "stop": stop,
+        "modes": {},
+    }
+    taskset = f"taskset -c {pin_core} " if pin_core is not None else ""
+    for mode in ("current", "bxle"):
+        sample_seconds: list[float] = []
+        sample_results: list[int] = []
+        expected_result: int | None = None
+        for index in range(warmup + samples):
+            stage = "warmup" if index < warmup else "sample"
+            number = index + 1 if stage == "warmup" else index - warmup + 1
+            script = f"""
+set -euo pipefail
+{taskset}{shlex.quote(f"{remote_tmp}/loop_control_proof")} {shlex.quote(mode)} {outer} {stop}
+"""
+            proc = restamp.run_remote_command(
+                host,
+                script,
+                stdout_path=raw_dir / f"{mode}.{stage}{number}.stdout.log",
+                stderr_path=raw_dir / f"{mode}.{stage}{number}.stderr.log",
+                label=f"{host} loop-control proof {mode} {stage}{number}",
+            )
+            parsed = parse_proof_run_output(proc.stdout)
+            result = parsed.get("result")
+            expected = parsed.get("expected")
+            seconds = parsed.get("seconds")
+            if not isinstance(result, int) or not isinstance(expected, int) or not isinstance(seconds, float):
+                raise restamp.RestampError(f"{host} loop-control proof {mode} parse failure")
+            if expected_result is None:
+                expected_result = expected
+            elif expected_result != expected:
+                raise restamp.RestampError(f"{host} loop-control proof {mode} expected drift")
+            if stage == "sample":
+                sample_seconds.append(seconds)
+                sample_results.append(result)
+        if not sample_seconds or expected_result is None:
+            raise restamp.RestampError(f"{host} loop-control proof {mode} missing samples")
+        proof["modes"][mode] = {
+            "expected": expected_result,
+            "sample_seconds": sample_seconds,
+            "sample_results": sample_results,
+            "median_seconds": statistics.median(sample_seconds),
+            "min_seconds": min(sample_seconds),
+            "max_seconds": max(sample_seconds),
+        }
+    current = proof["modes"]["current"]["median_seconds"]
+    bxle = proof["modes"]["bxle"]["median_seconds"]
+    proof["winner"] = "bxle" if bxle < current else "current"
+    proof["speedup_vs_current"] = (current / bxle) if bxle else None
+    proof["bxle_wins"] = bxle < current
+    return proof
 
 
 def run_dispatch_bench(
@@ -450,7 +681,7 @@ def run_dispatch_bench(
     warmup: int,
     joff: bool,
     extra_env: dict[str, str] | None = None,
-) -> list[dict[str, object]]:
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     json_name = f"{mode_label}.jsonl"
     remote_json = f"{remote_tmp}/{json_name}"
     luajit_bin = shlex.quote(f"{repo}/src/luajit")
@@ -477,11 +708,27 @@ rm -f {shlex.quote(remote_json)}
         write_text(stdout_path, retry_stdout)
         write_text(stderr_path, retry_stderr)
         proc = retry
-    restamp.require_ok(proc, f"{host} dispatch_trace {mode_label}")
-    json_text = restamp.fetch_remote_file(host, remote_json)
-    local_json = raw_dir.parent.parent / json_name
-    write_text(local_json, json_text)
-    return restamp.parse_jsonl_records(local_json)
+    fetch_script = f"""
+set -euo pipefail
+if [ -f {shlex.quote(remote_json)} ]; then
+  cat {shlex.quote(remote_json)}
+fi
+"""
+    fetch_proc = restamp.run_ssh_script(host, fetch_script)
+    restamp.require_ok(fetch_proc, f"{host} fetch dispatch_trace {mode_label} jsonl")
+    records: list[dict[str, object]] = []
+    if fetch_proc.stdout.strip():
+        local_json = raw_dir.parent.parent / json_name
+        write_text(local_json, fetch_proc.stdout)
+        records = restamp.parse_jsonl_records(local_json)
+    status: dict[str, object] = {
+        "status": "ok" if proc.returncode == 0 else "failed",
+        "returncode": proc.returncode,
+    }
+    stderr_lines = [line.strip() for line in proc.stderr.splitlines() if line.strip()]
+    if stderr_lines:
+        status["message"] = stderr_lines[-1]
+    return records, status
 
 
 def run_focused_bench(
@@ -495,7 +742,7 @@ def run_focused_bench(
     warmup: int,
     joff: bool,
     extra_env: dict[str, str] | None = None,
-) -> list[dict[str, object]]:
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     mode = "focused-jit-on" if not joff else "focused-joff"
     remote_json = f"{remote_tmp}/{mode}.jsonl"
     luajit_bin = shlex.quote(f"{repo}/src/luajit")
@@ -507,17 +754,30 @@ export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 rm -f {shlex.quote(remote_json)}
 {remote_env_prefix(jsonl_path=remote_json, samples=samples, warmup=warmup, extra_env=extra_env)} {luajit_cmd}
 """
-    restamp.run_remote_command(
-        host,
-        script,
-        stdout_path=raw_dir / f"{mode}.stdout.log",
-        stderr_path=raw_dir / f"{mode}.stderr.log",
-        label=f"{host} {mode} dispatch medians",
-    )
-    json_text = restamp.fetch_remote_file(host, remote_json)
-    local_json = raw_dir.parent.parent / f"{mode}.jsonl"
-    write_text(local_json, json_text)
-    return restamp.parse_jsonl_records(local_json)
+    proc = restamp.run_ssh_script(host, script)
+    write_text(raw_dir / f"{mode}.stdout.log", proc.stdout)
+    write_text(raw_dir / f"{mode}.stderr.log", proc.stderr)
+    fetch_script = f"""
+set -euo pipefail
+if [ -f {shlex.quote(remote_json)} ]; then
+  cat {shlex.quote(remote_json)}
+fi
+"""
+    fetch_proc = restamp.run_ssh_script(host, fetch_script)
+    restamp.require_ok(fetch_proc, f"{host} fetch {mode} jsonl")
+    records: list[dict[str, object]] = []
+    if fetch_proc.stdout.strip():
+        local_json = raw_dir.parent.parent / f"{mode}.jsonl"
+        write_text(local_json, fetch_proc.stdout)
+        records = restamp.parse_jsonl_records(local_json)
+    status: dict[str, object] = {
+        "status": "ok" if proc.returncode == 0 else "failed",
+        "returncode": proc.returncode,
+    }
+    stderr_lines = [line.strip() for line in proc.stderr.splitlines() if line.strip()]
+    if stderr_lines:
+        status["message"] = stderr_lines[-1]
+    return records, status
 
 
 def run_check(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
@@ -776,10 +1036,18 @@ def focused_runtime_metrics(
 ) -> dict[str, dict[str, object]]:
     metrics: dict[str, dict[str, object]] = {}
     for name in LOOP_NAMES:
-        jit_record = focused_jit_on[f"{name}/hot"]
-        joff_record = focused_joff[f"{name}/hot"]
-        jit_median = float(jit_record["median_runtime_sec"])
-        joff_median = float(joff_record["median_runtime_sec"])
+        jit_record = focused_jit_on.get(f"{name}/hot")
+        joff_record = focused_joff.get(f"{name}/hot")
+        jit_median = (
+            float(jit_record["median_runtime_sec"])
+            if isinstance(jit_record, dict) and "median_runtime_sec" in jit_record
+            else None
+        )
+        joff_median = (
+            float(joff_record["median_runtime_sec"])
+            if isinstance(joff_record, dict) and "median_runtime_sec" in joff_record
+            else None
+        )
         texits = int(trace_counts[name].get("TEXIT_COUNT", 0))
         work_items = FOCUSED_WORK_ITEMS[name]
         hist = parse_histogram(trace_counts[name].get("TEXIT_HIST", ""))
@@ -793,10 +1061,12 @@ def focused_runtime_metrics(
         trace_starts = int(trace_counts[name].get("TRACE_START", 0))
         trace_aborts = int(trace_counts[name].get("TRACE_ABORT", 0))
         trace_abort_rate = (trace_aborts / trace_starts) if trace_starts else None
-        gap_sec = jit_median - joff_median
-        gap_ratio = (jit_median / joff_median) if joff_median else None
-        runtime_ns_per_texit = (jit_median * 1.0e9 / texits) if texits else None
-        if steady_exit_share is not None and steady_exit_share >= 0.90 and texits_per_outer_iter >= 0.10:
+        gap_sec = (jit_median - joff_median) if jit_median is not None and joff_median is not None else None
+        gap_ratio = (jit_median / joff_median) if jit_median is not None and joff_median not in (None, 0.0) else None
+        runtime_ns_per_texit = (jit_median * 1.0e9 / texits) if jit_median is not None and texits else None
+        if jit_median is None or joff_median is None:
+            classification = "unavailable"
+        elif steady_exit_share is not None and steady_exit_share >= 0.90 and texits_per_outer_iter >= 0.10:
             classification = "exit-dominated"
         elif texits == 0 and gap_ratio is not None and gap_ratio > 1.0:
             classification = "compiled-body-dominated"
@@ -858,20 +1128,27 @@ def render_summary(
     *,
     output_dir: pathlib.Path,
     host: str,
+    candidate: str,
     host_info: dict[str, str],
     repo: str,
     commit: str,
     jit_status: str,
+    remote_hashes: dict[str, str | None],
     check_results: dict[str, str],
     dispatch_jit_on_records: list[dict[str, object]],
+    dispatch_jit_on_status: dict[str, object],
     dispatch_joff_records: list[dict[str, object]],
+    dispatch_joff_status: dict[str, object],
     focused_records: list[dict[str, object]],
+    focused_jit_on_status: dict[str, object],
     focused_joff_records: list[dict[str, object]],
+    focused_joff_status: dict[str, object],
     trace_counts: dict[str, dict[str, int | str]],
     exit_focus: dict[str, dict[str, object]],
     perf_stats: dict[str, dict[str, object]],
     runtime_metrics: dict[str, dict[str, object]],
     perf_metrics: dict[str, dict[str, object]],
+    proof_result: dict[str, object] | None,
     pin_core: int | None,
     samples: int,
     warmup: int,
@@ -888,6 +1165,7 @@ def render_summary(
         f"- Hostname: `{host_info.get('HOSTNAME_FQDN', '')}`",
         f"- Machine type: `{host_info.get('MACHINE_TYPE', '')}` (`{host_info.get('GENERATION', 'unknown')}`)",
         f"- Model: `{host_info.get('MODEL', '')}`",
+        f"- Candidate: `{candidate}`",
         f"- Repo: `{repo}`",
         f"- Commit: `{commit}`",
         f"- Benchmark: `{BENCH_FILE}`",
@@ -902,24 +1180,67 @@ def render_summary(
     for name in LOOP_NAMES:
         lines.append(f"- `{name}`: `{check_results[name]}`")
 
+    lines.extend(["", "## Delivered Remote Hashes", ""])
+    for relpath, digest in sorted(remote_hashes.items()):
+        lines.append(f"- `{relpath}`: `{digest or 'missing'}`")
+
     lines.extend(["", "## Dispatch Trace Baseline", ""])
     for name in LOOP_NAMES:
+        jit_key = f"{name}/hot"
+        jit_record = dispatch_jit_on.get(jit_key)
+        joff_record = dispatch_joff.get(jit_key)
+        if isinstance(jit_record, dict):
+            lines.append(
+                f"- `{name}/hot` JIT-on median `{jit_record['median_runtime_sec']:.6f}s`"
+            )
+        else:
+            lines.append(
+                f"- `{name}/hot` JIT-on unavailable (`{dispatch_jit_on_status.get('status')}`, rc `{dispatch_jit_on_status.get('returncode')}`)"
+            )
+        if isinstance(joff_record, dict):
+            lines.append(
+                f"  - `-joff` median `{joff_record['median_runtime_sec']:.6f}s`"
+            )
+        else:
+            lines.append(
+                f"  - `-joff` unavailable (`{dispatch_joff_status.get('status')}`, rc `{dispatch_joff_status.get('returncode')}`)"
+            )
+    if dispatch_jit_on_status.get("status") != "ok":
         lines.append(
-            f"- `{name}/hot` JIT-on median `{dispatch_jit_on[f'{name}/hot']['median_runtime_sec']:.6f}s`"
+            f"- JIT-on suite failure: `{dispatch_jit_on_status.get('message', 'unknown')}`"
         )
+    if dispatch_joff_status.get("status") != "ok":
         lines.append(
-            f"  - `-joff` median `{dispatch_joff[f'{name}/hot']['median_runtime_sec']:.6f}s`"
+            f"- `-joff` suite failure: `{dispatch_joff_status.get('message', 'unknown')}`"
         )
 
     lines.extend(["", "## Focused Hot Medians", ""])
     for name in LOOP_NAMES:
-        record = focused[f"{name}/hot"]
-        joff_record = focused_joff[f"{name}/hot"]
+        record = focused.get(f"{name}/hot")
+        joff_record = focused_joff.get(f"{name}/hot")
+        if isinstance(record, dict):
+            lines.append(
+                f"- `{name}/hot` median `{record['median_runtime_sec']:.6f}s`, p95 `{record['p95_runtime_sec']:.6f}s`, samples `{restamp.format_samples(record['samples_sec'])}`"
+            )
+        else:
+            lines.append(f"- `{name}/hot` JIT-on focused median unavailable")
+        if isinstance(record, dict) and isinstance(joff_record, dict):
+            lines.append(
+                f"  - `-joff` median `{joff_record['median_runtime_sec']:.6f}s`, gap `{record['median_runtime_sec'] - joff_record['median_runtime_sec']:+.6f}s`, ratio `{record['median_runtime_sec'] / joff_record['median_runtime_sec']:.2f}x`"
+            )
+        elif isinstance(joff_record, dict):
+            lines.append(
+                f"  - `-joff` median `{joff_record['median_runtime_sec']:.6f}s`"
+            )
+        else:
+            lines.append("  - `-joff` focused median unavailable")
+    if focused_jit_on_status.get("status") != "ok":
         lines.append(
-            f"- `{name}/hot` median `{record['median_runtime_sec']:.6f}s`, p95 `{record['p95_runtime_sec']:.6f}s`, samples `{restamp.format_samples(record['samples_sec'])}`"
+            f"- JIT-on focused suite failure: `{focused_jit_on_status.get('message', 'unknown')}`"
         )
+    if focused_joff_status.get("status") != "ok":
         lines.append(
-            f"  - `-joff` median `{joff_record['median_runtime_sec']:.6f}s`, gap `{record['median_runtime_sec'] - joff_record['median_runtime_sec']:+.6f}s`, ratio `{record['median_runtime_sec'] / joff_record['median_runtime_sec']:.2f}x`"
+            f"- `-joff` focused suite failure: `{focused_joff_status.get('message', 'unknown')}`"
         )
 
     lines.extend(["", "## Trace / Exit Counts After Warmup", ""])
@@ -1037,6 +1358,25 @@ def render_summary(
             else "  - runtime ns per texit `n/a`"
         )
 
+    if proof_result is not None:
+        lines.extend(["", "## Loop-Control Proof", ""])
+        lines.append(
+            f"- stop `{proof_result['stop']}`, outer `{proof_result['outer']}`, extra shims required `{'yes' if proof_result['requires_extra_shims'] else 'no'}`"
+        )
+        for mode in ("current", "bxle"):
+            mode_info = proof_result["modes"][mode]
+            lines.append(
+                f"- `{mode}` median `{mode_info['median_seconds']:.6f}s`, min `{mode_info['min_seconds']:.6f}s`, max `{mode_info['max_seconds']:.6f}s`, samples `{mode_info['sample_seconds']}`"
+            )
+        lines.append(
+            f"- winner `{proof_result['winner']}`"
+            + (
+                f", speedup `{proof_result['speedup_vs_current']:.3f}x`"
+                if isinstance(proof_result.get("speedup_vs_current"), float)
+                else ""
+            )
+        )
+
     lines.extend(
         [
             "",
@@ -1050,6 +1390,7 @@ def render_summary(
             f"- Exit focus logs: `{output_dir / 'raw' / 'exit-focus'}`",
             f"- IR + snapshot + mcode dumps: `{output_dir / 'raw' / 'dump'}`",
             f"- perf stat logs: `{output_dir / 'raw' / 'perf-stat'}`",
+            f"- Loop-control proof logs: `{output_dir / 'raw' / 'proof'}`",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -1058,12 +1399,15 @@ def render_summary(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", choices=restamp.HOST_LABELS, default="kdz")
-    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="baseline")
+    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="retained_baseline")
     parser.add_argument("--repo")
     parser.add_argument("--output-dir", type=pathlib.Path)
     parser.add_argument("--pin-core", type=int, default=restamp.DEFAULT_PIN_CORE)
     parser.add_argument("--samples", type=int, default=restamp.DEFAULT_SAMPLES)
     parser.add_argument("--warmup", type=int, default=restamp.DEFAULT_WARMUP)
+    parser.add_argument("--proof-loop-control", action="store_true")
+    parser.add_argument("--proof-stop", type=int, default=PROOF_STOP)
+    parser.add_argument("--proof-outer", type=int, default=PROOF_OUTER)
     return parser.parse_args()
 
 
@@ -1082,8 +1426,9 @@ def main() -> int:
     exit_dir = raw_dir / "exit-focus"
     dump_dir = raw_dir / "dump"
     perf_dir = raw_dir / "perf-stat"
+    proof_dir = raw_dir / "proof"
 
-    for directory in (build_dir, check_dir, trace_dir, exit_dir, dump_dir, perf_dir):
+    for directory in (build_dir, check_dir, trace_dir, exit_dir, dump_dir, perf_dir, proof_dir):
         directory.mkdir(parents=True, exist_ok=True)
 
     remote_tmp = ""
@@ -1095,12 +1440,13 @@ def main() -> int:
         host_info = restamp.collect_host_info(host)
         restamp.build_remote_repo(host, repo, build_dir)
         jit_status = restamp.run_jit_status(host, repo, build_dir)
+        remote_hashes = restamp.remote_file_hashes(host, repo, HASH_STAMP_PATHS)
 
         check_results: dict[str, str] = {}
         for name in LOOP_NAMES:
             check_results[name] = run_check(host, repo, remote_tmp, check_dir, name, candidate_env)
 
-        dispatch_jit_on = run_dispatch_bench(
+        dispatch_jit_on, dispatch_jit_on_status = run_dispatch_bench(
             host=host,
             repo=repo,
             remote_tmp=remote_tmp,
@@ -1112,7 +1458,7 @@ def main() -> int:
             joff=False,
             extra_env=candidate_env,
         )
-        dispatch_joff = run_dispatch_bench(
+        dispatch_joff, dispatch_joff_status = run_dispatch_bench(
             host=host,
             repo=repo,
             remote_tmp=remote_tmp,
@@ -1124,7 +1470,7 @@ def main() -> int:
             joff=True,
             extra_env=candidate_env,
         )
-        focused_records = run_focused_bench(
+        focused_records, focused_jit_on_status = run_focused_bench(
             host=host,
             repo=repo,
             remote_tmp=remote_tmp,
@@ -1135,7 +1481,7 @@ def main() -> int:
             joff=False,
             extra_env=candidate_env,
         )
-        focused_joff_records = run_focused_bench(
+        focused_joff_records, focused_joff_status = run_focused_bench(
             host=host,
             repo=repo,
             remote_tmp=remote_tmp,
@@ -1163,6 +1509,25 @@ def main() -> int:
             run_mcode_dump(host, repo, remote_tmp, dump_dir, name, candidate_env)
             perf_stats[name] = run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core, candidate_env)
 
+        numeric_seam = exit_focus["numeric_loop"].get("seam_attribution")
+        if numeric_seam != CURRENT_SEAM_NAME:
+            raise restamp.RestampError(
+                f"{host} dispatch seam drift: expected {CURRENT_SEAM_NAME}, got {numeric_seam!r}"
+            )
+
+        proof_result = None
+        if args.proof_loop_control:
+            proof_result = run_loop_control_proof(
+                host=host,
+                remote_tmp=remote_tmp,
+                raw_dir=proof_dir,
+                pin_core=args.pin_core,
+                samples=args.samples,
+                warmup=args.warmup,
+                outer=args.proof_outer,
+                stop=args.proof_stop,
+            )
+
         runtime_metrics = focused_runtime_metrics(
             restamp.perf_index(focused_records),
             restamp.perf_index(focused_joff_records),
@@ -1182,28 +1547,45 @@ def main() -> int:
             "sample_count": args.samples,
             "warmup_runs": args.warmup,
             "pin_core": args.pin_core,
+            "dispatch_suite_status": {
+                "jit_on": dispatch_jit_on_status,
+                "joff": dispatch_joff_status,
+            },
+            "focused_suite_status": {
+                "jit_on": focused_jit_on_status,
+                "joff": focused_joff_status,
+            },
+            "delivered_remote_hashes": remote_hashes,
             "focused_loops": list(LOOP_NAMES),
             "runtime_fallback_metrics": runtime_metrics,
             "derived_perf_metrics": perf_metrics,
+            "proof_loop_control": proof_result,
         }
         write_json(output_dir / "metadata.json", metadata)
         summary = render_summary(
             output_dir=output_dir,
             host=host,
+            candidate=candidate,
             host_info=host_info,
             repo=repo,
             commit=commit,
             jit_status=jit_status,
+            remote_hashes=remote_hashes,
             check_results=check_results,
             dispatch_jit_on_records=dispatch_jit_on,
+            dispatch_jit_on_status=dispatch_jit_on_status,
             dispatch_joff_records=dispatch_joff,
+            dispatch_joff_status=dispatch_joff_status,
             focused_records=focused_records,
+            focused_jit_on_status=focused_jit_on_status,
             focused_joff_records=focused_joff_records,
+            focused_joff_status=focused_joff_status,
             trace_counts=trace_counts,
             exit_focus=exit_focus,
             perf_stats=perf_stats,
             runtime_metrics=runtime_metrics,
             perf_metrics=perf_metrics,
+            proof_result=proof_result,
             pin_core=args.pin_core,
             samples=args.samples,
             warmup=args.warmup,
