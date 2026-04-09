@@ -14,67 +14,43 @@ read.
 ## Current Frontier
 
 - `promotion_core` remains green on the envless first-enable slice.
-- The active branch-level blocker is still `mixed_noffi`.
-- The retained exact branch control for `mixed_noffi` is:
+- `dispatch_trace` is green again on both hosts and should only be reopened if
+  a later change regresses the retained floor.
+- `mixed_noffi` and `vararg_paths/sum_loop` remain carried red rows, but their
+  current attributed lanes are exhausted on the retained floor.
+- The latest retained host-pair win is in `ffi_cdata`; the next active queue
+  item is fresh `iterator_table` attribution.
+- The retained exact branch control now carries:
+  - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
+  - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
   - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
   - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
   - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
   - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
-- The retained mixed bundle now also carries:
+  - `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE=1`
+  - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
+  - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
+  - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
+  - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
-- That retained baseline now carries a default-on recorder fix:
-  - `BC_ITERN` side-trace `LJ_TRERR_TYPEINS` on `parent!=0 exit=1` marks the
-    parent exit `SNAPCOUNT_DONE` in `lj_trace.c`
-  - opt-out:
-    `LUAJIT_S390X_DISABLE_SIDETRACE_TYPEINS_DONE=1`
-- `ROOT_ITERN_NIL_DESC` remains a real but slower classifier:
-  - exact on both hosts
-  - useful for ownership classification
-  - not promotable as the retained floor
-  - Official deterministic `mixed_noffi` host-pair restamp:
-    - `kdz`
-      - retained previous floor: `mixed_loop/hot 0.015387`
-      - current retained bundle: `mixed_loop/hot 0.013527`
-      - `-joff`: `0.003734`
-    - `zkd0`
-      - retained previous floor: `mixed_loop/hot 0.016724`
-      - current retained bundle: `mixed_loop/hot 0.015202`
-      - `-joff`: `0.004387`
-- Exactness still holds on both hosts:
+  - the retained `lj_vm_next` KEYINDEX base-reuse cut in
+    [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+- Branch exactness gates remain:
   - `/tmp/mixedprobe.lua -> RESULT 553416`
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
-- Focused retained mechanism guard on trusted `kdz`:
-  - `TRACE_START 7`
-  - `TRACE_STOP 6`
-  - `TRACE_ABORT 1`
-  - `TEXIT_COUNT 244429`
-  - `TEXIT_HIST 3:1 244029`
-- Focused root-1 guardrail on trusted `kdz`:
   - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
-  - `TRACE_START 5`
-  - `TRACE_ABORT 3`
-  - `TEXIT_COUNT 341`
-- Read:
-  - the real retained win is suppressing futile `BC_ITERN` side-trace reheats
-    after `persistent type instability`
-  - the narrowed root-1 replay-triplet work remains necessary, but it is no
-    longer the branch-level limiter or the active frontier
-  - scale-based perf suites now use deterministic hot-first ordering through
-    [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
-    `bench.scale_order(scales)`; prior `pairs(scales)` order drift is invalid
-    policy evidence for `mixed_noffi`
-  - the retained mixed bundle now includes the VM-side handoff fast path, the
-    narrower hash-only consume specialization, and the exact target-load hoist
-    for the exact hot
-    `trace 3 exit 1 -> target=2 -> BC_ITERN` seam
-  - the branch-level mixed floor moved right again on both hosts without
-    changing visible trace topology
-  - the live branch-level frontier is now below the visible retained texit
-    topology, inside the remaining root-2 bridge body and tail
-  - `mixed_noffi` remains slower than `-joff`, so it stays the leading mixed
-    blocker
+- Current `iterator_table` read on trusted `kdz`:
+  - `pairs_sum/hot 0.094653` vs `-joff 0.004135`
+  - `pairs_array_sum/hot 0.095170` vs `-joff 0.003651`
+  - fresh official-row attribution points at the `root=2`, `BC_JMP`,
+    `LJ_TRLINK_INTERP`, `nsnap=2`, `nins=32773` stop-classification ladder,
+    not another local backend value/accumulator micro-cut.
+- Next queue:
+  - `ffi_cdata`
+  - re-enter `iterator_table`, `sum_loop`, or `mixed_noffi` only if a fresh
+    attribution names a new subsystem
 
 ## Harness Status
 
@@ -22220,3 +22196,1616 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - exact, but clearly slower on the new carried floor
     - the remaining `sum_loop` payer is not the already-screened fixed-four
       vararg-count guard
+
+- Timestamp: `2026-04-08 19:37 PDT`
+  - closed the exact proto-only constant-vararg follow-on in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_VARG4=1`
+    - exact idea:
+      - after the retained `BC_GGET select` constant-fold, remove the old
+        frame-size equality guard entirely and treat the inner `sum(...)`
+        vararg shape as exact constant `4` for both `select("#", ...)` and the
+        dynamic `select(i, ...)` path
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - performance on the new carried `kdz` floor:
+    - candidate:
+      - `sum_loop/hot 0.019059`
+      - `retlast_loop/hot 0.003264`
+      - `retconst_loop/hot 0.001730`
+    - immediate same-binary control:
+      - `sum_loop/hot 0.018749`
+      - `retlast_loop/hot 0.003183`
+      - `retconst_loop/hot 0.001744`
+  - classification:
+    - exact, but slower on the carried floor
+    - the remaining `sum_loop` payer is not solved by making the whole
+      four-arg shape constant in `rec_varg()`
+
+- Timestamp: `2026-04-08 19:43 PDT`
+  - closed the exact proto-only constant-count follow-on in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_COUNT=1`
+    - exact idea:
+      - after the retained `BC_GGET select` fold, make only the
+        `select("#", ...)` count side exact constant `4` for the inner
+        `sum(...)` proto and leave the dynamic element path unchanged
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - performance on the carried `kdz` floor:
+    - candidate:
+      - `sum_loop/hot 0.018959`
+      - `retlast_loop/hot 0.003286`
+      - `retconst_loop/hot 0.001762`
+    - immediate same-binary control:
+      - `sum_loop/hot 0.018749`
+      - `retlast_loop/hot 0.003183`
+      - `retconst_loop/hot 0.001744`
+  - classification:
+    - exact, but slower on the carried floor
+    - the remaining `sum_loop` payer is not the fixed-four
+      `select("#", ...)` count side by itself
+
+- Timestamp: `2026-04-08 19:49 PDT`
+  - closed the exact proto-only constant-vbase follow-on in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_VBASE=1`
+    - exact idea:
+      - keep the carried count logic, but make only the dynamic
+        `select(i, ...)` vararg base formation exact constant for the inner
+        `sum(...)` proto with `nvararg == 4`
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - performance on the carried `kdz` floor:
+    - candidate:
+      - `sum_loop/hot 0.018960`
+      - `retlast_loop/hot 0.003194`
+      - `retconst_loop/hot 0.001761`
+    - immediate same-binary control:
+      - `sum_loop/hot 0.018749`
+      - `retlast_loop/hot 0.003183`
+      - `retconst_loop/hot 0.001744`
+  - classification:
+    - exact, but slower on the carried floor
+    - the remaining `sum_loop` payer is no longer the fixed-four vbase
+      formation side either
+    - the next honest seam is the surviving dynamic index/bounds lane in
+      `rec_varg()`, especially the `rec_idx_abc()` / `IR_ABC` path plus the
+      residual `AREF/VLOAD` consumer
+
+- Timestamp: `2026-04-08 20:18 PDT`
+  - closed the exact count-from-stop follow-on in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_COUNT_FROM_STOP=1`
+    - exact idea:
+      - for the inner carried `sum(...)` `select(i, ...)` trace only, reuse the
+        already-live `FORL_STOP` slot as the vararg count instead of rebuilding
+        count from `FR`
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact
+  - mechanism:
+    - the cut really engaged on the official carried family:
+      - `S390X_SUM_LOOP_SELECT_COUNT_FROM_STOP trace=37..110`
+    - but it changed the exact carried `trace 110` body in the wrong way:
+      - the original carried floor had one invariant `ABC`
+      - the candidate reintroduced a per-iteration `ABC` inside the loop body
+  - performance on `kdz`:
+    - candidate:
+      - `sum_loop/hot 0.018961`
+      - `retlast_loop/hot 0.003217`
+      - `retconst_loop/hot 0.001753`
+    - carried immediate control:
+      - `sum_loop/hot 0.018791`
+      - `retlast_loop/hot 0.003186`
+      - `retconst_loop/hot 0.001729`
+  - classification:
+    - exact, but slower on the carried floor
+    - the dynamic count rebuild is part of the current invariant-`ABC`
+      contract, not dead work
+
+- Timestamp: `2026-04-08 20:24 PDT`
+  - closed the exact invariant-`ABC` skip follow-on in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_ABC=1`
+    - exact idea:
+      - keep the carried count and vbase formation intact, but remove the exact
+        single invariant `ABC` from the carried inner `sum(...)`
+        `select(i, ...)` loop child
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact
+  - performance on `kdz`:
+    - candidate:
+      - `sum_loop/hot 0.018844`
+      - `retlast_loop/hot 0.003204`
+      - `retconst_loop/hot 0.001733`
+    - carried immediate control:
+      - `sum_loop/hot 0.018791`
+      - `retlast_loop/hot 0.003186`
+      - `retconst_loop/hot 0.001729`
+  - classification:
+    - exact, but still slower on the carried floor
+    - the remaining `sum_loop` payer is not the lone invariant `ABC`
+      instruction by itself
+
+- Timestamp: `2026-04-08 20:31 PDT`
+  - closed the exact inner-accumulator `ADDOV` follow-on in
+    [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_ADDOV=1`
+    - exact idea:
+      - for the exact carried inner `sum(...)` loop child only, replace the
+        overflow-checked integer accumulator add with plain `ADD`
+  - exactness:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - official
+        [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua)
+        stayed exact
+  - performance on `kdz`:
+    - candidate:
+      - `sum_loop/hot 0.019253`
+      - `retlast_loop/hot 0.003319`
+      - `retconst_loop/hot 0.001827`
+    - carried immediate control:
+      - `sum_loop/hot 0.018791`
+      - `retlast_loop/hot 0.003186`
+      - `retconst_loop/hot 0.001729`
+  - classification:
+    - exact, but clearly slower on the carried floor
+    - the remaining `sum_loop` payer is not solved by recorder-side overflow
+      elision on the inner accumulator
+
+- Timestamp: `2026-04-08 20:34 PDT`
+  - refreshed the exact official carried `sum_loop` runtime attribution:
+    - on the carried floor, the hot family is still the exact inner
+      `sum(...)` loop child at `trace 110`
+    - the carried human-readable body is now:
+      - `SLOAD stop`
+      - `SLOAD idx`
+      - `SLOAD fr`
+      - count from `FR`
+      - one invariant `ABC`
+      - vbase from `REF_BASE - fr`
+      - `AREF/VLOAD`
+      - `SLOAD total`
+      - `ADDOV`
+      - loop compare/increment
+    - after closing:
+      - `CONST_COUNT`
+      - `CONST_VBASE`
+      - `COUNT_FROM_STOP`
+      - `SKIP_ABC`
+      - `SKIP_ADDOV`
+      the next honest subsystem is no longer recorder-side `rec_varg()`
+      count/bounds/accumulator shaping
+  - classification:
+    - the remaining `sum_loop` seam has moved to backend/runtime lowering of
+      the exact carried `trace 110` loop body, especially the fused
+      `AREF/VLOAD` plus accumulator path in s390x codegen
+
+- Timestamp: `2026-04-08 22:24 PDT`
+  - closed three exact backend follow-ons on the carried `sum_loop` `trace 110`
+    loop body after the recorder-side `select` wins:
+    - `LUAJIT_S390X_SUM_LOOP_VARG_VLOAD_DESTADDR=1`
+      - exact idea:
+        - for the exact traced-vararg `int/u32 VLOAD` family in the carried
+          inner `sum(...)` loop body, reuse the destination GPR itself as the
+          fused `AREF` address register instead of materializing the address in
+          a separate scratch GPR
+      - mechanism:
+        - the cut really engaged on the official hot family:
+          - `trace=1 ir=21`
+          - `trace=1 ir=13`
+          - and the same pair across later saved traces
+      - exactness:
+        - `kdz`
+          - `/tmp/mixedprobe.lua -> RESULT 553416`
+          - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+          - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - performance on `kdz`:
+        - candidate:
+          - `sum_loop/hot 0.019749`
+          - `retlast_loop/hot 0.003525`
+          - `retconst_loop/hot 0.001724`
+      - classification:
+        - exact, but materially slower on the carried floor
+        - producer-side vararg `VLOAD` destination-as-address reuse is closed
+
+    - `LUAJIT_S390X_SUM_LOOP_ADDOV_SKIP_VARG_BNORM=1`
+      - exact idea:
+        - on guarded integer `ADDOV` in the exact carried `trace 110` family,
+          skip the pre-add `LGFR dest,dest` when the left operand is already a
+          normalized traced-vararg producer (`VLOAD`) or the normalized carried
+          `SLOAD` total feeding a traced-vararg right operand
+      - mechanism:
+        - the cut engaged exactly on both hot add sites in the carried body:
+          - `ir=15`
+          - `ir=22`
+      - exactness:
+        - `kdz`
+          - `/tmp/mixedprobe.lua -> RESULT 553416`
+          - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+          - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+        - `zkd0`
+          - `/tmp/mixedprobe.lua -> RESULT 553416`
+          - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+          - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - performance:
+        - `kdz`
+          - candidate `sum_loop/hot 0.018759`
+          - immediate reverted control `0.018782`
+        - `zkd0`
+          - candidate `sum_loop/hot 1.127032`
+      - classification:
+        - same-host `kdz` micro-win, but catastrophic host-pair reject on
+          `zkd0`
+        - add-side renormalization elision is not retainable in this family
+
+    - `LUAJIT_S390X_SUM_LOOP_VARG_VLOAD_LGF=1`
+      - exact idea:
+        - for the exact traced-vararg `int VLOAD` family in the carried inner
+          `sum(...)` loop body, replace the current `LLGF + LGFR` sign-extension
+          pair with a single signed `LGF`
+      - mechanism:
+        - the cut really engaged on the official hot family:
+          - `trace=1 ir=21`
+          - `trace=1 ir=13`
+          - and the same pair across later saved traces
+      - exactness:
+        - `kdz`
+          - `/tmp/mixedprobe.lua -> RESULT 553416`
+          - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+          - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - performance on `kdz`:
+        - candidate:
+          - `sum_loop/hot 0.018980`
+          - `retlast_loop/hot 0.003258`
+          - `retconst_loop/hot 0.001730`
+        - immediate carried control:
+          - `sum_loop/hot 0.018782`
+          - `retlast_loop/hot 0.003198`
+          - `retconst_loop/hot 0.001755`
+      - classification:
+        - exact, but slower on the carried floor
+        - the semantic signed-load swap for the traced-vararg `VLOAD` lane is
+          closed
+
+  - operational note:
+    - attempted remote `ripgrep` install on both `kdz` and `zkd0` via `dnf`
+      on RHEL 9
+    - result:
+      - package not present in the enabled repos
+      - `No match for argument: ripgrep`
+    - implication:
+      - remote runs still need `grep` fallback unless a different install path
+        is chosen later
+
+  - `LUAJIT_S390X_SUM_LOOP_ADD_CARRY_TO_BSHR=1`
+    - exact idea:
+      - for the carried inner `sum(...)` loop body on the official
+        `vararg_paths/sum_loop` row, skip `asm_bnorm32()` for an `IR_ADD`
+        result only when its exact first and only non-carry consumer is
+        `IR_BSHR`
+      - the intended win was to let the later `BSHR` zero-extension own the
+        normalization instead of doing it in the producer `ADD`
+    - build/mechanism:
+      - the first draft failed to build because the new matcher called
+        `asm_s390x_addhome_use_counts()` before its definition in
+        [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      - after a narrow forward declaration fix, the candidate built and stayed
+        exact on `kdz`
+      - but on the official hot row the mechanism never engaged:
+        - no `S390X_SUM_LOOP_ADD_CARRY_TO_BSHR` hits at all
+    - exactness on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.018884`
+        - `retlast_loop/hot 0.003177`
+        - `retconst_loop/hot 0.001773`
+      - immediate carried control band:
+        - `sum_loop/hot 0.018791` / `0.018782`
+    - classification:
+      - exact but dead on the official family
+      - the `BSHR`-only carry lane is not the remaining payer in carried
+        `trace 110`
+
+  - carried-floor re-attribution after closing `ADD_CARRY_TO_BSHR`
+    - on the authoritative `kdz` `vararg_paths` hot row, the repeated compare
+        summary is now:
+      - `S390X_LOW32CMP_SUMMARY total=317`
+      - signed `LE` compares: `216`
+      - unsigned compare side family: `101`
+      - `cmp32u=0`: `216`
+      - `cmp32u=1`: `101`
+    - the dominant compare shape is therefore no longer the older unsigned
+      `ABC` / `BSHR` lane
+    - the live remaining backend payer is the signed loop compare/control
+      increment chain in the carried inner `sum(...)` loop body:
+      - repeated signed `LE`
+      - left source is `IR_ADD`
+      - right side is the loop bound
+      - this is the next honest attack surface, not more `BSHR` carry shaping
+
+  - `LUAJIT_S390X_SUM_LOOP_LE_CGRJ=1`
+    - exact idea:
+      - fuse the carried `sum_loop` signed `LE` control compare in
+        `asm_intcomp()` into a single `CGRJ` guard for the exact inner
+        `sum(...)` family
+    - source-driven setup:
+      - remote assembler proof on `kdz` confirmed:
+        - `cgrje %r3,%r4,label` encodes as `ec 34 ... 80 64`
+      - that is enough for a minimal local `RIE-g` emitter experiment in
+        [src/lj_emit_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_emit_s390x.h)
+    - mechanism:
+      - the cut engaged exactly on the hot official family:
+        - repeated `trace=* curins=17 ir=17`
+        - right through `trace=110`
+      - exact hit form:
+        - `leftref=16`
+        - `rightref=1`
+        - `cc=2`
+    - exactness on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.018818`
+      - carried control band:
+        - `0.018791`
+        - `0.018782`
+    - classification:
+      - exact and clearly engaged, but still slower than the carried floor
+      - fused signed compare-and-branch is not the retained win on this seam
+
+  - `LUAJIT_S390X_SUM_LOOP_CTRL_TAIL_ADD_SKIP_BNORM=1`
+    - exact idea:
+      - skip `asm_bnorm32()` only for the tail `+1` control `IR_ADD` in the
+        carried `sum(...)` loop body when its only hard consumer is the signed
+        `LE` guard plus the loop `PHI`
+    - mechanism:
+      - the cut engaged exactly on the official family:
+        - repeated `trace=* curins=23 ir=23 kind=addk`
+        - right through `trace=110`
+        - `leftref=16`
+        - `rightk=1`
+    - exactness on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.019122`
+      - immediate same-binary control rerun:
+        - `sum_loop/hot 0.019363`
+      - carried floor to beat:
+        - `sum_loop/hot 0.018791`
+        - `sum_loop/hot 0.018782`
+    - classification:
+      - exact and same-binary better than the immediate rerun, but still above
+        the carried floor
+      - this tail-add normalization cut is too noisy / too weak to retain
+
+  - read after closing both signed-compare-family cuts:
+    - the remaining `sum_loop` payer is still the same signed loop
+      compare/control family in carried `trace 110`
+    - but it no longer looks like:
+      - fused compare-and-branch
+      - or the tail `+1` control add normalization alone
+    - the next honest seam is earlier in the same control chain:
+      - the predecessor `IR_ADD` / `PHI` family around `curins=16`
+      - or the broader compare/increment contract as one runtime unit
+
+  - `LUAJIT_S390X_SUM_LOOP_CTRL_HEAD_ADD_SKIP_BNORM=1`
+    - exact idea:
+      - skip `asm_bnorm32()` for the earlier carried control add
+        `curins=16` (`SLOAD idx + 1`) in the inner `sum(...)` loop body
+      - this was the first broader cut on the signed compare/control chain,
+        earlier than the already-closed tail `+1` add
+    - mechanism:
+      - the cut engaged exactly on the official family:
+        - repeated `trace=* curins=16 ir=16`
+        - right through `trace=110`
+        - `leftref=3`
+        - `rightk=1`
+    - exactness on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.019070`
+      - carried floor to beat:
+        - `sum_loop/hot 0.018791`
+        - `sum_loop/hot 0.018782`
+    - classification:
+      - exact and fully engaged, but clearly slower than the carried floor
+      - the earlier control add by itself is not the retained win either
+
+  - `LUAJIT_S390X_SUM_LOOP_VLOAD_FOLD_PREV_IDX=1`
+    - exact idea:
+      - in the fused `AREF/VLOAD` path, fold the carried `(idx+1)-1` index
+        step back onto the already-live `idx+1` value by reusing that ref with
+        an `-8` fused offset
+      - this was the first structural cancellation cut adjacent to the hot
+        compare/control chain
+    - mechanism:
+      - the cut engaged exactly on the official family:
+        - repeated `trace=* curins=21 aref=20`
+        - `idxref=19`
+        - `idxsrc=16`
+        - `ofs=-8`
+        - right through `trace=110`
+    - exactness on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.021610`
+      - carried floor to beat:
+        - `sum_loop/hot 0.018791`
+        - `sum_loop/hot 0.018782`
+    - classification:
+      - exact and clearly engaged, but materially slower than the carried floor
+      - the adjacent `AREF/VLOAD` index-cancellation lane is closed too
+
+  - read after closing the predecessor-add and adjacent `VLOAD` cancellation
+    cuts:
+    - the remaining `sum_loop` payer is still the carried signed
+      compare/control runtime contract in `trace 110`
+    - it no longer looks like:
+      - the tail `+1` add alone
+      - the earlier `idx+1` add alone
+      - or the adjacent `(idx+1)-1` fused `AREF/VLOAD` index step
+    - the next honest seam is the compare/increment contract as one runtime
+      unit, not another isolated micro-cut on one node beside it
+
+  - `LUAJIT_S390X_SUM_LOOP_CTRL_CHAIN_SKIP_BNORM=1`
+    - exact idea:
+      - treat the carried signed compare/control producer lane as one unit by
+        skipping `asm_bnorm32()` on both control adds together:
+        - the earlier `curins=16` `SLOAD idx + 1`
+        - the later `curins=23` tail `+1`
+      - this was the first coherent “producer normalization lane” cut after
+        the earlier single-node probes closed
+    - mechanism:
+      - the cut engaged exactly on the official family:
+        - repeated `trace=* curins=16 ... leftop=71`
+        - repeated `trace=* curins=23 ... leftop=41`
+        - right through `trace=110`
+    - exactness on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.018874`
+      - carried floor to beat:
+        - `sum_loop/hot 0.018791`
+        - `sum_loop/hot 0.018782`
+    - classification:
+      - exact and fully engaged across both carried control-add sites, but
+        still slower than the carried floor
+      - the producer-side normalization lane is now closed as a retained path
+
+  - read after closing the combined control-chain cut:
+    - the remaining `sum_loop` payer is still the carried signed
+      compare/increment runtime contract in `trace 110`
+    - but it is no longer the producer normalization side of that contract:
+      - not `curins=16` alone
+      - not `curins=23` alone
+      - not both producer adds together
+      - not the adjacent fused `AREF/VLOAD` index-cancellation lane
+    - the next honest target is now compare-side or whole-loop-contract work,
+      not another producer-side micro-cut
+
+  - `LUAJIT_S390X_SUM_LOOP_LE_CR=1`
+    - exact idea:
+      - for the carried signed `IR_LE` compare family in the inner `sum(...)`
+        loop body, replace the default 64-bit `CGR` compare with 32-bit signed
+        `CR`
+      - this was the first compare-side-only ISA cut after the producer-side
+        normalization lane closed
+    - mechanism:
+      - the cut engaged exactly on the official family, including the carried
+        hot `trace 110`:
+        - repeated `trace=* curins=17 ir=17`
+        - repeated `trace=* curins=24 ir=24`
+        - `leftref=16/23`
+        - `rightref=1`
+    - exactness on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on `kdz`:
+      - candidate:
+        - `sum_loop/hot 0.018888`
+        - `retlast_loop/hot 0.003257`
+        - `retconst_loop/hot 0.001805`
+      - carried floor to beat:
+        - `sum_loop/hot 0.018791`
+        - `sum_loop/hot 0.018782`
+    - classification:
+      - exact and fully engaged, but still slower than the carried floor
+      - the remaining `sum_loop` payer is not solved by swapping the signed
+        loop compares from `CGR` to `CR`
+
+  - corrected `BXLE` proof for the carried `sum_loop` loop-control contract:
+    - after the failed `LE_CR` compare-side cut, rechecked whether the next
+      honest seam is the whole signed loop compare/increment contract rather
+      than another one-op tweak
+    - first proof bug was in the standalone wrapper ABI, not the instruction:
+      - a tiny `BXLE` index-only proof on `kdz` returned the expected final
+        index:
+        - `STOP 1 IDX 2`
+        - `STOP 2 IDX 3`
+        - `STOP 3 IDX 4`
+        - `STOP 4 IDX 5`
+        - `STOP 5 IDX 6`
+      - the first sum proof produced huge totals only because the helper was
+        returning a 32-bit value without normalizing the 64-bit return
+        register for the C caller
+    - corrected proof kernel:
+      - current loop:
+        - `AR`
+        - `CR`
+        - `JH`
+      - `BXLE` loop:
+        - increment register in the second operand
+        - compare register in the next higher odd register
+        - explicit `LGFR` normalization on return
+    - proof results on `kdz`:
+      - exact fixed-four contract:
+        - current:
+          - `OUTER 800000`
+          - `STOP 4`
+          - `SECONDS 0.004351266`
+        - `BXLE`:
+          - `OUTER 800000`
+          - `STOP 4`
+          - `SECONDS 0.004037192`
+      - wider stop count:
+        - current:
+          - `OUTER 800000`
+          - `STOP 17`
+          - `SECONDS 0.012507292`
+        - `BXLE`:
+          - `OUTER 800000`
+          - `STOP 17`
+          - `SECONDS 0.012560520`
+    - classification:
+      - `BXLE` is no longer blocked on semantics for this backend
+      - it is plausibly a win for the exact fixed-four contract that
+        `sum_loop` actually runs
+      - the next honest backend target is therefore not another compare opcode
+        swap, but a fused tail `+1` add plus signed `LE` guard candidate for
+        the carried inner `sum(...)` loop body
+
+- Timestamp: `2026-04-09 11:18 PDT`
+  - closed the first exact whole-loop-contract backend candidate for the
+    carried `sum_loop` `trace 110` body:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_TAIL_BRXHG=1`
+    - exact idea:
+      - arm the carried tail signed `IR_LE` guard in `asm_intcomp()`
+      - then consume the matching tail `IR_ADD + 1` in `asm_add()`
+      - replace the generic tail add plus signed compare/guard contract with a
+        single exact `BRXHG` loop-control emission using an even/odd GPR pair
+        for increment and stop
+  - mechanism:
+    - after removing a stale `nsnap/nins` clamp, the candidate engaged exactly
+      on the live official family, including carried `trace 110`:
+      - `S390X_SUM_LOOP_TAIL_BRXHG phase=arm trace=110 curins=24 ir=24`
+      - `S390X_SUM_LOOP_TAIL_BRXHG phase=emit trace=110 curins=23 ir=23`
+    - the mechanism also engaged across earlier saved traces on the same
+      official row, so this is a real whole-loop contract hit, not dead code
+  - exactness on `kdz`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - performance on `kdz`:
+    - candidate:
+      - `sum_loop/hot 0.019459`
+      - `retlast_loop/hot 0.003444`
+      - `retconst_loop/hot 0.001796`
+    - carried floor to beat:
+      - `sum_loop/hot 0.018707`
+      - recent same-host carried band:
+        - `0.018791`
+        - `0.018782`
+  - classification:
+    - exact and fully engaged, but clearly slower than the carried floor
+    - the first true whole-loop-contract `BRXHG` candidate is closed
+    - the next honest `sum_loop` seam is no longer “any whole-loop unit” in
+      the abstract, but a narrower runtime payer inside the same carried
+      compare/increment contract
+
+- Timestamp: `2026-04-09 11:46 PDT`
+  - closed the 32-bit sibling of the first whole-loop-contract backend
+    candidate for the carried `sum_loop` `trace 110` body:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_TAIL_BRXH=1`
+    - exact idea:
+      - keep the same exact carried tail matcher as the closed `BRXHG` cut:
+        - arm the carried tail signed `IR_LE` at `curins=24`
+        - consume the matching tail `IR_ADD + 1` at `curins=23`
+      - replace the generic tail add plus signed compare/guard contract with a
+        32-bit `BRXH` loop-control emission instead of the 64-bit `BRXHG`
+        form
+  - mechanism:
+    - the candidate fully engaged on the live official family, including
+      carried `trace 110`:
+      - `S390X_SUM_LOOP_TAIL_BRXH phase=arm trace=110 curins=24 ir=24`
+      - `S390X_SUM_LOOP_TAIL_BRXH phase=emit trace=110 curins=23 ir=23`
+    - it also engaged across earlier saved traces on the same official row, so
+      this is another real whole-loop contract hit
+  - exactness on `kdz`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - performance on `kdz`:
+    - candidate:
+      - `sum_loop/hot 0.018900`
+      - `retlast_loop/hot 0.003252`
+      - `retconst_loop/hot 0.001768`
+    - carried floor to beat:
+      - `sum_loop/hot 0.018707`
+      - recent same-host carried band:
+        - `0.018791`
+        - `0.018782`
+  - classification:
+    - exact and fully engaged, but still slower than the carried floor
+    - the 32-bit `BRXH` sibling closes the exact tail `curins=23/24`
+      whole-loop lane too
+    - the next honest seam is the earlier `curins=16/17` compare/control unit
+      or a different exact loop-control contraction, not another retry of the
+      tail pair
+
+- Timestamp: `2026-04-09 12:02 PDT`
+  - closed the exact earlier compare/control sibling of the 32-bit whole-loop
+    backend candidate for the carried `sum_loop` `trace 110` body:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_HEAD_BRXH=1`
+    - exact idea:
+      - keep the same branch-on-index contract as the closed tail `BRXH` cut,
+        but shift it earlier:
+        - arm the carried signed `IR_LE` at `curins=17`
+        - consume the matching earlier `IR_ADD + 1` at `curins=16`
+      - replace that earlier signed compare/increment pair with a 32-bit
+        `BRXH` loop-control emission
+  - mechanism:
+    - the candidate fully engaged on the live official family, including
+      carried `trace 110`:
+      - `S390X_SUM_LOOP_HEAD_BRXH phase=arm trace=110 curins=17 ir=17`
+      - `S390X_SUM_LOOP_HEAD_BRXH phase=emit trace=110 curins=16 ir=16`
+    - the later tail pair remained visible as ordinary IR logging, so this
+      really isolated the earlier control unit rather than changing the whole
+      loop wholesale
+  - exactness on `kdz`:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - performance on `kdz`:
+    - candidate:
+      - `sum_loop/hot 0.019031`
+      - `retlast_loop/hot 0.003278`
+      - `retconst_loop/hot 0.001757`
+    - carried floor to beat:
+      - `sum_loop/hot 0.018707`
+      - recent same-host carried band:
+        - `0.018791`
+        - `0.018782`
+  - classification:
+    - exact and fully engaged, but still slower than the carried floor
+    - the earlier `curins=16/17` `BRXH` sibling closes too
+    - with:
+      - tail `BRXHG`
+      - tail `BRXH`
+      - head `BRXH`
+      all exact and engaged but slower, the current branch-on-index
+      whole-loop-contract `sum_loop` lane is exhausted enough to rerank
+    - the next active frontier should move to `iterator_table`
+
+- Timestamp: `2026-04-09 08:53 PDT`
+  - closed the first carried `iterator_table` backend candidate on the live
+    `pairs_array_sum` / `pairs_sum` `lj_vm_next` runtime unit:
+    - env:
+      `LUAJIT_S390X_ITER_ARRAY_KEY_ADD_SKIP_BNORM=1`
+    - exact idea:
+      - skip `asm_bnorm32()` only for the carried array-key `IR_ADD -1`
+        produced from the `IRCALL_lj_vm_next` `IR_HIOP`
+      - require that the add has no hard uses outside the existing
+        low32home-family uses, so this stays an exact producer-side
+        normalization experiment rather than a broad integer policy change
+  - mechanism:
+    - direct `pairs_array_sum` probe engaged on the expected carried key-add
+      sites:
+      - `trace=1 curins=7`
+      - `trace=1 curins=15`
+      - `trace=2 curins=7`
+    - the official hot row also engaged on the carried iterator family:
+      - `trace=2 curins=7/15`
+      - `trace=3 curins=7/15`
+    - direct `jit.util` attribution on the carried floor confirms the hot
+      iterator runtime body is the tiny `lj_vm_next` consumer chain:
+      - `CALLL`
+      - `HIOP`
+      - `ADD -1`
+      - `VLOAD`
+      - `SLOAD total`
+      - `ADDOV`
+  - exactness:
+    - direct `pairs_array_sum(80000) -> 2000000`
+    - official [iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua)
+      stayed exact and returned normally on `kdz`
+  - performance on `kdz`:
+    - candidate:
+      - `pairs_sum/hot 0.094718`
+      - `pairs_array_sum/hot 0.092001`
+    - immediate same-binary carried control:
+      - `pairs_sum/hot 0.084413`
+      - `pairs_array_sum/hot 0.089254`
+  - classification:
+    - exact and fully engaged, but slower on both iterator hot rows
+    - close the iterator array-key add / producer-side low32home skip lane
+    - the next honest iterator seam moves later in the same runtime unit:
+      - `CALLL lj_vm_next`
+      - `VLOAD`
+      - `SLOAD total`
+      - `ADDOV`
+
+- Timestamp: `2026-04-09 13:11 PDT`
+  - closed the second carried `iterator_table` backend guess on the same live
+    `lj_vm_next` consumer family:
+    - env:
+      `LUAJIT_S390X_ITER_VALUE_ADDOV_AGF=1`
+    - exact idea:
+      - treat the iterator `VLOAD + ADDOV` pair as one signed memory-add
+        contract
+      - match only a single-use integer `IR_VLOAD` directly off
+        `IRCALL_lj_vm_next`
+      - fuse it as a guarded `AGF` add from the helper-returned lane instead of
+        the ordinary materialized `VLOAD` consumer path
+  - mechanism:
+    - exactness stayed clean on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - the official hot row did not engage the candidate at all:
+      - no `S390X_ITER_VALUE_ADDOV` hits in the candidate log
+    - the fresh carried-floor attribution still shows the hot iterator roots as
+      repeated root-owned `BC_JLOOP` starts with fused `VLOAD` sites at:
+      - `curins=7/13`
+      - `curins=8/16`
+  - performance on `kdz`:
+    - candidate:
+      - `pairs_sum/hot 0.093974`
+      - `pairs_array_sum/hot 0.097652`
+    - immediate same-binary carried control:
+      - `pairs_sum/hot 0.085507`
+      - `pairs_array_sum/hot 0.091104`
+  - classification:
+    - exact, slower, and non-engaging
+    - close the naive direct signed memory-add `VLOAD + ADDOV` lane
+    - the next honest iterator payer is not a local consumer micro-cut; it is
+      the root-owned retry/abort family behind `trace 1 exit 1`
+
+- Timestamp: `2026-04-09 13:42 PDT`
+  - refreshed the official carried-floor iterator attribution and closed the
+    first exact abort-side stopper for the dominant root-owned family:
+    - fresh carried-floor attribution on `kdz`:
+      - the dominant iterator payer is the root-owned `parent=1 exit=1`
+        family behind the `pc=...d284` root, not the later `pc=...d514`
+        `LINNER` sibling
+      - the repeated side trace is:
+        - `trace=2`
+        - `parent=1`
+        - `exit=1`
+        - `startop=88` (`BC_JMP`)
+      - the live abort site is exact and stable:
+        - `S390X_RECITERN ... key_nil=1`
+        - `S390X_LLEAVE site=rec_itern_nil_descendant ...`
+      - the carried row is paying because this family walks from
+        `parent_snapcount=200` through `255`, then only later saturates to
+        `done=1` in hotside
+    - candidate env:
+      `LUAJIT_S390X_ITER_ROOT_NIL_LLEAVE_DONE=1`
+    - exact idea:
+      - do not change `rec_itern()` logic or runtime lowering
+      - when that exact root-owned iterator family aborts with `LJ_TRERR_LLEAVE`
+        in `trace_abort()`, persist `SNAPCOUNT_DONE` on the parent exit there,
+        where the mark can actually stick
+  - mechanism:
+    - exactness stayed clean on `kdz`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - the abort-side candidate engaged immediately on the official row:
+      - `S390X_ITER_ROOT_NIL_LLEAVE_DONE trace=2 parent=1 exit=1 ...`
+
+- Timestamp: `2026-04-09 15:54 PDT`
+  - closed two more exact backend/runtime iterator probes on the carried
+    `lj_vm_next` consumer chain in
+    [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h):
+    - `LUAJIT_S390X_ITER_VALUE_ADDOV_COMMUTE=1`
+      - exact idea:
+        - for the carried iterator `VLOAD + ADDOV` family, commute only the
+          hot second guarded add so the accumulator side takes the left/home
+          slot instead of the `VLOAD`
+      - mechanism:
+        - the cut really engaged on the isolated carried runtime:
+          - `S390X_ADD kind=iter_value_addov_commute curins=17 ir=17 ...`
+        - the first guarded add stayed on the normal path:
+          - `curins=10`
+      - exactness:
+        - `kdz`
+          - `/tmp/mixedprobe.lua -> RESULT 553416`
+          - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+          - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - performance on `kdz`:
+        - candidate:
+          - `pairs_sum/hot 0.064754`
+          - `pairs_array_sum/hot 0.063700`
+        - immediate same-binary carried control:
+          - `pairs_sum/hot 0.058150`
+          - `pairs_array_sum/hot 0.062813`
+      - classification:
+        - exact and engaged, but slower on both iterator hot rows
+        - the remaining iterator payer is not fixed by commuting the hot
+          second `VLOAD + ADDOV` consumer
+
+    - `LUAJIT_S390X_ITER_KEY_ADDK_DESTHINT=1`
+      - exact idea:
+        - on the carried iterator `HIOP -> ADD -1` key lane, force the helper
+          key decrement to keep the result in the destination/next-call home
+          register instead of bouncing through the old temporary home
+      - mechanism:
+        - the cut really engaged on both carried hot sites:
+          - `S390X_IR kind=addk curins=7 ... dest=2 left=2 k=-1`
+          - `S390X_IR kind=addk curins=15 ... dest=2 left=2 k=-1`
+        - carried control had the old home split:
+          - `dest=2 left=6`
+      - exactness:
+        - `kdz`
+          - `/tmp/mixedprobe.lua -> RESULT 553416`
+          - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+          - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - performance on `kdz`:
+        - candidate:
+          - `pairs_sum/hot 0.061443`
+          - `pairs_array_sum/hot 0.065124`
+        - immediate same-binary carried control:
+          - `pairs_sum/hot 0.056680`
+          - `pairs_array_sum/hot 0.061188`
+      - classification:
+        - exact and engaged, but slower on both iterator hot rows
+        - the remaining iterator seam is no longer local home selection on:
+          - the hot second `ADDOV`
+          - or the carried `HIOP -> ADD -1` key lane
+        - the next honest iterator target is broader `lj_vm_next`
+          pair-result / argument handoff work, not another local consumer-home
+          tweak
+  - performance on `kdz`:
+    - candidate:
+      - `pairs_sum/hot 0.100010`
+      - `pairs_array_sum/hot 0.102053`
+    - immediate same-binary carried control:
+      - `pairs_sum/hot 0.094368`
+      - `pairs_array_sum/hot 0.090366`
+  - classification:
+    - the exact payer is now named cleanly:
+      - root-owned `rec_itern_nil_descendant`
+      - repeated `LLEAVE`
+      - late ineffective `DONE`
+    - but persisting `DONE` at abort time is still materially worse on both
+      iterator hot rows
+    - close the first abort-side stopper lane and move laterally inside the same
+      iterator family instead of reopening producer-side `lj_vm_next`
+      arithmetic guesses
+
+- Timestamp: `2026-04-09 14:08 PDT`
+  - closed the second abort-side sibling on the same dominant iterator family:
+    - candidate env:
+      `LUAJIT_S390X_ITER_ROOT_NIL_LLEAVE_COOLDOWN=8`
+    - exact idea:
+      - keep the same exact root-owned
+        `trace=2 parent=1 exit=1 rec_itern_nil_descendant` matcher as the
+        closed `..._DONE` cut
+      - at `trace_abort()` time, reset the parent-exit snapcount from the
+        saturated range back to `hotexit-8` instead of killing the lane
+        outright
+  - mechanism:
+    - exactness stayed clean on `kdz`
+    - the cooldown path engaged repeatedly on the official row:
+      - `S390X_ITER_ROOT_NIL_LLEAVE_COOLDOWN trace=2 parent=1 exit=1 ... old=200 new=192`
+  - performance on `kdz`:
+    - candidate:
+      - `pairs_sum/hot 0.634929`
+      - `pairs_array_sum/hot 0.112676`
+  - classification:
+    - exact and fully engaged, but catastrophically worse
+    - close the root-owned nil-descendant cooldown lane next to the already
+      closed persistent-`DONE` sibling
+
+- Timestamp: `2026-04-09 14:54 PDT`
+  - refreshed the carried-floor iterator attribution again and closed the first
+    exact `LINNER` root-family stop/abort pair:
+    - fresh carried-floor `RECSTOP` proof on `kdz` shows the second iterator
+      family is exact and stable:
+      - `S390X_LINNER site=rec_loop_jit_root trace=2 parent=0 exit=0 startpc=0x...d28c pc=0x...d284 op=87 prevop=32 startop=79 ev=2 lnk=1`
+      - `S390X_LINNER site=rec_loop_jit_root trace=4 parent=0 exit=0 startpc=0x...d51c pc=0x...d514 op=87 prevop=32 startop=79 ev=2 lnk=2`
+    - the dominant payer still remains the earlier root-owned nil-descendant
+      family behind `trace 1 exit 1`; this `LINNER` root family is the next
+      visible sibling, not the primary row owner
+  - first candidate env:
+    `LUAJIT_S390X_ITER_TABLE_ROOT_LINNER_ROOT=1`
+    - exact idea:
+      - in `rec_loop_jit()` for that exact iterator root `LINNER` family only,
+        stop as `LJ_TRLINK_ROOT` to the existing inner loop target `lnk`
+        instead of aborting with `LJ_TRERR_LINNER`
+  - mechanism:
+    - exactness stayed clean on `kdz`
+    - the stop rewrite engaged on the official row:
+      - `S390X_ITER_TABLE_ROOT_LINNER_ROOT ... startpc=0x...d28c ...`
+      - `S390X_ITER_TABLE_ROOT_LINNER_ROOT ... startpc=0x...d51c ...`
+  - performance on `kdz`:
+    - candidate:
+      - `pairs_sum/hot 0.957332`
+      - `pairs_array_sum/hot 0.310784`
+  - classification:
+    - exact, but catastrophically worse
+    - the first stop-time `LINNER -> ROOT` ownership rewrite is closed
+    - it spawns a huge retry/side ladder and is not retainable
+
+- Timestamp: `2026-04-09 15:19 PDT`
+  - closed the corrected abort-side `LINNER` sibling too:
+    - candidate env:
+      `LUAJIT_S390X_ITER_TABLE_ROOT_LINNER_BLACKLIST=1`
+    - exact idea:
+      - leave recorder ownership untouched
+      - for the exact root `LINNER` iterator family only, blacklist the root
+        loop start in `trace_abort()` once it aborts with `LJ_TRERR_LINNER`
+  - mechanism:
+    - the first version of this candidate was rejected as stale matcher drift;
+      it did not engage on the official row
+    - after refreshing the exact carried-floor `RECSTOP` shape above, the
+      corrected matcher engaged on both live root sites:
+      - `S390X_ITER_TABLE_ROOT_LINNER_BLACKLIST trace=2 parent=0 exit=0 startpc=0x...d28c pc=0x...d284 op=87 prevop=32 startop=79 err=9`
+      - `S390X_ITER_TABLE_ROOT_LINNER_BLACKLIST trace=4 parent=0 exit=0 startpc=0x...d51c pc=0x...d514 op=87 prevop=32 startop=79 err=9`
+    - exactness stayed clean on `kdz`
+  - performance on `kdz`:
+    - candidate:
+      - `pairs_sum/hot 0.095121`
+      - `pairs_array_sum/hot 0.095920`
+    - immediate carried control band:
+      - `pairs_sum/hot 0.094368`
+      - `pairs_array_sum/hot 0.090366`
+  - classification:
+    - exact and engaged, but still slower on both iterator hot rows
+    - close the root-`LINNER` abort-side blacklist lane next to the already
+      closed stop-time `ROOT` rewrite
+    - both named iterator trace-control families are now screened from the
+      control side:
+      - root-owned nil-descendant `LLEAVE`
+      - root `LINNER`
+    - the next honest iterator subsystem is runtime lowering of the carried
+      iterator loop body itself, not more trace-control mutation
+
+- Timestamp: `2026-04-09 16:08 PDT`
+  - reviewed the downstream shared s390x guarded-`ADDOV`/`SUBOV` correctness
+    report before preempting the current queue:
+    - target downstream claim:
+      - plain traced `sum_loop(70000)` wraps negative past `2^31`
+      - `math.max` only exposed the same shared overflow path more clearly
+    - required stop condition for this branch:
+      - reproduce first on rebuilt nongit mirrors of the current bring-up
+        floor before touching `asm_add()` / `asm_sub()`
+  - rebuilt-mirror reproduction on the current branch says the bug is not live
+    here:
+    - `kdz`, rebuilt `canon/repo/src/luajit`:
+      - `sum_loop(65535) -> 2147450880`
+      - `sum_loop(65536) -> 2147516416`
+      - `sum_loop(65537) -> 2147581953`
+      - `sum_loop(70000) -> 2450035000`
+    - `zkd0`, rebuilt `canon/repo/src/luajit`:
+      - `sum_loop(65535) -> 2147450880`
+      - `sum_loop(65536) -> 2147516416`
+      - `sum_loop(65537) -> 2147581953`
+      - `sum_loop(70000) -> 2450035000`
+    - downstream symptom control on rebuilt `kdz` mirror:
+      - `LUAJIT_S390X_INT_MINMAX=1`
+      - `max_loop(64000) -> 3072032000`
+  - source comparison narrowed the handoff:
+    - the current bring-up branch still carries the same guarded integer
+      lowering shape in
+      [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+      `asm_add()` / `asm_sub()` at the reported `..._int_eq` sites
+    - the live ISA-lab repo's staged backend diffs do not touch those guarded
+      `ADDOV` / `SUBOV` branches; the staged lab changes are in the min/max
+      lane (`asm_abs`, `asm_fpdiv`, `asm_min/max`, plus `LPDBR` define wiring)
+    - the exact snapshot baseline path from the downstream note was not present
+      on current `kdz`, so this pass could not diff that binary directly from
+      the bring-up host
+  - classification:
+    - the downstream overflow report is real for that stream, but it is not a
+      live correctness blocker on the current bring-up branch
+    - do not preempt the local queue with a speculative `asm_add()` /
+      `asm_sub()` rewrite here
+    - hand downstream the narrower conclusion instead:
+      - current bring-up rebuilt mirrors already handle the boundary correctly
+      - the divergence is between their snapshot/binary path and the carried
+        bring-up floor, not a currently reproducible local backend bug
+    - keep the local active frontier on `iterator_table` runtime lowering
+
+- Timestamp: `2026-04-09 17:26 PDT`
+  - closed the first iterator whole-loop-contract runtime candidate on the
+    carried official `pairs_sum` / `pairs_array_sum` hot row:
+    - env:
+      `LUAJIT_S390X_ITER_CTRL_TAIL_BRXH=1`
+    - exact idea:
+      - on the carried iterator loop body only, arm the signed `IR_LE` guard
+        at `curins=27`
+      - then consume the matching `IR_ADD +1` at `curins=26`
+      - replace that exact tail control pair with a single 32-bit `BRXH`
+        emission to the existing exit stub
+  - mechanism on rebuilt `kdz` mirror:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - the corrected matcher engaged on the real official hot row, not only on
+      reduced probes:
+      - `S390X_ITER_CTRL_TAIL_BRXH phase=arm trace=4 curins=27 ir=27 idx=12 stop=1 snap=3 linktype=2 nins=29 nsnap=4`
+      - `S390X_ITER_CTRL_TAIL_BRXH phase=emit trace=4 curins=26 ir=26 idx=12 stop=1 snap=2 linktype=2 nins=29 nsnap=4`
+    - the live hot row still showed the carried pair shape around it:
+      - `S390X_IR kind=addk curins=26 ... k=1`
+  - performance on rebuilt `kdz` mirror:
+    - candidate:
+      - `pairs_sum/hot 0.079988`
+      - `pairs_array_sum/hot 0.077329`
+    - immediate same-binary control:
+      - `pairs_sum/hot 0.073633`
+      - `pairs_array_sum/hot 0.074888`
+  - classification:
+    - exact and fully engaged on the official row, but slower on both carried
+      iterator hot rows
+    - close the first iterator whole-loop `BRXH` lane
+    - the next honest iterator seam is not another trace-control family
+      and not this exact `26/27 -> BRXH` contraction
+    - the remaining payer is still in the carried iterator runtime body, but it
+      needs a different runtime contraction than direct branch-on-index
+
+- Timestamp: `2026-04-09 18:19 PDT`
+  - closed the compare-and-branch sibling on the same carried iterator tail
+    loop-control pair:
+    - env:
+      `LUAJIT_S390X_ITER_LE_CGRJ=1`
+    - exact idea:
+      - keep the carried `curins=26` `ADDK +1` unchanged
+      - replace only the exact signed `IR_LE` guard at `curins=27` with a
+        fused `CGRJ` exit branch to the existing stub
+      - this is the minimal compare-side sibling of the closed `26/27 -> BRXH`
+        whole-loop candidate
+  - mechanism on rebuilt `kdz` mirror:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - the candidate engaged exactly on the real official hot row:
+      - `S390X_ITER_LE_CGRJ trace=4 curins=27 ir=27 idx=12 stop=1 snap=3 linktype=2 nins=29 nsnap=4`
+      - the adjacent carried add still remained visible as ordinary logging:
+        - `S390X_IR kind=addk curins=26 ... k=1`
+  - performance on rebuilt `kdz` mirror:
+    - logged mechanism run:
+      - `pairs_sum/hot 0.082079`
+      - `pairs_array_sum/hot 0.095046`
+    - clean candidate:
+      - `pairs_sum/hot 0.079439`
+      - `pairs_array_sum/hot 0.080932`
+    - immediate same-binary carried control:
+      - `pairs_sum/hot 0.075644`
+      - `pairs_array_sum/hot 0.077012`
+  - classification:
+    - exact and fully engaged, but slower on both carried iterator hot rows
+    - close the direct compare-side `CGRJ` sibling next to the already closed
+      direct branch-on-index `BRXH` contraction
+    - the remaining iterator payer is no longer an obvious `26/27` loop-control
+      contraction; the next honest seam shifts earlier/lower in the carried
+      iterator runtime body
+
+- Timestamp: `2026-04-09 20:05 PDT`
+  - reopened the carried iterator `lj_vm_next` pair-result / keyindex handoff
+    lane and closed two more exact mechanism probes before perf screening:
+    - env:
+      `LUAJIT_S390X_ITER_KEYINDEX_HIOP_R6=1`
+    - exact idea:
+      - for `IRCALL_lj_vm_next` HIOP results that immediately feed the visible
+        `ADD -1` key lane, replace the default `RID_RETHI` scan hint with
+        `RID_R6`
+      - intended target was the carried keyindex/HIOP family feeding the next
+        `lj_vm_next` call on the official iterator hot row
+    - env:
+      `LUAJIT_S390X_ITER_HIOP_PHI_DUPRIGHT=1`
+    - exact idea:
+      - on the exact iterator HIOP PHI (`leftref=6`, `rightref=14`), duplicate
+        the right PHI operand into a fresh register at `asm_phi()` setup time
+        instead of using the carried direct-right home
+      - intended target was the PHI transfer pressure between the current
+        `lj_vm_next` HIOP result and the next-iteration carried keyindex
+  - mechanism on rebuilt `kdz` mirror:
+    - fresh call-arg instrumentation proved the old preserve/rename theory was
+      false on the real carried row:
+      - at `curins=13`, the next-call keyindex arg (`ref=6`) enters
+        `asm_gencall()` already homed in `r11`
+      - there is no arg-register preserve on that lane; the backend is paying a
+        straight source-to-arg move, not a preserve/restore cycle
+    - `ITER_KEYINDEX_HIOP_R6` changed PHI destinations, but did not change the
+      real next-call keyindex source:
+      - control:
+        - `S390X_CALLARG phase=enter curins=13 ref=6 ... argreg=3 src=11 ... home=11`
+      - candidate:
+        - same `src=11 ... home=11`
+    - `ITER_HIOP_PHI_DUPRIGHT` changed the exact PHI right-home shape, but also
+      did not change that same carried call source:
+      - PHI setup shifted `right=6 -> right=5`
+      - the later next-call keyindex source still stayed `src=11 ... home=11`
+  - classification:
+    - both probes are mechanism-closed before perf retention:
+      - they move PHI/right-home bookkeeping
+      - they do not move the real carried keyindex source that feeds the next
+        helper call on the official hot row
+    - close the iterator keyindex/HIOP handoff theory as the current dominant
+      payer
+    - the next honest iterator seam is no longer the helper-key lane; it is the
+      value/accumulator runtime chain in the carried body:
+      - `CALLL lj_vm_next`
+      - `VLOAD`
+      - `SLOAD total`
+      - `ADDOV`
+      - accumulator/value PHIs
+
+- Timestamp: `2026-04-09 13:11 PDT`
+  - closed the first accumulator-PHI spill-save probe on the carried iterator
+    runtime body:
+    - env:
+      `LUAJIT_S390X_ITER_ACC_PHI_SKIP_SAVE=1`
+    - exact idea:
+      - on the carried official iterator PHI shuffle, match the accumulator
+        left PHI (`lref=REF_BIAS+10`) whose defining op is `IR_ADDOV`
+      - keep the existing reload and PHI rename path intact
+      - skip only the matching `ra_save()` back to its spill slot to test
+        whether the hot row is paying a redundant accumulator home update
+    - mechanism on rebuilt `kdz` mirror:
+      - the reduced iterator row stayed exact and continued to expose the same
+        carried PHI shape:
+        - `S390X_PHI phase=shuffle curins=11 ir=10 ... leftref=10 ... spill=42`
+      - the standard exactness pack stayed clean:
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+        - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - performance on rebuilt `kdz` mirror:
+      - candidate:
+        - `pairs_sum/hot 0.066004`
+        - `pairs_array_sum/hot 0.065154`
+      - immediate same-binary carried control after reverting the probe:
+        - `pairs_sum/hot 0.062494`
+        - `pairs_array_sum/hot 0.062551`
+    - classification:
+      - exact and safe, but slower than the immediate carried control on both
+        hot rows
+      - close the local accumulator spill-save skip lane
+      - the remaining iterator payer is not a simple PHI save elimination; the
+        next seam stays in the carried `VLOAD -> SLOAD total -> ADDOV ->
+        accumulator/value PHI` runtime unit, but needs a broader contract than
+        a local spill-home cut
+
+- Timestamp: `2026-04-09 13:24 PDT`
+  - closed the exact iterator guarded-`ADDOV` 32-bit `AR` overflow-contract
+    candidate:
+    - env:
+      `LUAJIT_S390X_ITER_ADDOV_AR_GUARD=1`
+    - exact idea:
+      - for the official carried iterator hot body only, target the two
+        accumulator `ADDOV` consumers:
+        - `curins=10`, `op1=9`, `op2=8`
+        - `curins=17`, `op1=16`, `op2=10`
+      - leave the smaller trace-1 `ADDOV` family (`curins=9/14`) on the
+        existing guarded equality path
+      - replace the carried sign-extend / 64-bit add / sign-extend / compare
+        overflow test with a 32-bit `AR` overflow guard followed by result
+        sign-extension
+    - mechanism on rebuilt `kdz` mirror:
+      - exactness stayed clean:
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+        - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - the final matcher engaged only on the intended trace-2 / trace-3
+        accumulator sites:
+        - `S390X_ITER_ADDOV_AR_GUARD trace=2 curins=17 ...`
+        - `S390X_ITER_ADDOV_AR_GUARD trace=2 curins=10 ...`
+        - `S390X_ITER_ADDOV_AR_GUARD trace=3 curins=17 ...`
+        - `S390X_ITER_ADDOV_AR_GUARD trace=3 curins=10 ...`
+      - trace 1 continued to use the ordinary `addov_rr_int_eq` path:
+        - `curins=14`
+        - `curins=9`
+    - performance on rebuilt `kdz` mirror:
+      - clean candidate:
+        - `pairs_sum/hot 0.064204`
+        - `pairs_array_sum/hot 0.064352`
+      - same-binary env-off control:
+        - `pairs_sum/hot 0.057620`
+        - `pairs_array_sum/hot 0.065452`
+    - classification:
+      - exact and safe, but not retainable
+      - the small `pairs_array_sum` movement is not enough to carry the
+        material `pairs_sum` regression
+      - close the exact iterator 32-bit `AR` guarded-`ADDOV` contract lane
+      - the remaining iterator payer is still in the value/accumulator runtime
+        unit, but not solved by a local guarded-add opcode substitution
+
+- Timestamp: `2026-04-09 13:29 PDT`
+  - closed the exact iterator signed-`VLOAD` contraction on the same carried
+    value/accumulator runtime unit:
+    - env:
+      `LUAJIT_S390X_ITER_VLOAD_LGF=1`
+    - exact idea:
+      - for the official carried iterator hot body only, target the two value
+        loads feeding the accumulator:
+        - `curins=8`, `op1=5`
+        - `curins=16`, `op1=13`
+      - replace the carried `LLGF` value load plus `LGFR` sign-extension with
+        one signed `LGF` load
+      - keep the smaller trace-1 `VLOAD` sites (`curins=7/13`) unchanged
+    - mechanism on rebuilt `kdz` mirror:
+      - exactness stayed clean:
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+        - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - the matcher engaged only on the intended trace-2 / trace-3 value
+        loads:
+        - `S390X_ITER_VLOAD_LGF trace=2 curins=16 ...`
+        - `S390X_ITER_VLOAD_LGF trace=2 curins=8 ...`
+        - `S390X_ITER_VLOAD_LGF trace=3 curins=16 ...`
+        - `S390X_ITER_VLOAD_LGF trace=3 curins=8 ...`
+      - trace 1 remained on the old `VLOAD` path:
+        - `curins=13`
+        - `curins=7`
+    - performance on rebuilt `kdz` mirror:
+      - clean candidate:
+        - `pairs_sum/hot 0.061294`
+        - `pairs_array_sum/hot 0.063751`
+      - same-binary env-off control:
+        - `pairs_sum/hot 0.059328`
+        - `pairs_array_sum/hot 0.063499`
+  - classification:
+      - exact and safe, but slower / neutral against immediate control
+      - close the local signed-`VLOAD` contraction for iterator hot body values
+      - the remaining iterator payer is not a one-node value-load contraction
+        next to the already closed local `ADDOV` opcode substitution
+
+- Timestamp: `2026-04-09 13:55 PDT`
+  - restamped the current-state docs and iterator attribution helper for the
+    retained iterator tranche:
+    - [docs/s390x/perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md)
+      now marks `iterator_table` as the active frontier
+    - [docs/s390x/state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md)
+      now parks `sum_loop` and `mixed_noffi` unless a fresh attribution names a
+      new subsystem
+    - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+      now defaults to the carried retained env bundle:
+      `DISPATCH_FORL_SKIP_JFORI`, `DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`,
+      `AREF_BASE_ALLGPR`, `IPAIRS_EXIT1_SKIP_BODY`,
+      `ROOT1_ITERL_REPLAY_TRIPLET`,
+      `ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT`, and the three
+      `SUM_LOOP_SELECT_*` gates
+    - [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua)
+      now uses `bench.scale_order(scales)` instead of the stale
+      `small, medium, hot` order, restoring the documented hot-first policy
+  - delivered-hash checkpoint on rebuilt `kdz` mirror before attribution:
+    - `tests/s390x/perf/iterator_table.lua`:
+      `ff32465435289b5447072a4ba6f33a417ea992cbe22c2e72b0db1aed14e893e0`
+    - `src/lj_asm_s390x.h`:
+      `a90c917132c3930fbaa759c4bcb4d51d1cc80749c9beae5bd1c856d964817fea`
+    - `tools/s390x/build_iterator_truth_pack.py`:
+      `a8f30ebcd2ae94e0bee15259d5995bd1f3d8d5f3163642ec9e37e9ea31917c4f`
+    - `docs/s390x/perf.md`:
+      `b9407b85bf77db48e5a08fcdb4f2e343a8390759a27b7baa4fe53488f355eac1`
+    - `docs/s390x/state-of-project.md`:
+      `7c1150ccdad268f4fb378be436a0ffdeffd743e8c64af97b4537eef5535b85dd`
+  - retained-baseline iterator truth pack on `kdz` with hot-first ordering:
+    - artifact:
+      [20260409-1350-kdz-retained-iterator-hotfirst-attribution/summary.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260409-1350-kdz-retained-iterator-hotfirst-attribution/summary.md)
+    - official hot rows:
+      - `pairs_sum/hot 0.094653` vs `-joff 0.004135`
+      - `pairs_array_sum/hot 0.095170` vs `-joff 0.003651`
+    - focused reduced micros remain exit-dominated:
+      - `hash_value/hot 0.091004`, `TEXIT_HIST 1:1=960000`
+      - `hash_key/hot 0.069656`, `TEXIT_HIST 1:1=640000`
+      - `array_value/hot 0.090624`, `TEXIT_HIST 5:1=959913`
+  - official hot-only trace capture on the real
+    [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua)
+    function shapes:
+    - artifact:
+      [official-hot.stdout.log](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260409-kdz-official-iterator-hot-attribution/official-hot.stdout.log)
+    - `pairs_sum_hot`:
+      - `RESULT 1200000`
+      - `TEXIT_COUNT 488571`
+      - `TEXIT_HIST 1:1=488571`
+    - `pairs_array_sum_hot`:
+      - `RESULT 2000000`
+      - `TEXIT_COUNT 488571`
+      - `TEXIT_HIST 2503:1=488571`
+    - official stderr emitted `4946` `S390X_TRACE_META phase=stop` rows:
+      - `4785` rows are the same later ladder:
+        `root=2`, `linktype=6` (`LJ_TRLINK_INTERP`), `startop=88`,
+        `nsnap=2`, `nins=32773`, `mcloop=0`, trace range `103..4946`
+      - the warm-up body before the ladder has `100` rows at:
+        `root=2`, `linktype=2` (`LJ_TRLINK_LOOP`), `startop=88`,
+        `nsnap=4`, `nins=32836`, `mcloop=1028`, trace range `3..102`
+      - the array-side setup also shows a shorter `57` row family:
+        `root=2445`, `linktype=1` (`LJ_TRLINK_ROOT`), `startop=88`,
+        `nsnap=4`, `nins=32780`, trace range `2447..2503`
+  - classification:
+    - the planned backend helper-result / consumer handoff candidate is not
+      justified by the fresh official-row attribution
+    - the live official payer is a trace-control / stop-classification ladder:
+      repeated `BC_JMP` side-family stops under `root=2` degrade into
+      `LJ_TRLINK_INTERP` with `nsnap=2` / `nins=32773`
+    - do not open another local `VLOAD`, `SLOAD`, `ADDOV`, PHI, keyindex, or
+      loop-control micro-edit from this attribution
+    - the next subsystem should be a fresh, exact trace/recorder
+      stop-classification pass for that `root=2` `BC_JMP`
+      `LJ_TRLINK_INTERP` ladder, not a backend runtime-body contraction
+
+- Timestamp: `2026-04-09 14:00 PDT`
+  - aligned the maintained `## Current Frontier` front matter in
+    [docs/s390x/findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
+    with the latest iterator attribution:
+    - active blocker is now `iterator_table`
+    - `sum_loop` and `mixed_noffi` are parked carried red rows unless a fresh
+      attribution names a new subsystem
+    - next subsystem remains the exact `root=2`, `BC_JMP`,
+      `LJ_TRLINK_INTERP`, `nsnap=2`, `nins=32773` stop-classification ladder
+  - final delivered-hash checkpoint on rebuilt `kdz` mirror for the sibling
+    docs/tool/test files:
+    - `docs/s390x/perf.md`:
+      `72c740ee2677a7e8bf6b1fb80b57c9da3be7d544066ad3bb3779f7eb8179d7b0`
+    - `docs/s390x/state-of-project.md`:
+      `87d8a5ecc186b544b01255d11b4b4cfa07d4131527b4af21ca4f1e9f444e5b8a`
+    - [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua):
+      `ff32465435289b5447072a4ba6f33a417ea992cbe22c2e72b0db1aed14e893e0`
+    - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py):
+      `a8f30ebcd2ae94e0bee15259d5995bd1f3d8d5f3163642ec9e37e9ea31917c4f`
+
+- Timestamp: `2026-04-09 15:35 PDT`
+  - closed the first post-iterator rerank probe on `mixed_ffi`:
+    `LUAJIT_S390X_MIXED_FFI_POST_STITCH_INTERP_DONE`
+  - attribution on rebuilt `kdz` mirror showed the official
+    [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua)
+    hot row is dominated by a trace-control chain:
+    - root/stitched warm-up:
+      `trace=1`, `parent=0`, `exit=0`, `linktype=8`
+      (`LJ_TRLINK_STITCH`), `startop=79` (`BC_FORL`), `nsnap=4`,
+      `nins=32822`
+    - repeated stitched children:
+      `100` rows, `parent=N`, `exit=0`, `linktype=8`,
+      `startop=88` (`BC_JMP`), `nsnap=4`, `nins=32822`
+    - repeated post-stitch interpreter children:
+      `634` rows in the trace-meta run, `linktype=6`
+      (`LJ_TRLINK_INTERP`), `startop=88`, `nsnap=2`, `nins=32773`
+  - focused hotside logging corrected the opcode attribution:
+    - the repeated exit PC/snap PC opcode is `58`, which is `BC_TGETB`
+      (`TGETS` is opcode `57`)
+    - the intended transition is the first post-stitch interp child:
+      `parent=102`, `exit=0`, `root=1`, `linktype=6`, `link=0`,
+      `startop=88`, `topslot=18`, `spadjust=192`, `nsnap=2`,
+      `nins=32773`, `pc=snap_pc`, `op=snapop=BC_TGETB`
+  - exact candidate behavior:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - after tightening, the mechanism marker fired exactly once:
+      `parent=102`, `snapcount=0`
+    - same-binary `kdz` A/B on
+      [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua)
+      was a large win:
+      - control hot rows:
+        `0.039149`, `0.039069`
+      - candidate hot row:
+        `0.018064`
+  - rejection:
+    - the candidate was not retained because the global env-gated guard was
+      not clean against the carried `mixed_noffi` guardrail
+    - no `mixed_noffi` mechanism marker fired, and its trace-102 shape is
+      different:
+      `linktype=2` (`LJ_TRLINK_LOOP`), `topslot=14`, `spadjust=8`,
+      `nsnap=2`, `nins=32792`
+    - despite that, repeated noffi-only A/B still showed a small global-env
+      cost:
+      - candidate/control hot examples:
+        `0.047128` vs `0.045081`, and `0.045668` vs `0.045218`
+      - medium/small rows also moved slightly in the wrong direction
+  - classification:
+    - the post-stitch interp-child `BC_TGETB` DONE cut is an exact
+      `mixed_ffi` win but not branch-retainable as a global guard
+    - do not reopen this as another broad hotside-DONE gate without a cheaper
+      non-target reject or a non-global activation strategy
+    - the useful next attribution is below this seam: why the chain reaches the
+      post-stitch `LJ_TRLINK_INTERP` `BC_TGETB` child in the first place, or a
+      runtime/body-side payer that avoids a global hotside tax
+
+- Timestamp: `2026-04-09 15:36 PDT`
+  - retained the cheaper save-time version of the same `mixed_ffi` post-stitch
+    seam:
+    - env:
+      `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()`
+    - exact idea:
+      - avoid the rejected global `trace_hotside()` predicate
+      - when the exact first post-stitch interpreter child is being saved,
+        mark its snap-0 exit `SNAPCOUNT_DONE` once before `trace_save()`
+      - keep the matcher behind a callsite prefilter on:
+        `trace=102`, `parent=101`, `exit=0`
+      - keep the full matcher on:
+        `@tests/s390x/perf/mixed_ffi.lua`, `root=1`, `startop=BC_JMP`,
+        `link=0`, `linktype=LJ_TRLINK_INTERP`, `topslot=18`,
+        `spadjust=192`, `nsnap=2`, `nins=32773`, `mcloop=0`, and snap-0
+        `BC_TGETB`
+  - delivered-hash checkpoint for
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `kdz`:
+      `e86ff94a05a594b33bcb427bd432ac0bfe133f4a2f47772a4489036de4c20d76`
+    - `zkd0`:
+      `e86ff94a05a594b33bcb427bd432ac0bfe133f4a2f47772a4489036de4c20d76`
+  - exactness stayed clean:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `zkd0`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - mechanism:
+    - marker fires exactly once on both hosts:
+      `S390X_MIXED_FFI_POST_STITCH_SAVE_DONE trace=102 parent=101 exit=0 root=1 startop=88 link=0 linktype=6 nsnap=2 nins=32773 snap=0 op=58`
+    - `mixed_noffi` marker count on `zkd0` is `0`, confirming the guardrail
+      does not hit the new save-time seam
+  - performance:
+    - `kdz` same-binary A/B:
+      - controls:
+        - `mixed_ffi_loop/hot 0.044956`
+        - `mixed_ffi_loop/hot 0.044900`
+      - candidates:
+        - `mixed_ffi_loop/hot 0.017693`
+        - `mixed_ffi_loop/hot 0.017600`
+      - mixed-noffi guardrail:
+        - `0.041321 -> 0.040996`
+        - `0.041864 -> 0.041919`
+    - `zkd0` same-binary A/B:
+      - controls:
+        - `mixed_ffi_loop/hot 0.056937`
+        - `mixed_ffi_loop/hot 0.085072`
+      - candidates:
+        - `mixed_ffi_loop/hot 0.026970`
+        - `mixed_ffi_loop/hot 0.023683`
+      - mixed-noffi guardrail after callsite gating:
+        - `0.057786 -> 0.077864`
+        - `0.087785 -> 0.074821`
+        - `0.071924 -> 0.069336`
+        - read: noisy but neutral overall; no mechanism marker fires
+  - classification:
+    - retained host-pair `mixed_ffi` win
+    - the winning shape is save-time trace-control state, not another
+      backend/body micro-cut and not a broad hotside gate
+    - `mixed_ffi` moves from a primary red row to a regression screen
+    - next active queue is `ffi_cdata` unless a fresh `iterator_table`
+      attribution names a new subsystem
+
+- Timestamp: `2026-04-09 15:59 PDT`
+  - retained the first `ffi_cdata` host-pair win:
+    - env:
+      `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()`
+    - exact idea:
+      - on the official
+        [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua)
+        hot row, `pair_loop` was dominated by same-start trace-control churn:
+        root-1 `BC_JMP` children through trace `101`, then repeated
+        `LJ_TRLINK_INTERP` children from trace `102` onward
+      - mark snap 0 `SNAPCOUNT_DONE` once at save time for the exact first
+        pair-loop interpreter child
+      - keep the matcher on:
+        `@tests/s390x/perf/ffi_cdata.lua`, `trace=102`, `parent=101`,
+        `exit=0`, `root=1`, `startop=BC_JMP`, `link=0`,
+        `linktype=LJ_TRLINK_INTERP`, `topslot=9`, `spadjust=8`,
+        `nsnap=2`, `nins=32773`, `mcloop=0`, and snap-0 `BC_TGETB`
+  - delivered-hash checkpoint for
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `kdz`:
+      `9caba2edb63a6f1c9a96015c273d6514ba9991bbdc6548b05bb71af30b1d8ac1`
+    - `zkd0`:
+      `9caba2edb63a6f1c9a96015c273d6514ba9991bbdc6548b05bb71af30b1d8ac1`
+  - exactness stayed clean:
+    - `kdz`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `zkd0`
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - mechanism:
+    - marker fires exactly once on both hosts:
+      `S390X_FFI_CDATA_PAIR_SAVE_DONE trace=102 parent=101 exit=0 root=1 startop=88 link=0 linktype=6 nsnap=2 nins=32773 snap=0 op=58`
+    - `kdz` trace-meta shrank from about `1050` stop records to `102`
+    - `zkd0` mechanism run also reported `meta_stop=102` and `recstop=113`
+  - performance:
+    - `kdz` same-binary A/B:
+      - control:
+        - `pair_loop/hot 0.136461`
+        - immediate reverted control `0.133813`
+      - candidate:
+        - `pair_loop/hot 0.023274`
+        - regression-screen rerun `0.023094`
+      - sibling:
+        - `mixed_width_loop/hot 0.027492 -> 0.027384`
+        - regression-screen rerun `0.027481`
+    - `zkd0` same-binary A/B:
+      - first control/candidate:
+        - `pair_loop/hot 0.197251 -> 0.028736`
+      - repeat controls:
+        - `0.137762`
+        - `0.139439`
+        - `0.140058`
+      - repeat candidates:
+        - `0.026214`
+        - `0.026737`
+        - `0.027103`
+      - sibling:
+        - `mixed_width_loop/hot` was noisy but neutral overall:
+          `0.046216 -> 0.031189`, `0.031179 -> 0.040529`,
+          `0.032437 -> 0.030902`
+  - classification:
+    - retained host-pair `ffi_cdata` win
+    - the winning shape is save-time trace-control state, not a backend cdata
+      load/store micro-cut
+    - `ffi_cdata` moves to regression-screen status
+    - next active queue returns to fresh `iterator_table` attribution

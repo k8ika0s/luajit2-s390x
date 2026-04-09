@@ -73,6 +73,7 @@ The branch should still be treated as having a frozen implementation baseline:
     [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
     and
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    including the retained root-2 hash-bridge floor for `mixed_noffi`
   - deterministic hot-first scale ordering in
     [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
     for carried perf suites

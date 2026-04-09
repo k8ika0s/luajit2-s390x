@@ -12,6 +12,7 @@ import argparse
 import datetime as dt
 import json
 import pathlib
+import posixpath
 import re
 import shlex
 import subprocess
@@ -26,10 +27,25 @@ HOST_LABELS = ("kdz", "zkd0")
 DEFAULT_SAMPLES = 9
 DEFAULT_WARMUP = 2
 DEFAULT_PIN_CORE = 0
+REMOTE_ROOT = "/root/luajit2-s390x"
 AUTHORITATIVE_REPOS = {
-    "kdz": "/root/luajit2-s390x/perf-clean-20260330/repo",
-    "zkd0": "/root/luajit2-s390x/perf-clean-20260330/repo",
+    "kdz": f"{REMOTE_ROOT}/canon/repo",
+    "zkd0": f"{REMOTE_ROOT}/canon/repo",
 }
+AUTHORITATIVE_RUNS = {
+    "kdz": f"{REMOTE_ROOT}/runs",
+    "zkd0": f"{REMOTE_ROOT}/runs",
+}
+AUTHORITATIVE_ARCHIVES = {
+    "kdz": f"{REMOTE_ROOT}/archive",
+    "zkd0": f"{REMOTE_ROOT}/archive",
+}
+AUTHORITATIVE_HASH_PATHS = [
+    "src/vm_s390x.dasc",
+    "tools/s390x/sync_remote_mirror.py",
+    "tools/s390x/restamp_iterator_perf.py",
+    "docs/s390x/findings.md",
+]
 KNOWN_MACHINE_TYPES = {
     "8561": "z15",
     "3906": "z14",
@@ -190,7 +206,79 @@ def current_commit() -> str:
     return proc.stdout.strip()
 
 
+def remote_layout(remote_repo: str) -> dict[str, str]:
+    canon_dir = posixpath.dirname(remote_repo.rstrip("/"))
+    root_dir = posixpath.dirname(canon_dir)
+    return {
+        "root": root_dir,
+        "canon": canon_dir,
+        "repo": remote_repo,
+        "runs": posixpath.join(root_dir, "runs"),
+        "archive": posixpath.join(root_dir, "archive"),
+    }
+
+
+def ensure_remote_layout(host: str, remote_repo: str) -> dict[str, str]:
+    layout = remote_layout(remote_repo)
+    script = f"""
+set -euo pipefail
+mkdir -p {shlex.quote(layout["canon"])}
+mkdir -p {shlex.quote(layout["runs"])}
+mkdir -p {shlex.quote(layout["archive"])}
+"""
+    proc = run_ssh_script(host, script)
+    require_ok(proc, f"{host} remote layout")
+    return layout
+
+
+def verify_remote_paths(host: str, remote_repo: str, relative_paths: list[str]) -> dict[str, bool]:
+    if not relative_paths:
+        return {}
+    checks = [
+        "set -euo pipefail",
+        f"cd {shlex.quote(remote_repo)}",
+    ]
+    for relpath in relative_paths:
+        checks.append(
+            f"if [ -e {shlex.quote(relpath)} ]; then printf '%s\\tOK\\n' {shlex.quote(relpath)}; "
+            f"else printf '%s\\tMISSING\\n' {shlex.quote(relpath)}; fi"
+        )
+    proc = run_ssh_script(host, "\n".join(checks) + "\n")
+    require_ok(proc, f"{host} remote verify")
+    results: dict[str, bool] = {}
+    for line in proc.stdout.splitlines():
+        relpath, _, status = line.partition("\t")
+        if relpath:
+            results[relpath] = (status.strip() == "OK")
+    return results
+
+
+def remote_file_hashes(host: str, remote_repo: str, relative_paths: list[str]) -> dict[str, str | None]:
+    if not relative_paths:
+        return {}
+    checks = [
+        "set -euo pipefail",
+        f"cd {shlex.quote(remote_repo)}",
+    ]
+    for relpath in relative_paths:
+        checks.append(
+            "if [ -e {path} ]; then "
+            "printf '%s\\t%s\\n' {path} \"$(sha256sum {path} | awk '{{print $1}}')\"; "
+            "else printf '%s\\tMISSING\\n' {path}; fi".format(path=shlex.quote(relpath))
+        )
+    proc = run_ssh_script(host, "\n".join(checks) + "\n")
+    require_ok(proc, f"{host} remote hashes")
+    results: dict[str, str | None] = {}
+    for line in proc.stdout.splitlines():
+        relpath, _, digest = line.partition("\t")
+        if relpath:
+            value = digest.strip()
+            results[relpath] = None if value == "MISSING" else value
+    return results
+
+
 def sync_tracked_files(host: str, remote_repo: str) -> None:
+    ensure_remote_layout(host, remote_repo)
     prep_script = f"""
 set -euo pipefail
 mkdir -p {shlex.quote(remote_repo)}
@@ -615,6 +703,7 @@ def render_summary(
     jit_status: str,
     oneshot_results: dict[str, str],
     micro_results: dict[str, str],
+    remote_hashes: dict[str, str | None],
     jit_on_records: list[dict[str, Any]],
     joff_records: list[dict[str, Any]],
     pin_core: int | None,
@@ -647,6 +736,15 @@ def render_summary(
         "- raw JSONL retained for both modes",
         "- raw owner logs and IR dumps retained for focused micros",
         "",
+        "## Delivered File Hashes",
+        "",
+    ]
+    for relpath in AUTHORITATIVE_HASH_PATHS:
+        digest = remote_hashes.get(relpath)
+        lines.append(f"- `{relpath}`: `{digest if digest else 'missing'}`")
+
+    lines.extend([
+        "",
         "## Build And Correctness",
         "",
         f"- `jit.status()`: `{jit_status}`",
@@ -660,7 +758,7 @@ def render_summary(
         "",
         "## JIT-On Baseline",
         "",
-    ]
+    ])
     for key in ("pairs_sum/small", "pairs_array_sum/small", "pairs_sum/medium", "pairs_array_sum/medium", "pairs_sum/hot", "pairs_array_sum/hot"):
         record = jit_on_index[key]
         lines.append(
@@ -779,6 +877,7 @@ def main() -> int:
 
     if not args.skip_sync:
         sync_tracked_files(host, repo)
+    remote_hashes = remote_file_hashes(host, repo, AUTHORITATIVE_HASH_PATHS)
 
     remote_tmp = prepare_remote_scripts(host)
     try:
@@ -841,6 +940,7 @@ def main() -> int:
             "sample_count": args.samples,
             "warmup_runs": args.warmup,
             "jit_status": jit_status,
+            "remote_hashes": remote_hashes,
             "modes_recorded": ["jit.on", "-joff"],
             "frozen_baseline": FROZEN_BASELINES.get(host, {}),
             "recovery_bar": RECOVERY_BAR,
@@ -856,6 +956,7 @@ def main() -> int:
             jit_status=jit_status,
             oneshot_results=oneshot_results,
             micro_results=micro_results,
+            remote_hashes=remote_hashes,
             jit_on_records=jit_on_records,
             joff_records=joff_records,
             pin_core=args.pin_core,

@@ -2383,7 +2383,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  cghi OP, BC_ITERL
   |  jne >7
   |  aghi PC, -4
-  |  j ->vm_IITERN_bridge
+  |  j ->vm_IITERN_root2_hashbridge
   |7:
   |  cghi OP, BC_JMP
   |  jne >8
@@ -4142,6 +4142,35 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |7:  // Skip holes in hash part.
     |  ahi RC, 1
     |  j <6
+    |
+|->vm_IITERN_root2_hashbridge:
+|  sllg RA, RA, 3
+|  lg TAB:RB, -16(RA, BASE)
+|  cleartp TAB:RB
+|  llgf RC, -4(RA, BASE)		// Get index from control var.
+|  la PC, 4(PC)
+|  lghi TMPR0, LJ_TNIL
+|  llgh RD, PC_RD			// Exact ITERL target for this bridge entry.
+|8:
+|  cl RC, TAB:RB->hmask; jh ->vm_IITERN_root2_hashdone
+|  llgfr ITYPE, RC
+|  sllg ITYPE, ITYPE, 5
+|  ag NODE:ITYPE, TAB:RB->node
+|  cg TMPR0, NODE:ITYPE->val; je >9
+|  lgr TMPR1, RC
+|  ahi TMPR1, 1
+|  // Copy key and value from hash slot.
+|  lg RB, NODE:ITYPE->key
+|  lg RC, NODE:ITYPE->val
+|  stg RB, 0(RA, BASE)
+|  stg RC, 8(RA, BASE)
+|  sty TMPR1, -4(RA, BASE)
+|  branchPC RD
+|9:  // Skip holes in hash part.
+|  ahi RC, 1
+|  j <8
+|->vm_IITERN_root2_hashdone:
+|  ins_next
     break;
 
   case BC_ISNEXT:

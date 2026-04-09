@@ -1190,8 +1190,12 @@ static int asm_gencall_sload(ASMState *as, Reg gpr, IRRef ref)
 
   ofs = 8 * ((int32_t)ir->op1 - 2);
   allow = rset_exclude(RSET_GPR_NOB, gpr);
-  base = ra_scratch(as, allow);
-  rset_clear(allow, base);
+  if (ir->op2 & IRSLOAD_KEYINDEX) {
+    base = RID_BASE;
+  } else {
+    base = ra_scratch(as, allow);
+    rset_clear(allow, base);
+  }
 
   if (ir->op2 & IRSLOAD_TYPECHECK) {
     Reg tmp = ra_scratch(as, allow);
@@ -1209,7 +1213,8 @@ static int asm_gencall_sload(ASMState *as, Reg gpr, IRRef ref)
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, gpr, gpr));
     emit_loadu32ofs(as, gpr, base, ofs + (LJ_BE ? 4 : 0));
   }
-  emit_getgl(as, base, jit_base);
+  if (base != RID_BASE)
+    emit_getgl(as, base, jit_base);
   return 1;
 }
 
@@ -3103,7 +3108,6 @@ dotypecheck:
       }
       asm_s390x_guard_log(as, "sload_int", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
-      emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
       if (ir->op1 == 4 &&
 	  ir->op2 == (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK) &&
 	  asm_s390x_forl_current_compare_fix_enabled()) {
@@ -3122,6 +3126,7 @@ dotypecheck:
 	emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM >> 15));
 	emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
       }
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
     } else if (irt_isnum(t)) {
       Reg limit = ra_scratch(as, rset_exclude(tallow, tmp));
       if (asm_s390x_sloadmap_log_enabled()) {

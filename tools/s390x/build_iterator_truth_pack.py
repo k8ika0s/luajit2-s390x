@@ -20,7 +20,19 @@ import restamp_iterator_perf as restamp
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
+RETAINED_BASELINE_ENV: dict[str, str] = {
+    "LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI": "1",
+    "LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN": "12",
+    "LUAJIT_S390X_AREF_BASE_ALLGPR": "1",
+    "LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY": "1",
+    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET": "1",
+    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT": "1",
+    "LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE": "1",
+    "LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ": "1",
+    "LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET": "1",
+}
 CANDIDATE_ENVS: dict[str, dict[str, str]] = {
+    "retained_baseline": RETAINED_BASELINE_ENV,
     "baseline": {
         "LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT": "1",
     },
@@ -1364,7 +1376,7 @@ def render_summary(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a focused iterator truth pack from the frozen baseline.")
     parser.add_argument("--host", choices=restamp.HOST_LABELS, required=True)
-    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="baseline")
+    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="retained_baseline")
     parser.add_argument("--repo", help="Remote clean repo path. Defaults to the authoritative repo for the selected host.")
     parser.add_argument("--output-dir", help="Local artifact output directory. Defaults under artifacts/s390x/truth-packs.")
     parser.add_argument("--pin-core", type=int, default=restamp.DEFAULT_PIN_CORE)
