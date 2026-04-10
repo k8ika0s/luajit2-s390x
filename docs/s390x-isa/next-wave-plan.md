@@ -455,6 +455,16 @@ Current status:
     `isa-lab-881-text-patterns-span8-default-20260410121526`: `span8`
     remained clean at `1.270x` geomean over 18 common rows, with no row below
     `1.027x` and a max win of `1.962x` on sparse word scanning.
+  - Broader same-host carry checks stayed clean with the narrower default
+    policy. `text_mixed`
+    (`isa-lab-881-text-mixed-generic-20260410122356` vs
+    `isa-lab-881-text-mixed-span8-default-20260410122356`) showed `1.243x`
+    geomean over 15 common rows with no regression below parity. `text_combo`
+    (`isa-lab-881-text-combo-generic-20260410122848` vs
+    `isa-lab-881-text-combo-span8-default-20260410122848`) showed `1.171x`
+    geomean over 15 common rows with no row below `1.006x`, which supports
+    keeping `span8` as the only default-on text helper while `ascii8` stays
+    opt-in.
 
 Why third:
 

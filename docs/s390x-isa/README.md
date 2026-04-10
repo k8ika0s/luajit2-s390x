@@ -128,6 +128,7 @@ Current `kdz1` readout:
 - after rebasing onto bring-up `4b16b7e9`, the current-tip restamp split the default policy: `span8` remains strong, but `ascii8` repeated regressions in `text_casefold:upper_ascii` and `mixed_noffi` hot/small rows
 - because of that split, the ISA lab wrapper now defaults only `LUAJIT_S390X_TEXT_PATTERN_MODE=span8`; `LUAJIT_S390X_TEXT_TRANSFORM_MODE=ascii8` stays opt-in until the upper-case path and carry rows are clean
 - after rebasing again onto bring-up `881440d7`, interpreted pure-Lua sanity passed with wrapper defaults in `isa-lab-881-purelua-interp-20260410121526`, and a focused `text_patterns` same-host read kept `span8` clean at `1.270x` geomean over 18 common rows with no row below `1.027x`
+- the same `881440d7` restamp kept broader text carry clean: `text_mixed` showed `1.243x` geomean over 15 rows with no row below parity, and `text_combo` showed `1.171x` geomean over 15 rows with no row below `1.006x`
 - because neither variant is a clean policy win, fixed-string search stays opt-in for now
 - because the transform signal is promising but not isolated yet, `bswap64` also stays opt-in for now
 - because `ascii8` now has a mixed current-tip read, it is no longer a default-on lab lane; keep it as an explicit opt-in transform probe
