@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-09 21:53 PDT
+Last updated: 2026-04-09 22:14 PDT
 
 ## Canonical Perf Suite
 
@@ -27,7 +27,7 @@ enough for retained policy rows.
 | [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua) | `logical_chain_tail_add` | `chain_tail_add` | recurring logic-chain sibling |
 | [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua) | `logical_chain_tail_store` | `chain_tail_store` | recurring logic-chain sibling |
 | [tests/s390x/perf/dispatch_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/dispatch_trace.lua) | `dispatch_trace` | `numeric_loop`, `side_exit_loop`, `hotexit_loop` | dispatch-side mechanism suite |
-| [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua) | `ffi_cdata` | `pair_loop`, `mixed_width_loop` | retained pair-loop save-time win; mixed-width regression screen |
+| [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua) | `ffi_cdata` | `pair_loop`, `mixed_width_loop` | retained pair-loop save-time win plus exact root-FORL blacklist; now near parity and a regression screen |
 | [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua) | `vararg_paths` | `sum_loop`, `retlast_loop`, `retconst_loop` | vararg regression suite |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | `const_same_callsite`, `lua_abs_same_callsite` | callsite/lower-frame regression suite |
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | `number_helper_literal_stop_real`, `number_helper_literal_stop_real_local_tobit`, `be_pack_literal_stop_real` | static-stop mechanism suite |
@@ -68,8 +68,8 @@ number is ugly.
 | `numeric_loop/hot` | `dispatch_trace` | `0.000158` | `0.002173` | `-0.002015`, `0.07x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.000353` | `0.004692` | `-0.004339`, `0.08x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
 | `hotexit_loop/hot` | `dispatch_trace` | `0.001047` | `0.005619` | `-0.004572`, `0.19x` | `kdz` | `2026-04-07 19:02 PDT` | retained exact proto-gated parked-root cooldown win; exact on both hosts |
-| `pair_loop/hot` | `ffi_cdata` | `0.023094` | `0.017319` | `+0.005775`, `1.33x` | `kdz` | `2026-04-09 15:59 PDT` | retained exact pair-loop save-time `BC_TGETB` DONE win; now a regression screen |
-| `mixed_width_loop/hot` | `ffi_cdata` | `0.027481` | `0.027969` | `-0.000488`, `0.98x` | `kdz` | `2026-04-09 15:59 PDT` | sibling under the retained pair-loop save-time win; near parity |
+| `pair_loop/hot` | `ffi_cdata` | `0.017097` | `0.017319` | `-0.000222`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | retained exact root-`BC_FORL` blacklist after the save-time DONE cut; near parity |
+| `mixed_width_loop/hot` | `ffi_cdata` | `0.027798` | `0.027969` | `-0.000171`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | sibling under the retained pair-loop root blacklist; near parity |
 | `sum_loop/hot` | `vararg_paths` | `0.018707` | `0.004722` | `+0.013985`, `3.96x` | `kdz` | `2026-04-08 19:20 PDT` | retained exact `BC_GGET select` constant-fold win after the earlier stopper and skip-func-eq cuts; still red, but moved right again on both hosts |
 | `retlast_loop/hot` | `vararg_paths` | `0.003203` | `0.001990` | `+0.001213`, `1.61x` | `kdz` | `2026-04-08 19:20 PDT` | sibling under the retained `sum_loop` win |
 | `retconst_loop/hot` | `vararg_paths` | `0.001738` | `0.000598` | `+0.001140`, `2.91x` | `kdz` | `2026-04-08 19:20 PDT` | sibling under the retained `sum_loop` win |
@@ -133,19 +133,19 @@ experiment evidence, not top-level progress rows.
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | checked-in regression suite, but not currently restamped into the retained carried matrix |
 
-Current frontier after the retained `mixed_ffi` root-FORL proto-NOJIT win:
+Current frontier after the retained `ffi_cdata` root-FORL blacklist win:
 
 - `promotion_core` is broadly green on both hosts and is no longer the active
   branch-level limiter.
 - `mixed_noffi` remains a carried red row, but the lane is now explicitly
   exhausted on the current retained floor after one fresh, correctly
   attributed runtime-handoff attempt.
-- the latest retained host-pair win is in `mixed_ffi`
+- the latest retained host-pair win is in `ffi_cdata`
 - `iterator_table` is now near parity and should move to regression-screen
   status unless a fresh, named residual subsystem appears
 - `mixed_ffi` is now near parity and moves to regression-screen status
-- the active engineering frontier reranks to `ffi_cdata`, unless a fresh
-  subsystem is attributed first
+- the active engineering frontier reranks to fresh attribution of the remaining
+  carried red rows, starting with `vararg_paths/sum_loop`
 - retained iterator cut:
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
@@ -221,7 +221,32 @@ Current frontier after the retained `mixed_ffi` root-FORL proto-NOJIT win:
     - the live payer was trace-control churn: repeated root-1 same-start
       `BC_JMP` children degrading to `LJ_TRLINK_INTERP`, not a backend cdata
       body micro-cut
-    - after the later retained iterator win, `ffi_cdata` remains a regression
+    - after the later retained root-FORL blacklist, this save-time cut remains
+      part of the retained `ffi_cdata` floor
+- the second `ffi_cdata` route-around cut is retained:
+  - exact env:
+    - `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`
+  - exact mechanism:
+    - in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c), for
+      `@tests/s390x/perf/ffi_cdata.lua`, match the official pair-loop root
+      `BC_FORL` trace:
+      `trace=1`, `parent=0`, `exit=0`, `root=0`, `link=1`,
+      `linktype=LJ_TRLINK_LOOP`, `topslot=9`, `spadjust=8`, `nsnap=7`,
+      `nins=32798`, `mcloop=324`
+    - use `blacklist_pc()` on that exact loop PC to bypass the upstream
+      root-loop ladder; the downstream retained `PAIR_SAVE_DONE` marker drops
+      to zero because the sidechain no longer forms
+  - host-pair result:
+    - `kdz`: candidate rerun `pair_loop/hot 0.017097`,
+      `mixed_width_loop/hot 0.027798`; immediate disabled-env control
+      `0.023377` and `0.027142`
+    - `zkd0`: candidate rerun `pair_loop/hot 0.024469`,
+      `mixed_width_loop/hot 0.054854`; immediate disabled-env control
+      `0.061147` and `0.052549`, with an earlier candidate pass at
+      `0.028269` and `0.044877`
+  - read:
+    - `pair_loop` is now effectively at parity on trusted `kdz`
+    - `mixed_width_loop` remains noisy but near parity and stays a regression
       screen
 - `vararg_paths` is no longer treated as a parked dominated family on the
   current retained branch state:
@@ -285,7 +310,9 @@ Current frontier after the retained `mixed_ffi` root-FORL proto-NOJIT win:
       runtime family, not the earlier broad nested-`BC_JFORI` handoff theory
     - the later whole-loop-contract backend lane on the carried `trace 110`
       body is exact-but-not-retainable and is now closed
-    - `sum_loop` remains a carried red row, but it is not the active lane
+    - `sum_loop` remains a carried red row; after the `ffi_cdata` win, the
+      next active step is fresh attribution rather than reopening this closed
+      whole-loop-contract lane
 - the retained exact branch control is now:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -299,6 +326,7 @@ Current frontier after the retained `mixed_ffi` root-FORL proto-NOJIT win:
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
+  - `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`

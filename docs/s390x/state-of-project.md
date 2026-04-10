@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-09 21:53 PDT
+Last updated: 2026-04-09 22:14 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -12,9 +12,10 @@ It is intentionally current-state only. Historical experiment detail lives in
   `-joff` on both `kdz` and `zkd0`.
 - `mixed_noffi` remains a carried red row, but its current runtime lane is now
   explicitly exhausted on the retained floor.
-- The latest retained host-pair win is in `mixed_ffi`; that row is now near
-  parity after exact root-FORL proto-NOJIT fallback, and the active queue
-  reranks to `ffi_cdata` unless a fresh subsystem is first attributed.
+- The latest retained host-pair win is in `ffi_cdata`; `pair_loop` is now
+  effectively at parity after exact root-FORL blacklisting, and the active
+  queue reranks to a fresh attribution of the remaining carried red rows,
+  starting with `vararg_paths/sum_loop`.
 - Fresh retained `sum_loop` host-pair win on rebuilt mirrors:
   - `kdz`
     - `sum_loop/hot 0.018707` vs `-joff 0.004722`
@@ -160,7 +161,7 @@ It is intentionally current-state only. Historical experiment detail lives in
       disabled-env control `0.018412`
     - `zkd0`: candidate rerun `mixed_ffi_loop/hot 0.013641` against immediate
       disabled-env control `0.019946`
-- Retained `ffi_cdata` win:
+- Retained `ffi_cdata` wins:
   - exact cut in
     [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
     `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -181,8 +182,25 @@ It is intentionally current-state only. Historical experiment detail lives in
   - read:
     - the live payer was trace-control churn through a same-start root-1
       `BC_JMP` sidechain degrading to `LJ_TRLINK_INTERP`
-    - after the later retained iterator win, `ffi_cdata` remains a
-      regression-screen family
+  - exact follow-up cut in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`
+  - mechanism:
+    - on the official pair-loop root trace only, match
+      `@tests/s390x/perf/ffi_cdata.lua`, `trace=1`, `parent=0`, `exit=0`,
+      `startop=BC_FORL`, `link=1`, `linktype=LJ_TRLINK_LOOP`, `topslot=9`,
+      `spadjust=8`, `nsnap=7`, `nins=32798`, `mcloop=324`
+    - use `blacklist_pc()` to stop the upstream root-loop ladder before the
+      downstream `PAIR_SAVE_DONE` sidechain forms
+  - host-pair result:
+    - `kdz`: candidate rerun `pair_loop/hot 0.017097` against immediate
+      disabled-env control `0.023377`
+    - `zkd0`: candidate rerun `pair_loop/hot 0.024469` against immediate
+      disabled-env control `0.061147`
+    - `mixed_width_loop/hot` remains noisy but near parity and stays a
+      regression screen
+  - read:
+    - `pair_loop` is now effectively at parity on trusted `kdz`
 - The retained exact branch control is now:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -196,6 +214,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
+  - `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
