@@ -25421,3 +25421,100 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - This puts `mixed_noffi` near parity. The next step should be a fresh
       retained-matrix rerank, with iterator fallback/runtime attribution the
       most plausible next seam, not another mixed trace-control variant.
+
+- 2026-04-10: `iterator_table` hash-side root `BC_ITERN` proto-NOJIT
+  hotcount park retained
+  - Fresh attribution after the mixed early proto-NOJIT win disproved the
+    immediate `BC_ITERC` runtime-fallback theory for the official retained
+    iterator row:
+    - official logged run on `kdz` showed `pairs_sum/hot 0.060475` under heavy
+      logging, but the key mechanism was the event mix, not that timing
+    - `S390X_TRACE_START 67093`
+    - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+    - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 228`
+    - `S390X_VM_BRIDGE_DISPATCH 0`
+    - `S390X_VM_ITERL 0`
+    - `S390X_CALL 24`
+    - `S390X_IR kind=vload 17`
+    - read: the live payer was repeated `trace_start()` at the hash-side
+      retained `BC_ITERN` PROTO_NOJIT site, not compiled `lj_vm_next` lowering
+      and not the VM bridge path.
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()` and `trace_start()`
+    - exact mechanism:
+      - after the retained exact root `BC_ITERN` proto-NOJIT path is active
+      - match only `@tests/s390x/perf/iterator_table.lua`
+      - match only the hash-side iterator proto (`firstline=12`, `numline=8`)
+      - on the root save and on later proto-NOJIT reentry, set the hotcount for
+        the `BC_ITERN` site to `0x7fff`
+      - leave the bytecode as `BC_ITERN`; do not call `blacklist_pc()` and do
+        not route to generic `BC_ITERC`
+    - focused `kdz` proof:
+      - `TRACE_START 460`
+      - `TRACE_META 14`
+      - `RECSTOP 2`
+      - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+      - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 228`
+      - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 228`
+  - `kdz` gates:
+    - delivered source hash for
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `2bd797692817a9f3c606273f4c5356b39d8f4a1c2627a4bbbb9bc86b7405d87e`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 9-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.004487`
+        - `pairs_array_sum/hot 0.003985`
+      - immediate retained control:
+        - `pairs_sum/hot 0.005543`
+        - `pairs_array_sum/hot 0.003950`
+      - candidate rerun:
+        - `pairs_sum/hot 0.004532`
+        - `pairs_array_sum/hot 0.003973`
+    - compact retained regression screen:
+      - `dispatch_trace/numeric_loop/hot 0.013606`
+      - `dispatch_trace/side_exit_loop/hot 0.017247`
+      - `dispatch_trace/hotexit_loop/hot 0.437798`
+      - `vararg_paths/sum_loop/hot 0.004787`
+      - `vararg_paths/retlast_loop/hot 0.002006`
+      - `vararg_paths/retconst_loop/hot 0.000530`
+      - `iterator_table/pairs_sum/hot 0.004673`
+      - `iterator_table/pairs_array_sum/hot 0.003942`
+      - `mixed_noffi/mixed_loop/hot 0.004043`
+      - `mixed_ffi/mixed_ffi_loop/hot 0.012053`
+      - `ffi_cdata/pair_loop/hot 0.017054`
+      - `ffi_cdata/mixed_width_loop/hot 0.028209`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `2bd797692817a9f3c606273f4c5356b39d8f4a1c2627a4bbbb9bc86b7405d87e`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 9-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.006530`
+        - `pairs_array_sum/hot 0.006238`
+      - immediate retained control:
+        - `pairs_sum/hot 0.008212`
+        - `pairs_array_sum/hot 0.006333`
+      - candidate rerun:
+        - `pairs_sum/hot 0.005227`
+        - `pairs_array_sum/hot 0.005431`
+    - `zkd0` remained noisy, but the immediate same-host/source comparison
+      stayed in the candidate direction and exactness stayed clean.
+  - Classification:
+    - retain the exact hash-side proto-NOJIT hotcount park.
+    - `pairs_sum/hot` moves on trusted `kdz` from `0.004852` to `0.004532`
+      against `-joff 0.004135`.
+    - `pairs_array_sum/hot` remains neutral under the hash-side park and stays
+      near parity.
+    - The next move should be a fresh retained-matrix rerank, not another
+      iterator trace-control edit unless a new attribution names one.
