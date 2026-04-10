@@ -352,6 +352,13 @@ Current status:
     coalesces remove a move. Focused `kdz1` validation is green, `bitops_mix`
     is neutral, and `mixed_noffi/hot` improved from about `0.0424s` to about
     `0.0404s` in the selective A/B read.
+  - A1 follow-up 2: the next adjacent distinct-operand slice is retained in
+    the lab. Non-guarded small constant add/sub now use `AGHIK` only when
+    `dest != left`, preserving the old `AGHI` path for coalesced or guarded
+    cases; `BNOT` similarly uses `XGRK` only when it removes a move. Focused
+    `kdz1` validation is green. Same-host `mixed_noffi/hot` improved in both
+    post-`BNOT` reads (`0.042499s -> 0.040673s` and `0.041098s -> 0.040319s`);
+    `bitops_mix` remains noisy/mixed, so keep the claim narrow.
   - A2: keep the retrace guard as an enablement/correctness fix, but keep the
     numeric helper perf family lab-only for now. The `add` retrace case drops
     from `4096` traces and `12` flushes to `10` traces and no flushes, while
