@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-09 22:30 PDT
+Last updated: 2026-04-10 06:11 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -10,12 +10,20 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 - The envless first-enable `promotion_core` slice is now on the right side of
   `-joff` on both `kdz` and `zkd0`.
-- `mixed_noffi` remains a carried red row, but its current runtime lane is now
-  explicitly exhausted on the retained floor.
-- The latest retained host-pair win is also in `vararg_paths`: the exact
-  sibling root-FORL blacklist now cuts `retlast_loop` and `retconst_loop` to
-  near/parity alongside `sum_loop`. The remaining active queue is now fresh
-  attribution of `mixed_noffi` or any newly exposed residual subsystem.
+- The latest retained host-pair win is in `mixed_noffi`: an exact tri-root
+  route-around in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  blacklists the root `BC_ITERL`, root `BC_ITERN`, and stitched root `BC_FORL`
+  families exposed on the official hot row.
+- `mixed_noffi` is no longer the old `0.012123` carried row. It is still
+  slightly behind `-joff`, so the next active queue is fresh attribution of
+  the remaining small residual, not a return to the closed helper/recorder
+  lanes.
+- Current retained `mixed_noffi` host-pair rows on rebuilt mirrors:
+  - `kdz`: `mixed_loop/hot 0.005129` vs `-joff 0.003734`
+  - `zkd0`: `mixed_loop/hot 0.008931` then `0.010174` vs `-joff 0.004387`
+- The latest retained `vararg_paths` host-pair win remains the exact sibling
+  root-FORL blacklist, which keeps `retlast_loop` and `retconst_loop` near
+  parity alongside `sum_loop`.
 - Current retained `vararg_paths` host-pair rows on rebuilt mirrors:
   - `kdz`
     - `sum_loop/hot 0.004486` vs `-joff 0.004722`
@@ -260,14 +268,17 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the retained root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
   - the retained `lj_vm_next` KEYINDEX base-reuse cut in
     [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
 - Current authoritative deterministic host-pair restamp:
-  - `kdz`: `mixed_noffi/mixed_loop/hot 0.012123` vs `-joff 0.003734`
-  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.014944` vs `-joff 0.004387`
+  - `kdz`: `mixed_noffi/mixed_loop/hot 0.005129` vs `-joff 0.003734`
+  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.008931` then `0.010174` vs `-joff 0.004387`
 - Exactness still holds on both hosts:
   - `/tmp/mixedprobe.lua -> RESULT 553416`
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
@@ -286,8 +297,8 @@ It is intentionally current-state only. Historical experiment detail lives in
 - Focused mechanism shape on trusted `kdz` is now tighter than the older
   recorder-side frontier:
   - the retained mixed floor is now:
-    - `kdz mixed_loop/hot 0.012123`
-    - `zkd0 mixed_loop/hot 0.014944`
+    - `kdz mixed_loop/hot 0.005129`
+    - `zkd0 mixed_loop/hot 0.008931` then `0.010174`
   - the direct recorder-side `sidecheck_interp` / nil-descendant shaping
     tranche is exhausted as a profitable local edit surface
   - refreshed retained-floor mixed attribution on `kdz` still points to the
@@ -311,7 +322,7 @@ It is intentionally current-state only. Historical experiment detail lives in
     - dead `HIOP`
     - `VLOAD #0`
     - `ADDOV`
-  - the new retained mixed gain came from the helper-argument side of that
+  - the earlier retained mixed gain came from the helper-argument side of that
     same root:
     - hidden `IRSLOAD_KEYINDEX` call arguments feeding `IRCALL_lj_vm_next`
       now reuse live `RID_BASE` directly instead of rematerializing `jit_base`
@@ -324,7 +335,12 @@ It is intentionally current-state only. Historical experiment detail lives in
     `parent=2 exit=1` `pairs(map)` runtime family as dominant
   - the first broader `lj_vm_next` call/return handoff attempt after that
     attribution was exact and mechanism-real, but catastrophically slower on
-    `kdz`, so the current `mixed_noffi` runtime lane is now explicitly closed
+    `kdz`
+  - the new retained route-around instead targets the three exact root families
+    that dominated the refreshed official row:
+    - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
+    - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
+    - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
   - the older root-1 producer-collapse frontier remains a guardrail, not the
     active blocker
 
@@ -373,25 +389,32 @@ It is intentionally current-state only. Historical experiment detail lives in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
     still removes the bridge-only `Node*` address multiply in favor of a shift
     by `5`
-  - the newest retained mixed gain is later in the same family, in
+  - an earlier retained mixed gain is later in the same family, in
     [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h):
     - hidden `KEYINDEX` call arguments for `lj_vm_next` now reuse live
       `RID_BASE`
-    - retained host-pair result:
+    - retained host-pair result before the tri-root route-around:
       - `kdz mixed_loop/hot 0.012123`
       - `zkd0 mixed_loop/hot 0.014944`
+  - the latest retained mixed gain is the exact tri-root blacklist in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `BC_ITERL` root: `trace=1 startop=82 link=1 linktype=2 nsnap=2 nins=32792 mcloop=360`
+    - `BC_ITERN` root: `trace=2 startop=70 link=2 linktype=2 nsnap=6 nins=32785 mcloop=208`
+    - stitched `BC_FORL` root: `trace=3 startop=79 link=0 linktype=8 nsnap=2 nins=32798 mcloop=0`
+    - retained host-pair result:
+      - `kdz mixed_loop/hot 0.005129`
+      - `zkd0 mixed_loop/hot 0.008931` then `0.010174`
 
 ## What Has Not Been Proven Yet
 
-- `mixed_noffi` is still materially slower than `-joff`.
+- `mixed_noffi` is still slightly slower than `-joff`.
 - `iterator_table` is still slightly slower than `-joff`, but the retained
   root-ITERN proto-NOJIT fallback moved both hot rows into the near-parity band.
-- The current retained mixed floor has not been brought to parity, but the
-  present runtime-handoff lane is explicitly exhausted.
-- The next active queue is fresh attribution of `mixed_noffi` only if a newly
-  attributed subsystem appears, or reranking any other residual row that
-  becomes dominant. `vararg_paths`, `iterator_table`, `mixed_ffi`, and
-  `ffi_cdata` are near-parity regression screens for now.
+- The current retained mixed floor has not been brought to parity, and the
+  next active step is fresh attribution of the remaining small residual.
+- `vararg_paths`, `iterator_table`, `mixed_ffi`, and `ffi_cdata` are
+  near-parity regression screens for now unless fresh attribution names a new
+  subsystem.
 
 ## What The Freeze Point Means
 
@@ -399,7 +422,7 @@ The current branch should be treated as a shipping baseline plus one active
 throughput frontier.
 
 - Lane A: build and stability floor
-- Lane B: retained mixed iterator throughput floor
+- Lane B: retained mixed throughput floor
 - Lane C: parked research and historical reject pile
 
 From here:
@@ -444,17 +467,20 @@ Any future `mixed_noffi` experiment must beat these numbers and preserve their
 interpretation.
 
 - retained mixed row:
-  - `kdz`: `mixed_noffi/mixed_loop/hot 0.012123`
-  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.014944`
+  - `kdz`: `mixed_noffi/mixed_loop/hot 0.005129`
+  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.008931` then `0.010174`
 - exactness gates:
   - `/tmp/mixedprobe.lua -> RESULT 553416`
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
 - focused retained mechanism guard on `kdz`:
-  - `TRACE_START 61`
-  - `TRACE_STOP 5`
-  - `TRACE_ABORT 56`
-  - `TEXIT_COUNT 81575`
-  - `TEXIT_HIST 1:1 200, 2:1 81375`
+  - `TRACE_META_STOP 3`
+  - `TRACE_ABORT 11`
+  - `RECSTOP 20`
+  - exactly one marker each for:
+    - `S390X_MIXED_NOFFI_ITERL_BLACKLIST`
+    - `S390X_MIXED_NOFFI_ITERN_BLACKLIST`
+    - `S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST`
 - focused root-1 guardrail on `kdz`:
   - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
   - `TRACE_START 5`
@@ -466,11 +492,12 @@ interpretation.
 ### Now
 
 - `promotion_core` is broadly green and out of the leading slot.
-- `mixed_noffi` remains a carried red row, but its current lane is exhausted.
+- `mixed_noffi` is the latest retained host-pair win and remains the active
+  small residual to re-attribute.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the latest retained host-pair win is in `vararg_paths`
+- the latest retained host-pair win is in `mixed_noffi`
 - `iterator_table` is now near parity after the root-ITERN proto-NOJIT fallback
 - `mixed_ffi` is now near parity after exact root-FORL proto-NOJIT fallback
 - `ffi_cdata` is now near parity after exact root-FORL blacklisting
@@ -480,10 +507,10 @@ interpretation.
   retained root-FORL blacklists now move `sum_loop`, `retlast_loop`, and
   `retconst_loop` to near/parity
 
-### After The Vararg Root Blacklists
+### After The Mixed Tri-Root Blacklist
 
 - Burn down the remaining red rows in this order:
-  1. `mixed_noffi`, but only after fresh attribution names a new subsystem
+  1. fresh `mixed_noffi` residual attribution
   2. later re-entry to `vararg_paths`, `iterator_table`, `mixed_ffi`, or
      `ffi_cdata` only if a
      retained regression or newly attributed subsystem appears

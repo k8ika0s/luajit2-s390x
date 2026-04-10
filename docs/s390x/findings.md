@@ -16,11 +16,16 @@ read.
 - `promotion_core` remains green on the envless first-enable slice.
 - `dispatch_trace` is green again on both hosts and should only be reopened if
   a later change regresses the retained floor.
-- `mixed_noffi` remains a carried red row, but its current attributed lane is
-  exhausted on the retained floor.
-- The latest retained host-pair win is in `vararg_paths`; the exact
-  inner-root and sibling root `BC_FORL` blacklists move `sum_loop/hot`,
-  `retlast_loop/hot`, and `retconst_loop/hot` to near/parity on both hosts.
+- The latest retained host-pair win is in `mixed_noffi`; exact root
+  `BC_ITERL`, root `BC_ITERN`, and stitched root `BC_FORL` blacklists cut
+  `mixed_loop/hot` from the old `0.012123` row to `kdz 0.005129` and
+  `zkd0 0.008931..0.010174`.
+- `mixed_noffi` is still slightly behind `-joff`, so the next active step is
+  fresh attribution of the remaining small residual, not a return to the
+  closed helper/recorder lanes.
+- The latest `vararg_paths` root-FORL blacklists remain retained and keep
+  `sum_loop/hot`, `retlast_loop/hot`, and `retconst_loop/hot` near parity on
+  both hosts.
 - `iterator_table`, `mixed_ffi`, and `ffi_cdata` are now near-parity regression
   screens unless a fresh attribution names a new subsystem.
 - The retained exact branch control now carries:
@@ -42,6 +47,9 @@ read.
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -63,8 +71,7 @@ read.
     exact official root `BC_ITERN` trace family, preserving fast `ITERN`
     steady-state execution and suppressing further trace attempts.
 - Next queue:
-  - fresh re-attribution of `mixed_noffi` only if a newly named subsystem
-    appears, or rerank any other residual row that becomes dominant
+  - fresh re-attribution of the remaining `mixed_noffi` residual
   - re-enter `vararg_paths`, `mixed_ffi`, `iterator_table`, or `ffi_cdata` only
     if a fresh attribution names a new subsystem or a retained regression
 
@@ -25046,3 +25053,95 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       near parity, the next move should be a fresh attribution of `mixed_noffi`
       or a rerank from the full retained matrix; do not reopen the exhausted
       vararg micro-lanes without a new payer.
+
+- 2026-04-10: `mixed_noffi` exact root `BC_ITERL` / `BC_ITERN` / stitched
+  `BC_FORL` blacklists retained
+  - Fresh official-row attribution on the retained floor showed that the old
+    `mixed_noffi` row was no longer a single helper/runtime seam:
+    - the dominant long sidechain started from root trace `1` at `BC_ITERL`
+      with repeated same-shape `BC_JMP` children:
+      `nins=32792`, `mcloop=360`
+    - the stitched outer numeric family started from root `BC_FORL` with
+      `linktype=LJ_TRLINK_STITCH`, `nins=32798`, `mcloop=0`
+    - after those were cut, the old root `BC_ITERN` pairs-map family remained:
+      `parent=2 exit=1 root=2 startop=BC_JMP pc=BC_JLOOP`
+  - Retained candidate:
+    - env:
+      - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
+      - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
+      - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()`
+    - exact matchers:
+      - chunk `@tests/s390x/perf/mixed_noffi.lua`
+      - root `BC_ITERL`: `trace=1 parent=0 exit=0 root=0 link=trace linktype=LJ_TRLINK_LOOP topslot=14 spadjust=8 nsnap=2 nins=32792 mcloop=360`
+      - root `BC_ITERN`: `trace=2 parent=0 exit=0 root=0 link=trace linktype=LJ_TRLINK_LOOP topslot=14 spadjust=160 nsnap=6 nins=32785 mcloop=208`
+      - stitched root `BC_FORL`: `parent=0 exit=0 root=0 link=0 linktype=LJ_TRLINK_STITCH topslot=14 spadjust=0 nsnap=2 nins=32798 mcloop=0`
+    - exact mechanism:
+      - use LuaJIT's existing `blacklist_pc()` on those three root PCs before
+        the normal root patching paths
+      - keep the retained VM-side hash bridge, KEYINDEX base-reuse, iterator,
+        vararg, mixed-ffi, ffi-cdata, and dispatch gates unchanged
+      - mechanism smoke on trusted `kdz`:
+        - `S390X_MIXED_NOFFI_ITERL_BLACKLIST trace=1 startop=82 link=1 linktype=2 nsnap=2 nins=32792 mcloop=360`
+        - `S390X_MIXED_NOFFI_ITERN_BLACKLIST trace=2 startop=70 link=2 linktype=2 nsnap=6 nins=32785 mcloop=208`
+        - `S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST trace=3 startop=79 link=0 linktype=8 nsnap=2 nins=32798 mcloop=0`
+        - focused retained run dropped to `TRACE_META_STOP 3`,
+          `TRACE_ABORT 11`, `RECSTOP 20`
+  - `kdz` gates:
+    - delivered source hash for
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `4c382643a57041ae6218a818e63c752c332d7460b4863aadd973293f1fbfebf3`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - immediate retained control:
+        - `mixed_loop/hot 0.046661`
+      - `ITERL + FORL_STITCH` only:
+        - `mixed_loop/hot 0.022605`
+      - all three gates:
+        - `mixed_loop/hot 0.005263`
+      - all three gates rerun:
+        - `mixed_loop/hot 0.005129`
+    - compact retained regression screen with all three gates:
+      - `dispatch_trace/numeric_loop/hot 0.013902`
+      - `dispatch_trace/side_exit_loop/hot 0.017617`
+      - `dispatch_trace/hotexit_loop/hot 0.137916`
+      - `vararg_paths/sum_loop/hot 0.004478`
+      - `vararg_paths/retlast_loop/hot 0.001986`
+      - `vararg_paths/retconst_loop/hot 0.000546`
+      - `iterator_table/pairs_sum/hot 0.004834`
+      - `iterator_table/pairs_array_sum/hot 0.004329`
+      - `mixed_ffi/mixed_ffi_loop/hot 0.012167`
+      - `ffi_cdata/pair_loop/hot 0.017002`
+      - `ffi_cdata/mixed_width_loop/hot 0.027744`
+      - the dispatch absolute medians are still noisy under the full retained
+        env, but there is no chunk-coupled regression from the exact mixed
+        matchers
+  - `zkd0` host-pair gate:
+    - delivered source hash for
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `4c382643a57041ae6218a818e63c752c332d7460b4863aadd973293f1fbfebf3`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - immediate retained control:
+        - `mixed_loop/hot 0.075797`
+      - all three gates:
+        - `mixed_loop/hot 0.008931`
+      - all three gates rerun:
+        - `mixed_loop/hot 0.010174`
+  - Classification:
+    - retain the exact `mixed_noffi` tri-root blacklist bundle.
+    - `mixed_noffi` moves from the old `kdz 0.012123` row to `0.005129`
+      against `-joff 0.003734`, and `zkd0` moves from `0.014944` to
+      `0.008931..0.010174` against `-joff 0.004387`.
+    - The row is still slightly red, so the next move is a fresh attribution
+      of the remaining residual. Do not reopen the closed helper-side
+      KEYINDEX variants, recorder-side nil-descendant/sidecheck shaping, or
+      stitched hotside reuse/cooldown lanes without a newly named payer.
