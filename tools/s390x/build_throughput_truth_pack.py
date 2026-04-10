@@ -1978,10 +1978,9 @@ FAMILY_CONFIGS = {
         "bench_file": "tests/s390x/perf/vararg_paths.lua",
         "focus_label": "vararg throughput",
         "selection_reason": (
-            "active blocker after the carried mixed_noffi lane exhausted; "
-            "restamp the live vararg seam on the retained floor because it "
-            "stresses arg-bank, call, return, and select/vararg flow without "
-            "reopening iterator or dispatch seams"
+            "near-parity retained regression screen after the exact root-FORL "
+            "blacklist wins; restamp only if a fresh attribution names a new "
+            "vararg subsystem or a retained regression appears"
         ),
         "focused_bench_script": VARARG_FOCUSED_BENCH,
         "check_scripts": VARARG_CHECK_SCRIPTS,
@@ -2096,10 +2095,9 @@ FAMILY_CONFIGS = {
         "bench_file": "tests/s390x/perf/mixed_noffi.lua",
         "focus_label": "mixed non-ffi throughput",
         "selection_reason": (
-            "same-seam broader family with integer/vararg/ipairs/pairs mix; "
-            "use after the reduced UGET/looproot siblings to confirm whether "
-            "the filtered hotside candidate still holds on the larger mixed "
-            "non-ffi body"
+            "active small residual after the retained exact root BC_ITERL / "
+            "BC_ITERN / stitched BC_FORL blacklist win; re-attribute the "
+            "official hot row before opening another subsystem"
         ),
         "focused_bench_script": MIXED_NOFFI_FOCUSED_BENCH,
         "check_scripts": {
