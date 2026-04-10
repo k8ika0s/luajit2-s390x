@@ -395,6 +395,26 @@ Current status:
     first, A1 selective instruction forms second, A2 retrace guard as
     enablement-only, and `LUAJIT_S390X_DIRECT_CALL_ARG` parked as lab-only
     until two clean future hot-row reads justify enabling it.
+- Post-publish `ffi_cdata:mixed_width_loop` seam:
+  - The regression source was classified as missing s390x assembly support for
+    narrow external stores: the mixed-width struct loop records `IR_XSTORE`
+    for `uint16_t` and `uint8_t` fields, then default s390x lowering falls
+    back with `NYI: cannot assemble IR instruction 78`.
+  - A narrow backend experiment now exists behind
+    `LUAJIT_S390X_NARROW_XSTORE`. With the flag set, `asm_xstore()` admits
+    8/16-bit external stores, emits `STCY`/`STHY`, and the mixed-width loop
+    records a real loop trace on `kdz1`. The focused `ffi_cdata_trace.lua`
+    probe validates correctness in default mode and requires trace stop/no
+    abort only when the flag is set.
+  - Same-host `kdz1` readout parks the seam as lab-only: enabling narrow
+    `XSTORE` regressed `mixed_width_loop` by about `8-10%` against the guarded
+    default (`hot`: `0.031127s` vs `0.028701s`) and also nudged `pair_loop`
+    slower. The guarded default stays within about `0-2%` of the pre-probe
+    lab read and keeps the old fallback path.
+  - Validation: default and flagged focused probes pass on
+    `/root/luajit2-s390x-isa/manual-minmax/repo`; driver runs
+    `s390x-xstore-guard-default-lab-20260410172009` and
+    `s390x-xstore-guard-jitcore-20260410172549` completed with zero failures.
 
 Why third:
 
