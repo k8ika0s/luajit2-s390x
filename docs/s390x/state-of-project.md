@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 08:26 PDT
+Last updated: 2026-04-10 08:35 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -148,19 +148,20 @@ It is intentionally current-state only. Historical experiment detail lives in
 - Current `iterator_table` read:
   - the retained host-pair wins are exact root `BC_ITERN` and root
     `BC_ITERL` blacklists, exact root `BC_ITERN` proto-NOJIT fallback, and
-    exact array-side root-ITERN proto-NOJIT hotcount parking
+    exact hash/array-side root-ITERN proto-NOJIT hotcount parking
     in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
     - env: `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
     - env: `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
     - env: `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
     - env: `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
-    - `kdz`: `pairs_sum/hot 0.004852`, `pairs_array_sum/hot 0.003961`
-    - `zkd0`: `pairs_sum/hot 0.006015`, `pairs_array_sum/hot 0.004821`
-    - immediate retained controls on `kdz`: `0.005654`, `0.004402`
-    - immediate retained controls on `zkd0`: `0.008887`, `0.006984`
+    - env: `LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK=1`
+    - `kdz`: `pairs_sum/hot 0.004532`, `pairs_array_sum/hot 0.003973`
+    - `zkd0`: `pairs_sum/hot 0.005227`, `pairs_array_sum/hot 0.005431`
+    - immediate retained controls on `kdz`: `0.005543`, `0.003950`
+    - immediate retained controls on `zkd0`: `0.008212`, `0.006333`
   - the official carried hot rows are now near parity:
-    - `pairs_sum/hot 0.004852` vs `-joff 0.004135`
-    - `pairs_array_sum/hot 0.003961` vs `-joff 0.003651`
+    - `pairs_sum/hot 0.004532` vs `-joff 0.004135`
+    - `pairs_array_sum/hot 0.003973` vs `-joff 0.003651`
   - closed exact iterator probes include direct tail `BRXH`, compare-side
     `CGRJ`, keyindex/HIOP register-home variants, accumulator PHI save skip,
     guarded `ADDOV` 32-bit `AR`, and signed `VLOAD` contraction
@@ -279,6 +280,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
   - `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
+  - `LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
@@ -442,7 +444,8 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 - `mixed_noffi` is now near parity but still slightly slower than `-joff`.
 - `iterator_table` is still slightly slower than `-joff`, but the retained
-  root-ITERN proto-NOJIT fallback moved both hot rows into the near-parity band.
+  root-ITERN proto-NOJIT fallback plus hash/array hotcount parks moved both hot
+  rows into the near-parity band.
 - The current retained mixed floor is close enough that the next active step is
   a fresh retained-matrix rerank.
 - `vararg_paths`, `iterator_table`, `mixed_ffi`, and `ffi_cdata` are
@@ -537,7 +540,7 @@ interpretation.
 - `dispatch_trace` is green again on both hosts.
 - the latest retained host-pair win is in `mixed_noffi`
 - `iterator_table` is now near parity after the root-ITERN proto-NOJIT
-  fallback and array-side hotcount park
+  fallback plus hash/array-side hotcount parks
 - `mixed_ffi` is now near parity after exact root-FORL proto-NOJIT fallback
 - `ffi_cdata` is now near parity after exact root-FORL blacklisting
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
@@ -546,11 +549,11 @@ interpretation.
   retained root-FORL blacklists now move `sum_loop`, `retlast_loop`, and
   `retconst_loop` to near/parity
 
-### After The Mixed Early Proto-NOJIT Park
+### After The Iterator Hash-Side Hotcount Park
 
 - Burn down the remaining red rows in this order:
-  1. fresh rerank from the retained matrix, with the remaining iterator hash
-     row as the first residual to attribute
+  1. fresh rerank from the retained matrix; `mixed_noffi` and `iterator_table`
+     are both near parity after the latest route-around cuts
   2. later re-entry to `vararg_paths`, `mixed_ffi`, or `ffi_cdata` only if a
      retained regression or newly attributed subsystem appears
 
