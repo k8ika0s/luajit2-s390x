@@ -290,6 +290,14 @@ Current status:
   the recorder lowers traced complex cdata varargs as payload pointers for the
   s390x call path. `ffi_complex_vararg_call_trace.lua` validates
   `complex double` arguments under trace.
+- Fixed-prototype aggregate arguments now reuse the same s390x call-lowering
+  classification. Small 1/2/4/8-byte structs and single-field FP structs lower
+  from cdata payload loads by value; larger fixed aggregates lower as cdata
+  payload pointers to match the interpreter's by-reference path.
+  `ffi_fixed_struct_call_trace.lua` validates scalar-return callees for
+  `small_u8`, `small_u16`, `small_u32`, 8-byte `small_u64`,
+  `struct { float }`, `struct { double }`, 16-byte `big_pair`, and 16-byte
+  `hfa2d` arguments without opening the struct-return path.
 - Stop line: `long double` and vector varargs are not part of the current claim.
   Cheap `kdz1` probes showed `long double` construction from Lua numbers fails
   at conversion time and GCC vector vararg calls are already `NYI` at the FFI
@@ -308,7 +316,8 @@ Current status:
   `ffi_pointer_vararg_call_trace.lua`,
   `ffi_large_struct_vararg_call_trace.lua`,
   `ffi_fp_struct_vararg_call_trace.lua`, `ffi_complex_vararg_call_trace.lua`,
-  `ffi_calls`, `ffi_cdata`, `mixed_ffi`, and `vararg_paths`.
+  `ffi_fixed_struct_call_trace.lua`, `ffi_calls`, `ffi_cdata`, `mixed_ffi`,
+  and `vararg_paths`.
 - The post-A3 guardrail pass is also green: `numeric_retrace_probe.lua` remains
   bounded at `n=512`, `calls=200`; `jit_be/numeric_ops.lua`,
   `jit_be/large_immediates.lua`, and the full current `jit_loops` directory
@@ -347,6 +356,7 @@ Qualification:
 - `tests/s390x/jit_core/ffi_call_trace.lua`
 - `tests/s390x/jit_core/ffi_ptr_call_trace.lua`
 - `tests/s390x/jit_core/ffi_stack_call_trace.lua`
+- `tests/s390x/jit_core/ffi_fixed_struct_call_trace.lua`
 - `tests/s390x/jit_core/ffi_vararg_call_trace.lua`
 - `tests/s390x/jit_core/ffi_fp_vararg_call_trace.lua`
 - `tests/s390x/jit_core/ffi_mixed_vararg_call_trace.lua`
