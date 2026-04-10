@@ -73,7 +73,7 @@ The wrapper pins the stream to:
 - local artifacts `artifacts/s390x-isa/`
 - remote run roots under `/root/luajit2-s390x-isa/runs`
 - stream label `isa-lab`
-- default text overrides `LUAJIT_S390X_TEXT_PATTERN_MODE=span8` and `LUAJIT_S390X_TEXT_TRANSFORM_MODE=ascii8` unless explicitly overridden in the shell
+- default text override `LUAJIT_S390X_TEXT_PATTERN_MODE=span8`; transform mode stays `generic` unless explicitly overridden in the shell
 
 ## First Experiment
 
@@ -125,13 +125,13 @@ Current `kdz1` readout:
 - in the fifth non-text carry check, `vararg_paths` moved the favorable way across most rows: `retlast_loop` improved by about 0.8-3.2%, `sum_loop` by about 2.1-4.1%, and `retconst_loop` was flat to about 1.1% faster
 - in the sixth non-text carry check, `be_helpers` moved the wrong way: `be_pack_loop` regressed by about 2.2-3.2%, while `number_helper_loop` ranged from flat to about 4.1% slower
 - in the seventh non-text carry check, `mixed_ffi` moved the favorable way across all rows, improving by about 1.2-2.6%
-- because the non-text carry checks now show two regression families, one mixed family, one neutral family, and three favorable families, the ISA lab wrapper keeps `span8+ascii8` enabled by default for now; this remains a lab-only policy, not a mainline default recommendation
-- the current carry story is still positive enough to keep using the lab defaults for ongoing ISA exploration, but the helper-side regressions mean this is not ready for promotion outside the lab until more unrelated families have been qualified
+- after rebasing onto bring-up `4b16b7e9`, the current-tip restamp split the default policy: `span8` remains strong, but `ascii8` repeated regressions in `text_casefold:upper_ascii` and `mixed_noffi` hot/small rows
+- because of that split, the ISA lab wrapper now defaults only `LUAJIT_S390X_TEXT_PATTERN_MODE=span8`; `LUAJIT_S390X_TEXT_TRANSFORM_MODE=ascii8` stays opt-in until the upper-case path and carry rows are clean
 - because neither variant is a clean policy win, fixed-string search stays opt-in for now
 - because the transform signal is promising but not isolated yet, `bswap64` also stays opt-in for now
-- because `ascii8` now wins in both isolated and mixed text families, it is the first transform lane that looks worth broader qualification; it still stays opt-in until we restamp it again and run it against higher-level workloads
+- because `ascii8` now has a mixed current-tip read, it is no longer a default-on lab lane; keep it as an explicit opt-in transform probe
 - because the widened `span8` lane now helps both direct `string.match` and repeated `string.gmatch` scans, pattern acceleration has moved from narrow probe to serious candidate
-- because the combined `span8+ascii8` family now shows broad wins with a flat neutral control row, the next step is to trial both as default-on in ISA-lab builds rather than keeping them as opt-in-only probes
+- because `span8` still shows broad wins in `text_patterns`, `text_mixed`, and `text_combo`, keep it as the only default-on text helper in ISA-lab builds
 
 Initial validation commands:
 

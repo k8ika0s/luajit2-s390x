@@ -6,9 +6,10 @@ criteria.
 
 ## Current Position
 
-- The text lane has produced real wins with `span8` and `ascii8`.
-- The broader carry story is positive enough to keep those defaults enabled in
-  the ISA lab wrapper, but not clean enough to recommend them outside the lab.
+- The text lane has produced real wins with `span8`, while `ascii8` is now
+  mixed on the current bring-up base.
+- The ISA lab wrapper now defaults to `span8` only; `ascii8` remains opt-in
+  until the upper-case and carry regressions are explained.
 - The next wave should diversify away from text and attack:
   1. backend-only codegen quality
   2. opt-in feature differentiation
@@ -415,6 +416,37 @@ Current status:
     `/root/luajit2-s390x-isa/manual-minmax/repo`; driver runs
     `s390x-xstore-guard-default-lab-20260410172009` and
     `s390x-xstore-guard-jitcore-20260410172549` completed with zero failures.
+- Post-promotion current-tip text restamp:
+  - Rebased the lab branch over bring-up `4b16b7e9` and kept a local safety
+    pointer at `k8ika0s/s390x-isa-lab-gains-pre-4b16-rebase-20260410`.
+  - Interpreted pure-Lua sanity passed on `kdz1` with wrapper defaults in
+    `isa-lab-4b16-rebase-purelua-interp-20260410112849`. A JIT-on pure-Lua
+    attempt failed only on fragile `t/isempty.t` trace-link text while output
+    stayed correct; do not treat that as a text-lane failure.
+  - Same-host current-tip A/B against generic text modes:
+    `isa-lab-4b16-text-generic-20260410113254` vs
+    `isa-lab-4b16-text-lanes-20260410113735`. Combined `span8+ascii8` stayed
+    positive on text workloads (`text_patterns` `1.265x`, `text_mixed`
+    `1.241x`, `text_combo` `1.143x`) but repeated small regressions in
+    `text_casefold:upper_ascii` and `mixed_noffi`.
+  - A reduced repeat confirmed the split:
+    `isa-lab-4b16-text-generic-repeat-20260410114319` vs
+    `isa-lab-4b16-text-lanes-repeat-20260410114747` kept `text_patterns`
+    `1.272x` and `text_mixed` `1.294x`, but moved `text_casefold` to
+    `0.976x` geomean with `upper_ascii` as low as `0.835x`.
+  - Split-knob reads classify `span8` as the live text candidate and `ascii8`
+    as opt-in only for now. `span8`-only
+    (`isa-lab-4b16-text-span8only-20260410115313`) kept `text_patterns`
+    `1.249x`, `text_mixed` `1.194x`, and `text_combo` `1.197x` against the
+    generic control. `ascii8`-only
+    (`isa-lab-4b16-text-ascii8only-20260410115812`) was much smaller
+    (`text_casefold` `1.015x`, `text_combo` `1.004x`) and still regressed
+    `upper_ascii` plus `mixed_noffi` hot/small rows.
+  - Policy update: the ISA lab wrapper now defaults only
+    `LUAJIT_S390X_TEXT_PATTERN_MODE=span8`; it leaves
+    `LUAJIT_S390X_TEXT_TRANSFORM_MODE=generic` unless explicitly overridden.
+    `ascii8` is not a promotion candidate until the upper-case path has a
+    cleaner current-tip read.
 
 Why third:
 
