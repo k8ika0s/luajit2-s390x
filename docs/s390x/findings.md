@@ -18,10 +18,9 @@ read.
   a later change regresses the retained floor.
 - `mixed_noffi` remains a carried red row, but its current attributed lane is
   exhausted on the retained floor.
-- The latest retained host-pair win is in `vararg_paths/sum_loop`; the exact
-  inner-root `BC_FORL` blacklist moves `sum_loop/hot` to near/parity on both
-  hosts, while `retlast_loop` / `retconst_loop` remain the vararg sibling
-  rows to re-attribute.
+- The latest retained host-pair win is in `vararg_paths`; the exact
+  inner-root and sibling root `BC_FORL` blacklists move `sum_loop/hot`,
+  `retlast_loop/hot`, and `retconst_loop/hot` to near/parity on both hosts.
 - `iterator_table`, `mixed_ffi`, and `ffi_cdata` are now near-parity regression
   screens unless a fresh attribution names a new subsystem.
 - The retained exact branch control now carries:
@@ -35,6 +34,7 @@ read.
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
+  - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -63,10 +63,10 @@ read.
     exact official root `BC_ITERN` trace family, preserving fast `ITERN`
     steady-state execution and suppressing further trace attempts.
 - Next queue:
-  - fresh re-attribution of the remaining `vararg_paths` sibling rows:
-    `retlast_loop` and `retconst_loop`
-  - re-enter `mixed_noffi`, `mixed_ffi`, `iterator_table`, or `ffi_cdata` only
-    if a fresh attribution names a new subsystem
+  - fresh re-attribution of `mixed_noffi` only if a newly named subsystem
+    appears, or rerank any other residual row that becomes dominant
+  - re-enter `vararg_paths`, `mixed_ffi`, `iterator_table`, or `ffi_cdata` only
+    if a fresh attribution names a new subsystem or a retained regression
 
 ## Harness Status
 
@@ -24840,9 +24840,8 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - `mixed_width_loop` stays near parity and remains the sibling regression
       screen.
     - with `iterator_table`, `mixed_ffi`, and `ffi_cdata` now near parity, the
-      next active move is a fresh re-attribution of the remaining carried red
-      rows, starting with `vararg_paths/sum_loop`; do not reopen exhausted
-      lanes without new attribution.
+      next active move was fresh `vararg_paths` re-attribution; that follow-up
+      is recorded in the entries below.
 
 - 2026-04-09: `vararg_paths/sum_loop` exact inner root `BC_FORL` blacklist retained
   - Fresh official-row attribution on rebuilt `kdz` showed the retained
@@ -24950,3 +24949,100 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - the official-suite `retlast_loop` row carries a small regression under
       this retained bundle; do not hide it, and re-attribute the vararg
       siblings next before reopening exhausted `sum_loop` micro-cuts.
+
+- 2026-04-09: `vararg_paths` sibling root `BC_FORL` blacklist retained
+  - Fresh attribution after the retained inner `sum(...)` root blacklist
+    showed the remaining vararg sibling cost came from the same trace-control
+    class in the caller loops, not from a new backend arithmetic seam:
+    - `retlast_loop` root:
+      `trace=2 parent=0 exit=0 root=0 startop=BC_FORL link=2 linktype=LJ_TRLINK_LOOP topslot=14 spadjust=8 nsnap=4 nins=32820 mcloop=672`
+    - repeated `retlast_loop` descendants:
+      `root=2 parent=N exit=0 startop=BC_JMP linktype=LJ_TRLINK_LOOP nsnap=4 nins=32820 mcloop=672`
+    - `retconst_loop` root:
+      `trace=8 parent=0 exit=0 root=0 startop=BC_FORL link=8 linktype=LJ_TRLINK_LOOP topslot=14 spadjust=8 nsnap=4 nins=32806 mcloop=452`
+    - repeated `retconst_loop` descendants:
+      `root=8 parent=N exit=0 startop=BC_JMP linktype=LJ_TRLINK_LOOP nsnap=4 nins=32806 mcloop=452`
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()` root `BC_FORL` case
+    - exact matcher:
+      - chunk `@tests/s390x/perf/vararg_paths.lua`
+      - `parent=0`, `exit=0`, `root=0`
+      - `startop=BC_FORL`, `link=traceno`, `linktype=LJ_TRLINK_LOOP`
+      - `topslot=14`, `spadjust=8`, `nsnap=4`
+      - `retlast_loop` proto: `firstline=31`, `numline=6`,
+        `nins=32820`, `mcloop=672`
+      - `retconst_loop` proto: `firstline=43`, `numline=6`,
+        `nins=32806`, `mcloop=452`
+      - no trace-number pin, so the `retconst_loop` match survives after the
+        `retlast_loop` root is suppressed first
+    - exact mechanism:
+      - use LuaJIT's existing `blacklist_pc()` on those root-loop PCs before
+        the `BC_FORL` root patching path
+      - keep the retained `sum_loop` root blacklist unchanged
+      - mechanism smoke on trusted `kdz`:
+        - `S390X_VARARG_SIBLING_FORL_BLACKLIST trace=2 firstline=31 link=2 linktype=2 nsnap=4 nins=32820 mcloop=672`
+        - `S390X_VARARG_SIBLING_FORL_BLACKLIST trace=3 firstline=43 link=3 linktype=2 nsnap=4 nins=32806 mcloop=452`
+        - marker count `2`
+  - `kdz` gates:
+    - delivered source hash:
+      `9a5515620b635543f6cac9ac2edf7841780335eee9d3210624d1cc894aa70a5e`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - candidate:
+        - `sum_loop/hot 0.004467`
+        - `retlast_loop/hot 0.002026`
+        - `retconst_loop/hot 0.000581`
+      - immediate disabled-env control:
+        - `sum_loop/hot 0.004489`
+        - `retlast_loop/hot 0.003504`
+        - `retconst_loop/hot 0.001736`
+      - candidate rerun:
+        - `sum_loop/hot 0.004486`
+        - `retlast_loop/hot 0.001978`
+        - `retconst_loop/hot 0.000570`
+    - compact retained regression screen with the new flag:
+      - `dispatch_trace/numeric_loop/hot 0.013772`
+      - `dispatch_trace/side_exit_loop/hot 0.017084`
+      - `dispatch_trace/hotexit_loop/hot 0.215763`
+      - `iterator_table/pairs_sum/hot 0.005817`
+      - `iterator_table/pairs_array_sum/hot 0.004368`
+      - `mixed_noffi/mixed_loop/hot 0.047356`
+      - `ffi_cdata/pair_loop/hot 0.017274`
+      - `ffi_cdata/mixed_width_loop/hot 0.028657`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `9a5515620b635543f6cac9ac2edf7841780335eee9d3210624d1cc894aa70a5e`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - candidate:
+        - `sum_loop/hot 0.005826`
+        - `retlast_loop/hot 0.002654`
+        - `retconst_loop/hot 0.000628`
+      - immediate disabled-env control:
+        - `sum_loop/hot 0.006776`
+        - `retlast_loop/hot 0.004290`
+        - `retconst_loop/hot 0.002623`
+      - candidate rerun:
+        - `sum_loop/hot 0.006285`
+        - `retlast_loop/hot 0.002767`
+        - `retconst_loop/hot 0.000620`
+  - Classification:
+    - retain the exact vararg sibling root `BC_FORL` blacklist.
+    - `retlast_loop` and `retconst_loop` are now effectively at parity on
+      trusted `kdz`: `0.001978` vs `-joff 0.001990`, and `0.000570` vs
+      `-joff 0.000598`.
+    - `sum_loop` stays near/parity with the previous retained root blacklist.
+    - with `vararg_paths`, `iterator_table`, `mixed_ffi`, and `ffi_cdata` now
+      near parity, the next move should be a fresh attribution of `mixed_noffi`
+      or a rerank from the full retained matrix; do not reopen the exhausted
+      vararg micro-lanes without a new payer.

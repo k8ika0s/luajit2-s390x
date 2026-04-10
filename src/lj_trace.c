@@ -750,6 +750,45 @@ static int lj_trace_s390x_sum_loop_forl_blacklist_match(jit_State *J,
          T != NULL;
 }
 
+static int lj_trace_s390x_vararg_sibling_forl_blacklist_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST") != NULL);
+  return enabled;
+}
+
+static int lj_trace_s390x_vararg_sibling_forl_blacklist_match(jit_State *J,
+                                                              GCproto *pt,
+                                                              GCtrace *T)
+{
+  static const char chunkname[] = "@tests/s390x/perf/vararg_paths.lua";
+  GCstr *chunk;
+  if (!LJ_TARGET_S390X ||
+      !lj_trace_s390x_vararg_sibling_forl_blacklist_enabled() ||
+      pt == NULL || T == NULL)
+    return 0;
+  chunk = proto_chunkname(pt);
+  if (!(chunk != NULL &&
+        chunk->len == (MSize)(sizeof(chunkname) - 1) &&
+        memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0))
+    return 0;
+  if (!((pt->firstline == 31 && pt->numline == 6 &&
+         J->cur.nins == 32820 && J->cur.mcloop == 672) ||
+        (pt->firstline == 43 && pt->numline == 6 &&
+         J->cur.nins == 32806 && J->cur.mcloop == 452)))
+    return 0;
+  return J->parent == 0 && J->exitno == 0 &&
+         J->cur.root == 0 &&
+         bc_op(J->cur.startins) == BC_FORL &&
+         J->cur.link == J->cur.traceno &&
+         J->cur.linktype == LJ_TRLINK_LOOP &&
+         J->cur.resumechild == 0 &&
+         J->cur.topslot == 14 &&
+         J->cur.spadjust == 8 &&
+         J->cur.nsnap == 4;
+}
+
 static int lj_trace_s390x_mixed_noffi_proto_match(GCproto *pt)
 {
   static const char chunkname[] = "@tests/s390x/perf/mixed_noffi.lua";
@@ -3186,6 +3225,23 @@ static void trace_stop(jit_State *J)
                   (unsigned int)J->cur.traceno,
                   (const void *)pc,
                   (unsigned int)bc_op(J->cur.startins),
+                  (unsigned int)J->cur.link,
+                  (unsigned int)J->cur.linktype,
+                  (unsigned int)J->cur.nsnap,
+                  (unsigned int)J->cur.nins,
+                  (unsigned int)J->cur.mcloop);
+        }
+        goto addroot;
+      }
+      if (lj_trace_s390x_vararg_sibling_forl_blacklist_match(J, pt, T)) {
+        blacklist_pc(pt, pc);
+        if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+          fprintf(stderr,
+                  "S390X_VARARG_SIBLING_FORL_BLACKLIST trace=%u startpc=%p startop=%u firstline=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u\n",
+                  (unsigned int)J->cur.traceno,
+                  (const void *)pc,
+                  (unsigned int)bc_op(J->cur.startins),
+                  (unsigned int)pt->firstline,
                   (unsigned int)J->cur.link,
                   (unsigned int)J->cur.linktype,
                   (unsigned int)J->cur.nsnap,
