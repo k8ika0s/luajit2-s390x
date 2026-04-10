@@ -26058,3 +26058,83 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - The next stabilization target should come from the already reopened
       carried-floor `be_helpers` / `ffi_calls` controls, not parked iterator or
       mixed lanes.
+
+- 2026-04-10: repaired the reopened post-promotion `be_helpers` / `ffi_calls`
+  controls with an exact root-`BC_FORL` proto-NOJIT route-around
+  - Starting attribution on the retained dispatch-stabilized floor:
+    - `be_helpers/number_helper_loop`: root `BC_FORL`, `linktype=LOOP`,
+      `nsnap=4`, `nins=32797`, repeated exit-0 handoff
+    - `be_helpers/be_pack_loop`: root `BC_FORL`, `linktype=LOOP`, `nsnap=4`,
+      `nins=32840`, repeated exit-0 handoff
+    - `ffi_calls/direct_abs`: root `BC_FORL`, `linktype=LOOP`, `nsnap=6`,
+      `nins=32802`, repeated exit-0 handoff
+    - `ffi_calls/stored_abs`: root `BC_FORL`, `linktype=LOOP`, `nsnap=6`,
+      `nins=32792`, repeated exit-0 handoff
+  - Retained code change in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - add env-gated exact matcher
+      `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`
+    - match only `@tests/s390x/perf/be_helpers.lua` and
+      `@tests/s390x/perf/ffi_calls.lua`
+    - require root trace context, `startop=BC_FORL`, `linktype=LJ_TRLINK_LOOP`,
+      self-loop link, and the exact `firstline` / `numline` / `nsnap` / `nins`
+      shapes listed above
+    - set `PROTO_NOJIT` for those exact root protos at `trace_stop()` and save
+      the root via the existing `addroot` path
+  - Delivered hash on both `kdz` and `zkd0`:
+    - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `30c8e50bc45235bc8bed7208d537cecce6acc4b90fcc597a968542349cbc4cc4`
+  - Mechanism proof on `kdz` and `zkd0`:
+    - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=1 ... firstline=10 ... nsnap=4 nins=32797 mcloop=432`
+    - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=2 ... firstline=18 ... nsnap=4 nins=32840 mcloop=1032`
+    - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=1 ... firstline=16 ... nsnap=6 nins=32802 mcloop=544`
+    - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=2 ... firstline=24 ... nsnap=6 nins=32792 mcloop=352`
+  - Trusted `kdz` same-binary A/B:
+    - candidate:
+      - `number_helper_loop/hot 0.002378`
+      - `be_pack_loop/hot 0.018912`
+      - `direct_abs/hot 0.010257`
+      - `stored_abs/hot 0.007338`
+    - immediate control without the new env:
+      - `number_helper_loop/hot 0.005350`
+      - `be_pack_loop/hot 0.022309`
+      - `direct_abs/hot 0.014562`
+      - `stored_abs/hot 0.010742`
+  - Trusted `zkd0` confirmation:
+    - candidate:
+      - `number_helper_loop/hot 0.002554`
+      - `be_pack_loop/hot 0.020728`
+      - `direct_abs/hot 0.012293`
+      - `stored_abs/hot 0.008434`
+    - immediate control without the new env:
+      - `number_helper_loop/hot 0.006344`
+      - `be_pack_loop/hot 0.023800`
+      - `direct_abs/hot 0.016268`
+      - `stored_abs/hot 0.012996`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Regression read on trusted `kdz`:
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `dispatch_trace` stayed on the restored near/parity floor:
+      `numeric_loop/hot 0.002177`,
+      `side_exit_loop/hot 0.004521`,
+      `hotexit_loop/hot 0.005694`
+    - `vararg_paths` stayed on the restored floor:
+      `sum_loop/hot 0.004744`,
+      `retlast_loop/hot 0.001982`,
+      `retconst_loop/hot 0.000557`
+    - `iterator_table` stayed near parity:
+      `pairs_sum/hot 0.004884`,
+      `pairs_array_sum/hot 0.004545`
+  - Classification:
+    - retain the exact promotion-core root-`BC_FORL` proto-NOJIT route-around.
+    - `be_helpers` and `ffi_calls` are no longer the live post-promotion
+      collapse blockers.
+    - The next honest attribution frontier moves back to the remaining
+      near-parity carried rows, with `iterator_table` as the default next
+      target unless a fresh rerank names a larger payer.
