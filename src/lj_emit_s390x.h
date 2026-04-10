@@ -74,6 +74,9 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390X_INS_RSYI(op, r1, r3, imm) \
   ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
    (((uint64_t)(r3) & 15u) << 32) | (((uint64_t)(imm) & 0xfffu) << 16))
+#define S390X_INS_RIE_D(op, r1, r3, imm) \
+  ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
+   (((uint64_t)(r3) & 15u) << 32) | (((uint64_t)(imm) & 0xffffu) << 16))
 #define S390X_INS_BRC(cc, disp) \
   ((uint32_t)0xa7040000u | (((uint32_t)(cc) & 15u) << 20) | \
    (uint16_t)(disp))
@@ -102,6 +105,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_SDBR	0xb31b0000u
 #define S390XI_MDBR	0xb31c0000u
 #define S390XI_DDBR	0xb31d0000u
+#define S390XI_LPDBR	0xb3100000u
 #define S390XI_CDFBR	0xb3950000u
 #define S390XI_CFDBR	0xb3990000u
 #define S390XI_CDGBR	0xb3a50000u
@@ -116,11 +120,19 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_LGHI	0xa7090000u
 #define S390XI_AGHI	0xa70b0000u
 #define S390XI_CGHI	0xa70f0000u
+#define S390XI_AGFI	0xc20800000000ull
+#define S390XI_CGFI	0xc20c00000000ull
 #define S390XI_AGR	0xb9080000u
 #define S390XI_OGR	0xb9810000u
 #define S390XI_SGR	0xb9090000u
 #define S390XI_XGR	0xb9820000u
 #define S390XI_NGR	0xb9800000u
+#define S390XI_NGRK	0xb9e40000u
+#define S390XI_OGRK	0xb9e60000u
+#define S390XI_XGRK	0xb9e70000u
+#define S390XI_AGRK	0xb9e80000u
+#define S390XI_SGRK	0xb9e90000u
+#define S390XI_AGHIK	0xec00000000d9ull
 #define S390XI_LG	0xe30000000004ull
 #define S390XI_LLGF	0xe30000000016ull
 #define S390XI_LGH	0xe30000000015ull
@@ -128,11 +140,13 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_LLGH	0xe30000000091ull
 #define S390XI_LGB	0xe30000000077ull
 #define S390XI_LD	0x68000000u
+#define S390XI_LEY	0xed0000000064ull
 #define S390XI_STG	0xe30000000024ull
 #define S390XI_STD	0x60000000u
 #define S390XI_STCY	0xe30000000072ull
 #define S390XI_STHY	0xe30000000070ull
 #define S390XI_STY	0xe30000000050ull
+#define S390XI_STEY	0xed0000000066ull
 #define S390XI_STDY	0xed0000000067ull
 #define S390XI_TM	0x91000000u
 #define S390XI_NI	0x94000000u
@@ -293,10 +307,17 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
   UNUSED(as);
   if (r >= RID_MIN_FPR) {
-    lj_assertA(irt_isnum(ir->t), "NYI s390x FPR spill load for IR type %d",
+    lj_assertA(irt_isnum(ir->t) || irt_isfloat(ir->t),
+	       "NYI s390x FPR spill load for IR type %d",
 	       irt_type(ir->t));
-    lj_assertA(ofs >= 0 && ofs <= 4095, "s390x FPR spill load offset out of range");
-    emit_u32(as, S390X_INS_RX(S390XI_LD, r, 0, base, ofs));
+    if (irt_isfloat(ir->t)) {
+      lj_assertA(checki20(ofs), "s390x FPR float load offset out of range");
+      emit_u48_pad8(as, S390X_INS_RXY(S390XI_LEY, r, 0, base, ofs));
+    } else {
+      lj_assertA(ofs >= 0 && ofs <= 4095,
+		 "s390x FPR spill load offset out of range");
+      emit_u32(as, S390X_INS_RX(S390XI_LD, r, 0, base, ofs));
+    }
     return;
   }
   if (irt_is64(ir->t) || irt_isaddr(ir->t) || irt_isgcv(ir->t)) {
@@ -312,10 +333,17 @@ static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
 {
   UNUSED(as);
   if (r >= RID_MIN_FPR) {
-    lj_assertA(irt_isnum(ir->t), "NYI s390x FPR spill store for IR type %d",
+    lj_assertA(irt_isnum(ir->t) || irt_isfloat(ir->t),
+	       "NYI s390x FPR spill store for IR type %d",
 	       irt_type(ir->t));
-    lj_assertA(ofs >= 0 && ofs <= 4095, "s390x FPR spill store offset out of range");
-    emit_u32(as, S390X_INS_RX(S390XI_STD, r, 0, base, ofs));
+    if (irt_isfloat(ir->t)) {
+      lj_assertA(checki20(ofs), "s390x FPR float store offset out of range");
+      emit_u48_pad8(as, S390X_INS_RXY(S390XI_STEY, r, 0, base, ofs));
+    } else {
+      lj_assertA(ofs >= 0 && ofs <= 4095,
+		 "s390x FPR spill store offset out of range");
+      emit_u32(as, S390X_INS_RX(S390XI_STD, r, 0, base, ofs));
+    }
     return;
   }
   if (irt_is64(ir->t) || irt_isaddr(ir->t) || irt_isgcv(ir->t))

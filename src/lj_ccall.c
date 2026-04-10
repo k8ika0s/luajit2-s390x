@@ -656,6 +656,29 @@
 #elif LJ_TARGET_S390X
 /* -- POSIX/s390x calling conventions --------------------------------------- */
 
+static int ccall_s390x_struct_1fp(CTState *cts, CType *ct)
+{
+  CTSize sz = ct->size;
+  if (!(sz == sizeof(float) || sz == sizeof(double))) return 0;
+  if ((ct->info & CTF_UNION)) return 0;
+  while (ct->sib) {
+    ct = ctype_get(cts, ct->sib);
+    if (ctype_isfield(ct->info)) {
+      CType *sct = ctype_rawchild(cts, ct);
+      if (ctype_isfp(sct->info) && sct->size == sz)
+	return (sz >> 2);
+      break;
+    } else if (ctype_isbitfield(ct->info)) {
+      break;
+    } else if (ctype_isxattrib(ct->info, CTA_SUBTYPE)) {
+      CType *sct = ctype_rawchild(cts, ct);
+      if (sct->size)
+	return ccall_s390x_struct_1fp(cts, sct);
+    }
+  }
+  return 0;
+}
+
 #define CCALL_HANDLE_STRUCTRET \
   cc->retref = 1;  /* Return all structs by reference. */ \
   cc->gpr[ngpr++] = (GPRArg)dp;
@@ -669,10 +692,20 @@
 
 #define CCALL_HANDLE_STRUCTARG \
   /* Pass structs of size 1, 2, 4 or 8 in a GPR by value. */ \
-  if (!(sz == 1 || sz == 2 || sz == 4 || sz == 8)) { \
+  { int ft = ccall_s390x_struct_1fp(cts, d); \
+  if (ft == 1) { \
+    isfp = 1; \
+    if (nfpr < CCALL_NARG_FPR) { \
+      dp = &cc->fpr[nfpr++]; \
+      sz = CTSIZE_PTR; \
+      goto done; \
+    } \
+  } else if (ft == 2) { \
+    isfp = 1; \
+  } else if (!(sz == 1 || sz == 2 || sz == 4 || sz == 8)) { \
     rp = cdataptr(lj_cdata_new(cts, did, sz)); \
     sz = CTSIZE_PTR;  /* Pass all other structs by reference. */ \
-  }
+  } }
 
 #define CCALL_HANDLE_COMPLEXARG \
   /* Pass complex numbers by reference. */ \
@@ -1071,7 +1104,12 @@ CTypeID lj_ccall_ctid_vararg(CTState *cts, cTValue *o)
       return lj_ctype_intern(cts,
 	       CTINFO(CT_PTR, CTALIGN_PTR|ctype_cid(s->info)), CTSIZE_PTR);
     } else if (ctype_isstruct(s->info) || ctype_isfunc(s->info)) {
-      /* NYI: how to pass a struct by value in a vararg argument? */
+#if LJ_TARGET_S390X
+      if (ctype_isstruct(s->info) &&
+	  (s->size == 1 || s->size == 2 || s->size == 4 || s->size == 8))
+	return id;
+#endif
+      /* Most ABIs need explicit aggregate vararg classification here. */
       return lj_ctype_intern(cts, CTINFO(CT_PTR, CTALIGN_PTR|id), CTSIZE_PTR);
     } else if (ctype_isfp(s->info) && s->size == sizeof(float)) {
       return CTID_DOUBLE;
@@ -1307,7 +1345,7 @@ static int ccall_set_args(lua_State *L, CTState *cts, CType *ct,
 #if LJ_TARGET_S390X
     /* Arguments need to be sign-/zero-extended to 64-bits. */
     if ((ctype_isinteger_or_bool(d->info) || ctype_isenum(d->info) ||
-          (isfp && onstack)) && d->size <= 4) {
+          (isfp && onstack && !ctype_isstruct(d->info))) && d->size <= 4) {
       if (d->info & CTF_UNSIGNED || isfp)
         *(uint64_t *)dp = (uint64_t)*(uint32_t *)dp;
       else
