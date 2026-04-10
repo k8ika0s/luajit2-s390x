@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-09 20:38 PDT
+Last updated: 2026-04-09 21:37 PDT
 
 ## Canonical Perf Suite
 
@@ -18,7 +18,7 @@ enough for retained policy rows.
 
 | Suite file | Family | Workloads | Role in the matrix |
 | --- | --- | --- | --- |
-| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN and root-ITERL blacklist wins; residual iterator attribution remains active |
+| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback; now near parity and a regression screen |
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | carried mixed red row; current lane exhausted |
 | [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win; now a regression screen |
 | [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | primary `promotion_core` controls |
@@ -54,8 +54,8 @@ number is ugly.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.011391` | `0.004135` | `+0.007256`, `2.75x` | `kdz` | `2026-04-09 20:38 PDT` | retained exact root-ITERN plus root-ITERL blacklist wins; host-pair clean |
-| `pairs_array_sum/hot` | `iterator_table` | `0.008139` | `0.003651` | `+0.004488`, `2.23x` | `kdz` | `2026-04-09 20:38 PDT` | retained exact root-ITERL blacklist win; former dominant array-side row collapsed |
+| `pairs_sum/hot` | `iterator_table` | `0.004708` | `0.004135` | `+0.000573`, `1.14x` | `kdz` | `2026-04-09 21:37 PDT` | retained exact root-ITERN proto-NOJIT fast fallback; host-pair clean |
+| `pairs_array_sum/hot` | `iterator_table` | `0.004269` | `0.003651` | `+0.000618`, `1.17x` | `kdz` | `2026-04-09 21:37 PDT` | retained exact root-ITERN proto-NOJIT fast fallback; near parity |
 | `mixed_loop/hot` | `mixed_noffi` | `0.012123` | `0.003734` | `+0.008389`, `3.25x` | `kdz` | `2026-04-08 14:31 PDT` | retained `lj_vm_next` KEYINDEX base-reuse win; carried red row, current lane exhausted |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.017600` | `0.012404` | `+0.005196`, `1.42x` | `kdz` | `2026-04-09 15:36 PDT` | retained exact post-stitch save-time `BC_TGETB` DONE win; now a regression screen |
 | `number_helper_loop/hot` | `be_helpers` | `0.000113` | `0.002241` | `-0.002128`, `0.05x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
@@ -86,8 +86,8 @@ shrink.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.011391` | `0.004135` | `+0.007256`, `2.75x` | `kdz` | `2026-04-09 20:38 PDT` | retained exact root-ITERN plus root-ITERL blacklist wins; host-pair clean |
-| `pairs_array_sum/hot` | `iterator_table` | `0.008139` | `0.003651` | `+0.004488`, `2.23x` | `kdz` | `2026-04-09 20:38 PDT` | retained exact root-ITERL blacklist win; former dominant array-side row collapsed |
+| `pairs_sum/hot` | `iterator_table` | `0.004708` | `0.004135` | `+0.000573`, `1.14x` | `kdz` | `2026-04-09 21:37 PDT` | retained exact root-ITERN proto-NOJIT fast fallback; host-pair clean |
+| `pairs_array_sum/hot` | `iterator_table` | `0.004269` | `0.003651` | `+0.000618`, `1.17x` | `kdz` | `2026-04-09 21:37 PDT` | retained exact root-ITERN proto-NOJIT fast fallback; near parity |
 | `mixed_loop/hot` | `mixed_noffi` | `0.012123` | `0.003734` | `+0.008389`, `3.25x` | `kdz` | `2026-04-08 14:31 PDT` | retained `lj_vm_next` KEYINDEX base-reuse win; carried red row, current lane exhausted |
 | `numeric_loop/hot` | `dispatch_trace` | `0.000158` | `0.002173` | `-0.002015`, `0.07x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.000353` | `0.004692` | `-0.004339`, `0.08x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
@@ -133,7 +133,7 @@ experiment evidence, not top-level progress rows.
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | checked-in regression suite, but not currently restamped into the retained carried matrix |
 
-Current frontier after the retained `iterator_table` root-ITERN and root-ITERL blacklist wins:
+Current frontier after the retained `iterator_table` root-ITERN proto-NOJIT win:
 
 - `promotion_core` is broadly green on both hosts and is no longer the active
   branch-level limiter.
@@ -141,12 +141,14 @@ Current frontier after the retained `iterator_table` root-ITERN and root-ITERL b
   exhausted on the current retained floor after one fresh, correctly
   attributed runtime-handoff attempt.
 - the latest retained host-pair win is still in `iterator_table`
-- the active engineering frontier stays on `iterator_table` for one fresh
-  post-ITERL attribution before reranking to `mixed_ffi`
+- `iterator_table` is now near parity and should move to regression-screen
+  status unless a fresh, named residual subsystem appears
+- the active engineering frontier reranks to `mixed_ffi`, then `ffi_cdata`
 - retained iterator cut:
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
     - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
+    - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
   - exact mechanism:
     - in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c), blacklist only the two official root
       `BC_ITERN` loop traces in
@@ -162,18 +164,17 @@ Current frontier after the retained `iterator_table` root-ITERN and root-ITERL b
     - this removes the `root=3` `BC_JMP` exit-0 loop-descendant chain on the
       official full row
   - host-pair result:
-    - `kdz`: candidate rerun `pairs_sum/hot 0.011391`,
-      `pairs_array_sum/hot 0.008139`; immediate disabled-env control
-      `0.011327` and `0.072042`
-    - `zkd0`: candidate rerun `pairs_sum/hot 0.012644`,
-      `pairs_array_sum/hot 0.011131`; immediate disabled-env control
-      `0.020846` and `0.125596`
+    - `kdz`: candidate rerun `pairs_sum/hot 0.004708`,
+      `pairs_array_sum/hot 0.004269`; immediate disabled-env control
+      `0.011272` and `0.008092`
+    - `zkd0`: candidate rerun `pairs_sum/hot 0.005401`,
+      `pairs_array_sum/hot 0.005064`; immediate disabled-env control
+      `0.017148` and `0.009863`
   - read:
-    - the root-ITERL blacklist collapses the former dominant
-      `pairs_array_sum/hot` row
-    - both iterator hot rows are now in the same residual band, so the next
-      iterator step is fresh post-blacklist attribution rather than another
-      root-loop blacklist by default
+    - the root-ITERN proto-NOJIT fallback keeps the fast interpreter `ITERN`
+      path instead of the slower blacklisted `ITERC` generic fallback
+    - both iterator hot rows are now near parity, so the next active queue
+      should rerank rather than opening another iterator micro-edit by default
 - the first post-iterator `mixed_ffi` save-time cut is retained:
   - `kdz`: `mixed_ffi_loop/hot 0.017600` against immediate controls
     `0.044956` and `0.044900`
@@ -282,6 +283,7 @@ Current frontier after the retained `iterator_table` root-ITERN and root-ITERL b
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
+  - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
   - default-on `SIDETRACE_TYPEINS_DONE` in
     [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
 - `ROOT_ITERN_NIL_DESC` remains a real but slower classifier.
