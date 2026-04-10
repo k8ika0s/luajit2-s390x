@@ -33,6 +33,7 @@ static const luaL_Reg lj_lib_preload[] = {
 #if LJ_HASFFI
   { LUA_FFILIBNAME,	luaopen_ffi },
 #endif
+  { "s390x.experimental.decimal", luaopen_s390x_experimental_decimal },
   { NULL,		NULL }
 };
 
@@ -52,4 +53,3 @@ LUALIB_API void luaL_openlibs(lua_State *L)
   }
   lua_pop(L, 1);
 }
-

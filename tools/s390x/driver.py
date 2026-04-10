@@ -216,6 +216,27 @@ PERF_FAMILY_METADATA = {
         "priority": "isa-lab-active",
         "notes": "Backend immediate-form qualification for large constant adds and constant-index array references on s390x.",
     },
+    "numeric_ops": {
+        "default_gate": False,
+        "promotion_order": 16,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Backend floating-point abs/div qualification for s390x numeric lowering.",
+    },
+    "decimal_arith": {
+        "default_gate": False,
+        "promotion_order": 17,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Opt-in decimal module arithmetic probe for s390x.experimental.decimal.",
+    },
+    "decimal_convert": {
+        "default_gate": False,
+        "promotion_order": 18,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Opt-in decimal module conversion probe for string, packed, and zoned decimal paths.",
+    },
 }
 
 PERF_BENCH_LUA_FILE_BY_FAMILY = {

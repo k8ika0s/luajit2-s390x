@@ -26,6 +26,7 @@
 #include "lj_obj.c"
 #include "lj_buf.c"
 #include "lj_str.c"
+#include "lj_s390x_decimal.c"
 #include "lj_tab.c"
 #include "lj_func.c"
 #include "lj_udata.c"
@@ -87,4 +88,5 @@
 #include "lib_jit.c"
 #include "lib_ffi.c"
 #include "lib_buffer.c"
+#include "lib_s390x_decimal.c"
 #include "lib_init.c"

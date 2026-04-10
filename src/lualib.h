@@ -35,6 +35,7 @@ LUALIB_API int luaopen_bit(lua_State *L);
 LUALIB_API int luaopen_jit(lua_State *L);
 LUALIB_API int luaopen_ffi(lua_State *L);
 LUALIB_API int luaopen_string_buffer(lua_State *L);
+LUALIB_API int luaopen_s390x_experimental_decimal(lua_State *L);
 
 LUALIB_API void luaL_openlibs(lua_State *L);
 

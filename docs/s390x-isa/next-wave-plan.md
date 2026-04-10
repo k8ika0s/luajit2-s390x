@@ -59,6 +59,19 @@ Current status:
     hard-`NYI`
 - Native `kdz1` validation is green for the focused `jit_be` slice, including
   tracked regression coverage in `tests/s390x/jit_be/large_immediates.lua`.
+- The next A1 slice adds signed 32-bit RIL immediate forms for non-guarded
+  large constants:
+  - `CGFI` for signed integer compares beyond the 16-bit `CGHI` range
+  - `AGFI` for large immediate add/sub cases that previously materialized a
+    register and used the register-register path
+  - focused coverage now includes large add, sub, compare, and constant-index
+    array reference cases
+- Native `kdz1` build and focused `tests/s390x/jit_be/large_immediates.lua`
+  validation are green for this slice.
+- Do not claim a perf promotion for the A1 RIL slice yet. The generic exit-0
+  loop churn that previously dominated `tests/s390x/perf/large_immediates.lua`
+  is now bounded by the A2 retrace guards, and the perf rows complete cleanly on
+  `kdz1`, but this still needs a same-host A/B read before promotion.
 - A JIT-on `dispatch_trace` perf restamp on `kdz1` still fails in the existing
   benchmark with `numeric_loop/hot: expected 3839172, got 0`; treat that as an
   open follow-up, not as proof that A1 is finished.
@@ -116,6 +129,96 @@ First patch set:
 - only revisit `IRSLOAD_CONVERT` support in `asm_sload` if a narrower,
   trace-proven reproducer exists
 
+Current readout:
+
+- `asm_abs` and `asm_fpdiv` are now implemented.
+- Integer `asm_min`/`asm_max` are now implemented behind the
+  `LUAJIT_S390X_INT_MINMAX` env gate.
+- Native `kdz1` `jit_be` validation is green for
+  `tests/s390x/jit_be/numeric_ops.lua`.
+- With the min/max gate left off, `tests/s390x/jit_core/numeric_helpers.lua`
+  is back to the previous broad-suite behavior and no longer crashes.
+- A focused isolated same-host microbench for integer `math.min/math.max`
+  against `k8ika0s/s390x-isa-lab-snapshot` is strongly favorable on `kdz1`:
+  current gated build completes the benchmark in less than `0.01s`, while the
+  snapshot baseline takes about `0.07s` on the same script.
+- Same-host synthetic A/B against the clean `k8ika0s/s390x-isa-lab-snapshot`
+  baseline is strongly favorable on the direct opcode targets:
+  - `abs_loop`: about `48%` faster on `small`, `70%` on `medium`, and `77%`
+    on `hot`
+  - `div_loop`: about `83%` faster on `small`, `90%` on `medium`, and `92%`
+    on `hot`
+  - `sqrt_loop`: effectively flat, within about `-3%` to `0%`, which is the
+    expected control because this slice does not touch `math.sqrt`
+- There is still a separate s390x FP loop-exit issue on repeated calls to the
+  same traced numeric loop body. The ISA-lab perf family works around that by
+  using JIT-disabled reference functions and a fresh compiled prototype per
+  sample, so treat the current readout as opcode-path qualification, not as a
+  sign that the broader FP exit bug is resolved.
+- The dedicated `tests/s390x/perf/numeric_ops.lua` crash is now understood and
+  resolved:
+  - moving the local `l_done` label in `asm_intmin_max()` to after register
+    allocation removes the previous `max_loop` segfault on `kdz1`
+  - the remaining wrong-answer path was caused by the integer `sload_int`
+    typecheck compare being emitted in the wrong order for backward code
+    generation on the ISA-lab floor
+  - porting the current bring-up working-tree fix, specifically moving
+    `emit_u32(... S390XI_CGR, tmp, expected)` to after the `expected`/`tmp`
+    setup in `asm_sload()`, restores correct traced overflow behavior on
+    `kdz1`
+  - with that minimal fix in place:
+    - plain traced `sum_loop(70000)` returns the correct `2450035000`
+    - gated `max_loop(64000)` returns the correct `3072032000`
+    - `tests/s390x/perf/numeric_ops.lua` completes cleanly on `kdz1`
+- Treat the lane as unblocked for continued backend qualification. The
+  corrected `sload_int` ordering should stay with the lab branch and be kept in
+  sync with the active bring-up floor.
+- The repeated-call retrace pathology is now isolated and bounded:
+  - the first churn source was an exit-0 duplicate FORL/JFORI extra-loop
+    descendant in `rec_loop_jit()`; the lab guard marks the parent exit snapshot
+    done and leaves the duplicate path, but now excludes `KSTR` loop-body starts
+    after `pairs_loop.lua` showed that the broader guard poisoned a string-key
+    table-construction loop and fed an iterator side-trace ladder
+  - the second churn source was a deeper exit-0 root-bridge descendant in
+    `lj_record_stop()` linking back to the same compiled inner loop; the lab
+    guard allows the direct bridge, marks deeper duplicate parent exits done,
+    and leaves those descendants
+  - a control loop using only integer `total = total + i` dropped from `2581`
+    traces for 20 calls at `n=128` to `8` traces on `kdz1`
+  - `tests/s390x/perf/numeric_retrace_probe.lua` stays bounded under repeated
+    pressure: at `n=128`, `calls=200`, trace counts are `add=10`, `abs=11`,
+    `min=10`, and `max=12`; the same counts remain bounded at `n=512`,
+    `calls=200`
+  - `tests/s390x/perf/numeric_ops.lua` now completes cleanly on `kdz1`; current
+    hot medians are roughly `abs=0.00666`, `div=0.00521`, `sqrt=0.00633`,
+    `min=0.00525`, and `max=0.00537`
+- Treat A2 as unblocked for qualification, but not yet promoted. The direct
+  duplicate churn is fixed enough for same-host A/B reads; still require two
+  clean passes and broad controls before carrying the recorder guards outside
+  the lab branch.
+- The first widened correctness pass found a `pairs_loop.lua` hang. Rechecking
+  against `k8ika0s/s390x-bringup-wip` showed bring-up passes the test, and
+  overlaying only the lab `lj_record.c` reproduced the timeout. Narrowing the
+  `rec_loop_jit()` guard to skip `KSTR` loop-body starts fixes the hang while
+  preserving the bounded numeric retrace counts; the full current
+  `tests/s390x/jit_loops` directory now passes on `kdz1`.
+- The focused reproducer is `tests/s390x/perf/numeric_retrace_probe.lua`; run
+  with `S390X_RETRACE_CASE=add|abs|min|max`, `S390X_RETRACE_N`, and
+  `S390X_RETRACE_CALLS`.
+- Same-host A/B against a clean `k8ika0s/s390x-bringup-wip` archive plus the
+  shared lab probes showed the split clearly:
+  - clean bring-up still hits the `add` retrace pathology at `n=512`,
+    `calls=200`: `4096` scanned traces, `12` flushes, and `102626` starts
+  - the lab branch stays bounded for the same run: `add=10`, `abs=11`,
+    `min=10`, and `max=12` traces with no flushes
+  - A1 large-immediate rows mostly improve sharply, but the `add_large` row is
+    not a valid promotion signal yet because the baseline read is suspiciously
+    near zero
+  - A2 numeric helper perf is not promotable wholesale: `sqrt` improves, but
+    `abs`, `div`, `min`, and `max` are slower than bring-up in this harness
+  - keep the retrace guard as a churn/correctness-enablement fix, but do not
+    promote the numeric helper family on speed without narrower follow-up work
+
 Why second:
 
 - the repo already has direct correctness and perf coverage for these
@@ -127,6 +230,7 @@ Qualification:
 - `tests/s390x/jit_be/number_helpers.lua`
 - `tests/s390x/perf/be_helpers.lua`
 - `tests/s390x/perf/dispatch_trace.lua`
+- `tests/s390x/perf/numeric_retrace_probe.lua`
 
 Stop conditions:
 
@@ -141,6 +245,75 @@ Third patch set:
 - `CCI_VARARG`
 - `CCI_CASTU64`
 
+Current status:
+
+- The first A3 slice is implemented for fixed-prototype stack-passed call
+  arguments beyond the register bank.
+- `asm_gencall()` now lowers GPR and FPR overflow arguments to the psABI stack
+  argument area after the 160-byte s390x caller save area.
+- `CCI_CASTU64` is implemented for the current `lj_prng_u64d()` user by
+  bit-moving the GPR return value into the chosen FPR result; the traced
+  `math.random()` loop now records on `kdz1`.
+- `CCI_VARARG` FFI calls now use the same register/stack path for
+  scalar integer, pointer, and FP arguments. The FP classification pass follows
+  the interpreter-side s390x FFI behavior: double varargs continue through the
+  FPR bank and then spill to the normal stack argument area. Current coverage
+  includes traced `sum_varargs()`, `sum_varargs_double()`, mixed integer/FP
+  `sum_varargs_mixed()`, signed/unsigned 32-bit `sum_varargs_i32()` and
+  `sum_varargs_u32()`, string-pointer `sum_varargs_strlen()`, promoted
+  small-int/bool/enum `sum_varargs_promoted_int()`, cdata-float promotion
+  `sum_varargs_float_cdata()`, refarray/pointer/nil
+  `sum_varargs_ptr_values()`, and function-pointer
+  `sum_varargs_i32_callbacks()` tests. The mixed case overflows both GPR and
+  FPR vararg banks and validates the shared stack-slot cursor in call order.
+- Small s390x aggregate varargs are now covered for structs of size 1, 2, 4,
+  and 8 bytes. The interpreter-side vararg type inference keeps those structs
+  as aggregate values, and the recorder lowers them by loading the cdata payload
+  as an unsigned integer call argument. The traced
+  `ffi_struct_vararg_call_trace.lua` case validates `small_u8`, `small_u16`,
+  `small_u32`, and 8-byte `small_u64` paths with enough arguments to force
+  stack overflow.
+- Single-field FP aggregate varargs are now covered separately for
+  `struct { float }` and `struct { double }`. Interpreter-side classification
+  routes those structs through the s390x FPR convention, while the recorder
+  lowers them as FP payload loads. The backend now accepts FP `XLOAD`, emits
+  short-BFP load/store forms for `IRT_FLOAT`, and uses the big-endian
+  aggregate stack slot for float overflow. `ffi_fp_struct_vararg_call_trace.lua`
+  validates both fixed-FP-seed overflow and GPR-seed calls that exercise the
+  full F0/F2/F4/F6 vararg bank plus overflow.
+- Larger s390x aggregate varargs are covered through the ABI's existing
+  indirect aggregate path. `ffi_large_struct_vararg_call_trace.lua` validates
+  16-byte `big_pair` varargs consumed by the C callee with
+  `va_arg(ap, struct big_pair)`, including stack pressure.
+- Complex s390x varargs are covered through the ABI's indirect complex path.
+  The interpreter continues to infer complex varargs as complex values, while
+  the recorder lowers traced complex cdata varargs as payload pointers for the
+  s390x call path. `ffi_complex_vararg_call_trace.lua` validates
+  `complex double` arguments under trace.
+- Stop line: `long double` and vector varargs are not part of the current claim.
+  Cheap `kdz1` probes showed `long double` construction from Lua numbers fails
+  at conversion time and GCC vector vararg calls are already `NYI` at the FFI
+  call layer. Do not broaden this lane into vector/long-double call support
+  without a separate ABI plan.
+- The FFI oracle now covers `sum7_u64()` for 64-bit GPR overflow,
+  `sum7_i32()` for signed 32-bit stack-argument extension, and `sum6_double()`
+  for FPR overflow. `tests/s390x/jit_core/ffi_stack_call_trace.lua` tracks the
+  traced fixed-prototype stack-call case.
+- Native `kdz1` validation is green for the new stack-call trace, the existing
+  FFI ABI oracle, `ffi_call_trace.lua`, `ffi_ptr_call_trace.lua`,
+  `math_random_trace.lua`, `ffi_vararg_call_trace.lua`,
+  `ffi_fp_vararg_call_trace.lua`, `ffi_mixed_vararg_call_trace.lua`,
+  `ffi_width_vararg_call_trace.lua`, `ffi_string_vararg_call_trace.lua`,
+  `ffi_struct_vararg_call_trace.lua`, `ffi_promotion_vararg_call_trace.lua`,
+  `ffi_pointer_vararg_call_trace.lua`,
+  `ffi_large_struct_vararg_call_trace.lua`,
+  `ffi_fp_struct_vararg_call_trace.lua`, `ffi_complex_vararg_call_trace.lua`,
+  `ffi_calls`, `ffi_cdata`, `mixed_ffi`, and `vararg_paths`.
+- The post-A3 guardrail pass is also green: `numeric_retrace_probe.lua` remains
+  bounded at `n=512`, `calls=200`; `jit_be/numeric_ops.lua`,
+  `jit_be/large_immediates.lua`, and the full current `jit_loops` directory
+  pass on `kdz1`.
+
 Why third:
 
 - valuable, but riskier than the first two slices
@@ -152,6 +325,19 @@ Qualification:
 - `tests/s390x/perf/vararg_paths.lua`
 - `tests/s390x/jit_core/ffi_call_trace.lua`
 - `tests/s390x/jit_core/ffi_ptr_call_trace.lua`
+- `tests/s390x/jit_core/ffi_stack_call_trace.lua`
+- `tests/s390x/jit_core/ffi_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_fp_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_mixed_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_width_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_string_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_struct_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_promotion_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_pointer_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_large_struct_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_fp_struct_vararg_call_trace.lua`
+- `tests/s390x/jit_core/ffi_complex_vararg_call_trace.lua`
+- `tests/s390x/jit_core/math_random_trace.lua`
 - `tests/s390x/perf/mixed_ffi.lua`
 
 Stop conditions:
@@ -211,6 +397,77 @@ First patch set:
 1. capability detection and module registration
 2. opaque decimal object plus `new`, `tostring`, and `cmp`
 3. packed and zoned conversion APIs
+
+Current status:
+
+- B1 is started.
+- The module skeleton is now implemented as a preload-only opt-in surface:
+  `require("s390x.experimental.decimal")`
+- The current MVP ships:
+  - `capabilities()`
+  - `new(str[, format])`
+  - `tostring(x)`
+  - `add(x, y)`
+  - `sub(x, y)`
+  - `cmp(x, y)`
+  - `from_packed(bytes[, scale])`
+  - `to_packed(x[, digits])`
+  - `packed_to_string(bytes[, scale])`
+  - `string_to_packed(str[, digits])`
+  - `packed_rescale(bytes, scale[, digits])`
+  - `from_zoned(bytes[, scale])`
+  - `to_zoned(x[, digits])`
+  - `zoned_to_string(bytes[, scale])`
+  - `string_to_zoned(str[, digits])`
+- The first cut uses exact software canonicalization and packed/zoned
+  conversions. It does not claim DFP or vector packed-decimal acceleration yet.
+- Native validation on `kdz1` is green for
+  `tests/s390x/pure_lua/decimal_module.lua`, and direct require/use probes
+  confirm preload registration works in the lab binary.
+- A first arithmetic perf family is now live at
+  `tests/s390x/perf/decimal_arith.lua` and runs cleanly on `kdz1`.
+- Packed/zoned decode now returns the normalized scale to the caller, which
+  fixes canonical string rendering for encoded values with trailing fractional
+  zeros.
+- `tests/s390x/perf/decimal_convert.lua` is now split enough to separate
+  object-backed conversion from direct string/byte helpers. Current `kdz1`
+  hot medians show:
+  - packed roundtrip: `0.139924s`
+  - packed direct: `0.078955s`
+  - packed decode direct: `0.105566s`
+  - packed encode direct: `0.108253s`
+  - packed rescale: `0.112587s`
+  - zoned roundtrip: `0.106582s`
+  - zoned direct: `0.114266s`
+- The decimal string formatter now uses a direct fixed-buffer writer instead of
+  `luaL_Buffer`, which improved the packed direct path on `kdz1`:
+  - packed direct hot: `0.085018s -> 0.078955s`
+  - packed decode direct hot: `0.111043s -> 0.105566s`
+- `packed_rescale()` gives a bytes-in/bytes-out packed utility path. It is not
+  the hot-path winner yet, but it is the best packed conversion row at the
+  medium scale (`0.007863s`) and keeps the packed-only bulk-processing lane
+  viable without materializing decimal userdata.
+- A direct-nibble `packed_rescale()` rewrite was retained after `kdz1`
+  validation. It moved the best observed hot read from `0.112587s` to
+  `0.105499s`, and the best medium read from `0.007863s` to `0.007607s`.
+- A direct parse-and-emit rewrite for `string_to_packed()` and
+  `string_to_zoned()` was tested and backed out. It was correct, but hot
+  conversion rows stayed neutral-to-worse (`packed_encode_direct` hovered around
+  `0.1067s-0.1081s`; zoned direct also regressed), so that seam is not worth
+  carrying without a lower-level instruction-backed plan.
+- A same-width identity shortcut for `packed_rescale()` was also tested and
+  backed out. It improved medium reads (`~0.0073s`) but repeatedly hurt the hot
+  policy row (`~0.1107s-0.1147s`), so the retained path is still the
+  direct-nibble canonicalizer without an identity branch.
+- Current decimal takeaway:
+  - direct packed conversion is the current decimal performance lead
+  - both packed direct decode and packed direct encode beat their object-backed
+    equivalents on `kdz1`
+  - packed bytes-in/bytes-out is promising, but still trails the string-backed
+    direct path on the hot policy case
+  - direct zoned conversion is roughly neutral right now
+  - conversion work should stay focused on packed ingress/egress before adding
+    more decimal surface area or revisiting zoned work
 
 Second patch set:
 
@@ -323,12 +580,14 @@ Reason:
 
 ## Recommended Execution Order
 
-1. A1 immediate-form widening
-2. A2 numeric stub closure plus `IRSLOAD_CONVERT`
-3. B1 decimal module skeleton plus conversions
-4. C1 async profiler measurement probe
-5. A3 call-lowering completeness
-6. B2 decimal arithmetic expansion
+1. Finish A1 immediate-form widening.
+2. Keep A2 numeric stubs in qualification; the retrace probe is now bounded,
+   but numeric perf still needs same-host A/B and two clean passes before
+   promotion.
+3. Continue B1/B2 decimal module stabilization without adding more surface area.
+4. Resume A3 call-lowering completeness once A1/A2 qualification has a stable
+   readout.
+5. C1 async profiler measurement probe remains the next runtime-only lane.
 
 ## Promotion Rules
 
@@ -347,7 +606,9 @@ Reason:
 
 If the next hands-on implementation pass starts now, do this first:
 
-1. backend A1 immediate-form widening
-2. if that lands cleanly, backend A2 `asm_abs` + `asm_fpdiv`
-3. in parallel planning only, scaffold the `s390x.experimental.decimal` module
-   surface and test cases, but do not start FFI or parser integration
+1. Keep the current decimal state frozen around the retained direct-nibble
+   `packed_rescale()` canonicalizer and the stronger correctness tests.
+2. Use `numeric_retrace_probe.lua` as the regression gate for the bounded
+   exit-0 side-trace guards.
+3. Run same-host A/B for A1/A2, then move the next active backend work to A3
+   call-lowering completeness if the qualification passes stay clean.
