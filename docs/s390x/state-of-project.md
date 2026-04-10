@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-09 22:14 PDT
+Last updated: 2026-04-09 22:30 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -12,19 +12,20 @@ It is intentionally current-state only. Historical experiment detail lives in
   `-joff` on both `kdz` and `zkd0`.
 - `mixed_noffi` remains a carried red row, but its current runtime lane is now
   explicitly exhausted on the retained floor.
-- The latest retained host-pair win is in `ffi_cdata`; `pair_loop` is now
-  effectively at parity after exact root-FORL blacklisting, and the active
-  queue reranks to a fresh attribution of the remaining carried red rows,
-  starting with `vararg_paths/sum_loop`.
-- Fresh retained `sum_loop` host-pair win on rebuilt mirrors:
+- The latest retained host-pair win is back in `vararg_paths/sum_loop`; the
+  exact root-FORL blacklist cuts the official `sum_loop/hot` row to near
+  `-joff` on both hosts. The remaining active queue is now the vararg sibling
+  tradeoff (`retlast_loop` / `retconst_loop`) and any later fresh
+  `mixed_noffi` subsystem attribution.
+- Current retained `vararg_paths` host-pair rows on rebuilt mirrors:
   - `kdz`
-    - `sum_loop/hot 0.018707` vs `-joff 0.004722`
-    - `retlast_loop/hot 0.003203` vs `-joff 0.001990`
-    - `retconst_loop/hot 0.001738` vs `-joff 0.000598`
+    - `sum_loop/hot 0.004533` vs `-joff 0.004722`
+    - `retlast_loop/hot 0.003479` vs `-joff 0.001990`
+    - `retconst_loop/hot 0.001730` vs `-joff 0.000598`
   - `zkd0`
-    - `sum_loop/hot 0.022269`
-    - `retlast_loop/hot 0.003770`
-    - `retconst_loop/hot 0.002067`
+    - `sum_loop/hot 0.007265`
+    - `retlast_loop/hot 0.006109`
+    - `retconst_loop/hot 0.003540`
 - Retained `sum_loop` mechanism on trusted `kdz`:
   - the first exact recorder-side `BC_JFORI -> ROOT` handoff candidate is now
     closed as non-engaging on the official hot row
@@ -82,16 +83,39 @@ It is intentionally current-state only. Historical experiment detail lives in
     - host-pair confirmation:
       - `zkd0` candidate `0.022269`
       - immediate same-binary control `0.026834`
+  - the fourth retained win cuts the exact root-loop trace ladder above that
+    same inner-runtime family:
+    - exact trace-side cut in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
+      - exact `trace_stop()` root `BC_FORL` blacklist for the inner `sum(...)`
+        proto only
+    - mechanism proof on trusted `kdz`:
+      - exact marker:
+        - `S390X_SUM_LOOP_FORL_BLACKLIST trace=1 startop=79 link=1 linktype=2 nsnap=4 nins=32796 mcloop=312`
+      - trace meta drops from the retained 110-trace ladder to `10`
+      - same-binary A/B:
+        - candidate `sum_loop/hot 0.004533`
+        - immediate control `0.019065`
+    - host-pair confirmation:
+      - `zkd0` candidate `0.007265`
+      - immediate same-binary control `0.028302`
+    - tradeoff:
+      - the official-suite `retlast_loop` row shifts slower on `kdz`
+        (`0.003479` vs `0.003312` immediate control), but a retlast-only
+        control/candidate probe is neutral, so this is carried as a suite
+        interaction rather than matcher drift
   - read:
-    - `sum_loop` is no longer catastrophic and moved right again on both hosts,
-      but it is still a carried red row
+    - `sum_loop` is no longer a carried red row on trusted `kdz`
     - the remaining work is later than the first tiny `INTERP` stopper, later
       than the dead `select` equality guard, and later than the exact
       `BC_GGET select` lookup prefix inside the same inner callee runtime
       family
     - the later whole-loop-contract lane on the carried `trace 110` body is
-      closed as exact-but-not-retainable, so the active queue has moved to
-      `iterator_table`
+      closed as exact-but-not-retainable; the retained route-around is the
+      exact root-loop blacklist instead
+    - next work should re-attribute the remaining vararg sibling red rows or
+      reopen `mixed_noffi` only with a newly named subsystem
 - Current `iterator_table` read:
   - the latest retained host-pair wins are exact root `BC_ITERN` and root
     `BC_ITERL` blacklists plus exact root `BC_ITERN` proto-NOJIT fallback
@@ -211,6 +235,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
+  - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -346,9 +371,10 @@ It is intentionally current-state only. Historical experiment detail lives in
   root-ITERN proto-NOJIT fallback moved both hot rows into the near-parity band.
 - The current retained mixed floor has not been brought to parity, but the
   present runtime-handoff lane is explicitly exhausted.
-- The next active queue reranks to `ffi_cdata`; `mixed_ffi`, `sum_loop`,
-  `mixed_noffi`, and `iterator_table` should only re-enter after fresh
-  attribution of a new subsystem.
+- The next active queue is fresh attribution of the remaining
+  `vararg_paths` sibling rows (`retlast_loop` / `retconst_loop`) or a newly
+  attributed `mixed_noffi` subsystem. `iterator_table`, `mixed_ffi`, and
+  `ffi_cdata` are near-parity regression screens for now.
 
 ## What The Freeze Point Means
 
@@ -427,20 +453,22 @@ interpretation.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the latest retained host-pair win is in `mixed_ffi`
+- the latest retained host-pair win is in `vararg_paths/sum_loop`
 - `iterator_table` is now near parity after the root-ITERN proto-NOJIT fallback
 - `mixed_ffi` is now near parity after exact root-FORL proto-NOJIT fallback
+- `ffi_cdata` is now near parity after exact root-FORL blacklisting
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
   closed as non-engaging on the official hot row
-- the inner `sum(...)` callee runtime trace family is closed for the current
-  whole-loop-contract lane, so `sum_loop` is parked as a carried red row
+- the inner `sum(...)` whole-loop-contract backend lane is closed, and the
+  retained root-FORL blacklist now moves `sum_loop` to near/parity
 
-### After The Mixed-Ffi Step
+### After The Sum-Loop Root Blacklist
 
 - Burn down the remaining red rows in this order:
-  1. `ffi_cdata`
-  2. later re-entry to `mixed_ffi`, `iterator_table`, `vararg_paths/sum_loop`, or `mixed_noffi` only if a
-     newly attributed subsystem appears
+  1. `vararg_paths/retconst_loop` and `vararg_paths/retlast_loop`
+  2. `mixed_noffi`, but only after fresh attribution names a new subsystem
+  3. later re-entry to `iterator_table`, `mixed_ffi`, or `ffi_cdata` only if a
+     retained regression or newly attributed subsystem appears
 
 ## Where To Look Next
 

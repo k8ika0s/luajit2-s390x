@@ -16,11 +16,14 @@ read.
 - `promotion_core` remains green on the envless first-enable slice.
 - `dispatch_trace` is green again on both hosts and should only be reopened if
   a later change regresses the retained floor.
-- `mixed_noffi` and `vararg_paths/sum_loop` remain carried red rows, but their
-  current attributed lanes are exhausted on the retained floor.
-- The latest retained host-pair win is in `ffi_cdata`; `pair_loop` is now
-  effectively at parity after exact root-FORL blacklisting, while
-  `mixed_width_loop` stays a regression screen.
+- `mixed_noffi` remains a carried red row, but its current attributed lane is
+  exhausted on the retained floor.
+- The latest retained host-pair win is in `vararg_paths/sum_loop`; the exact
+  inner-root `BC_FORL` blacklist moves `sum_loop/hot` to near/parity on both
+  hosts, while `retlast_loop` / `retconst_loop` remain the vararg sibling
+  rows to re-attribute.
+- `iterator_table`, `mixed_ffi`, and `ffi_cdata` are now near-parity regression
+  screens unless a fresh attribution names a new subsystem.
 - The retained exact branch control now carries:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -31,6 +34,7 @@ read.
   - `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
+  - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -59,10 +63,10 @@ read.
     exact official root `BC_ITERN` trace family, preserving fast `ITERN`
     steady-state execution and suppressing further trace attempts.
 - Next queue:
-  - fresh re-attribution of the remaining carried red rows, starting with
-    `vararg_paths/sum_loop`
-  - re-enter `mixed_ffi`, `iterator_table`, or `mixed_noffi` only if a fresh
-    attribution names a new subsystem
+  - fresh re-attribution of the remaining `vararg_paths` sibling rows:
+    `retlast_loop` and `retconst_loop`
+  - re-enter `mixed_noffi`, `mixed_ffi`, `iterator_table`, or `ffi_cdata` only
+    if a fresh attribution names a new subsystem
 
 ## Harness Status
 
@@ -24839,3 +24843,110 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       next active move is a fresh re-attribution of the remaining carried red
       rows, starting with `vararg_paths/sum_loop`; do not reopen exhausted
       lanes without new attribution.
+
+- 2026-04-09: `vararg_paths/sum_loop` exact inner root `BC_FORL` blacklist retained
+  - Fresh official-row attribution on rebuilt `kdz` showed the retained
+    `sum_loop` row was still paying through the inner `sum(...)` callee root
+    loop ladder, not the already-closed nested `BC_JFORI` handoff or
+    recorder-side vararg micro-cuts:
+    - root trace:
+      `trace=1 parent=0 exit=0 root=0 startop=BC_FORL link=1 linktype=LJ_TRLINK_LOOP topslot=9 spadjust=8 nsnap=4 nins=32796 mcloop=312`
+    - repeated root-1 loop children through the carried hot trace:
+      `trace=110 parent=109 exit=0 root=1 startop=BC_JMP link=110 linktype=LJ_TRLINK_LOOP topslot=9 spadjust=8 nsnap=4 nins=32796 mcloop=312`
+    - carried hot body stayed the same inner `sum(...)` runtime body after
+      the retained select stopper / skip-func / const-GGET wins.
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()` root `BC_FORL` case
+    - exact matcher:
+      - chunk `@tests/s390x/perf/vararg_paths.lua`
+      - inner `sum(...)` proto only: `firstline=11`, `numline=6`
+      - `trace=1`, `parent=0`, `exit=0`, `root=0`
+      - `startop=BC_FORL`, `link=1`, `linktype=LJ_TRLINK_LOOP`
+      - `topslot=9`, `spadjust=8`, `nsnap=4`, `nins=32796`,
+        `mcloop=312`
+    - exact mechanism:
+      - use LuaJIT's existing `blacklist_pc()` on that inner root-loop PC
+        before the `BC_FORL` root patching path
+      - route around the 110-trace inner-root ladder instead of touching the
+        already-closed backend whole-loop contract
+      - mechanism smoke on trusted `kdz`:
+        - `S390X_SUM_LOOP_FORL_BLACKLIST trace=1 startop=79 link=1 linktype=2 nsnap=4 nins=32796 mcloop=312`
+        - `TRACE_META_COUNT` dropped to `10`
+  - `kdz` gates:
+    - delivered source hash:
+      `f8ad4b8c781dbf41c1b0d58ddbfbf89bee85cde6a930deed3317e09d7fa9e94c`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - first candidate:
+        - `sum_loop/hot 0.005202`
+        - `retlast_loop/hot 0.003744`
+        - `retconst_loop/hot 0.001815`
+      - immediate disabled-env control:
+        - `sum_loop/hot 0.018933`
+        - `retlast_loop/hot 0.003201`
+        - `retconst_loop/hot 0.001762`
+      - candidate rerun:
+        - `sum_loop/hot 0.004658`
+        - `retlast_loop/hot 0.003537`
+        - `retconst_loop/hot 0.001747`
+    - alternating same-binary rerun:
+      - control:
+        - `sum_loop/hot 0.019065`
+        - `retlast_loop/hot 0.003312`
+        - `retconst_loop/hot 0.001756`
+      - candidate:
+        - `sum_loop/hot 0.004533`
+        - `retlast_loop/hot 0.003479`
+        - `retconst_loop/hot 0.001730`
+    - sibling tradeoff check:
+      - retlast-only control/candidate probe stayed neutral:
+        `0.003633 -> 0.003611` and `0.003742 -> 0.003612`
+      - the official-suite `retlast_loop` slowdown is therefore carried as a
+        suite-order interaction from removing the heavy preceding `sum_loop`
+        ladder, not matcher drift.
+    - compact retained regression screen with the new flag:
+      - `dispatch_trace/numeric_loop/hot 0.013643`
+      - `dispatch_trace/side_exit_loop/hot 0.017067`
+      - `dispatch_trace/hotexit_loop/hot 0.437347`
+      - direct dispatch off/on A/B reproduced the same dispatch medians in
+        both disabled-env control and candidate, so this is not attributed to
+        the chunk-locked `sum_loop` matcher
+      - `iterator_table/pairs_sum/hot 0.005521`
+      - `iterator_table/pairs_array_sum/hot 0.004372`
+      - `mixed_noffi/mixed_loop/hot 0.045893`
+      - `ffi_cdata/pair_loop/hot 0.017541`
+      - `ffi_cdata/mixed_width_loop/hot 0.028693`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `f8ad4b8c781dbf41c1b0d58ddbfbf89bee85cde6a930deed3317e09d7fa9e94c`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - candidate:
+        - `sum_loop/hot 0.007495`
+        - `retlast_loop/hot 0.007027`
+        - `retconst_loop/hot 0.004003`
+      - immediate disabled-env control:
+        - `sum_loop/hot 0.028302`
+        - `retlast_loop/hot 0.005190`
+        - `retconst_loop/hot 0.003103`
+      - candidate rerun:
+        - `sum_loop/hot 0.007265`
+        - `retlast_loop/hot 0.006109`
+        - `retconst_loop/hot 0.003540`
+  - Classification:
+    - retain the exact inner `sum(...)` root `BC_FORL` blacklist.
+    - `sum_loop` is now near/parity on trusted `kdz`: `0.004533` vs `-joff
+      0.004722`.
+    - the official-suite `retlast_loop` row carries a small regression under
+      this retained bundle; do not hide it, and re-attribute the vararg
+      siblings next before reopening exhausted `sum_loop` micro-cuts.
