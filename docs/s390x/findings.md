@@ -25145,3 +25145,85 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       of the remaining residual. Do not reopen the closed helper-side
       KEYINDEX variants, recorder-side nil-descendant/sidecheck shaping, or
       stitched hotside reuse/cooldown lanes without a newly named payer.
+
+- 2026-04-10: `iterator_table` array-side root `BC_ITERN` proto-NOJIT
+  hotcount park retained
+  - Reopened `iterator_table` after the mixed tri-root win and re-attributed
+    the retained official row on rebuilt `kdz`.
+    - retained source hash before the candidate:
+      `4c382643a57041ae6218a818e63c752c332d7460b4863aadd973293f1fbfebf3`
+    - `TRACE_START` logging showed repeated root starts at the same
+      proto-NOJIT `BC_ITERN` PCs after the retained `ITERN_PROTO_NOJIT` save:
+      - hash-side `pc=...d0fc`, `firstline=12`
+      - array-side `pc=...d38c`, `firstline=22`
+    - the mechanism conclusion was narrow: keep the fast `BC_ITERN` VM path,
+      but park the recurring proto-NOJIT hotcount; do not convert to generic
+      `BC_ITERC`.
+  - Closed the broad two-proto hotcount park before retention:
+    - first `kdz` 5-sample read:
+      - candidate: `pairs_sum/hot 0.004723`,
+        `pairs_array_sum/hot 0.004043`
+      - immediate retained source control: `pairs_sum/hot 0.005755`,
+        `pairs_array_sum/hot 0.004360`
+      - candidate rerun: `pairs_sum/hot 0.005294`,
+        `pairs_array_sum/hot 0.004175`
+    - higher-sample `kdz` showed the broad candidate was not safe for the
+      hash row:
+      - trace-start-only park: `pairs_sum/hot 0.006806`,
+        `pairs_array_sum/hot 0.003951`
+      - trace-stop plus trace-start park: `pairs_sum/hot 0.005535`,
+        `pairs_array_sum/hot 0.003955`
+      - immediate retained source control: `pairs_sum/hot 0.005654`,
+        `pairs_array_sum/hot 0.004402`
+    - classification: the broad park helps the array row but should not be
+      carried for the hash `pairs_sum` proto.
+  - Retained candidate:
+    - env:
+      - `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()` and `trace_start()`
+    - exact mechanism:
+      - only after the retained exact root `BC_ITERN` proto-NOJIT path is
+        active
+      - match only `@tests/s390x/perf/iterator_table.lua`
+      - match only the array-side iterator proto (`firstline=22`, `numline=8`)
+      - on the root save and on later proto-NOJIT reentry, set the hotcount for
+        the `BC_ITERN` site to signed-safe `0x7fff`
+      - leave the bytecode as `BC_ITERN`; do not call `blacklist_pc()` and do
+        not route to generic `BC_ITERC`
+  - `kdz` gates:
+    - delivered source hash:
+      `2bd513f1f3e75fda0b1f79cc724746ef40528e0c269986047f66a9466791292c`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - 9-sample official hot-row result:
+      - candidate: `pairs_sum/hot 0.004852`,
+        `pairs_array_sum/hot 0.003961`
+      - immediate retained source control: `pairs_sum/hot 0.005654`,
+        `pairs_array_sum/hot 0.004402`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `2bd513f1f3e75fda0b1f79cc724746ef40528e0c269986047f66a9466791292c`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - 9-sample official hot-row result:
+      - candidate: `pairs_sum/hot 0.006015`,
+        `pairs_array_sum/hot 0.004821`
+      - immediate retained source control: `pairs_sum/hot 0.008887`,
+        `pairs_array_sum/hot 0.006984`
+    - `zkd0` remained noisy, but the immediate same-host/source comparison
+      stayed in the candidate direction and exactness stayed clean.
+  - Classification:
+    - retain the exact array-side proto-NOJIT hotcount park.
+    - `pairs_array_sum/hot` moves on trusted `kdz` from the previous retained
+      `0.004269` row to `0.003961` against `-joff 0.003651`.
+    - `pairs_sum/hot` remains a monitor row: array-only scoping keeps it in the
+      retained band (`0.004852` on `kdz`) instead of carrying the broad-park
+      regression.
+    - the next move should be a fresh rerank from the retained matrix rather
+      than another unscoped iterator trace-control edit.

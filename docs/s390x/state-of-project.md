@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 06:11 PDT
+Last updated: 2026-04-10 06:56 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -10,7 +10,12 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 - The envless first-enable `promotion_core` slice is now on the right side of
   `-joff` on both `kdz` and `zkd0`.
-- The latest retained host-pair win is in `mixed_noffi`: an exact tri-root
+- The latest retained host-pair win is in `iterator_table`: an exact
+  array-side root-ITERN proto-NOJIT hotcount park in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  keeps `pairs_array_sum` on the fast `ITERN` fallback while suppressing the
+  recurring proto-NOJIT trace-start churn.
+- The latest retained `mixed_noffi` win remains an exact tri-root
   route-around in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
   blacklists the root `BC_ITERL`, root `BC_ITERN`, and stitched root `BC_FORL`
   families exposed on the official hot row.
@@ -141,19 +146,21 @@ It is intentionally current-state only. Historical experiment detail lives in
     - next work should re-attribute `mixed_noffi` only with a newly named
       subsystem, or rerank if another residual row becomes dominant
 - Current `iterator_table` read:
-  - the latest retained host-pair wins are exact root `BC_ITERN` and root
-    `BC_ITERL` blacklists plus exact root `BC_ITERN` proto-NOJIT fallback
+  - the retained host-pair wins are exact root `BC_ITERN` and root
+    `BC_ITERL` blacklists, exact root `BC_ITERN` proto-NOJIT fallback, and
+    exact array-side root-ITERN proto-NOJIT hotcount parking
     in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
     - env: `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
     - env: `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
     - env: `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
-    - `kdz`: `pairs_sum/hot 0.004708`, `pairs_array_sum/hot 0.004269`
-    - `zkd0`: `pairs_sum/hot 0.005401`, `pairs_array_sum/hot 0.005064`
-    - immediate disabled-env controls on `kdz`: `0.011272`, `0.008092`
-    - immediate disabled-env controls on `zkd0`: `0.017148`, `0.009863`
+    - env: `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
+    - `kdz`: `pairs_sum/hot 0.004852`, `pairs_array_sum/hot 0.003961`
+    - `zkd0`: `pairs_sum/hot 0.006015`, `pairs_array_sum/hot 0.004821`
+    - immediate retained controls on `kdz`: `0.005654`, `0.004402`
+    - immediate retained controls on `zkd0`: `0.008887`, `0.006984`
   - the official carried hot rows are now near parity:
-    - `pairs_sum/hot 0.004708` vs `-joff 0.004135`
-    - `pairs_array_sum/hot 0.004269` vs `-joff 0.003651`
+    - `pairs_sum/hot 0.004852` vs `-joff 0.004135`
+    - `pairs_array_sum/hot 0.003961` vs `-joff 0.003651`
   - closed exact iterator probes include direct tail `BRXH`, compare-side
     `CGRJ`, keyindex/HIOP register-home variants, accumulator PHI save skip,
     guarded `ADDOV` 32-bit `AR`, and signed `VLOAD` contraction
@@ -180,6 +187,9 @@ It is intentionally current-state only. Historical experiment detail lives in
     - then, for those exact root `BC_ITERN` traces only, set `PROTO_NOJIT`
       instead of taking the generic `ITERC` fallback so the steady-state path
       stays on fast `ITERN`
+    - then, for the array-side root `BC_ITERN` proto only (`firstline=22`,
+      `numline=8`), park the hotcount at root-save and proto-NOJIT reentry so
+      the row keeps fast `ITERN` fallback without repeated trace-start churn
 - Retained `mixed_ffi` wins:
   - exact cut in
     [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
@@ -268,6 +278,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
+  - `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
@@ -492,13 +503,16 @@ interpretation.
 ### Now
 
 - `promotion_core` is broadly green and out of the leading slot.
-- `mixed_noffi` is the latest retained host-pair win and remains the active
-  small residual to re-attribute.
+- `iterator_table` is the latest retained host-pair win after the array-side
+  root-ITERN proto-NOJIT hotcount park.
+- `mixed_noffi` remains a small residual to re-attribute if it becomes the
+  active queue again.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the latest retained host-pair win is in `mixed_noffi`
-- `iterator_table` is now near parity after the root-ITERN proto-NOJIT fallback
+- the latest retained host-pair win is in `iterator_table`
+- `iterator_table` is now near parity after the root-ITERN proto-NOJIT
+  fallback and array-side hotcount park
 - `mixed_ffi` is now near parity after exact root-FORL proto-NOJIT fallback
 - `ffi_cdata` is now near parity after exact root-FORL blacklisting
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
@@ -507,12 +521,12 @@ interpretation.
   retained root-FORL blacklists now move `sum_loop`, `retlast_loop`, and
   `retconst_loop` to near/parity
 
-### After The Mixed Tri-Root Blacklist
+### After The Iterator Array Hotcount Park
 
 - Burn down the remaining red rows in this order:
-  1. fresh `mixed_noffi` residual attribution
-  2. later re-entry to `vararg_paths`, `iterator_table`, `mixed_ffi`, or
-     `ffi_cdata` only if a
+  1. fresh rerank from the retained matrix, with `mixed_noffi` and the
+     remaining iterator hash row as the first residuals to compare
+  2. later re-entry to `vararg_paths`, `mixed_ffi`, or `ffi_cdata` only if a
      retained regression or newly attributed subsystem appears
 
 ## Where To Look Next
