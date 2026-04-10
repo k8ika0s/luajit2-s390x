@@ -18,9 +18,9 @@ read.
   a later change regresses the retained floor.
 - `mixed_noffi` and `vararg_paths/sum_loop` remain carried red rows, but their
   current attributed lanes are exhausted on the retained floor.
-- The latest retained host-pair win is in `mixed_ffi`; that row is now near
-  parity after exact root-FORL proto-NOJIT fallback, so the active queue
-  reranks to `ffi_cdata` unless a fresh subsystem is first attributed.
+- The latest retained host-pair win is in `ffi_cdata`; `pair_loop` is now
+  effectively at parity after exact root-FORL blacklisting, while
+  `mixed_width_loop` stays a regression screen.
 - The retained exact branch control now carries:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -34,6 +34,7 @@ read.
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
+  - `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
@@ -58,8 +59,9 @@ read.
     exact official root `BC_ITERN` trace family, preserving fast `ITERN`
     steady-state execution and suppressing further trace attempts.
 - Next queue:
-  - rerank to `ffi_cdata`
-  - re-enter `mixed_ffi`, `iterator_table`, `sum_loop`, or `mixed_noffi` only if a fresh
+  - fresh re-attribution of the remaining carried red rows, starting with
+    `vararg_paths/sum_loop`
+  - re-enter `mixed_ffi`, `iterator_table`, or `mixed_noffi` only if a fresh
     attribution names a new subsystem
 
 ## Harness Status
@@ -24746,3 +24748,94 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       queue back to regression-screen status.
     - the next active queue reranks to `ffi_cdata`, unless fresh attribution
       names a new higher-priority subsystem.
+
+- 2026-04-09: `ffi_cdata` exact root `BC_FORL` blacklist retained
+  - Fresh post-`mixed_ffi` attribution on rebuilt `kdz` showed the retained
+    pair-loop save-time DONE cut still left an upstream 100-trace root loop
+    ladder before the downstream `BC_TGETB` child:
+    - root trace:
+      `trace=1 parent=0 exit=0 root=0 startop=BC_FORL link=1 linktype=LJ_TRLINK_LOOP topslot=9 spadjust=8 nsnap=7 nins=32798 mcloop=324`
+    - repeated same-shape children:
+      `root=1 parent=N exit=0 startop=BC_JMP linktype=LJ_TRLINK_LOOP nsnap=7 nins=32798 mcloop=324`
+    - retained downstream marker before this candidate:
+      `S390X_FFI_CDATA_PAIR_SAVE_DONE trace=102 parent=101 exit=0 root=1 startop=88 link=0 linktype=6 nsnap=2 nins=32773 snap=0 op=58`
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()` root `BC_FORL` case
+    - exact matcher:
+      - chunk `@tests/s390x/perf/ffi_cdata.lua`
+      - `trace=1`, `parent=0`, `exit=0`, `root=0`
+      - `startop=BC_FORL`, `link=1`, `linktype=LJ_TRLINK_LOOP`
+      - `topslot=9`, `spadjust=8`, `nsnap=7`, `nins=32798`,
+        `mcloop=324`
+    - exact mechanism:
+      - use LuaJIT's existing `blacklist_pc()` on that root loop PC before
+        the `BC_FORL` root patching path
+      - keep the retained save-time DONE cut available, but avoid the upstream
+        root-loop ladder before it forms
+      - mechanism smoke on trusted `kdz`:
+        - `S390X_FFI_CDATA_PAIR_FORL_BLACKLIST trace=1 startop=79 link=1 linktype=2 nsnap=7 nins=32798 mcloop=324`
+        - `S390X_FFI_CDATA_PAIR_SAVE_DONE` marker count dropped to `0`
+        - `TRACE_META_COUNT` dropped to `8`
+  - `kdz` gates:
+    - delivered source hash:
+      `cc2ebf4d72352c1aacebae7b8ffe5fa90c1123d3e3a0bdbce3613e825d3a763c`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - candidate:
+        - `pair_loop/hot 0.016879`
+        - `mixed_width_loop/hot 0.027687`
+      - immediate disabled-env control:
+        - `pair_loop/hot 0.023377`
+        - `mixed_width_loop/hot 0.027142`
+      - candidate rerun:
+        - `pair_loop/hot 0.017097`
+        - `mixed_width_loop/hot 0.027798`
+    - compact retained regression screen with the new flag:
+      - `dispatch_trace/numeric_loop/hot 0.014263`
+      - `dispatch_trace/side_exit_loop/hot 0.018199`
+      - `dispatch_trace/hotexit_loop/hot 0.368055`
+      - direct dispatch off/on A/B reproduced the same `hotexit_loop` spike in
+        both disabled-env control and candidate, so this is not attributed to
+        the chunk-locked `ffi_cdata` matcher
+      - `vararg_paths/sum_loop/hot 0.018895`
+      - `vararg_paths/retlast_loop/hot 0.003226`
+      - `vararg_paths/retconst_loop/hot 0.001734`
+      - `mixed_noffi/mixed_loop/hot 0.051097`
+      - `iterator_table/pairs_sum/hot 0.005675`
+      - `iterator_table/pairs_array_sum/hot 0.004371`
+      - `ffi_cdata/pair_loop/hot 0.016899`
+      - `ffi_cdata/mixed_width_loop/hot 0.027607`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `cc2ebf4d72352c1aacebae7b8ffe5fa90c1123d3e3a0bdbce3613e825d3a763c`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary pinned 9-sample A/B:
+      - candidate:
+        - `pair_loop/hot 0.028269`
+        - `mixed_width_loop/hot 0.044877`
+      - immediate disabled-env control:
+        - `pair_loop/hot 0.061147`
+        - `mixed_width_loop/hot 0.052549`
+      - candidate rerun:
+        - `pair_loop/hot 0.024469`
+        - `mixed_width_loop/hot 0.054854`
+  - Classification:
+    - retain the exact root `BC_FORL` blacklist win.
+    - `ffi_cdata/pair_loop` is now effectively at parity on trusted `kdz`:
+      `0.017097` vs `-joff 0.017319`.
+    - `mixed_width_loop` stays near parity and remains the sibling regression
+      screen.
+    - with `iterator_table`, `mixed_ffi`, and `ffi_cdata` now near parity, the
+      next active move is a fresh re-attribution of the remaining carried red
+      rows, starting with `vararg_paths/sum_loop`; do not reopen exhausted
+      lanes without new attribution.
