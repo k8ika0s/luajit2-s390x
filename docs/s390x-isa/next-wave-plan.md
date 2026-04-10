@@ -313,6 +313,27 @@ Current status:
   bounded at `n=512`, `calls=200`; `jit_be/numeric_ops.lua`,
   `jit_be/large_immediates.lua`, and the full current `jit_loops` directory
   pass on `kdz1`.
+- Checkpoint `206bd094` (`Checkpoint s390x ISA lab gains`) freezes the current
+  A1/A2/A3/decimal lab bundle. Two promotion-grade `kdz1` passes completed
+  cleanly (`ISA_LAB_VALIDATE_pass1_OK` and `ISA_LAB_VALIDATE_pass2_OK`).
+- Same-host A/B against clean `k8ika0s/s390x-bringup-wip` plus the shared lab
+  probes classifies the current lanes as:
+  - A3: promote for deeper review. The lab passes all focused FFI oracle,
+    stack-call, `math.random`, and vararg trace probes; bring-up fails the
+    new oracle small-aggregate vararg row and all traced A3 probes. The
+    `vararg_paths/sum_loop/hot` row improves from `0.421679s` to `0.008489s`.
+  - A1: promote for deeper review, except keep the `add_large` perf row
+    non-promotional because the bring-up baseline remains suspiciously near
+    zero. Bring-up fails the focused `jit_be/large_immediates.lua` trace check;
+    lab passes it and improves the large immediate hot rows that do not have
+    the invalid baseline.
+  - A2: keep the retrace guard as an enablement/correctness fix, but keep the
+    numeric helper perf family lab-only for now. The `add` retrace case drops
+    from `4096` traces and `12` flushes to `10` traces and no flushes, while
+    `abs`, `div`, `min`, and `max` hot rows are slower than bring-up; `sqrt`
+    remains the only clear numeric helper speed win.
+  - Decimal: keep frozen. The two pass smoke reads remained clean, but there is
+    no bring-up A/B claim because the module is lab-only surface area.
 
 Why third:
 
