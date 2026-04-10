@@ -447,6 +447,14 @@ Current status:
     `LUAJIT_S390X_TEXT_TRANSFORM_MODE=generic` unless explicitly overridden.
     `ascii8` is not a promotion candidate until the upper-case path has a
     cleaner current-tip read.
+  - Rebased again over bring-up `881440d7` after the A3/A1 promotion landed.
+    The rebased wrapper default passed interpreted pure-Lua sanity on `kdz1`
+    in `isa-lab-881-purelua-interp-20260410121526`. A focused same-host
+    `text_patterns` restamp compared
+    `isa-lab-881-text-patterns-generic-20260410121526` against
+    `isa-lab-881-text-patterns-span8-default-20260410121526`: `span8`
+    remained clean at `1.270x` geomean over 18 common rows, with no row below
+    `1.027x` and a max win of `1.962x` on sparse word scanning.
 
 Why third:
 
