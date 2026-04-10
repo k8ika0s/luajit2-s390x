@@ -1361,11 +1361,12 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
                         ),
                     ]
                 )
+        bench_script = "\n".join(bench_steps)
         return textwrap.dedent(
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
-            {'\n'.join(bench_steps)}
+            {bench_script}
             """
         ).strip()
     raise DriverError(f"unknown suite: {suite}")

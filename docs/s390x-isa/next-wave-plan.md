@@ -344,6 +344,14 @@ Current status:
     zero. Bring-up fails the focused `jit_be/large_immediates.lua` trace check;
     lab passes it and improves the large immediate hot rows that do not have
     the invalid baseline.
+  - A1 follow-up: a broad `emit_addptr()` `AGFI` replacement was correct on
+    `kdz1` but rejected after same-host A/B because the large-immediate rows
+    were neutral-to-mixed. A narrower distinct-operand slice is retained:
+    `AGRK`/`SGRK`/`NGRK`/`OGRK`/`XGRK` are used only when `dest != left`, so
+    already-coalesced traces keep the old two-address form while missed
+    coalesces remove a move. Focused `kdz1` validation is green, `bitops_mix`
+    is neutral, and `mixed_noffi/hot` improved from about `0.0424s` to about
+    `0.0404s` in the selective A/B read.
   - A2: keep the retrace guard as an enablement/correctness fix, but keep the
     numeric helper perf family lab-only for now. The `add` retrace case drops
     from `4096` traces and `12` flushes to `10` traces and no flushes, while
