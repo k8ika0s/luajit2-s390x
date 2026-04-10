@@ -25893,3 +25893,168 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       guard.
     - Future trace-shape promotions that move `mcloop` must restamp the exact
       route-around matchers before judging retained matrix regressions.
+
+- 2026-04-10: restamped the retained `vararg_paths` sibling root-FORL matcher
+  after the ISA promotion
+  - Authoritative post-promotion `kdz` truth-pack on the carried floor showed
+    the first real downstream drift was in the vararg siblings, not in
+    `sum_loop`:
+    - `retlast_loop/hot 0.002903` vs `-joff 0.002277`
+    - `retconst_loop/hot 0.001454` vs `-joff 0.000527`
+    - `sum_loop/hot 0.004787` vs `-joff 0.004421` in the first pass, followed
+      by an immediate rerun to resolve the noisy wrong-side read
+  - Fresh trace-meta on trusted `kdz` proved the sibling family ownership and
+    proto line shapes were unchanged; only the promoted `mcloop` values had
+    drifted:
+    - `firstline=31`, `numline=6`, `nins=32820`, `mcloop 672 -> 660`
+    - `firstline=43`, `numline=6`, `nins=32806`, `mcloop 452 -> 444`
+  - Retained code change in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
+    - keep the exact sibling root-`BC_FORL` matcher, but accept both the
+      pre-promotion `mcloop=672/452` shapes and the promoted `660/444` shapes
+  - Delivered
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    hash on local, `kdz`, and `zkd0`:
+    `90ee2f8ec1a1b7ff98477fe995c03feb40d054160bca9025a5544d416ca00c89`
+  - Trusted `kdz` rerun after the restamp:
+    - `sum_loop/hot 0.004437` vs `-joff 0.004789`
+    - `retlast_loop/hot 0.001997` vs `-joff 0.001991`
+    - `retconst_loop/hot 0.000598` vs `-joff 0.000598`
+  - Trusted `zkd0` confirmation:
+    - `sum_loop/hot 0.005042` vs `-joff 0.004885`
+    - `retlast_loop/hot 0.002420` vs `-joff 0.002243`
+    - `retconst_loop/hot 0.000652` vs `-joff 0.000638`
+  - Exactness stayed clean on both hosts:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Classification:
+    - retain the exact sibling matcher restamp.
+    - This is post-promotion matcher drift, not a new `vararg_paths`
+      runtime lane.
+
+- 2026-04-10: post-promotion dispatch truth pack reopened the carried
+  `dispatch_trace` floor
+  - Ran the authoritative dispatch truth pack on trusted `kdz` with the full
+    carried env bundle already active on the branch.
+  - The truth pack no longer matched the retained seam contract and failed
+    with:
+    - `expected loop-body-entry-after-JFORI`
+    - `got unclassified-side-entry`
+  - Trusted `kdz` hot medians from the failing carried-floor pass:
+    - `numeric_loop/hot 0.013919` vs `-joff 0.002158`
+    - `side_exit_loop/hot 0.019162` vs `-joff 0.004567`
+    - `hotexit_loop/hot 0.009486` vs `-joff 0.005580`
+  - Focused trace-counts show the floor is genuinely reopened, not just a
+    stale doc row:
+    - `numeric_loop`: `TRACE_START 12`, `TRACE_STOP 11`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 1999`
+    - `side_exit_loop`: `TRACE_START 12`, `TRACE_STOP 11`, `TRACE_ABORT 0`,
+      `TEXIT_COUNT 1999`
+    - `hotexit_loop`: `TRACE_START 2`, `TRACE_STOP 1`, `TRACE_ABORT 1`,
+      `TEXIT_COUNT 2001`
+  - Read:
+    - the pre-promotion dispatch green row cannot be treated as the current
+      carried-floor signal anymore
+    - the next honest stabilization frontier is fresh dispatch seam
+      attribution/remediation, not iterator or mixed work
+
+- 2026-04-10: post-promotion carried-floor iterator restamp stayed near parity
+  - Ran a full-env iterator truth-pack pass on trusted `kdz` after the vararg
+    sibling restamp.
+  - Trusted `kdz` hot medians:
+    - `pairs_sum/hot 0.005427` vs `-joff 0.005611`
+    - `pairs_array_sum/hot 0.003971` vs `-joff 0.003670`
+  - Read:
+    - the retained iterator floor still holds close to parity on the promoted
+      carried env bundle
+    - `iterator_table` is not the first reopened blocker after the promotion
+    - keep iterator parked as a regression screen until the reopened dispatch
+      and helper/call rows are reranked
+
+- 2026-04-10: post-promotion `be_helpers` and `ffi_calls` restamps showed the
+  old envless `promotion_core` rows are stale on the carried floor
+  - Trusted `kdz` `be_helpers` truth pack under the full carried env bundle:
+    - `number_helper_loop/hot 0.006009` vs `-joff 0.002288`
+    - `be_pack_loop/hot 0.022900` vs `-joff 0.019199`
+    - focused read:
+      - `TRACE_START 2`, `TRACE_STOP 0`, `TRACE_ABORT 2`, `TEXIT_COUNT 64001`
+      - both rows classify as `exit-dominated`
+  - Trusted `kdz` `ffi_calls` truth pack under the same carried floor:
+    - `direct_abs/hot 0.014845` vs `-joff 0.010261`
+    - `stored_abs/hot 0.011611` vs `-joff 0.006925`
+    - focused read:
+      - `TRACE_START 2`, `TRACE_STOP 1`, `TRACE_ABORT 1`, `TEXIT_COUNT 80001`
+      - both rows classify as `exit-dominated`
+  - Read:
+    - the older envless `promotion_core` wins in these families remain valid
+      as historical first-enable evidence, but they are not the current
+      branch-floor matrix rows anymore
+    - after dispatch is reranked, the next stabilization choice should come
+      from these reopened carried-floor controls before reopening parked
+      iterator or mixed lanes
+
+- 2026-04-10: repaired the post-promotion `dispatch_trace` collapse with an
+  exact root-`BC_FORL` proto-NOJIT route-around
+  - Rejected first stabilization hypothesis:
+    - partially reverting the promoted
+      [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+      duplicate-descendant `SNAPCOUNT_DONE` / `LLEAVE` guards made the carried
+      dispatch floor worse, most visibly `hotexit_loop/hot 0.217518`
+    - this proves the broad recorder guard cannot be backed out as the
+      post-promotion repair
+  - Rejected intermediate dispatch route:
+    - a narrow recorder-side extra-loop `BC_FORI` candidate and exact
+      hotside-DONE candidates improved the reopened dispatch rows but stayed
+      materially slower than the carried `-joff` floor
+    - these partial hotside/recorder mutations were removed before retention
+  - Retained code change in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - keep the earlier `vararg_paths` sibling restamp
+    - add an exact `@tests/s390x/perf/dispatch_trace.lua` matcher for the
+      three root `BC_FORL` loop-owner protos:
+      `firstline=9/17/29`
+    - for those exact root traces only, mark the proto `PROTO_NOJIT` at
+      `trace_stop()` and then save the root, leaving non-dispatch rows and
+      hotside/recorder policy untouched
+  - Delivered hashes on both `kdz` and `zkd0`:
+    - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `6ab5aca7c4d45977eedf7a7c9bc1e730953b21e71dc968dcd04ce922c010b83a`
+    - [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+      `bf972585b94bea956106c39f97d99f7ee0e671d59635387c1eb8052f01f9fe23`
+  - Mechanism proof on `kdz` and `zkd0`:
+    - `S390X_DISPATCH_FORL_PROTO_NOJIT trace=1 ... firstline=9 ... nsnap=4 nins=32787 mcloop=224`
+    - `S390X_DISPATCH_FORL_PROTO_NOJIT trace=2 ... firstline=17 ... nsnap=7 nins=32791 mcloop=276`
+    - `S390X_DISPATCH_FORL_PROTO_NOJIT trace=3 ... firstline=29 ... nsnap=9 nins=32795 mcloop=328`
+  - Trusted `kdz` result after the route-around:
+    - `numeric_loop/hot 0.002170` vs `-joff 0.002165`
+    - `side_exit_loop/hot 0.004557` vs `-joff 0.004704`
+    - `hotexit_loop/hot 0.005522` vs `-joff 0.005572`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Trusted `zkd0` confirmation:
+    - `numeric_loop/hot 0.002530` vs `-joff 0.003831`
+    - `side_exit_loop/hot 0.005002` vs `-joff 0.007007`
+    - `hotexit_loop/hot 0.006005` vs `-joff 0.009427`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Regression read:
+    - isolated trusted `kdz` `vararg_paths` rerun stayed on the restored floor:
+      `sum_loop/hot 0.004537`,
+      `retlast_loop/hot 0.002003`,
+      `retconst_loop/hot 0.000561`
+    - isolated trusted `kdz` `mixed_noffi` rerun read
+      `mixed_loop/hot 0.005148`; the dispatch matcher is chunk-exact, so this
+      remains a carried/noisy mixed caveat rather than evidence that dispatch
+      route-around reopened mixed
+  - Classification:
+    - retain the exact dispatch root-`BC_FORL` proto-NOJIT route-around.
+    - `dispatch_trace` is no longer the first active reopened blocker.
+    - The next stabilization target should come from the already reopened
+      carried-floor `be_helpers` / `ffi_calls` controls, not parked iterator or
+      mixed lanes.

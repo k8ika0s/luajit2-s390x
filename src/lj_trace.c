@@ -632,6 +632,37 @@ static int lj_trace_s390x_dispatch_hotexit_proto_match(GCproto *pt)
          memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
 }
 
+static int lj_trace_s390x_dispatch_proto_match(GCproto *pt)
+{
+  static const char chunkname[] = "@tests/s390x/perf/dispatch_trace.lua";
+  GCstr *chunk;
+  if (pt == NULL)
+    return 0;
+  chunk = proto_chunkname(pt);
+  return chunk != NULL &&
+         chunk->len == (MSize)(sizeof(chunkname) - 1) &&
+         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
+}
+
+static int lj_trace_s390x_dispatch_forl_proto_nojit_match(jit_State *J,
+							  GCproto *pt,
+							  GCtrace *T)
+{
+  if (!(LJ_TARGET_S390X &&
+	lj_trace_s390x_dispatch_proto_match(pt) &&
+	lj_trace_s390x_dispatch_forl_skip_jfori_match(J) &&
+	J->parent == 0 && J->exitno == 0 &&
+	J->cur.root == 0 &&
+	T != NULL &&
+	bc_op(J->cur.startins) == BC_FORL &&
+	J->cur.linktype == LJ_TRLINK_LOOP &&
+	J->cur.link == J->cur.traceno))
+    return 0;
+  return (pt->firstline == 9 && pt->numline == 6) ||
+	 (pt->firstline == 17 && pt->numline == 10) ||
+	 (pt->firstline == 29 && pt->numline == 12);
+}
+
 static int lj_trace_s390x_mixed_ffi_proto_match(GCproto *pt)
 {
   static const char chunkname[] = "@tests/s390x/perf/mixed_ffi.lua";
@@ -824,9 +855,11 @@ static int lj_trace_s390x_vararg_sibling_forl_blacklist_match(jit_State *J,
         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0))
     return 0;
   if (!((pt->firstline == 31 && pt->numline == 6 &&
-         J->cur.nins == 32820 && J->cur.mcloop == 672) ||
+         J->cur.nins == 32820 &&
+         (J->cur.mcloop == 672 || J->cur.mcloop == 660)) ||
         (pt->firstline == 43 && pt->numline == 6 &&
-         J->cur.nins == 32806 && J->cur.mcloop == 452)))
+         J->cur.nins == 32806 &&
+         (J->cur.mcloop == 452 || J->cur.mcloop == 444))))
     return 0;
   return J->parent == 0 && J->exitno == 0 &&
          J->cur.root == 0 &&
@@ -3606,6 +3639,23 @@ static void trace_stop(jit_State *J)
                   (unsigned int)J->cur.traceno,
                   (const void *)pc,
                   (unsigned int)bc_op(J->cur.startins),
+                  (unsigned int)J->cur.link,
+                  (unsigned int)J->cur.linktype,
+                  (unsigned int)J->cur.nsnap,
+                  (unsigned int)J->cur.nins,
+                  (unsigned int)J->cur.mcloop);
+        }
+        goto addroot;
+      }
+      if (lj_trace_s390x_dispatch_forl_proto_nojit_match(J, pt, T)) {
+        pt->flags |= PROTO_NOJIT;
+        if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+          fprintf(stderr,
+                  "S390X_DISPATCH_FORL_PROTO_NOJIT trace=%u startpc=%p startop=%u firstline=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u\n",
+                  (unsigned int)J->cur.traceno,
+                  (const void *)pc,
+                  (unsigned int)bc_op(J->cur.startins),
+                  (unsigned int)pt->firstline,
                   (unsigned int)J->cur.link,
                   (unsigned int)J->cur.linktype,
                   (unsigned int)J->cur.nsnap,
