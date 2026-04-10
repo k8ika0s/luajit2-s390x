@@ -377,6 +377,24 @@ Current status:
     remains the only clear numeric helper speed win.
   - Decimal: keep frozen. The two pass smoke reads remained clean, but there is
     no bring-up A/B claim because the module is lab-only surface area.
+- Rebased publish checkpoint:
+  - The lab branch was replayed over the current `k8ika0s/s390x-bringup-wip`
+    tip after bring-up advanced from the measured baseline. The completed
+    same-host matrix remains a valid A/B read against bring-up `5200282f`, with
+    lab `34e5bb7f`, `kdz1/gcc/release/jit=on/ffi=on/tuning=baseline`, zero
+    failures, and `45` common comparable rows.
+  - The rebased code checkpoint before this docs-only note is `9af4fe8b` over
+    bring-up `9e38a069`; require a focused restamp before treating the older
+    `5200282f` numbers as a final promotion read against current bring-up.
+  - Main common-family readout from `isa-lab-rebased-matrix-20260410065312`:
+    `dispatch_trace` `26.289x`, `vararg_paths` `3.364x`, `ffi_cdata`
+    `2.406x`, `ffi_calls` `1.211x`, and `bitops_mix` `1.136x` geomean speed.
+    The known regression checks are `iterator_table` and
+    `ffi_cdata:mixed_width_loop`.
+  - Next target order after publish: A3 FFI call-lowering promotion review
+    first, A1 selective instruction forms second, A2 retrace guard as
+    enablement-only, and `LUAJIT_S390X_DIRECT_CALL_ARG` parked as lab-only
+    until two clean future hot-row reads justify enabling it.
 
 Why third:
 
