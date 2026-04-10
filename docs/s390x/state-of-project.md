@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 15:52 PDT
+Last updated: 2026-04-10 16:10 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -22,7 +22,7 @@ It is intentionally current-state only. Historical experiment detail lives in
 - The delivered
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
   hash is now identical on local, `kdz`, and `zkd0`:
-  `6ab5aca7c4d45977eedf7a7c9bc1e730953b21e71dc968dcd04ce922c010b83a`.
+  `30c8e50bc45235bc8bed7208d537cecce6acc4b90fcc597a968542349cbc4cc4`.
 - Current retained `vararg_paths` rows after the sibling restamp:
   - trusted `kdz` rerun:
     - `sum_loop/hot 0.004437` vs `-joff 0.004789`
@@ -47,15 +47,21 @@ It is intentionally current-state only. Historical experiment detail lives in
   - trusted `zkd0`: `numeric_loop/hot 0.002530` vs `-joff 0.003831`,
     `side_exit_loop/hot 0.005002` vs `-joff 0.007007`,
     `hotexit_loop/hot 0.006005` vs `-joff 0.009427`
-- `be_helpers` and `ffi_calls` are also reopened on trusted `kdz` under the
-  full carried env bundle. The older envless `promotion_core` wins are now
-  historical evidence, not current matrix rows:
-  - `be_helpers`: `number_helper_loop/hot 0.006009` vs `-joff 0.002288`,
-    `be_pack_loop/hot 0.022900` vs `-joff 0.019199`
-  - `ffi_calls`: `direct_abs/hot 0.014845` vs `-joff 0.010261`,
-    `stored_abs/hot 0.011611` vs `-joff 0.006925`
-- The active engineering frontier now moves to the reopened helper/call
-  controls before reopening parked iterator or mixed lanes.
+- `be_helpers` and `ffi_calls` have also been stabilized after their
+  post-promotion carried-floor drift with an exact root-`BC_FORL`
+  proto-NOJIT route-around in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  - trusted `kdz`: `number_helper_loop/hot 0.002378` vs `-joff 0.002280`,
+    `be_pack_loop/hot 0.018912` vs `-joff 0.018973`,
+    `direct_abs/hot 0.010257` vs `-joff 0.010148`,
+    `stored_abs/hot 0.007338` vs `-joff 0.006981`
+  - trusted `zkd0`: `number_helper_loop/hot 0.002554` vs reopened control
+    `0.006344`, `be_pack_loop/hot 0.020728` vs reopened control `0.023800`,
+    `direct_abs/hot 0.012293` vs reopened control `0.016268`,
+    `stored_abs/hot 0.008434` vs reopened control `0.012996`
+- The active engineering frontier now moves back to the remaining near-parity
+  carried rows, with `iterator_table` as the default next attribution target
+  unless a fresh rerank names a larger honest payer.
 - The localized helper/route-around experiment rows now have a retained
   env-gated hotside carry in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
@@ -343,6 +349,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT=1`
   - `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`
   - `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT=1`
+  - `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the retained root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -435,9 +442,9 @@ It is intentionally current-state only. Historical experiment detail lives in
     [tests/s390x/perf/benchlib.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/benchlib.lua)
 - `iterator_table` still sits near parity on that carried floor; the first
   post-promotion restamp did not reopen it as the lead blocker.
-- The first kdz-first stabilization pass proved that the older envless
-  `promotion_core` `be_helpers` / `ffi_calls` wins cannot be treated as the
-  current carried-floor signal anymore.
+- The follow-up kdz-first stabilization pass retained an exact root-`BC_FORL`
+  proto-NOJIT route-around for `be_helpers` / `ffi_calls`; the older envless
+  `promotion_core` rows remain historical first-enable evidence only.
 - The retained mixed improvement is now split across VM-side and asm-side work:
   - the retained `JLOOP_EXIT` contract still reports
     `dispatch-original -> target=2 -> BC_ITERN`
@@ -479,14 +486,11 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## What Has Not Been Proven Yet
 
-- `be_helpers` and `ffi_calls` are reopened on trusted `kdz` under the full
-  carried env bundle and still need the same carried-floor truth on `zkd0`.
 - A full post-promotion carried-floor matrix rerank is not complete yet beyond
-  the first `kdz` stabilization pass plus the `zkd0` vararg and dispatch
-  confirmations.
+  the `zkd0` confirmations for vararg, dispatch, `be_helpers`, and
+  `ffi_calls`.
 - `mixed_noffi`, `iterator_table`, `mixed_ffi`, and `ffi_cdata` stay parked
-  unless the reopened helper/call work closes or a fresh attribution names a
-  new subsystem.
+  unless a fresh attribution names a new subsystem.
 
 ## What The Freeze Point Means
 
@@ -523,8 +527,8 @@ From here:
    the tracked-file contract in
    [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md).
 3. Keep the active engineering frontier narrow:
-  - rerank `be_helpers` and `ffi_calls` on the same carried floor before
-    reopening parked iterator or mixed lanes
+  - keep `be_helpers` and `ffi_calls` parked after the exact root-`BC_FORL`
+    proto-NOJIT route-around unless a fresh carried-floor regression appears
   - keep `vararg_paths` parked after the sibling restamp unless a fresh
     carried-floor regression appears
   - keep `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` parked unless a fresh
@@ -573,10 +577,10 @@ interpretation.
   stabilization
 - `dispatch_trace` is back to near/parity on both hosts after the dispatch
   route-around
-- `be_helpers` and `ffi_calls` are also reopened on trusted `kdz`; their old
-  envless `promotion_core` rows are stale for the current carried floor
+- `be_helpers` and `ffi_calls` are back to near/parity on trusted `kdz` and
+  confirmed on `zkd0` after the exact root-`BC_FORL` proto-NOJIT route-around
 - `iterator_table`, `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked
-  near parity while the reopened carried-floor controls are reranked
+  near parity unless a fresh attribution names a new subsystem
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
   closed as non-engaging on the official hot row
 - the inner `sum(...)` whole-loop-contract backend lane is closed, and the
@@ -588,12 +592,10 @@ interpretation.
 ### After The Iterator Hash-Side Hotcount Park
 
 - Burn down the remaining red rows in this order:
-  1. rerank the reopened `be_helpers` and `ffi_calls` controls on the carried
-     floor
-  2. return to `iterator_table` only if it is still the largest honest
-     residual after the stabilization pass
-  3. keep `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` parked unless a new
-     subsystem is first named
+  1. return to `iterator_table` unless a fresh carried-floor rerank names a
+     larger honest residual
+  2. keep `be_helpers`, `ffi_calls`, `mixed_noffi`, `mixed_ffi`, and
+     `ffi_cdata` parked unless a new subsystem is first named
 
 ## Where To Look Next
 
