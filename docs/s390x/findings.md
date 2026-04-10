@@ -18,8 +18,9 @@ read.
   a later change regresses the retained floor.
 - `mixed_noffi` and `vararg_paths/sum_loop` remain carried red rows, but their
   current attributed lanes are exhausted on the retained floor.
-- The latest retained host-pair win is in `iterator_table`; the active queue
-  stays on the remaining iterator residual before reranking to `mixed_ffi`.
+- The latest retained host-pair win is in `iterator_table`; that row is now
+  near parity, so the active queue reranks to `mixed_ffi`, then `ffi_cdata`,
+  unless a fresh iterator subsystem is first attributed.
 - The retained exact branch control now carries:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -34,6 +35,7 @@ read.
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
+  - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -44,23 +46,19 @@ read.
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
   - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
 - Current `iterator_table` read on trusted `kdz` after the retained exact
-  root-ITERN plus root-ITERL blacklist wins:
-  - `pairs_sum/hot 0.011391` vs `-joff 0.004135`
-  - `pairs_array_sum/hot 0.008139` vs `-joff 0.003651`
-  - the latest official-row attribution exposed a post-root-ITERN array-side
-    root `BC_ITERL` loop trace:
-    `parent=0 exit=0 root=0 startop=BC_ITERL nsnap=2 nins=32798 mcloop=512`.
-  - blacklisting that exact root `BC_ITERL` trace removes the `root=3`
-    `BC_JMP` exit-0 loop-descendant chain and collapses `pairs_array_sum/hot`
-    by roughly `8.8x` on `kdz`.
-  - the older `root=2`, `BC_JMP`, `LJ_TRLINK_INTERP`, `nsnap=2`,
-    `nins=32773` ladder was traceinfo-wrapper pollution, not a valid next
-    target for the official hot row.
+  root-ITERN proto-NOJIT fallback:
+  - `pairs_sum/hot 0.004708` vs `-joff 0.004135`
+  - `pairs_array_sum/hot 0.004269` vs `-joff 0.003651`
+  - the latest official-row attribution showed the post-blacklist payer was
+    the route-around contract itself: `blacklist_pc()` rewrote the fast
+    `BC_ITERN` interpreter path into generic `BC_ITERC`, while `-joff` kept
+    the fast non-hotcounting `vm_IITERN` path.
+  - the retained root-ITERN proto-NOJIT cut sets `PROTO_NOJIT` for only the
+    exact official root `BC_ITERN` trace family, preserving fast `ITERN`
+    steady-state execution and suppressing further trace attempts.
 - Next queue:
-  - stay on corrected `iterator_table` runtime attribution while the residual
-    array-side row remains dominant
-  - if the corrected iterator lane exhausts, rerank to `mixed_ffi`, then
-    `ffi_cdata`; re-enter `sum_loop` or `mixed_noffi` only if a fresh
+  - rerank to `mixed_ffi`, then `ffi_cdata`
+  - re-enter `iterator_table`, `sum_loop`, or `mixed_noffi` only if a fresh
     attribution names a new subsystem
 
 ## Harness Status
@@ -24585,3 +24583,83 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - `pairs_array_sum/hot` is no longer the dominant red iterator row by the
       old magnitude; both iterator hot rows are now near the same residual
       band and still need a fresh post-blacklist attribution before reranking.
+
+- 2026-04-09: `iterator_table` exact root `BC_ITERN` proto-NOJIT retained
+  - Post-root-ITERL attribution corrected the remaining iterator payer:
+    - the retained blacklists stopped the bad root-loop trace ladders, but
+      `blacklist_pc()` rewrote `BC_ITERN` to generic `BC_ITERC`
+    - `-joff` kept the fast non-hotcounting `vm_IITERN` interpreter path
+    - the remaining official-row cost was therefore the blacklisted
+      route-around contract, not another backend `VLOAD` / `ADDOV` micro-op
+  - Closed backend micro-cuts before the retained route-around:
+    - exact trace-1 `ADDOV` pre-normalization skip engaged but regressed
+      `pairs_sum/hot` to `0.083169`; rejected and reverted
+    - exact trace-1 signed `VLOAD` contraction engaged at `curins=7/13`, but
+      regressed `pairs_sum/hot` to `0.088489`; rejected and reverted
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
+    - exact mechanism:
+      - in `trace_stop()`, for `@tests/s390x/perf/iterator_table.lua` only,
+        match the same two successful root `BC_ITERN` loop traces as the
+        retained root-ITERN blacklist:
+        - `nsnap=6 nins=32785 mcloop=208`
+        - `nsnap=6 nins=32792 mcloop=300`
+      - set `PROTO_NOJIT` for that exact proto instead of taking the generic
+        `ITERC` fallback; this preserves fast `ITERN` interpreter execution
+        while stopping further trace attempts
+      - mechanism smoke on `kdz` showed exactly the intended markers:
+        - `S390X_ITERATOR_ITERN_PROTO_NOJIT trace=1 ... nins=32785 mcloop=208`
+        - `S390X_ITERATOR_ITERN_PROTO_NOJIT trace=2 ... nins=32792 mcloop=300`
+  - `kdz` gates:
+    - delivered source hash:
+      `9d989aca37d93a4b4f862fe06c27e5f41423e726b170c7d68d089d1f13b293d9`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.005393`
+        - `pairs_array_sum/hot 0.004330`
+      - immediate disabled-env control:
+        - `pairs_sum/hot 0.011272`
+        - `pairs_array_sum/hot 0.008092`
+      - candidate rerun:
+        - `pairs_sum/hot 0.004708`
+        - `pairs_array_sum/hot 0.004269`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `9d989aca37d93a4b4f862fe06c27e5f41423e726b170c7d68d089d1f13b293d9`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.007243`
+        - `pairs_array_sum/hot 0.007091`
+      - immediate disabled-env control:
+        - `pairs_sum/hot 0.017148`
+        - `pairs_array_sum/hot 0.009863`
+      - candidate rerun:
+        - `pairs_sum/hot 0.005401`
+        - `pairs_array_sum/hot 0.005064`
+  - Regression screen:
+    - compact `kdz` retained bundle:
+      - `dispatch_trace/numeric_loop/hot 0.014059`
+      - `dispatch_trace/side_exit_loop/hot 0.017448`
+      - `dispatch_trace/hotexit_loop/hot 0.138139`
+      - `vararg_paths/sum_loop/hot 0.018847`
+      - `vararg_paths/retlast_loop/hot 0.003208`
+      - `vararg_paths/retconst_loop/hot 0.001758`
+    - direct same-binary `mixed_noffi` toggle screen showed no new regression:
+      - candidate `mixed_loop/hot 0.043119`
+      - disabled-env control `mixed_loop/hot 0.043609`
+  - Classification:
+    - retain the exact root `BC_ITERN` proto-NOJIT fallback win.
+    - `iterator_table` is now near parity: `kdz` retained `pairs_sum/hot
+      0.004708` and `pairs_array_sum/hot 0.004269` against `-joff 0.004135`
+      and `0.003651`.
+    - next active queue should rerank to `mixed_ffi`, then `ffi_cdata`, unless
+      a fresh attribution names a new iterator subsystem.
