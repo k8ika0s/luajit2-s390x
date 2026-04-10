@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-10 09:50 PDT
+Last updated: 2026-04-10 15:52 PDT
 
 ## Canonical Perf Suite
 
@@ -18,17 +18,17 @@ enough for retained policy rows.
 
 | Suite file | Family | Workloads | Role in the matrix |
 | --- | --- | --- | --- |
-| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback and hash/array-side hotcount parks; now near parity and a regression screen |
+| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback and hash/array-side hotcount parks; post-promotion carried-floor restamp still leaves it near parity |
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | retained exact root `BC_ITERL` / `BC_ITERN` / stitched `BC_FORL` blacklists, exact post-root `BC_ITERL` abort blacklist, and exact early proto-NOJIT / `BC_ITERN` hotcount park; now near parity |
 | [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win plus exact root-FORL proto-NOJIT fallback; now near parity and a regression screen |
-| [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | primary `promotion_core` controls |
-| [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua) | `ffi_calls` | `direct_abs`, `stored_abs` | recurring FFI throughput controls |
+| [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | helper-heavy carried-floor controls; post-promotion kdz restamp reopened them under the full carried env bundle |
+| [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua) | `ffi_calls` | `direct_abs`, `stored_abs` | call-heavy carried-floor controls; post-promotion kdz restamp reopened them under the full carried env bundle |
 | [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua) | `bitops_mix` | `mix_bits` | helper-light logic/bitops control |
 | [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua) | `logical_chain_tail_add` | `chain_tail_add` | recurring logic-chain sibling |
 | [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua) | `logical_chain_tail_store` | `chain_tail_store` | recurring logic-chain sibling |
-| [tests/s390x/perf/dispatch_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/dispatch_trace.lua) | `dispatch_trace` | `numeric_loop`, `side_exit_loop`, `hotexit_loop` | dispatch-side mechanism suite |
+| [tests/s390x/perf/dispatch_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/dispatch_trace.lua) | `dispatch_trace` | `numeric_loop`, `side_exit_loop`, `hotexit_loop` | dispatch-side mechanism suite; repaired after the post-promotion collapse with an exact root-`BC_FORL` proto-NOJIT route-around |
 | [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua) | `ffi_cdata` | `pair_loop`, `mixed_width_loop` | retained pair-loop save-time win plus exact root-FORL blacklist; now near parity and a regression screen |
-| [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua) | `vararg_paths` | `sum_loop`, `retlast_loop`, `retconst_loop` | vararg regression suite |
+| [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua) | `vararg_paths` | `sum_loop`, `retlast_loop`, `retconst_loop` | vararg regression suite; post-promotion sibling matcher restamp restored the carried near/parity floor |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | `const_same_callsite`, `lua_abs_same_callsite` | callsite/lower-frame regression suite |
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | `number_helper_literal_stop_real`, `number_helper_literal_stop_real_local_tobit`, `be_pack_literal_stop_real` | static-stop mechanism suite |
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | `direct_abs_literal_stop_real`, `stored_abs_literal_stop_real` | static-stop FFI regression suite |
@@ -54,25 +54,25 @@ number is ugly.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004532` | `0.004135` | `+0.000397`, `1.10x` | `kdz` | `2026-04-10 08:35 PDT` | retained exact hash-side root-ITERN proto-NOJIT hotcount park after array-side park; host-pair clean, near parity |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003973` | `0.003651` | `+0.000322`, `1.09x` | `kdz` | `2026-04-10 08:35 PDT` | retained exact array-side root-ITERN proto-NOJIT hotcount park; neutral under hash-side park, near parity |
+| `pairs_sum/hot` | `iterator_table` | `0.005427` | `0.005611` | `-0.000184`, `0.97x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor kdz restamp; retained iterator floor still near parity |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003971` | `0.003670` | `+0.000301`, `1.08x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor kdz restamp; sibling remains near parity but slightly slower |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
-| `number_helper_loop/hot` | `be_helpers` | `0.000113` | `0.002241` | `-0.002128`, `0.05x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
-| `be_pack_loop/hot` | `be_helpers` | `0.000319` | `0.018557` | `-0.018238`, `0.02x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
-| `direct_abs/hot` | `ffi_calls` | `0.000291` | `0.010114` | `-0.009823`, `0.03x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
-| `stored_abs/hot` | `ffi_calls` | `0.000289` | `0.007024` | `-0.006735`, `0.04x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `number_helper_loop/hot` | `be_helpers` | `0.006009` | `0.002288` | `+0.003721`, `2.63x` | `kdz` | `2026-04-10 13:16 PDT` | post-promotion carried-floor kdz restamp; old envless `promotion_core` row is stale and this control is reopened |
+| `be_pack_loop/hot` | `be_helpers` | `0.022900` | `0.019199` | `+0.003701`, `1.19x` | `kdz` | `2026-04-10 13:16 PDT` | post-promotion carried-floor kdz restamp; helper control reopened under the full env bundle |
+| `direct_abs/hot` | `ffi_calls` | `0.014845` | `0.010261` | `+0.004584`, `1.45x` | `kdz` | `2026-04-10 13:17 PDT` | post-promotion carried-floor kdz restamp; old envless call row is stale and this control is reopened |
+| `stored_abs/hot` | `ffi_calls` | `0.011611` | `0.006925` | `+0.004686`, `1.68x` | `kdz` | `2026-04-10 13:17 PDT` | post-promotion carried-floor kdz restamp; call control reopened under the full env bundle |
 | `mix_bits/hot` | `bitops_mix` | `0.000730` | `0.002148` | `-0.001418`, `0.34x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic/bitops control |
 | `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000748` | `0.002107` | `-0.001359`, `0.35x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
 | `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000594` | `0.002025` | `-0.001431`, `0.29x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
-| `numeric_loop/hot` | `dispatch_trace` | `0.000158` | `0.002173` | `-0.002015`, `0.07x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.000353` | `0.004692` | `-0.004339`, `0.08x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.001047` | `0.005619` | `-0.004572`, `0.19x` | `kdz` | `2026-04-07 19:02 PDT` | retained exact proto-gated parked-root cooldown win; exact on both hosts |
+| `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; host-pair clean and slightly faster than `-joff` on kdz |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; restored the promoted carried floor to near/parity |
 | `pair_loop/hot` | `ffi_cdata` | `0.017097` | `0.017319` | `-0.000222`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | retained exact root-`BC_FORL` blacklist after the save-time DONE cut; near parity |
 | `mixed_width_loop/hot` | `ffi_cdata` | `0.027798` | `0.027969` | `-0.000171`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | sibling under the retained pair-loop root blacklist; near parity |
-| `sum_loop/hot` | `vararg_paths` | `0.004486` | `0.004722` | `-0.000236`, `0.95x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact inner-`sum(...)` root-`BC_FORL` blacklist after the earlier select/runtime cuts; host-pair clean |
-| `retlast_loop/hot` | `vararg_paths` | `0.001978` | `0.001990` | `-0.000012`, `0.99x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact vararg sibling root-`BC_FORL` blacklist; host-pair clean |
-| `retconst_loop/hot` | `vararg_paths` | `0.000570` | `0.000598` | `-0.000028`, `0.95x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact vararg sibling root-`BC_FORL` blacklist; host-pair clean |
+| `sum_loop/hot` | `vararg_paths` | `0.004437` | `0.004789` | `-0.000352`, `0.93x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion rerun after the sibling restamp; root-FORL blacklist floor is preserved |
+| `retlast_loop/hot` | `vararg_paths` | `0.001997` | `0.001991` | `+0.000006`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; near parity on trusted kdz and confirmed on zkd0 |
+| `retconst_loop/hot` | `vararg_paths` | `0.000598` | `0.000598` | `+0.000000`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; parity on trusted kdz and confirmed on zkd0 |
 
 ## Pinned Recurring Workloads
 
@@ -86,13 +86,13 @@ shrink.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004532` | `0.004135` | `+0.000397`, `1.10x` | `kdz` | `2026-04-10 08:35 PDT` | retained exact hash-side root-ITERN proto-NOJIT hotcount park after array-side park; host-pair clean, near parity |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003973` | `0.003651` | `+0.000322`, `1.09x` | `kdz` | `2026-04-10 08:35 PDT` | retained exact array-side root-ITERN proto-NOJIT hotcount park; neutral under hash-side park, near parity |
+| `pairs_sum/hot` | `iterator_table` | `0.005427` | `0.005611` | `-0.000184`, `0.97x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor restamp; retained iterator floor still near parity |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003971` | `0.003670` | `+0.000301`, `1.08x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor restamp; near parity with a small sibling gap |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
-| `numeric_loop/hot` | `dispatch_trace` | `0.000158` | `0.002173` | `-0.002015`, `0.07x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.000353` | `0.004692` | `-0.004339`, `0.08x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.001047` | `0.005619` | `-0.004572`, `0.19x` | `kdz` | `2026-04-07 19:02 PDT` | retained exact proto-gated parked-root cooldown win; exact on both hosts |
-| `sum_loop/hot` | `vararg_paths` | `0.004486` | `0.004722` | `-0.000236`, `0.95x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact root-`BC_FORL` blacklist; current whole-loop-contract lane closed |
+| `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; zkd0 confirmation `0.002530` vs `-joff 0.003831` |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.005002` vs `-joff 0.007007` |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.006005` vs `-joff 0.009427` |
+| `sum_loop/hot` | `vararg_paths` | `0.004437` | `0.004789` | `-0.000352`, `0.93x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion root-`BC_FORL` blacklist restamp; current whole-loop-contract lane closed |
 
 ### Regression And Control Workloads
 
@@ -101,10 +101,10 @@ than the primary “still slow” blockers.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `number_helper_loop/hot` | `be_helpers` | `0.000113` | `0.002241` | `-0.002128`, `0.05x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
-| `be_pack_loop/hot` | `be_helpers` | `0.000319` | `0.018557` | `-0.018238`, `0.02x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
-| `direct_abs/hot` | `ffi_calls` | `0.000291` | `0.010114` | `-0.009823`, `0.03x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
-| `stored_abs/hot` | `ffi_calls` | `0.000289` | `0.007024` | `-0.006735`, `0.04x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
+| `number_helper_loop/hot` | `be_helpers` | `0.006009` | `0.002288` | `+0.003721`, `2.63x` | `kdz` | `2026-04-10 13:16 PDT` | post-promotion carried-floor kdz restamp; exit-dominated and reopened |
+| `be_pack_loop/hot` | `be_helpers` | `0.022900` | `0.019199` | `+0.003701`, `1.19x` | `kdz` | `2026-04-10 13:16 PDT` | post-promotion carried-floor kdz restamp; exit-dominated and reopened |
+| `direct_abs/hot` | `ffi_calls` | `0.014845` | `0.010261` | `+0.004584`, `1.45x` | `kdz` | `2026-04-10 13:17 PDT` | post-promotion carried-floor kdz restamp; exit-dominated and reopened |
+| `stored_abs/hot` | `ffi_calls` | `0.011611` | `0.006925` | `+0.004686`, `1.68x` | `kdz` | `2026-04-10 13:17 PDT` | post-promotion carried-floor kdz restamp; exit-dominated and reopened |
 | `mix_bits/hot` | `bitops_mix` | `0.000730` | `0.002148` | `-0.001418`, `0.34x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic/bitops control |
 | `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000748` | `0.002107` | `-0.001359`, `0.35x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
 | `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000594` | `0.002025` | `-0.001431`, `0.29x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
@@ -183,24 +183,34 @@ Current localized hotside mechanism carry:
   - `mixed_noffi` remains noisy on `zkd0` and stays a regression screen, not a
     reopened primary target
 
-Current frontier after the retained mixed early proto-NOJIT hotcount park:
+Current frontier after the post-promotion stabilization pass:
 
-- `promotion_core` is broadly green on both hosts and is no longer the active
-  branch-level limiter.
-- `mixed_noffi` is no longer the old `0.012123` carried row. The latest
-  host-pair win cuts it to `kdz 0.004041` / `zkd0 0.005562..0.006232`, while
-  `-joff` remains `0.003734` / `0.004387`.
-- the latest retained host-pair win is in `mixed_noffi`: an exact early
-  proto-NOJIT plus `BC_ITERN` hotcount park after the retained tri-root and
-  post-root abort blacklist floor.
-- `iterator_table` remains near parity and should stay a regression screen
-  unless a fresh, named residual subsystem appears
-- `mixed_ffi` is now near parity and moves to regression-screen status
-- `ffi_cdata` is now near parity and moves to regression-screen status
-- `sum_loop`, `retlast_loop`, and `retconst_loop` are now near/parity under
-  the retained vararg root-FORL blacklists
-- the active engineering frontier is a fresh rerank from the retained matrix,
-  with iterator fallback/runtime attribution the most plausible next seam
+- the ISA lab A3/A1/trace promotion plus the exact `sum_loop` `mcloop=304`
+  restamp remains the carried baseline
+- the first real post-promotion drift was the exact `vararg_paths` sibling
+  root-`BC_FORL` matcher: `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1` now
+  accepts the pre-promotion `mcloop=672/452` shapes and the promoted
+  `mcloop=660/444` shapes
+- `vararg_paths` is back on its carried near/parity floor after that restamp:
+  trusted `kdz` rerun `sum_loop/hot 0.004437`, `retlast_loop/hot 0.001997`,
+  `retconst_loop/hot 0.000598`, with `zkd0` confirmation at
+  `0.005042`, `0.002420`, and `0.000652`
+- `iterator_table` remains near parity on the full carried env floor and
+  stays a regression screen, not the first reopened blocker
+- `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity under
+  the carried floor
+- `dispatch_trace` has been stabilized after its post-promotion collapse with
+  an exact root-`BC_FORL` proto-NOJIT route-around for the three official
+  dispatch protos:
+  - trusted `kdz`: `numeric_loop/hot 0.002170`,
+    `side_exit_loop/hot 0.004557`, `hotexit_loop/hot 0.005522`
+  - trusted `zkd0`: `numeric_loop/hot 0.002530`,
+    `side_exit_loop/hot 0.005002`, `hotexit_loop/hot 0.006005`
+- `be_helpers` and `ffi_calls` are also reopened on trusted `kdz` under the
+  full carried env bundle; the older envless `promotion_core` wins are
+  historical evidence, not the current branch-floor rows
+- the active engineering frontier now moves to the reopened helper/call
+  controls before reopening parked iterator or mixed lanes
 - retained iterator cut:
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
