@@ -25630,3 +25630,69 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       proto-NOJIT hotcount/trace-hot admission.
     - Current practical queue is to look for a genuinely new subsystem rather
       than mutate the already closed iterator route-around lane again.
+
+- 2026-04-10: retained localized hotside carry for helper/route-around
+  experiment rows
+  - The post-rerank sweep found large non-matrix residuals in the localized
+    helper and route-around experiment files, while the stable carried matrix
+    was already near parity:
+    - `be_helpers_localized/number_helper_loop_local_tobit/hot`
+    - `be_helpers_localized/be_pack_loop_local_ops_real/hot`
+    - `promotion_core_static_stop/number_helper_literal_stop_real_local_tobit/hot`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot`
+    - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`
+  - Broad `LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV=1` proved the mechanism but
+    was not retainable because it regressed stable carried rows, especially
+    iterator and `ffi_cdata`.
+  - The retained candidate adds the exact scoped env
+    `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1` in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - the localized hotside matcher is limited to
+      `be_helpers_localized.lua`, `promotion_core_static_stop.lua`, and
+      `route_around_reducers.lua`
+    - the matcher requires `exit=0`, `pc=BC_MOV`, side trace
+      `startop=BC_JMP`, root `startop=BC_FORL`, exact proto line shape, and
+      exact chunk name
+    - a `S390X_PERF_BENCH_FILE` guard and process-cached active check keep the
+      matcher out of non-target stable-matrix rows
+  - Delivered tightened source hash:
+    `9e1e2c094808d547eb28234458763c7b816ce31e374abe933d18906fef00ef97`
+  - Exactness stayed clean on both hosts:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Trusted `kdz` target A/B after the tightened gate:
+    - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
+      `0.337923 -> 0.009042`
+    - `be_helpers_localized/be_pack_loop_local_ops_real/hot`:
+      `0.352360 -> 0.013344`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot`:
+      `2.989597 -> 0.032992`
+    - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
+      `1.922286 -> 0.033094`
+  - Host-pair `zkd0` target A/B:
+    - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
+      `0.705713 -> 0.013471`
+    - `be_helpers_localized/be_pack_loop_local_ops_real/hot`:
+      `0.614358 -> 0.015366`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot`:
+      `3.614130 -> 0.038311`
+    - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
+      `2.340587 -> 0.048359`
+  - Regression screen:
+    - `kdz` non-target pass stayed acceptable after the active-check tighten:
+      `dispatch_trace` and `vararg_paths` were neutral, `iterator_table`
+      recovered from the earlier false-check overhead, and `ffi_cdata` was
+      neutral-to-better in the compact screen
+    - `zkd0 mixed_noffi` remains noisy: one compact pass showed
+      `0.004565 -> 0.005548`, while the denser rerun showed `0.004777` vs
+      `0.004769` in the first pair and `0.005004` vs `0.005423` in the second
+      pair. This is recorded as a regression-screen caveat, not a stable
+      mechanism drift, because the localized active gate is false for
+      `mixed_noffi.lua`.
+  - Classification:
+    - retain the scoped localized hotside carry for the experiment rows.
+    - Do not promote these rows into the stable carried matrix.
+    - Keep `mixed_noffi` parked unless a fresh attribution names a new
+      subsystem; the next search should continue from the remaining
+      near-parity rerank, not from broad hotside canon/share.

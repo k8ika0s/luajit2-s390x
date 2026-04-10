@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-10 08:35 PDT
+Last updated: 2026-04-10 09:50 PDT
 
 ## Canonical Perf Suite
 
@@ -125,13 +125,48 @@ experiment evidence, not top-level progress rows.
 
 | Suite file | Family | Why it is not in the stable matrix |
 | --- | --- | --- |
-| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | localized helper experiments, not a branch-level carry set |
+| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | localized helper experiments; now covered by the env-gated localized hotside carry, but still not a stable matrix row |
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | static-stop mechanism suite |
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | static-stop FFI mechanism suite |
 | [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | narrow experiment-only control |
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | checked-in regression suite, but not currently restamped into the retained carried matrix |
+
+Current localized hotside mechanism carry:
+
+- exact env:
+  - `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`
+- exact scope:
+  - [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua)
+  - [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua)
+  - [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua)
+- trusted `kdz` signal after the tightened bench-file/line-shape gate:
+  - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
+    `0.337923 -> 0.009042`
+  - `be_helpers_localized/be_pack_loop_local_ops_real/hot`:
+    `0.352360 -> 0.013344`
+  - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot`:
+    `2.989597 -> 0.032992`
+  - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
+    `1.922286 -> 0.033094`
+- host-pair `zkd0` signal:
+  - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
+    `0.705713 -> 0.013471`
+  - `be_helpers_localized/be_pack_loop_local_ops_real/hot`:
+    `0.614358 -> 0.015366`
+  - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot`:
+    `3.614130 -> 0.038311`
+  - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
+    `2.340587 -> 0.048359`
+- read:
+  - this restores the localized helper/route-around experiment rows without
+    promoting them into the stable matrix
+  - the implementation is guarded by `S390X_PERF_BENCH_FILE`, exact proto line
+    shape, and chunk-name checks so non-target carried rows should stay on the
+    retained floor
+  - `mixed_noffi` remains noisy on `zkd0` and stays a regression screen, not a
+    reopened primary target
 
 Current frontier after the retained mixed early proto-NOJIT hotcount park:
 

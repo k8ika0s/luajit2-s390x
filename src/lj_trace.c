@@ -33,6 +33,7 @@
 #include "lj_prng.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* -- Error handling ------------------------------------------------------ */
 
@@ -1497,11 +1498,59 @@ static int lj_trace_s390x_hotside_focus_exit(void)
 
 static int lj_trace_s390x_hotside_uget_looproot_enabled(void);
 
+static int lj_trace_s390x_hotside_localized_equiv_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV") != NULL);
+  return enabled;
+}
+
+static int lj_trace_s390x_hotside_localized_name_match(const char *name,
+						       size_t len)
+{
+  static const char be_helpers[] = "tests/s390x/perf/be_helpers_localized.lua";
+  static const char promotion_static[] = "tests/s390x/perf/promotion_core_static_stop.lua";
+  static const char route_around[] = "tests/s390x/perf/route_around_reducers.lua";
+  if (len > 0 && name[0] == '@') {
+    name++;
+    len--;
+  }
+  return (len == sizeof(be_helpers) - 1 &&
+	  memcmp(name, be_helpers, sizeof(be_helpers) - 1) == 0) ||
+	 (len == sizeof(promotion_static) - 1 &&
+	  memcmp(name, promotion_static, sizeof(promotion_static) - 1) == 0) ||
+	 (len == sizeof(route_around) - 1 &&
+	  memcmp(name, route_around, sizeof(route_around) - 1) == 0);
+}
+
+static int lj_trace_s390x_hotside_localized_bench_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *bench_file = getenv("S390X_PERF_BENCH_FILE");
+    enabled = (bench_file == NULL || bench_file[0] == '\0' ||
+	       lj_trace_s390x_hotside_localized_name_match(bench_file,
+							   strlen(bench_file)));
+  }
+  return enabled;
+}
+
+static int lj_trace_s390x_hotside_localized_active_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (lj_trace_s390x_hotside_localized_equiv_enabled() &&
+	       lj_trace_s390x_hotside_localized_bench_enabled());
+  return enabled;
+}
+
 static int lj_trace_s390x_hotside_canon_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
     enabled = (lj_trace_s390x_hotside_uget_looproot_enabled() ||
+	       lj_trace_s390x_hotside_localized_equiv_enabled() ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
@@ -1521,6 +1570,7 @@ static int lj_trace_s390x_hotside_share_equiv_enabled(void)
   static int enabled = -1;
   if (enabled == -1)
     enabled = (lj_trace_s390x_hotside_uget_looproot_enabled() ||
+	       lj_trace_s390x_hotside_localized_equiv_enabled() ||
 	       getenv("LUAJIT_S390X_HOTSIDE_SHARE_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
 	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
@@ -1809,6 +1859,63 @@ static int lj_trace_s390x_hotside_uget_looproot_match(jit_State *J,
 	    (unsigned int)T->nsnap, (unsigned int)T->nchild);
   }
   return rootop == BC_FORL || rootop == BC_FUNCF;
+}
+
+static int lj_trace_s390x_hotside_localized_proto_match(GCproto *pt)
+{
+  GCstr *chunk;
+  if (pt == NULL)
+    return 0;
+  /* Exact reducers only. Keep non-target perf rows out of the hot-side probe. */
+  if (!((pt->firstline == 10 && pt->numline == 7) ||
+	(pt->firstline == 19 && pt->numline == 14) ||
+	(pt->firstline == 12 && pt->numline == 7) ||
+	(pt->firstline == 23 && pt->numline == 16) ||
+	(pt->firstline == 41 && pt->numline == 16)))
+    return 0;
+  chunk = proto_chunkname(pt);
+  if (chunk == NULL)
+    return 0;
+  return lj_trace_s390x_hotside_localized_name_match(strdata(chunk),
+						     chunk->len);
+}
+
+static int lj_trace_s390x_hotside_localized_equiv_match(jit_State *J,
+							const BCIns *pc,
+							GCtrace *T,
+							ExitNo exitno,
+							SnapShot *snap)
+{
+  TraceNo rootno;
+  GCtrace *root;
+  GCproto *pt;
+  if (!(LJ_TARGET_S390X &&
+	lj_trace_s390x_hotside_localized_active_enabled() &&
+	pc != NULL && T != NULL && snap != NULL &&
+	exitno == 0 && bc_op(*pc) == BC_MOV &&
+	bc_op(T->startins) == BC_JMP &&
+	isluafunc(curr_func(J->L))))
+    return 0;
+  pt = curr_proto(J->L);
+  if (!lj_trace_s390x_hotside_localized_proto_match(pt))
+    return 0;
+  rootno = T->root ? T->root : T->traceno;
+  root = traceref(J, rootno);
+  if (root == NULL || bc_op(root->startins) != BC_FORL)
+    return 0;
+  if (lj_trace_s390x_hotside_match_log_enabled()) {
+    fprintf(stderr,
+	    "S390X_HOTSIDE_LOCALIZED_MATCH parent=%u exit=%u root=%u pc=%p op=%u startop=%u root_startop=%u linktype=%u link=%u nsnap=%u nchild=%u firstline=%u numline=%u\n",
+	    (unsigned int)J->parent, (unsigned int)exitno,
+	    (unsigned int)rootno,
+	    (const void *)pc, (unsigned int)bc_op(*pc),
+	    (unsigned int)bc_op(T->startins),
+	    (unsigned int)bc_op(root->startins),
+	    (unsigned int)T->linktype, (unsigned int)T->link,
+	    (unsigned int)T->nsnap, (unsigned int)T->nchild,
+	    (unsigned int)pt->firstline, (unsigned int)pt->numline);
+  }
+  return 1;
 }
 
 static int lj_trace_s390x_hotside_try_canon(jit_State *J, const BCIns *pc,
@@ -4061,7 +4168,11 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
   int scoped_hotside_ok = lj_trace_s390x_hotside_uget_looproot_match(J, pc, T,
 								       J->exitno,
 								       snap);
+  int localized_hotside_ok = lj_trace_s390x_hotside_localized_active_enabled() ?
+    lj_trace_s390x_hotside_localized_equiv_match(J, pc, T, J->exitno, snap) :
+    0;
   int allow_general_hotside = (scoped_hotside_ok ||
+			       localized_hotside_ok ||
 			       lj_trace_s390x_hotside_manual_equiv_enabled());
   if (lj_trace_s390x_hotside_focus_enabled() &&
       (lj_trace_s390x_hotside_focus_parent() < 0 ||
