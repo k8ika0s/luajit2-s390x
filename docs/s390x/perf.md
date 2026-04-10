@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-09 21:37 PDT
+Last updated: 2026-04-09 21:53 PDT
 
 ## Canonical Perf Suite
 
@@ -20,7 +20,7 @@ enough for retained policy rows.
 | --- | --- | --- | --- |
 | [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback; now near parity and a regression screen |
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | carried mixed red row; current lane exhausted |
-| [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win; now a regression screen |
+| [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win plus exact root-FORL proto-NOJIT fallback; now near parity and a regression screen |
 | [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | primary `promotion_core` controls |
 | [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua) | `ffi_calls` | `direct_abs`, `stored_abs` | recurring FFI throughput controls |
 | [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua) | `bitops_mix` | `mix_bits` | helper-light logic/bitops control |
@@ -57,7 +57,7 @@ number is ugly.
 | `pairs_sum/hot` | `iterator_table` | `0.004708` | `0.004135` | `+0.000573`, `1.14x` | `kdz` | `2026-04-09 21:37 PDT` | retained exact root-ITERN proto-NOJIT fast fallback; host-pair clean |
 | `pairs_array_sum/hot` | `iterator_table` | `0.004269` | `0.003651` | `+0.000618`, `1.17x` | `kdz` | `2026-04-09 21:37 PDT` | retained exact root-ITERN proto-NOJIT fast fallback; near parity |
 | `mixed_loop/hot` | `mixed_noffi` | `0.012123` | `0.003734` | `+0.008389`, `3.25x` | `kdz` | `2026-04-08 14:31 PDT` | retained `lj_vm_next` KEYINDEX base-reuse win; carried red row, current lane exhausted |
-| `mixed_ffi_loop/hot` | `mixed_ffi` | `0.017600` | `0.012404` | `+0.005196`, `1.42x` | `kdz` | `2026-04-09 15:36 PDT` | retained exact post-stitch save-time `BC_TGETB` DONE win; now a regression screen |
+| `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
 | `number_helper_loop/hot` | `be_helpers` | `0.000113` | `0.002241` | `-0.002128`, `0.05x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
 | `be_pack_loop/hot` | `be_helpers` | `0.000319` | `0.018557` | `-0.018238`, `0.02x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
 | `direct_abs/hot` | `ffi_calls` | `0.000291` | `0.010114` | `-0.009823`, `0.03x` | `kdz` | `2026-04-04 08:52 PDT` | envless `promotion_core` win |
@@ -133,17 +133,19 @@ experiment evidence, not top-level progress rows.
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | checked-in regression suite, but not currently restamped into the retained carried matrix |
 
-Current frontier after the retained `iterator_table` root-ITERN proto-NOJIT win:
+Current frontier after the retained `mixed_ffi` root-FORL proto-NOJIT win:
 
 - `promotion_core` is broadly green on both hosts and is no longer the active
   branch-level limiter.
 - `mixed_noffi` remains a carried red row, but the lane is now explicitly
   exhausted on the current retained floor after one fresh, correctly
   attributed runtime-handoff attempt.
-- the latest retained host-pair win is still in `iterator_table`
+- the latest retained host-pair win is in `mixed_ffi`
 - `iterator_table` is now near parity and should move to regression-screen
   status unless a fresh, named residual subsystem appears
-- the active engineering frontier reranks to `mixed_ffi`, then `ffi_cdata`
+- `mixed_ffi` is now near parity and moves to regression-screen status
+- the active engineering frontier reranks to `ffi_cdata`, unless a fresh
+  subsystem is attributed first
 - retained iterator cut:
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
@@ -183,6 +185,21 @@ Current frontier after the retained `iterator_table` root-ITERN proto-NOJIT win:
   - exact mechanism: one `S390X_MIXED_FFI_POST_STITCH_SAVE_DONE` marker at
     `trace=102 parent=101 exit=0 root=1 linktype=LJ_TRLINK_INTERP`
   - `mixed_noffi` marker count stays `0`; guardrail A/B is neutral overall
+- the second `mixed_ffi` route-around cut is retained:
+  - exact env:
+    - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
+  - exact mechanism:
+    - in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c), when the official root trace is
+      `@tests/s390x/perf/mixed_ffi.lua`, `trace=1`, `parent=0`, `exit=0`,
+      `startop=BC_FORL`, `linktype=LJ_TRLINK_STITCH`, `topslot=14`,
+      `spadjust=192`, `nsnap=4`, `nins=32822`, set `PROTO_NOJIT`
+    - this collapses the remaining root/stitch ladder to the interpreter-speed
+      path instead of saving the 100-trace stitched chain
+  - host-pair result:
+    - `kdz`: candidate rerun `mixed_ffi_loop/hot 0.012178`; immediate
+      disabled-env control `0.018412`
+    - `zkd0`: candidate rerun `mixed_ffi_loop/hot 0.013641`; immediate
+      disabled-env control `0.019946`
 - the first `ffi_cdata` save-time cut is retained:
   - exact env:
     - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -280,6 +297,7 @@ Current frontier after the retained `iterator_table` root-ITERN proto-NOJIT win:
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
+  - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
@@ -369,8 +387,9 @@ Current frontier after the retained `iterator_table` root-ITERN proto-NOJIT win:
   - the branch is still materially behind `-joff`, so `mixed_noffi` remains a
     documented carried red row
   - but the current retained `mixed_noffi` lane is explicitly exhausted
-  - the next active blocker is now `iterator_table`, with `mixed_ffi` and
-    `ffi_cdata` retained as regression screens
+  - after the later retained iterator and mixed-ffi wins, the next active
+    blocker is now `ffi_cdata`; `iterator_table` and `mixed_ffi` are retained
+    regression screens unless fresh attribution reopens them
 
 ## Chronological Log
 

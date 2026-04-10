@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-09 21:37 PDT
+Last updated: 2026-04-09 21:53 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -12,9 +12,9 @@ It is intentionally current-state only. Historical experiment detail lives in
   `-joff` on both `kdz` and `zkd0`.
 - `mixed_noffi` remains a carried red row, but its current runtime lane is now
   explicitly exhausted on the retained floor.
-- The latest retained host-pair win is in `iterator_table`; that row is now
-  near parity and the active queue reranks to `mixed_ffi`, then `ffi_cdata`,
-  unless a fresh iterator subsystem is first attributed.
+- The latest retained host-pair win is in `mixed_ffi`; that row is now near
+  parity after exact root-FORL proto-NOJIT fallback, and the active queue
+  reranks to `ffi_cdata` unless a fresh subsystem is first attributed.
 - Fresh retained `sum_loop` host-pair win on rebuilt mirrors:
   - `kdz`
     - `sum_loop/hot 0.018707` vs `-joff 0.004722`
@@ -131,7 +131,7 @@ It is intentionally current-state only. Historical experiment detail lives in
     - then, for those exact root `BC_ITERN` traces only, set `PROTO_NOJIT`
       instead of taking the generic `ITERC` fallback so the steady-state path
       stays on fast `ITERN`
-- Retained `mixed_ffi` win:
+- Retained `mixed_ffi` wins:
   - exact cut in
     [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
     `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
@@ -145,6 +145,21 @@ It is intentionally current-state only. Historical experiment detail lives in
       `0.044956` and `0.044900`
     - `zkd0`: candidate examples `0.026970` and `0.023683` against immediate
       controls `0.056937` and `0.085072`
+  - exact follow-up cut in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
+  - mechanism:
+    - on the official root trace only, match
+      `@tests/s390x/perf/mixed_ffi.lua`, `trace=1`, `parent=0`, `exit=0`,
+      `startop=BC_FORL`, `linktype=LJ_TRLINK_STITCH`, `topslot=14`,
+      `spadjust=192`, `nsnap=4`, `nins=32822`
+    - set `PROTO_NOJIT` to avoid the remaining 100-trace stitched chain and
+      keep the row on the interpreter-speed path
+  - host-pair result:
+    - `kdz`: candidate rerun `mixed_ffi_loop/hot 0.012178` against immediate
+      disabled-env control `0.018412`
+    - `zkd0`: candidate rerun `mixed_ffi_loop/hot 0.013641` against immediate
+      disabled-env control `0.019946`
 - Retained `ffi_cdata` win:
   - exact cut in
     [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
@@ -179,6 +194,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
+  - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
@@ -311,7 +327,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   root-ITERN proto-NOJIT fallback moved both hot rows into the near-parity band.
 - The current retained mixed floor has not been brought to parity, but the
   present runtime-handoff lane is explicitly exhausted.
-- The next active queue reranks to `mixed_ffi`, then `ffi_cdata`; `sum_loop`,
+- The next active queue reranks to `ffi_cdata`; `mixed_ffi`, `sum_loop`,
   `mixed_noffi`, and `iterator_table` should only re-enter after fresh
   attribution of a new subsystem.
 
@@ -392,19 +408,19 @@ interpretation.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the latest retained host-pair win is in `iterator_table`
+- the latest retained host-pair win is in `mixed_ffi`
 - `iterator_table` is now near parity after the root-ITERN proto-NOJIT fallback
+- `mixed_ffi` is now near parity after exact root-FORL proto-NOJIT fallback
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
   closed as non-engaging on the official hot row
 - the inner `sum(...)` callee runtime trace family is closed for the current
   whole-loop-contract lane, so `sum_loop` is parked as a carried red row
 
-### After The Iterator Step
+### After The Mixed-Ffi Step
 
 - Burn down the remaining red rows in this order:
-  1. `mixed_ffi`
-  2. `ffi_cdata`
-  3. later re-entry to `iterator_table`, `vararg_paths/sum_loop`, or `mixed_noffi` only if a
+  1. `ffi_cdata`
+  2. later re-entry to `mixed_ffi`, `iterator_table`, `vararg_paths/sum_loop`, or `mixed_noffi` only if a
      newly attributed subsystem appears
 
 ## Where To Look Next

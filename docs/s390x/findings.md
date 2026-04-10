@@ -18,9 +18,9 @@ read.
   a later change regresses the retained floor.
 - `mixed_noffi` and `vararg_paths/sum_loop` remain carried red rows, but their
   current attributed lanes are exhausted on the retained floor.
-- The latest retained host-pair win is in `iterator_table`; that row is now
-  near parity, so the active queue reranks to `mixed_ffi`, then `ffi_cdata`,
-  unless a fresh iterator subsystem is first attributed.
+- The latest retained host-pair win is in `mixed_ffi`; that row is now near
+  parity after exact root-FORL proto-NOJIT fallback, so the active queue
+  reranks to `ffi_cdata` unless a fresh subsystem is first attributed.
 - The retained exact branch control now carries:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -32,6 +32,7 @@ read.
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
+  - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
@@ -57,8 +58,8 @@ read.
     exact official root `BC_ITERN` trace family, preserving fast `ITERN`
     steady-state execution and suppressing further trace attempts.
 - Next queue:
-  - rerank to `mixed_ffi`, then `ffi_cdata`
-  - re-enter `iterator_table`, `sum_loop`, or `mixed_noffi` only if a fresh
+  - rerank to `ffi_cdata`
+  - re-enter `mixed_ffi`, `iterator_table`, `sum_loop`, or `mixed_noffi` only if a fresh
     attribution names a new subsystem
 
 ## Harness Status
@@ -24663,3 +24664,85 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       and `0.003651`.
     - next active queue should rerank to `mixed_ffi`, then `ffi_cdata`, unless
       a fresh attribution names a new iterator subsystem.
+
+- 2026-04-09: `mixed_ffi` exact root `BC_FORL` proto-NOJIT retained
+  - Fresh post-iterator attribution reopened the official
+    [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua)
+    hot row after the retained post-stitch save-time cut:
+    - the existing retained `S390X_MIXED_FFI_POST_STITCH_SAVE_DONE` marker
+      fired exactly once at `trace=102 parent=101 exit=0`
+    - the remaining row still built a 100-trace stitched ladder before that
+      seam:
+      `trace=1 parent=0 exit=0 startop=BC_FORL linktype=LJ_TRLINK_STITCH nsnap=4 nins=32822`,
+      then repeated `BC_JMP` stitched children through `trace=101`
+    - the first post-DONE follow-on in the logging run was a separate
+      `BC_FUNCF` / `LJ_TRLINK_RETURN` family and not the target of this cut
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()` root `BC_FORL` case
+    - exact matcher:
+      - chunk `@tests/s390x/perf/mixed_ffi.lua`
+      - `trace=1`, `parent=0`, `exit=0`, `root=0`
+      - `startop=BC_FORL`, `link=0`, `linktype=LJ_TRLINK_STITCH`
+      - `topslot=14`, `spadjust=192`, `nsnap=4`, `nins=32822`,
+        `mcloop=0`
+    - exact mechanism:
+      - set `PROTO_NOJIT` for only that official root trace before the
+        `BC_FORL` root patching path
+      - leave the retained post-stitch save-time DONE cut in place, but bypass
+        the upstream stitched ladder before it forms
+      - mechanism smoke on `kdz` showed exactly one marker and no downstream
+        post-stitch save-DONE marker:
+        `S390X_MIXED_FFI_FORL_PROTO_NOJIT trace=1 startop=79 link=0 linktype=8 nsnap=4 nins=32822 mcloop=0`
+  - `kdz` gates:
+    - delivered source hash:
+      `0359c2fa386821937f111465024ba6a260cf48b82c4b105527843a9ef7aa5443`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `mixed_ffi_loop/hot 0.012507`
+      - immediate disabled-env control:
+        - `mixed_ffi_loop/hot 0.018412`
+      - candidate rerun:
+        - `mixed_ffi_loop/hot 0.012178`
+    - same-binary `-joff` read before the candidate was
+      `mixed_ffi_loop/hot 0.012168`, so the row is effectively at parity
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `0359c2fa386821937f111465024ba6a260cf48b82c4b105527843a9ef7aa5443`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `mixed_ffi_loop/hot 0.013479`
+      - immediate disabled-env control:
+        - `mixed_ffi_loop/hot 0.019946`
+      - candidate rerun:
+        - `mixed_ffi_loop/hot 0.013641`
+  - Regression screen:
+    - compact `kdz` retained bundle with the new flag:
+      - `dispatch_trace/numeric_loop/hot 0.013876`
+      - `dispatch_trace/side_exit_loop/hot 0.017273`
+      - `dispatch_trace/hotexit_loop/hot 0.134059`
+      - `vararg_paths/sum_loop/hot 0.018885`
+      - `vararg_paths/retlast_loop/hot 0.003188`
+      - `vararg_paths/retconst_loop/hot 0.001747`
+      - `mixed_noffi/mixed_loop/hot 0.043078`
+      - `iterator_table/pairs_sum/hot 0.004875`
+      - `iterator_table/pairs_array_sum/hot 0.004585`
+      - `ffi_cdata/pair_loop/hot 0.023284`
+      - `ffi_cdata/mixed_width_loop/hot 0.027514`
+  - Classification:
+    - retain the exact root `BC_FORL` proto-NOJIT fallback win.
+    - `mixed_ffi` is now near parity on trusted `kdz`, moving from active
+      queue back to regression-screen status.
+    - the next active queue reranks to `ffi_cdata`, unless fresh attribution
+      names a new higher-priority subsystem.
