@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 06:56 PDT
+Last updated: 2026-04-10 07:16 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -10,22 +10,22 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 - The envless first-enable `promotion_core` slice is now on the right side of
   `-joff` on both `kdz` and `zkd0`.
-- The latest retained host-pair win is in `iterator_table`: an exact
-  array-side root-ITERN proto-NOJIT hotcount park in
+- The latest retained host-pair win is in `mixed_noffi`: an exact post-root
+  `BC_ITERL` LLEAVE-abort blacklist in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-  keeps `pairs_array_sum` on the fast `ITERN` fallback while suppressing the
-  recurring proto-NOJIT trace-start churn.
-- The latest retained `mixed_noffi` win remains an exact tri-root
+  cuts the residual trace-4 root abort churn exposed after the tri-root
+  blacklist floor.
+- The retained `mixed_noffi` floor now combines the exact tri-root
   route-around in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-  blacklists the root `BC_ITERL`, root `BC_ITERN`, and stitched root `BC_FORL`
-  families exposed on the official hot row.
+  for the root `BC_ITERL`, root `BC_ITERN`, and stitched root `BC_FORL`
+  families with the exact post-root `BC_ITERL` abort blacklist.
 - `mixed_noffi` is no longer the old `0.012123` carried row. It is still
   slightly behind `-joff`, so the next active queue is fresh attribution of
   the remaining small residual, not a return to the closed helper/recorder
   lanes.
 - Current retained `mixed_noffi` host-pair rows on rebuilt mirrors:
-  - `kdz`: `mixed_loop/hot 0.005129` vs `-joff 0.003734`
-  - `zkd0`: `mixed_loop/hot 0.008931` then `0.010174` vs `-joff 0.004387`
+  - `kdz`: `mixed_loop/hot 0.005083` vs `-joff 0.003734`
+  - `zkd0`: `mixed_loop/hot 0.008970` then `0.006745` vs `-joff 0.004387`
 - The latest retained `vararg_paths` host-pair win remains the exact sibling
   root-FORL blacklist, which keeps `retlast_loop` and `retconst_loop` near
   parity alongside `sum_loop`.
@@ -282,14 +282,15 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the retained root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
   - the retained `lj_vm_next` KEYINDEX base-reuse cut in
     [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
 - Current authoritative deterministic host-pair restamp:
-  - `kdz`: `mixed_noffi/mixed_loop/hot 0.005129` vs `-joff 0.003734`
-  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.008931` then `0.010174` vs `-joff 0.004387`
+  - `kdz`: `mixed_noffi/mixed_loop/hot 0.005083` vs `-joff 0.003734`
+  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.008970` then `0.006745` vs `-joff 0.004387`
 - Exactness still holds on both hosts:
   - `/tmp/mixedprobe.lua -> RESULT 553416`
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
@@ -308,8 +309,8 @@ It is intentionally current-state only. Historical experiment detail lives in
 - Focused mechanism shape on trusted `kdz` is now tighter than the older
   recorder-side frontier:
   - the retained mixed floor is now:
-    - `kdz mixed_loop/hot 0.005129`
-    - `zkd0 mixed_loop/hot 0.008931` then `0.010174`
+    - `kdz mixed_loop/hot 0.005083`
+    - `zkd0 mixed_loop/hot 0.008970` then `0.006745`
   - the direct recorder-side `sidecheck_interp` / nil-descendant shaping
     tranche is exhausted as a profitable local edit surface
   - refreshed retained-floor mixed attribution on `kdz` still points to the
@@ -407,7 +408,7 @@ It is intentionally current-state only. Historical experiment detail lives in
     - retained host-pair result before the tri-root route-around:
       - `kdz mixed_loop/hot 0.012123`
       - `zkd0 mixed_loop/hot 0.014944`
-  - the latest retained mixed gain is the exact tri-root blacklist in
+  - the previous retained mixed gain is the exact tri-root blacklist in
     [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
     - `BC_ITERL` root: `trace=1 startop=82 link=1 linktype=2 nsnap=2 nins=32792 mcloop=360`
     - `BC_ITERN` root: `trace=2 startop=70 link=2 linktype=2 nsnap=6 nins=32785 mcloop=208`
@@ -415,6 +416,13 @@ It is intentionally current-state only. Historical experiment detail lives in
     - retained host-pair result:
       - `kdz mixed_loop/hot 0.005129`
       - `zkd0 mixed_loop/hot 0.008931` then `0.010174`
+  - the latest retained mixed gain is the exact post-root `BC_ITERL`
+    LLEAVE-abort blacklist in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - `trace=4 parent=0 exit=0 root=0 startop=BC_ITERL pc=BC_IFORL`
+    - retained host-pair result:
+      - `kdz mixed_loop/hot 0.005083`
+      - `zkd0 mixed_loop/hot 0.008970` then `0.006745`
 
 ## What Has Not Been Proven Yet
 
@@ -478,20 +486,21 @@ Any future `mixed_noffi` experiment must beat these numbers and preserve their
 interpretation.
 
 - retained mixed row:
-  - `kdz`: `mixed_noffi/mixed_loop/hot 0.005129`
-  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.008931` then `0.010174`
+  - `kdz`: `mixed_noffi/mixed_loop/hot 0.005083`
+  - `zkd0`: `mixed_noffi/mixed_loop/hot 0.008970` then `0.006745`
 - exactness gates:
   - `/tmp/mixedprobe.lua -> RESULT 553416`
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
   - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
 - focused retained mechanism guard on `kdz`:
   - `TRACE_META_STOP 3`
-  - `TRACE_ABORT 11`
-  - `RECSTOP 20`
+  - `TRACE_ABORT 4`
+  - `RECSTOP 9`
   - exactly one marker each for:
     - `S390X_MIXED_NOFFI_ITERL_BLACKLIST`
     - `S390X_MIXED_NOFFI_ITERN_BLACKLIST`
     - `S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST`
+    - `S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST`
 - focused root-1 guardrail on `kdz`:
   - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
   - `TRACE_START 5`
@@ -503,14 +512,14 @@ interpretation.
 ### Now
 
 - `promotion_core` is broadly green and out of the leading slot.
-- `iterator_table` is the latest retained host-pair win after the array-side
-  root-ITERN proto-NOJIT hotcount park.
-- `mixed_noffi` remains a small residual to re-attribute if it becomes the
-  active queue again.
+- `mixed_noffi` is the latest retained host-pair win after the exact
+  post-root `BC_ITERL` LLEAVE-abort blacklist.
+- `mixed_noffi` remains a small residual to re-attribute against the
+  near-parity iterator hash row.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the latest retained host-pair win is in `iterator_table`
+- the latest retained host-pair win is in `mixed_noffi`
 - `iterator_table` is now near parity after the root-ITERN proto-NOJIT
   fallback and array-side hotcount park
 - `mixed_ffi` is now near parity after exact root-FORL proto-NOJIT fallback
@@ -521,7 +530,7 @@ interpretation.
   retained root-FORL blacklists now move `sum_loop`, `retlast_loop`, and
   `retconst_loop` to near/parity
 
-### After The Iterator Array Hotcount Park
+### After The Mixed Abort Blacklist
 
 - Burn down the remaining red rows in this order:
   1. fresh rerank from the retained matrix, with `mixed_noffi` and the
