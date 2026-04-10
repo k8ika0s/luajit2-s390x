@@ -26138,3 +26138,223 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - The next honest attribution frontier moves back to the remaining
       near-parity carried rows, with `iterator_table` as the default next
       target unless a fresh rerank names a larger payer.
+
+- 2026-04-10: closed iterator `BC_ITERN` hot fast-return as exact but
+  non-retainable
+  - Restamped the retained iterator truth-pack environment so
+    [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+    carries the current post-promotion floor:
+    - `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
+    - `LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK=1`
+    - `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST=1`
+    - `LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT=1`
+    - `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`
+    - `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT=1`
+    - `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`
+  - Fresh `kdz` retained iterator truth-pack:
+    - summary:
+      `/tmp/s390x-truth-packs/20260410-kdz-iterator-current-truth-pack/summary.md`
+    - official rows:
+      - `pairs_sum/hot`: JIT `0.004509`, `-joff 0.004267`
+      - `pairs_array_sum/hot`: JIT `0.004048`, `-joff 0.004079`
+    - focused reducer rows remain red, but those reducer chunks do not hit the
+      official chunk-locked retained route-arounds:
+      - `hash_value/hot`: JIT `0.116675`, `-joff 0.005409`
+      - `hash_key/hot`: JIT `0.081425`, `-joff 0.003893`
+      - `array_value/hot`: JIT `0.116365`, `-joff 0.003678`
+  - Official-row focused meta logging showed repeated retained
+    `BC_ITERN` proto-NOJIT hotcount parks on the hash-side proto:
+    `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK ... firstline=12 numline=8`.
+    The candidate tested whether avoiding the remaining
+    `lj_trace_hot()` -> `trace_start()` path for already-parked iterator
+    protos would reduce the official row.
+  - Candidate:
+    `LUAJIT_S390X_ITERATOR_ITERN_NOJIT_HOT_FASTRETURN=1`
+    - exact matcher only for `@tests/s390x/perf/iterator_table.lua`
+    - required an already `PROTO_NOJIT` iterator proto at `BC_ITERN`
+    - matched only the retained hash-side `firstline=12 numline=8` and
+      array-side `firstline=22 numline=8` route-around protos
+    - in `lj_trace_hot()`, re-parked the hotcount and returned before the
+      normal trace-start path
+  - Mechanism and exactness on `kdz`:
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - mechanism fired `456` times in the focused official iterator meta run
+  - Dense `kdz` same-binary A/B closed the candidate:
+    - candidate run 1:
+      `pairs_sum/hot 0.004540`,
+      `pairs_array_sum/hot 0.004025`
+    - immediate control:
+      `pairs_sum/hot 0.004543`,
+      `pairs_array_sum/hot 0.004004`
+    - candidate run 2:
+      `pairs_sum/hot 0.004540`,
+      `pairs_array_sum/hot 0.004057`
+  - Classification:
+    - do not retain `ITERATOR_ITERN_NOJIT_HOT_FASTRETURN`.
+    - the remaining official iterator cost is not primarily the extra
+      `lj_trace_hot()` / `trace_start()` control transfer on already-parked
+      `BC_ITERN` protos.
+    - keep the iterator truth-pack retained-env restamp, then rerank the
+      current post-promotion floor before opening the next subsystem.
+
+- 2026-04-10: closed two lower iterator `BC_ITERN` no-JIT follow-ons
+  - Current `kdz` rerank after removing the failed fast-return source
+    experiment kept `iterator_table` as the largest official red row:
+    - `pairs_sum/hot`: JIT `0.005318`, `-joff 0.004224`
+    - `pairs_array_sum/hot`: JIT `0.004027`, `-joff 0.003702`
+    - next rows were smaller:
+      `ffi_cdata/pair_loop/hot 0.018413` vs `0.017281`,
+      `mixed_noffi/mixed_loop/hot 0.004123` vs `0.004004`,
+      `mixed_ffi/mixed_ffi_loop/hot 0.012241` vs `0.012122`
+  - Official-row attribution on
+    `@tests/s390x/perf/iterator_table.lua` showed:
+    - two exact root `BC_ITERN` saves:
+      `firstline=12 numline=8 nsnap=6 nins=32785 mcloop=208` and
+      `firstline=22 numline=8 nsnap=6 nins=32792 mcloop=300`
+    - no steady `TRACE_START`, `TRACE_STOP`, `TRACE_ABORT`, `JLOOP_EXIT`, or
+      `EXIT_LOG` events in the sampled official row after the retained floor
+      engaged
+    - `456` retained `ITERN_NOJIT_HOTCOUNT_PARK` events
+  - Existing `BC_ITERN` blacklist path recheck:
+    - simulated by removing `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT` while
+      keeping the retained `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1` path
+    - result was materially worse:
+      `pairs_sum/hot 0.011295`,
+      `pairs_array_sum/hot 0.008191`
+    - immediate retained proto-NOJIT control:
+      `pairs_sum/hot 0.005408`,
+      `pairs_array_sum/hot 0.003959`
+    - classification:
+      keep the old `BC_ITERC` fallback / blacklist lane closed.
+  - VM-side `BC_ITERN` `PROTO_NOJIT` hotcheck-skip candidate:
+    - attempted a narrow interpreter-path counterpart to the retained
+      proto-NOJIT route-around by skipping `hotloop` in
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+      when the current proto already carried `PROTO_NOJIT`
+    - the first draft used the wrong base (`KBASE`, which is the constants
+      base); the corrected draft used the existing `PC2PROTO(...)-4(PC)`
+      pattern
+    - exactness stayed clean, but the candidate was slower and did not drop
+      the official `ITERN_NOJIT_HOTCOUNT_PARK` count:
+      - `pairs_sum/hot 0.004822`
+      - `pairs_array_sum/hot 0.004433`
+      - `ITERN_NOJIT_HOTCOUNT_PARK 456`
+    - classification:
+      do not retain the VM-side `BC_ITERN` proto-flag hotcheck-skip.
+      The direct `BC_ITERN` hotcount/no-JIT suppression lane is now closed
+      unless a new mechanism proves a different interrupt source.
+
+- 2026-04-10: closed global `BC_ITERN` non-hot dispatch as hash-regressive
+  - Candidate:
+    `LUAJIT_S390X_ITERN_DISPATCH_NOHOT=1`
+    - in [src/lj_dispatch.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_dispatch.c),
+      route `BC_ITERN` to the existing non-hot `lj_vm_IITERN` dispatch target
+      while JIT is on
+    - this preserves the `ITERN` VM body and avoids the bad `BC_ITERC`
+      bytecode rewrite
+  - Mechanism:
+    - `ITERN_NOJIT_HOTCOUNT_PARK` dropped to `0`
+    - `S390X_ITERATOR_ITERN_PROTO_NOJIT` dropped to `0`
+  - Exactness stayed clean on `kdz`:
+    `/tmp/mixedprobe.lua -> RESULT 553416`,
+    `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+    `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Same-binary `kdz` A/B:
+    - candidate:
+      `pairs_sum/hot 0.009470`,
+      `pairs_array_sum/hot 0.003668`
+    - retained control:
+      `pairs_sum/hot 0.004428`,
+      `pairs_array_sum/hot 0.003948`
+  - Classification:
+    - do not retain global non-hot `BC_ITERN` dispatch.
+    - the array row benefits from suppressing all `ITERN` tracing, but the
+      hash row still depends on the retained `BC_ITERN` root/proto-NOJIT
+      path. A global dispatch cut is the wrong shape for `pairs_sum`.
+
+- 2026-04-10: retained post-promotion `ffi_cdata` root-`BC_FORL` blacklist
+  restamp
+  - Fresh `ffi_cdata` attribution after closing the direct iterator control
+    lane found exact matcher drift, not a new runtime seam:
+    - the official pair-loop root remained the retained root `BC_FORL` family
+    - current shape:
+      `@tests/s390x/perf/ffi_cdata.lua`, `trace=1`, `parent=0`, `exit=0`,
+      `startop=BC_FORL`, `link=1`, `linktype=LJ_TRLINK_LOOP`, `topslot=9`,
+      `spadjust=8`, `nsnap=7`, `nins=32798`, `mcloop=316`
+    - the carried matcher still required `mcloop=324`, so
+      `S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` did not fire
+  - Retained code change in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - accept both exact carried shapes:
+      `mcloop=324` and post-promotion `mcloop=316`
+    - keep the same chunk, root trace, `BC_FORL`, `linktype=LOOP`,
+      `topslot`, `spadjust`, `nsnap`, and `nins` constraints
+  - Mechanism:
+    - `S390X_FFI_CDATA_PAIR_FORL_BLACKLIST trace=1 ... nsnap=7 nins=32798 mcloop=316`
+      fired once on both `kdz` and `zkd0`
+  - Exactness:
+    - `kdz` and `zkd0` both kept:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `kdz` same-binary A/B:
+    - first pass:
+      - candidate:
+        `pair_loop/hot 0.017601`,
+        `mixed_width_loop/hot 0.028525`
+      - immediate disabled-env control:
+        `pair_loop/hot 0.018969`,
+        `mixed_width_loop/hot 0.028448`
+    - denser pass:
+      - candidate:
+        `pair_loop/hot 0.017076`,
+        `mixed_width_loop/hot 0.028024`
+      - immediate disabled-env control:
+        `pair_loop/hot 0.018889`,
+        `mixed_width_loop/hot 0.029066`
+      - candidate rerun:
+        `pair_loop/hot 0.018191`,
+        `mixed_width_loop/hot 0.029505`
+  - `zkd0` confirmation:
+    - first pass:
+      - candidate:
+        `pair_loop/hot 0.019886`,
+        `mixed_width_loop/hot 0.034900`
+      - immediate disabled-env control:
+        `pair_loop/hot 0.021404`,
+        `mixed_width_loop/hot 0.032126`
+    - denser pass:
+      - candidate:
+        `pair_loop/hot 0.019347`,
+        `mixed_width_loop/hot 0.033257`
+      - immediate disabled-env control:
+        `pair_loop/hot 0.021285`,
+        `mixed_width_loop/hot 0.047224`
+      - candidate rerun:
+        `pair_loop/hot 0.019886`,
+        `mixed_width_loop/hot 0.032226`
+  - `kdz` regression screen under the retained floor:
+    - `dispatch_trace` remained near parity:
+      `numeric_loop/hot 0.002160`,
+      `side_exit_loop/hot 0.004606`,
+      `hotexit_loop/hot 0.005583`
+    - `iterator_table` remained the known red/near-parity frontier:
+      `pairs_sum/hot 0.005508`,
+      `pairs_array_sum/hot 0.004266`
+    - `mixed_noffi/mixed_loop/hot 0.004112`
+    - `mixed_ffi/mixed_ffi_loop/hot 0.012640`
+    - `vararg_paths` stayed on the retained floor:
+      `sum_loop/hot 0.004614`,
+      `retlast_loop/hot 0.002042`,
+      `retconst_loop/hot 0.000616`
+    - `ffi_cdata` retained row:
+      `pair_loop/hot 0.017430`,
+      `mixed_width_loop/hot 0.028568`
+  - Classification:
+    - retain the exact post-promotion `ffi_cdata` `mcloop=316` restamp.
+    - this is a matcher-drift repair, not a new runtime subsystem.
+    - the direct iterator `BC_ITERN` suppression lane remains closed; the
+      next frontier should be reranked from the current retained matrix.

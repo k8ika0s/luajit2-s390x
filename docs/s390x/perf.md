@@ -68,8 +68,8 @@ number is ugly.
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; host-pair clean and slightly faster than `-joff` on kdz |
 | `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; restored the promoted carried floor to near/parity |
-| `pair_loop/hot` | `ffi_cdata` | `0.017097` | `0.017319` | `-0.000222`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | retained exact root-`BC_FORL` blacklist after the save-time DONE cut; near parity |
-| `mixed_width_loop/hot` | `ffi_cdata` | `0.027798` | `0.027969` | `-0.000171`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | sibling under the retained pair-loop root blacklist; near parity |
+| `pair_loop/hot` | `ffi_cdata` | `0.017076` | `0.017281` | `-0.000205`, `0.99x` | `kdz` | `2026-04-10 16:43 PDT` | post-promotion exact root-`BC_FORL` blacklist restamp for `mcloop=316`; host-pair clean |
+| `mixed_width_loop/hot` | `ffi_cdata` | `0.028024` | `0.028030` | `-0.000006`, `1.00x` | `kdz` | `2026-04-10 16:43 PDT` | sibling under the retained pair-loop restamp; noisy but host-pair clean |
 | `sum_loop/hot` | `vararg_paths` | `0.004437` | `0.004789` | `-0.000352`, `0.93x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion rerun after the sibling restamp; root-FORL blacklist floor is preserved |
 | `retlast_loop/hot` | `vararg_paths` | `0.001997` | `0.001991` | `+0.000006`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; near parity on trusted kdz and confirmed on zkd0 |
 | `retconst_loop/hot` | `vararg_paths` | `0.000598` | `0.000598` | `+0.000000`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; parity on trusted kdz and confirmed on zkd0 |
