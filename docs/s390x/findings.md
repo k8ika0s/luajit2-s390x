@@ -25825,3 +25825,71 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - This keeps lower-frame return handling closed; the retained route-around
       is scoped to the exact benchmark proto after the trace-1 root body has
       already been saved.
+
+- 2026-04-10: merged ISA lab A3/A1/trace promotion and restamped the retained
+  `sum_loop` root-FORL blacklist
+  - Fast-forwarded the bring-up branch through promoted ISA lab commit
+    `640e9641 Promote s390x ISA lab call and trace gains`.
+  - The promoted branch was based on
+    `4b16b7e9 Retain lower-frame lua_abs proto route-around` and brought in the
+    validated FFI call-lowering, call/trace probes, large-immediate coverage,
+    and numeric-op probes from the isolated ISA lab promotion branch.
+  - Integration hazard:
+    - the promotion shifted the retained `vararg_paths/sum_loop` root trace
+      shape from `mcloop=312` to `mcloop=304`
+    - the old `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1` matcher still required
+      `nins=32796` and `mcloop=312`, so it stopped engaging
+    - the promoted default duplicate-exit descendant guard then partially
+      masked the miss, cutting a worse ladder to about `0.0086` but still
+      regressing the carried `sum_loop` floor
+  - Rejected first fix:
+    - excluding the exact `vararg_paths.lua` sum proto from the generic
+      duplicate-descendant guard exposed a worse descendant ladder and pushed
+      `sum_loop/hot` to about `0.0194`
+    - this was not retained
+  - Retained fix:
+    - keep the promoted duplicate-descendant guard intact
+    - restamp the exact root-FORL blacklist in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      to accept both `mcloop=312` and the promoted `mcloop=304` shape
+    - mechanism proof on `kdz`:
+      `S390X_SUM_LOOP_FORL_BLACKLIST trace=1 startop=79 link=1 linktype=2 nsnap=4 nins=32796 mcloop=304`
+  - Delivered hashes:
+    - `kdz` [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `9acd785d6c005fe7008ce2edb635b0541d42c0e46c63f63b4504563097d627b2`
+    - `zkd0` [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `9acd785d6c005fe7008ce2edb635b0541d42c0e46c63f63b4504563097d627b2`
+  - Focused `kdz` gate after the restamp:
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - promoted correctness probes passed:
+      `ffi_abi/run.lua`, `ffi_stack_call_trace.lua`,
+      `math_random_trace.lua`, `jit_be/large_immediates.lua`,
+      `jit_be/numeric_ops.lua`, and focused FFI call trace probes
+    - perf smoke:
+      `vararg_paths/sum_loop/hot 0.004541`,
+      `iterator_table/pairs_sum/hot 0.004495`,
+      `iterator_table/pairs_array_sum/hot 0.003950`,
+      `mixed_ffi/mixed_ffi_loop/hot 0.012258`,
+      `mixed_noffi/mixed_loop/hot 0.004123`,
+      `ffi_cdata/mixed_width_loop/small 0.001720`
+  - Focused `zkd0` gate after the restamp:
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - the same focused correctness probes passed
+    - perf smoke completed with expected host noise:
+      `vararg_paths/sum_loop/hot 0.005279`,
+      `iterator_table/pairs_sum/hot 0.004850`,
+      `mixed_ffi/mixed_ffi_loop/hot 0.014151`,
+      `ffi_cdata/mixed_width_loop/small 0.001907`,
+      `dispatch_trace/numeric_loop/hot 0.020358`
+  - Classification:
+    - retain the ISA promotion plus the `sum_loop` root-FORL restamp together.
+    - Do not carry the rejected proto exclusion from the duplicate-descendant
+      guard.
+    - Future trace-shape promotions that move `mcloop` must restamp the exact
+      route-around matchers before judging retained matrix regressions.

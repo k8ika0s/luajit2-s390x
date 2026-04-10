@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 11:13 PDT
+Last updated: 2026-04-10 19:02 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -39,6 +39,12 @@ It is intentionally current-state only. Historical experiment detail lives in
   saved trace-1 root body for the lower-frame benchmark proto after the
   hotside carry, cutting `kdz 0.048729 -> 0.015022` and
   `zkd0 0.058875 -> 0.020010` on same-binary rebuilt-mirror A/B.
+- The ISA lab A3/A1/trace promotion slice is merged into the bring-up branch
+  at `640e9641`, with one integration restamp on top: the retained
+  `sum_loop` root-FORL blacklist now accepts the promoted root trace
+  `mcloop=304` shape as well as the previous `mcloop=312` shape. This keeps
+  the promoted duplicate-exit descendant guard out of the retained
+  `sum_loop` perf path without disabling the guard.
 - Current retained `mixed_noffi` host-pair rows on rebuilt mirrors:
   - `kdz`: `mixed_loop/hot 0.004041` vs `-joff 0.003734`
   - `zkd0`: `mixed_loop/hot 0.005562..0.006232` vs `-joff 0.004387`
@@ -566,6 +572,8 @@ interpretation.
 - the inner `sum(...)` whole-loop-contract backend lane is closed, and the
   retained root-FORL blacklists now move `sum_loop`, `retlast_loop`, and
   `retconst_loop` to near/parity
+- the ISA lab promotion is in-tree; the only local integration fix required
+  so far was restamping `sum_loop` root-FORL `mcloop=304`
 
 ### After The Iterator Hash-Side Hotcount Park
 

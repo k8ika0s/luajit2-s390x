@@ -4243,3 +4243,45 @@ localized-helper carried-`total` lane
     hosts
   - the old `promotion_core` throughput floor is no longer the active
     branch-level blocker
+
+## 2026-04-10 19:02 PDT
+
+- ISA lab A3/A1/trace promotion slice merged into the bring-up branch at
+  `640e9641`, then integrated with one retained-matcher restamp.
+- Promotion shifted `vararg_paths/sum_loop` trace 1 from the old
+  `nins=32796, mcloop=312` root-FORL shape to
+  `nins=32796, mcloop=304`.
+- Fix:
+  - restamp `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1` to accept both
+    `mcloop=312` and `mcloop=304`
+  - leave the promoted duplicate-exit descendant guard intact
+- `kdz` post-restamp focused perf:
+  - `vararg_paths/sum_loop/hot 0.004541`
+  - `vararg_paths/retlast_loop/hot 0.002790`
+  - `vararg_paths/retconst_loop/hot 0.001287`
+  - `iterator_table/pairs_sum/hot 0.004495`
+  - `iterator_table/pairs_array_sum/hot 0.003950`
+  - `mixed_ffi/mixed_ffi_loop/hot 0.012258`
+  - `mixed_noffi/mixed_loop/hot 0.004123`
+  - `ffi_cdata/mixed_width_loop/small 0.001720`
+- `zkd0` post-restamp focused perf:
+  - `vararg_paths/sum_loop/hot 0.005279`
+  - `vararg_paths/retlast_loop/hot 0.003226`
+  - `vararg_paths/retconst_loop/hot 0.001708`
+  - `iterator_table/pairs_sum/hot 0.004850`
+  - `iterator_table/pairs_array_sum/hot 0.005406`
+  - `mixed_ffi/mixed_ffi_loop/hot 0.014151`
+  - `ffi_cdata/mixed_width_loop/small 0.001907`
+  - `dispatch_trace/numeric_loop/hot 0.020358`
+- Exactness stayed clean on both hosts:
+  - `/tmp/mixedprobe.lua -> RESULT 553416`
+  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+- Focused promoted correctness probes passed on both hosts, including
+  `ffi_abi/run.lua`, `ffi_stack_call_trace.lua`, `math_random_trace.lua`,
+  `jit_be/large_immediates.lua`, `jit_be/numeric_ops.lua`, and focused FFI
+  call trace probes.
+- Read:
+  - the promotion can be carried with the `sum_loop` matcher restamp
+  - do not use the rejected sum-proto exclusion from the generic duplicate
+    descendant guard; it exposed a worse `sum_loop` ladder

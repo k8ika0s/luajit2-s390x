@@ -796,7 +796,7 @@ static int lj_trace_s390x_sum_loop_forl_blacklist_match(jit_State *J,
          J->cur.spadjust == 8 &&
          J->cur.nsnap == 4 &&
          J->cur.nins == 32796 &&
-         J->cur.mcloop == 312 &&
+         (J->cur.mcloop == 312 || J->cur.mcloop == 304) &&
          T != NULL;
 }
 
