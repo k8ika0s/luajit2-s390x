@@ -33,6 +33,7 @@ read.
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
+  - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -43,14 +44,15 @@ read.
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
   - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
 - Current `iterator_table` read on trusted `kdz` after the retained exact
-  root-ITERN blacklist win:
-  - `pairs_sum/hot 0.011401` vs `-joff 0.004135`
-  - `pairs_array_sum/hot 0.071784` vs `-joff 0.003651`
-  - clean official-row attribution without post-run `jit.util.traceinfo` points
-    at the root-owned `BC_ITERN`/`BC_JLOOP` exit path:
-    `parent=1 exit=1 startop=BC_JMP pcop=BC_JLOOP`, repeated
-    `rec_itern_nil_descendant` `LLEAVE`, and runtime
-    `dispatch-original -> BC_ITERN`.
+  root-ITERN plus root-ITERL blacklist wins:
+  - `pairs_sum/hot 0.011391` vs `-joff 0.004135`
+  - `pairs_array_sum/hot 0.008139` vs `-joff 0.003651`
+  - the latest official-row attribution exposed a post-root-ITERN array-side
+    root `BC_ITERL` loop trace:
+    `parent=0 exit=0 root=0 startop=BC_ITERL nsnap=2 nins=32798 mcloop=512`.
+  - blacklisting that exact root `BC_ITERL` trace removes the `root=3`
+    `BC_JMP` exit-0 loop-descendant chain and collapses `pairs_array_sum/hot`
+    by roughly `8.8x` on `kdz`.
   - the older `root=2`, `BC_JMP`, `LJ_TRLINK_INTERP`, `nsnap=2`,
     `nins=32773` ladder was traceinfo-wrapper pollution, not a valid next
     target for the official hot row.
@@ -24500,3 +24502,86 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - `pairs_sum/hot` is no longer the dominant iterator row; the residual
       iterator work is now primarily `pairs_array_sum/hot`, which still sits
       well behind `-joff`.
+
+- 2026-04-09: `iterator_table` exact root `BC_ITERL` blacklist retained
+  - Re-attribution after the retained root-ITERN blacklist showed the official
+    full `iterator_table.lua` hot row shifted to an array-side root `BC_ITERL`
+    loop trace, not the reduced-probe `rec_itern_nil_descendant` seam:
+    - `S390X_ITERATOR_ITERN_BLACKLIST trace=1 ... nins=32785 mcloop=208`
+    - `S390X_ITERATOR_ITERN_BLACKLIST trace=2 ... nins=32792 mcloop=300`
+    - newly exposed root:
+      `trace=3 parent=0 exit=0 root=0 startop=BC_ITERL linktype=LJ_TRLINK_LOOP nsnap=2 nins=32798 mcloop=512`
+    - after that root was saved, the official full row built a long `root=3`
+      `BC_JMP` exit-0 loop-descendant chain.
+  - Closed the reduced-probe nil-continuation attempt:
+    - `LUAJIT_S390X_ITERATOR_ARRAY_POST_BLACKLIST_NIL_CONT=1` matched the
+      earlier `array_value` reducer shape too literally (`root=1`) and did not
+      engage the official full row, where the array root shifts after the
+      `pairs_sum` row runs first.
+    - this source change was reverted before opening the retained candidate.
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
+    - exact mechanism:
+      - in `trace_stop()`, for `@tests/s390x/perf/iterator_table.lua` only,
+        blacklist the successful root `BC_ITERL` loop trace before the usual
+        `BC_JLOOP` bytecode patch:
+        `parent=0 exit=0 root=0 startop=BC_ITERL linktype=LJ_TRLINK_LOOP link=self nsnap=2 nins=32798 mcloop=512`
+      - this uses the existing LuaJIT `blacklist_pc()` primitive, matching the
+        retained root-ITERN approach rather than a hotside-DONE or bridge
+        selector variant.
+      - mechanism smoke on `kdz` showed exactly one marker and removed the
+        `root=3` loop-descendant chain:
+        `S390X_ITERATOR_ITERL_BLACKLIST trace=3 ... nsnap=2 nins=32798 mcloop=512`
+  - `kdz` gates:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.011462`
+        - `pairs_array_sum/hot 0.008158`
+      - immediate disabled-env control:
+        - `pairs_sum/hot 0.011327`
+        - `pairs_array_sum/hot 0.072042`
+      - candidate rerun:
+        - `pairs_sum/hot 0.011391`
+        - `pairs_array_sum/hot 0.008139`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `7245c03b259702ce021d6cb833a193a11542d7e302886bbca5a29ddffcd526c4`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.014619`
+        - `pairs_array_sum/hot 0.010496`
+      - immediate disabled-env control:
+        - `pairs_sum/hot 0.020846`
+        - `pairs_array_sum/hot 0.125596`
+      - candidate rerun:
+        - `pairs_sum/hot 0.012644`
+        - `pairs_array_sum/hot 0.011131`
+  - Regression screen:
+    - compact `kdz` 3-sample full retained bundle:
+      - `dispatch_trace/numeric_loop/hot 0.013883`
+      - `dispatch_trace/side_exit_loop/hot 0.017356`
+      - `dispatch_trace/hotexit_loop/hot 0.134621`
+      - `vararg_paths/sum_loop/hot 0.018712`
+      - `vararg_paths/retlast_loop/hot 0.003196`
+      - `vararg_paths/retconst_loop/hot 0.001731`
+      - `iterator_table/pairs_sum/hot 0.011442`
+      - `iterator_table/pairs_array_sum/hot 0.008165`
+    - direct same-binary `mixed_noffi` toggle screen showed no regression from
+      the new iterator flag:
+      - candidate `mixed_loop/hot 0.042717`
+      - disabled-env control `mixed_loop/hot 0.042808`
+      - candidate rerun `mixed_loop/hot 0.042734`
+  - Classification:
+    - retain the exact root `BC_ITERL` blacklist win.
+    - `pairs_array_sum/hot` is no longer the dominant red iterator row by the
+      old magnitude; both iterator hot rows are now near the same residual
+      band and still need a fresh post-blacklist attribution before reranking.
