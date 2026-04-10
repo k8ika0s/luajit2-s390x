@@ -12,20 +12,19 @@ It is intentionally current-state only. Historical experiment detail lives in
   `-joff` on both `kdz` and `zkd0`.
 - `mixed_noffi` remains a carried red row, but its current runtime lane is now
   explicitly exhausted on the retained floor.
-- The latest retained host-pair win is back in `vararg_paths/sum_loop`; the
-  exact root-FORL blacklist cuts the official `sum_loop/hot` row to near
-  `-joff` on both hosts. The remaining active queue is now the vararg sibling
-  tradeoff (`retlast_loop` / `retconst_loop`) and any later fresh
-  `mixed_noffi` subsystem attribution.
+- The latest retained host-pair win is also in `vararg_paths`: the exact
+  sibling root-FORL blacklist now cuts `retlast_loop` and `retconst_loop` to
+  near/parity alongside `sum_loop`. The remaining active queue is now fresh
+  attribution of `mixed_noffi` or any newly exposed residual subsystem.
 - Current retained `vararg_paths` host-pair rows on rebuilt mirrors:
   - `kdz`
-    - `sum_loop/hot 0.004533` vs `-joff 0.004722`
-    - `retlast_loop/hot 0.003479` vs `-joff 0.001990`
-    - `retconst_loop/hot 0.001730` vs `-joff 0.000598`
+    - `sum_loop/hot 0.004486` vs `-joff 0.004722`
+    - `retlast_loop/hot 0.001978` vs `-joff 0.001990`
+    - `retconst_loop/hot 0.000570` vs `-joff 0.000598`
   - `zkd0`
-    - `sum_loop/hot 0.007265`
-    - `retlast_loop/hot 0.006109`
-    - `retconst_loop/hot 0.003540`
+    - `sum_loop/hot 0.006285`
+    - `retlast_loop/hot 0.002767`
+    - `retconst_loop/hot 0.000620`
 - Retained `sum_loop` mechanism on trusted `kdz`:
   - the first exact recorder-side `BC_JFORI -> ROOT` handoff candidate is now
     closed as non-engaging on the official hot row
@@ -100,13 +99,30 @@ It is intentionally current-state only. Historical experiment detail lives in
     - host-pair confirmation:
       - `zkd0` candidate `0.007265`
       - immediate same-binary control `0.028302`
-    - tradeoff:
-      - the official-suite `retlast_loop` row shifts slower on `kdz`
-        (`0.003479` vs `0.003312` immediate control), but a retlast-only
-        control/candidate probe is neutral, so this is carried as a suite
-        interaction rather than matcher drift
+  - the fifth retained win applies the same trace-side route-around to the
+    vararg siblings:
+    - exact trace-side cut in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
+      - exact `trace_stop()` root `BC_FORL` blacklist for the `retlast_loop`
+        and `retconst_loop` caller-loop protos only
+    - mechanism proof on trusted `kdz`:
+      - markers:
+        - `S390X_VARARG_SIBLING_FORL_BLACKLIST trace=2 firstline=31 nsnap=4 nins=32820 mcloop=672`
+        - `S390X_VARARG_SIBLING_FORL_BLACKLIST trace=3 firstline=43 nsnap=4 nins=32806 mcloop=452`
+      - same-binary A/B:
+        - candidate `retlast_loop/hot 0.001978`
+        - immediate control `0.003504`
+        - candidate `retconst_loop/hot 0.000570`
+        - immediate control `0.001736`
+    - host-pair confirmation:
+      - `zkd0` candidate rerun `retlast_loop/hot 0.002767`
+      - immediate same-binary control `0.004290`
+      - `zkd0` candidate rerun `retconst_loop/hot 0.000620`
+      - immediate same-binary control `0.002623`
   - read:
-    - `sum_loop` is no longer a carried red row on trusted `kdz`
+    - `sum_loop`, `retlast_loop`, and `retconst_loop` are no longer carried
+      red rows on trusted `kdz`
     - the remaining work is later than the first tiny `INTERP` stopper, later
       than the dead `select` equality guard, and later than the exact
       `BC_GGET select` lookup prefix inside the same inner callee runtime
@@ -114,8 +130,8 @@ It is intentionally current-state only. Historical experiment detail lives in
     - the later whole-loop-contract lane on the carried `trace 110` body is
       closed as exact-but-not-retainable; the retained route-around is the
       exact root-loop blacklist instead
-    - next work should re-attribute the remaining vararg sibling red rows or
-      reopen `mixed_noffi` only with a newly named subsystem
+    - next work should re-attribute `mixed_noffi` only with a newly named
+      subsystem, or rerank if another residual row becomes dominant
 - Current `iterator_table` read:
   - the latest retained host-pair wins are exact root `BC_ITERN` and root
     `BC_ITERL` blacklists plus exact root `BC_ITERN` proto-NOJIT fallback
@@ -236,6 +252,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
+  - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -371,9 +388,9 @@ It is intentionally current-state only. Historical experiment detail lives in
   root-ITERN proto-NOJIT fallback moved both hot rows into the near-parity band.
 - The current retained mixed floor has not been brought to parity, but the
   present runtime-handoff lane is explicitly exhausted.
-- The next active queue is fresh attribution of the remaining
-  `vararg_paths` sibling rows (`retlast_loop` / `retconst_loop`) or a newly
-  attributed `mixed_noffi` subsystem. `iterator_table`, `mixed_ffi`, and
+- The next active queue is fresh attribution of `mixed_noffi` only if a newly
+  attributed subsystem appears, or reranking any other residual row that
+  becomes dominant. `vararg_paths`, `iterator_table`, `mixed_ffi`, and
   `ffi_cdata` are near-parity regression screens for now.
 
 ## What The Freeze Point Means
@@ -411,10 +428,10 @@ From here:
    the tracked-file contract in
    [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md).
 3. Keep the active engineering frontier narrow:
-  - `iterator_table` first, now on a fresh residual attribution after the
-    retained root-ITERN and root-ITERL blacklist wins
-  - keep `vararg_paths/sum_loop`, `mixed_noffi`, `mixed_ffi`, and `ffi_cdata`
-    parked unless a fresh attribution names a new subsystem
+  - `mixed_noffi` only after a fresh attribution names a new subsystem
+  - keep `vararg_paths`, `iterator_table`, `mixed_ffi`, and `ffi_cdata`
+    parked unless a retained regression or fresh attribution names a new
+    subsystem
   - treat `dispatch_trace` as green again and only reopen it if a later change
     regresses the retained floor
   - no reopening of root-1 as a primary target
@@ -453,21 +470,22 @@ interpretation.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the latest retained host-pair win is in `vararg_paths/sum_loop`
+- the latest retained host-pair win is in `vararg_paths`
 - `iterator_table` is now near parity after the root-ITERN proto-NOJIT fallback
 - `mixed_ffi` is now near parity after exact root-FORL proto-NOJIT fallback
 - `ffi_cdata` is now near parity after exact root-FORL blacklisting
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
   closed as non-engaging on the official hot row
 - the inner `sum(...)` whole-loop-contract backend lane is closed, and the
-  retained root-FORL blacklist now moves `sum_loop` to near/parity
+  retained root-FORL blacklists now move `sum_loop`, `retlast_loop`, and
+  `retconst_loop` to near/parity
 
-### After The Sum-Loop Root Blacklist
+### After The Vararg Root Blacklists
 
 - Burn down the remaining red rows in this order:
-  1. `vararg_paths/retconst_loop` and `vararg_paths/retlast_loop`
-  2. `mixed_noffi`, but only after fresh attribution names a new subsystem
-  3. later re-entry to `iterator_table`, `mixed_ffi`, or `ffi_cdata` only if a
+  1. `mixed_noffi`, but only after fresh attribution names a new subsystem
+  2. later re-entry to `vararg_paths`, `iterator_table`, `mixed_ffi`, or
+     `ffi_cdata` only if a
      retained regression or newly attributed subsystem appears
 
 ## Where To Look Next

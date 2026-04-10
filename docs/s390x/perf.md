@@ -70,9 +70,9 @@ number is ugly.
 | `hotexit_loop/hot` | `dispatch_trace` | `0.001047` | `0.005619` | `-0.004572`, `0.19x` | `kdz` | `2026-04-07 19:02 PDT` | retained exact proto-gated parked-root cooldown win; exact on both hosts |
 | `pair_loop/hot` | `ffi_cdata` | `0.017097` | `0.017319` | `-0.000222`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | retained exact root-`BC_FORL` blacklist after the save-time DONE cut; near parity |
 | `mixed_width_loop/hot` | `ffi_cdata` | `0.027798` | `0.027969` | `-0.000171`, `0.99x` | `kdz` | `2026-04-09 22:14 PDT` | sibling under the retained pair-loop root blacklist; near parity |
-| `sum_loop/hot` | `vararg_paths` | `0.004533` | `0.004722` | `-0.000189`, `0.96x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact inner-`sum(...)` root-`BC_FORL` blacklist after the earlier select/runtime cuts; host-pair clean |
-| `retlast_loop/hot` | `vararg_paths` | `0.003479` | `0.001990` | `+0.001489`, `1.75x` | `kdz` | `2026-04-09 22:30 PDT` | sibling under the retained `sum_loop` root blacklist; official-suite interaction slower, retlast-only probe neutral |
-| `retconst_loop/hot` | `vararg_paths` | `0.001730` | `0.000598` | `+0.001132`, `2.89x` | `kdz` | `2026-04-09 22:30 PDT` | sibling under the retained `sum_loop` root blacklist; effectively neutral on `kdz`, still red vs `-joff` |
+| `sum_loop/hot` | `vararg_paths` | `0.004486` | `0.004722` | `-0.000236`, `0.95x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact inner-`sum(...)` root-`BC_FORL` blacklist after the earlier select/runtime cuts; host-pair clean |
+| `retlast_loop/hot` | `vararg_paths` | `0.001978` | `0.001990` | `-0.000012`, `0.99x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact vararg sibling root-`BC_FORL` blacklist; host-pair clean |
+| `retconst_loop/hot` | `vararg_paths` | `0.000570` | `0.000598` | `-0.000028`, `0.95x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact vararg sibling root-`BC_FORL` blacklist; host-pair clean |
 
 ## Pinned Recurring Workloads
 
@@ -92,7 +92,7 @@ shrink.
 | `numeric_loop/hot` | `dispatch_trace` | `0.000158` | `0.002173` | `-0.002015`, `0.07x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.000353` | `0.004692` | `-0.004339`, `0.08x` | `kdz` | `2026-04-07 19:02 PDT` | retained dispatch FORL floor; exact on both hosts |
 | `hotexit_loop/hot` | `dispatch_trace` | `0.001047` | `0.005619` | `-0.004572`, `0.19x` | `kdz` | `2026-04-07 19:02 PDT` | retained exact proto-gated parked-root cooldown win; exact on both hosts |
-| `sum_loop/hot` | `vararg_paths` | `0.004533` | `0.004722` | `-0.000189`, `0.96x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact root-`BC_FORL` blacklist; current whole-loop-contract lane closed |
+| `sum_loop/hot` | `vararg_paths` | `0.004486` | `0.004722` | `-0.000236`, `0.95x` | `kdz` | `2026-04-09 22:30 PDT` | retained exact root-`BC_FORL` blacklist; current whole-loop-contract lane closed |
 
 ### Regression And Control Workloads
 
@@ -133,22 +133,23 @@ experiment evidence, not top-level progress rows.
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | checked-in regression suite, but not currently restamped into the retained carried matrix |
 
-Current frontier after the retained `vararg_paths/sum_loop` root-FORL blacklist
-win:
+Current frontier after the retained `vararg_paths` root-FORL blacklist wins:
 
 - `promotion_core` is broadly green on both hosts and is no longer the active
   branch-level limiter.
 - `mixed_noffi` remains a carried red row, but its lane is now explicitly
   exhausted on the current retained floor after one fresh, correctly
   attributed runtime-handoff attempt.
-- the latest retained host-pair win is in `vararg_paths/sum_loop`
+- the latest retained host-pair win is in `vararg_paths`
 - `iterator_table` is now near parity and should move to regression-screen
   status unless a fresh, named residual subsystem appears
 - `mixed_ffi` is now near parity and moves to regression-screen status
 - `ffi_cdata` is now near parity and moves to regression-screen status
-- the active engineering frontier reranks to fresh attribution of the remaining
-  vararg sibling red rows (`retlast_loop` / `retconst_loop`) or a newly named
-  `mixed_noffi` subsystem
+- `sum_loop`, `retlast_loop`, and `retconst_loop` are now near/parity under
+  the retained vararg root-FORL blacklists
+- the active engineering frontier reranks to a newly named `mixed_noffi`
+  subsystem or another residual row that becomes dominant under fresh
+  attribution
 - retained iterator cut:
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
@@ -255,13 +256,13 @@ win:
   current retained branch state:
   - fresh retained host-pair result:
     - `kdz`
-      - `sum_loop/hot 0.004533`
-      - `retlast_loop/hot 0.003479`
-      - `retconst_loop/hot 0.001730`
+      - `sum_loop/hot 0.004486`
+      - `retlast_loop/hot 0.001978`
+      - `retconst_loop/hot 0.000570`
     - `zkd0`
-      - `sum_loop/hot 0.007265`
-      - `retlast_loop/hot 0.006109`
-      - `retconst_loop/hot 0.003540`
+      - `sum_loop/hot 0.006285`
+      - `retlast_loop/hot 0.002767`
+      - `retconst_loop/hot 0.000620`
   - retained mechanism on trusted `kdz`:
     - the first retained stop-gate remains:
       - `pcop=BC_GGET`
@@ -322,19 +323,32 @@ win:
       - host-pair confirmation:
         - `zkd0` candidate `0.007265`
         - immediate same-binary control `0.028302`
-      - sibling tradeoff:
-        - official-suite `retlast_loop/hot` shifts to `0.003479` on `kdz`
-          against immediate control `0.003312`
-        - retlast-only control/candidate probe is neutral, so this is carried
-          as a suite interaction, not matcher drift
+    - fifth retained cut in
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
+      - exact root `BC_FORL` blacklist for the `retlast_loop` and
+        `retconst_loop` caller-loop protos:
+        `firstline=31 nsnap=4 nins=32820 mcloop=672` and
+        `firstline=43 nsnap=4 nins=32806 mcloop=452`
+      - mechanism proof on `kdz`:
+        - `S390X_VARARG_SIBLING_FORL_BLACKLIST` marker count `2`
+      - same-binary A/B:
+        - `kdz` candidate rerun `retlast_loop/hot 0.001978`
+        - immediate control `0.003504`
+        - `kdz` candidate rerun `retconst_loop/hot 0.000570`
+        - immediate control `0.001736`
+        - `zkd0` candidate rerun `retlast_loop/hot 0.002767`
+        - immediate control `0.004290`
+        - `zkd0` candidate rerun `retconst_loop/hot 0.000620`
+        - immediate control `0.002623`
   - read:
     - the retained `sum_loop` wins are inside the inner `sum(...)` callee
       runtime family, not the earlier broad nested-`BC_JFORI` handoff theory
     - the later whole-loop-contract backend lane on the carried `trace 110`
       body is exact-but-not-retainable and is now closed
-    - `sum_loop` is no longer a carried red row on trusted `kdz`; the next
-      active step is fresh attribution of the remaining vararg siblings rather
-      than reopening this closed whole-loop-contract lane
+    - `sum_loop`, `retlast_loop`, and `retconst_loop` are no longer carried
+      red rows on trusted `kdz`; do not reopen the closed vararg lanes without
+      a fresh attribution
 - the retained exact branch control is now:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -346,6 +360,7 @@ win:
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
+  - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
