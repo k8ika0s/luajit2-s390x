@@ -359,6 +359,17 @@ Current status:
     `kdz1` validation is green. Same-host `mixed_noffi/hot` improved in both
     post-`BNOT` reads (`0.042499s -> 0.040673s` and `0.041098s -> 0.040319s`);
     `bitops_mix` remains noisy/mixed, so keep the claim narrow.
+  - A3 follow-up: fixed-call source classification is now instrumented under
+    `LUAJIT_S390X_CALL_LOG`, and `ffi_fixed_call_pressure_trace.lua` plus
+    `ffi_fixed_call_pressure.lua` cover the call-return-to-call pressure shape.
+    The preserve/elision theory did not reproduce in the existing fixed-call
+    traces: sources were not live in ABI argument registers. A narrower
+    direct-materialization experiment for non-live GPR call args is retained
+    as opt-in only via `LUAJIT_S390X_DIRECT_CALL_ARG`; same-host reads were
+    mixed and did not clear the promotion gate (`gpr_pressure/hot` was
+    neutral-to-slightly-worse in the focused harness, while small rows and some
+    broad FFI rows improved). Keep this seam lab-only unless two clean future
+    reads show a stable hot-row win.
   - A2: keep the retrace guard as an enablement/correctness fix, but keep the
     numeric helper perf family lab-only for now. The `add` retrace case drops
     from `4096` traces and `12` flushes to `10` traces and no flushes, while
