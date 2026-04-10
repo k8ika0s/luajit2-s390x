@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 09:50 PDT
+Last updated: 2026-04-10 11:13 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -33,6 +33,12 @@ It is intentionally current-state only. Historical experiment detail lives in
   [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
   after attribution showed its payer is a numeric `FORL/JFORI -> MODVN`
   side-ladder, not the old lower-frame return seam.
+- The latest retained experimental carry is the exact lower-frame
+  `lua_abs_same_callsite` follow-up route-around:
+  `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT=1`. It parks only the exact
+  saved trace-1 root body for the lower-frame benchmark proto after the
+  hotside carry, cutting `kdz 0.048729 -> 0.015022` and
+  `zkd0 0.058875 -> 0.020010` on same-binary rebuilt-mirror A/B.
 - Current retained `mixed_noffi` host-pair rows on rebuilt mirrors:
   - `kdz`: `mixed_loop/hot 0.004041` vs `-joff 0.003734`
   - `zkd0`: `mixed_loop/hot 0.005562..0.006232` vs `-joff 0.004387`
@@ -297,6 +303,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT=1`
   - `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`
+  - `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the retained root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
