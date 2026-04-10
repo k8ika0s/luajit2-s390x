@@ -65,6 +65,7 @@ JIT_CORE_LUA_FILES = [
 JIT_CORE_FFI_LUA_FILES = {
     "tests/s390x/jit_core/ffi_call_trace.lua",
     "tests/s390x/jit_core/ffi_cdata_trace.lua",
+    "tests/s390x/jit_core/ffi_fixed_complex_call_trace.lua",
     "tests/s390x/jit_core/ffi_fixed_struct_call_trace.lua",
     "tests/s390x/jit_core/ffi_ptr_call_trace.lua",
     "tests/s390x/jit_core/trace_event_postloop.lua",

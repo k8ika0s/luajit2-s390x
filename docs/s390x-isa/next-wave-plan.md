@@ -303,6 +303,9 @@ Current status:
   small integer aggregates, single-field FP aggregates, and read-only indirect
   large aggregates; use it as the A/B truth pack before broadening the fixed
   aggregate claim.
+- Fixed complex arguments now use the same s390x payload-pointer lowering as
+  complex varargs. `ffi_fixed_complex_call_trace.lua` validates scalar-return
+  read calls and a mutation guard that proves caller cdata is not aliased.
 - Stop line: `long double` and vector varargs are not part of the current claim.
   Cheap `kdz1` probes showed `long double` construction from Lua numbers fails
   at conversion time and GCC vector vararg calls are already `NYI` at the FFI
@@ -361,6 +364,7 @@ Qualification:
 - `tests/s390x/jit_core/ffi_call_trace.lua`
 - `tests/s390x/jit_core/ffi_ptr_call_trace.lua`
 - `tests/s390x/jit_core/ffi_stack_call_trace.lua`
+- `tests/s390x/jit_core/ffi_fixed_complex_call_trace.lua`
 - `tests/s390x/jit_core/ffi_fixed_struct_call_trace.lua`
 - `tests/s390x/jit_core/ffi_vararg_call_trace.lua`
 - `tests/s390x/jit_core/ffi_fp_vararg_call_trace.lua`
