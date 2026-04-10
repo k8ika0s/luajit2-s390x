@@ -18,8 +18,8 @@ read.
   a later change regresses the retained floor.
 - `mixed_noffi` and `vararg_paths/sum_loop` remain carried red rows, but their
   current attributed lanes are exhausted on the retained floor.
-- The latest retained host-pair win is in `ffi_cdata`; the next active queue
-  item is fresh `iterator_table` attribution.
+- The latest retained host-pair win is in `iterator_table`; the active queue
+  stays on the remaining iterator residual before reranking to `mixed_ffi`.
 - The retained exact branch control now carries:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -32,6 +32,7 @@ read.
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
+  - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -41,15 +42,23 @@ read.
   - `/tmp/mixedprobe.lua -> RESULT 553416`
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
   - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
-- Current `iterator_table` read on trusted `kdz`:
-  - `pairs_sum/hot 0.094653` vs `-joff 0.004135`
-  - `pairs_array_sum/hot 0.095170` vs `-joff 0.003651`
-  - fresh official-row attribution points at the `root=2`, `BC_JMP`,
-    `LJ_TRLINK_INTERP`, `nsnap=2`, `nins=32773` stop-classification ladder,
-    not another local backend value/accumulator micro-cut.
+- Current `iterator_table` read on trusted `kdz` after the retained exact
+  root-ITERN blacklist win:
+  - `pairs_sum/hot 0.011401` vs `-joff 0.004135`
+  - `pairs_array_sum/hot 0.071784` vs `-joff 0.003651`
+  - clean official-row attribution without post-run `jit.util.traceinfo` points
+    at the root-owned `BC_ITERN`/`BC_JLOOP` exit path:
+    `parent=1 exit=1 startop=BC_JMP pcop=BC_JLOOP`, repeated
+    `rec_itern_nil_descendant` `LLEAVE`, and runtime
+    `dispatch-original -> BC_ITERN`.
+  - the older `root=2`, `BC_JMP`, `LJ_TRLINK_INTERP`, `nsnap=2`,
+    `nins=32773` ladder was traceinfo-wrapper pollution, not a valid next
+    target for the official hot row.
 - Next queue:
-  - `ffi_cdata`
-  - re-enter `iterator_table`, `sum_loop`, or `mixed_noffi` only if a fresh
+  - stay on corrected `iterator_table` runtime attribution while the residual
+    array-side row remains dominant
+  - if the corrected iterator lane exhausts, rerank to `mixed_ffi`, then
+    `ffi_cdata`; re-enter `sum_loop` or `mixed_noffi` only if a fresh
     attribution names a new subsystem
 
 ## Harness Status
@@ -23809,3 +23818,685 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       load/store micro-cut
     - `ffi_cdata` moves to regression-screen status
     - next active queue returns to fresh `iterator_table` attribution
+
+- Timestamp: `2026-04-09 17:18 PDT`
+  - corrected the first post-`ffi_cdata` `iterator_table` attribution and closed
+    the exact `mcloop=208` VM handoff sibling as non-retainable.
+  - corrected attribution:
+    - the earlier official-hot artifact
+      `20260409-kdz-official-iterator-hot-attribution/official-hot.stdout.log`
+      was polluted by post-run `jit.util.traceinfo` traffic.
+    - clean official-row rerun on rebuilt `kdz` without `jit.util.traceinfo`
+      showed only `3` trace stops and `79` aborts, not the stale `4946`
+      stop-record ladder.
+    - real saved trace shapes:
+      - `trace 1`: root `BC_ITERN`, `parent=0 exit=0`, `linktype=LOOP`,
+        `nsnap=6`, `nins=32785`, `mcloop=208`
+      - `trace 2`: root `BC_ITERN`, `parent=0 exit=0`, `linktype=LOOP`,
+        `nsnap=6`, `nins=32792`, `mcloop=300`
+      - `trace 3`: `parent=2 exit=1 root=2 startop=BC_JMP`, `linktype=LOOP`,
+        `nsnap=6`, `nins=32792`, `mcloop=300`
+    - dominant abort family:
+      - `56` hits at `trace=2 parent=1 exit=1 startop=BC_JMP pcop=BC_JLOOP`
+        with `err=8` (`LJ_TRERR_LLEAVE`)
+      - `22` hits at `parent=0 exit=0 startop=BC_FORL pcop=BC_JLOOP` with
+        `err=9` (`LJ_TRERR_LINNER`)
+    - focused `JLOOP_EXIT` logging showed the hot runtime handoff directly:
+      - repeated `parent=1 exit=1`
+      - `target=1 target_exec=1`
+      - `retop=70` (`BC_ITERN`)
+      - `phase=dispatch-original`
+      - `target_resumevalid=0`
+      - `target_resumechild=0`
+      - `target_mcloop=208`
+    - classification:
+      - the stale `root=2`, `BC_JMP`, `LJ_TRLINK_INTERP`, `nsnap=2`,
+        `nins=32773` ladder is not a valid next patch target for the official
+        `iterator_table` hot row.
+      - the real current seam is the root-owned `BC_ITERN` / `BC_JLOOP`
+        runtime handoff and nil-descendant `LLEAVE` churn.
+  - closed candidate:
+    - exact code surface:
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    - exact idea:
+      - extend the retained static `BC_JLOOP -> BC_ITERN -> vm_IITERN_bridge`
+        handoff guard from the mixed retained `mcloop=216` shape to also admit
+        the iterator root shape with `mcloop=208`
+      - keep the existing guards:
+        `root=0`, `linktype=LJ_TRLINK_LOOP`, `link!=0`, `resumevalid=0`,
+        `resumechild=0`, `nsnap=6`, `nins=32785`
+    - delivered candidate hash on rebuilt mirrors:
+      - `src/vm_s390x.dasc`:
+        `a976c8563daf77c998e121bf52ccaf5ada7ef4996997d941982a95f3204956be`
+  - `kdz` result:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary A/B:
+      - candidate:
+        - `pairs_sum/hot 0.085712`
+        - `pairs_array_sum/hot 0.083065`
+      - immediate reverted control:
+        - `pairs_sum/hot 0.093837`
+        - `pairs_array_sum/hot 0.085702`
+      - candidate rerun:
+        - `pairs_sum/hot 0.087223`
+        - `pairs_array_sum/hot 0.083850`
+  - `zkd0` result:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary A/B:
+      - candidate:
+        - `pairs_sum/hot 0.100237`
+        - `pairs_array_sum/hot 0.132336`
+      - immediate reverted control:
+        - `pairs_sum/hot 0.123798`
+        - `pairs_array_sum/hot 0.120471`
+      - candidate rerun:
+        - `pairs_sum/hot 0.139966`
+        - `pairs_array_sum/hot 0.105752`
+    - read:
+      - zkd0 did not give a stable sibling-clean win; one pass improved
+        `pairs_sum` while materially worsening `pairs_array_sum`, and the
+        follow-up flipped direction.
+  - classification:
+    - kdz-positive, exact, but not host-pair retainable.
+    - leave the existing `mcloop=216` retained mixed fast path unchanged and do
+      not carry the `mcloop=208` iterator sibling.
+    - next iterator work should stay on the corrected root-owned runtime
+      handoff attribution, not the traceinfo-polluted `INTERP` ladder and not
+      the already-closed abort-time DONE/cooldown or `LINNER` ownership lanes.
+
+- Timestamp: `2026-04-09 17:31 PDT`
+  - closed the narrower iterator `mcloop=208` hash-only bridge route.
+  - exact idea:
+    - keep the retained static `BC_JLOOP -> BC_ITERN` guard shape, but route
+      only the `mcloop=208`, `nsnap=6`, `nins=32785`, root-owned iterator
+      sibling to `vm_IITERN_root2_hashbridge` instead of the generic
+      `vm_IITERN_bridge`.
+    - leave the retained `mcloop=216` mixed fast path on the generic bridge.
+  - delivered candidate hash on rebuilt `kdz`:
+    - `src/vm_s390x.dasc`:
+      `6236670bf1b83184a48d05408e4840647abf8e6f4af63c5e6b1690de3fdae69e`
+  - exactness stayed clean on the candidate:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `kdz` A/B:
+    - 3-sample candidate:
+      - `pairs_sum/hot 0.078636`
+      - `pairs_array_sum/hot 0.085968`
+    - immediate 3-sample reverted control:
+      - `pairs_sum/hot 0.084330`
+      - `pairs_array_sum/hot 0.086998`
+    - 5-sample candidate rerun:
+      - `pairs_sum/hot 0.111305`
+      - `pairs_array_sum/hot 0.115470`
+    - immediate 5-sample reverted control:
+      - `pairs_sum/hot 0.108278`
+      - `pairs_array_sum/hot 0.109129`
+  - classification:
+    - exact and initially promising, but not even same-host retainable after the
+      repeat/control check.
+    - did not screen on `zkd0`.
+    - reverted to retained `src/vm_s390x.dasc` hash
+      `3da0908dc9f51e295b88249c90a995192ba8a54fbd1254013aa4b85ffea04f7d`.
+    - close the direct "reuse existing IITERN bridges for `mcloop=208`" lane;
+      the next iterator target needs fresh attribution of the remaining
+      root-owned `BC_ITERN`/`BC_JLOOP` runtime handoff rather than another
+      bridge-selector variant.
+
+- Timestamp: `2026-04-09 17:39 PDT`
+  - sanity-rechecked the existing root child-promotion stack on the corrected
+    iterator row without opening a new code family.
+  - env-only probe on retained rebuilt `kdz`:
+    - `LUAJIT_S390X_ROOT_ITERN_NIL_DESC=1`
+    - `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP=1`
+    - `LUAJIT_S390X_ROOT_JLOOP_CHILD=1`
+  - mechanism:
+    - the only visible promotion candidate was:
+      - `S390X_ROOT_PROMOTE_CHILD_CAND trace=2 root=1 parent=1 exit=1`
+      - `startop=BC_JMP`
+      - `link=1`
+      - `linktype=1` (`LJ_TRLINK_ROOT`)
+      - `resumechild=0`
+    - the live promotion arm still requires the `exit=1` child to be
+      `linktype=LJ_TRLINK_LOOP`, so this stack does not retarget the corrected
+      current seam.
+  - quick perf on `kdz`:
+    - `pairs_sum/hot 0.099496`
+    - `pairs_array_sum/hot 0.089887`
+  - classification:
+    - mechanism-dead for the corrected retained row and not perf-promising.
+    - do not reopen root child-promotion / root resumechild trace-control as
+      the next iterator lane.
+
+- Timestamp: `2026-04-09 17:01 PDT`
+  - triaged downstream `pairs_loop.lua` hang report as a separate iterator-loop
+    trace ladder, not the numeric `FORL` / `JFORI` retrace issue.
+  - reducer:
+    - [tests/s390x/jit_loops/pairs_loop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_loops/pairs_loop.lua)
+    - shape:
+      - hash table with string keys
+      - `for key in pairs(tab)` uses only the iterator key
+      - loop body does `tab[key]`, so bytecode body is `TGETV; ADDVV`
+  - kdz1 reproduction:
+    - `/root/luajit2-s390x-isa/canon/repo-snapshot`:
+      - `iter_pairs.lua -> RC:0`
+      - `explicit_next.lua -> RC:0`
+      - `pairs_loop.lua -> RC:124`
+    - `/root/luajit2-s390x-isa/manual-minmax/repo`:
+      - `iter_pairs.lua -> RC:0`
+      - `explicit_next.lua -> RC:0`
+      - `pairs_loop.lua -> RC:124`
+  - focused kdz1 snapshot trace read:
+    - timeout with `TRACE_META`, `TRACE_ABORT`, `RECSTOP`, and `JLOOP_EXIT`
+      logging still produced no stdout result.
+    - trace ladder:
+      - `trace 1`: root `BC_FORL`
+      - `trace 2`: root `BC_ITERN`, `linktype=LOOP`, `mcloop=344`
+      - `trace 3`: `parent=2 exit=4 root=2 startop=BC_JMP linktype=ROOT link=2`
+      - `trace 4..99`: repeated `parent=N-1 exit=0 root=2 startop=BC_JMP`
+        with `linktype=ROOT`, `link=2`, `nsnap=2`, `nins=32776`, `mcloop=0`
+    - repeated stop tuple:
+      - `pcop=BC_JLOOP`
+      - `prevop=BC_ADDVV`
+      - `lnkop=BC_ITERN`
+      - `framedepth=0`
+      - `retdepth=0`
+    - bytecode map:
+      - `0036 TGETV`
+      - `0037 ADDVV`
+      - `0038 ITERN`
+      - `0039 ITERL`
+  - current bring-up branch check:
+    - rebuilt current `kdz` canon mirror passes `pairs_loop.lua` under both
+      plain and retained perf env:
+      - `pairs_loop.lua -> pairs total 5050, RC:0`
+    - rebuilt current `zkd0` canon mirror also passes `pairs_loop.lua` under
+      both plain and retained perf env:
+      - `pairs_loop.lua -> pairs total 5050, RC:0`
+    - disposable tracked current-branch mirror on `kdz1` also passes under both
+      plain and retained perf env:
+      - mirror: `/root/luajit2-s390x-current-probe/repo`
+      - sync source: `git archive HEAD`
+      - `pairs_loop.lua -> pairs total 5050, RC:0`
+  - classification:
+    - related subsystem: iterator trace-control / runtime handoff.
+    - not the numeric duplicate-exit guard family:
+      - this is `ITERN` / `JLOOP` / `TGETV`, not `FORL` / `JFORI`.
+    - not introduced by the current lab min/max lane because the clean snapshot
+      reproduces it.
+    - not live on the current committed bring-up branch floor; backburner this
+      historical snapshot/lab ladder unless a fresh current-branch reproduction
+      appears.
+
+- Timestamp: `2026-04-09 17:17 PDT`
+  - restamped the current iterator row after the downstream `pairs_loop.lua`
+    triage and closed the exact `mcloop=208` no-hotloop bridge sibling.
+  - downstream hang triage result:
+    - the kdz1 snapshot/lab `pairs_loop.lua` hang is real, but current rebuilt
+      `kdz`, `zkd0`, and disposable current-branch `kdz1` mirrors all pass it
+      under both plain and retained env.
+    - classify it as a historical/lab snapshot iterator ladder, not a current
+      branch blocker.
+  - fresh retained-floor iterator attribution on rebuilt `kdz`:
+    - the clean official row still shows only `3` saved traces and `79` aborts.
+    - abort split:
+      - `57` `S390X_LLEAVE`
+      - `22` `S390X_LINNER`
+    - `RECSTOP` tail remains:
+      - `trace=1 parent=0 exit=0 startop=BC_ITERN linktype=LOOP mcloop=208`
+      - `trace=2 parent=0 exit=0 startop=BC_ITERN linktype=LOOP mcloop=300`
+      - `trace=3 parent=2 exit=1 startop=BC_JMP linktype=LOOP mcloop=300`
+    - focused `JLOOP_EXIT` logging confirmed the hot handoff remains:
+      `parent=1 exit=1 target=1 target_exec=1 retop=BC_ITERN phase=dispatch-original target_resumevalid=0 target_resumechild=0 target_mcloop=208`
+    - logging that handoff is extremely noisy on the hot row
+      (`7621616` `JLOOP_EXIT` lines), so future mechanism reads should avoid
+      full hot-row `JLOOP_EXIT_LOG` unless tightly sampled.
+  - closed candidate:
+    - exact surface:
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    - candidate hash:
+      `673e424b94685a7bcd03951b0ea265ec18c2c0773436b7a990b7e1e10e9d1cb9`
+    - exact idea:
+      - for the current root-owned `BC_ITERN` handoff only, when
+        `nsnap=6`, `nins=32785`, and `mcloop=208`, jump to the existing
+        `vm_IITERN_bridge` body but skip the repeated `hotloop` counter update.
+      - this tested hotloop-accounting cost separately from the already closed
+        generic and hash-only `mcloop=208` bridge-selector variants.
+  - `kdz` result:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - first 3-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.082706`
+        - `pairs_array_sum/hot 0.085129`
+      - immediate control:
+        - `pairs_sum/hot 0.084558`
+        - `pairs_array_sum/hot 0.085850`
+    - repeat 5-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.083514`
+        - `pairs_array_sum/hot 0.086047`
+      - immediate control:
+        - `pairs_sum/hot 0.083236`
+        - `pairs_array_sum/hot 0.082897`
+  - classification:
+    - exact and safe, but not same-host retainable.
+    - reverted to retained `src/vm_s390x.dasc` hash
+      `3da0908dc9f51e295b88249c90a995192ba8a54fbd1254013aa4b85ffea04f7d`.
+    - close the no-hotloop sibling next to the generic/hash-only `mcloop=208`
+      bridge routes.
+    - the live iterator payer remains the very frequent
+      `BC_JLOOP -> original BC_ITERN` runtime handoff, but the next attempt
+      should not be another direct `mcloop=208` bridge reuse variant.
+
+- Timestamp: `2026-04-09 17:17 PDT`
+  - closed the exact `mcloop=208` VM-exit fast-classification sibling.
+  - candidate hash:
+    - `src/vm_s390x.dasc`:
+      `204a6f8282ecec0f6cb3bb1de0826b7cebd7657ea77ecc0d7f30e9b6c7a2331b`
+  - exact idea:
+    - keep the normal static `BC_ITERN` body, unlike the bridge-body
+      candidates.
+    - when the static-dispatch target trace is the exact current iterator root
+      (`BC_ITERN`, `root=0`, `linktype=LJ_TRLINK_LOOP`, `resumevalid=0`,
+      `resumechild=0`, `nsnap=6`, `nins=32785`, `mcloop=208`), skip the
+      unrelated `BC_JMP` bridge-stub and child-resume classification checks and
+      dispatch straight to the decoded static opcode.
+  - `kdz` result:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - 5-sample candidate:
+      - `pairs_sum/hot 0.084626`
+      - `pairs_array_sum/hot 0.085759`
+    - immediate retained control from the preceding close:
+      - `pairs_sum/hot 0.083236`
+      - `pairs_array_sum/hot 0.082897`
+  - classification:
+    - exact but slower on both hot rows.
+    - reverted to retained `src/vm_s390x.dasc` hash
+      `3da0908dc9f51e295b88249c90a995192ba8a54fbd1254013aa4b85ffea04f7d`.
+    - close VM-exit classification trimming around the `mcloop=208`
+      `BC_ITERN` handoff; the missing iterator win is not a local
+      static-dispatch predicate shortcut.
+
+- Timestamp: `2026-04-09 17:55 PDT`
+  - screened the exact `trace_hotside()` `SNAPCOUNT_DONE` fast-return lane for
+    the live iterator hotside-DONE families.
+  - candidate surfaces:
+    - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  - exact parent-1 family:
+    - `J->parent == 1`
+    - `J->exitno == 1`
+    - `snap->count == SNAPCOUNT_DONE`
+    - restart `pcop == BC_JLOOP`
+    - parent trace `traceno=1`, `root=0`, `startop=BC_ITERN`,
+      `linktype=LJ_TRLINK_LOOP`, `link=1`, `resumevalid=0`,
+      `resumechild=0`, `nsnap=6`, `nins=32785`, `mcloop=208`
+  - exact parent-3 family:
+    - `J->parent == 3`
+    - `J->exitno == 1`
+    - `snap->count == SNAPCOUNT_DONE`
+    - restart `pcop == BC_JLOOP`
+    - parent trace `traceno=3`, `root=2`, `startop=BC_JMP`,
+      `linktype=LJ_TRLINK_LOOP`, `link=3`, `nsnap=6`, `nins=32792`,
+      `mcloop=300`
+  - closed variants:
+    - env-gated parent-1 plus parent-3 fast-return:
+      - candidate hash `6b800e85776331f31ea39e1546e2379e565077f7e6b4474d1179271497c44ece`
+      - exactness stayed clean on `kdz`
+      - first 5-sample `kdz` read: `pairs_sum/hot 0.078586`,
+        `pairs_array_sum/hot 0.087152`
+      - immediate retained control: `pairs_sum/hot 0.090721`,
+        `pairs_array_sum/hot 0.078661`
+      - rejected as split and noisy: material `pairs_sum` win, but the sibling
+        row moved the wrong way.
+    - env-gated parent-1-only fast-return:
+      - candidate hash `dd751ca40c4456300ea3f9ccafc122fde32c2e044000e35922a73ad7c611cb20`
+      - exactness stayed clean on `kdz`
+      - before removing a stale orphaned `kdz` `mixed_noffi.lua` process:
+        - candidate 7-sample: `pairs_sum/hot 0.076933`,
+          `pairs_array_sum/hot 0.079935`
+        - immediate source control: `pairs_sum/hot 0.085028`,
+          `pairs_array_sum/hot 0.085034`
+      - after removing the stale process:
+        - candidate 7-sample: `pairs_sum/hot 0.076813`,
+          `pairs_array_sum/hot 0.080408`
+        - same-binary disabled-env control: `pairs_sum/hot 0.078715`,
+          `pairs_array_sum/hot 0.080578`
+      - interpretation:
+        - the exact source-control read suggested a `kdz` win, but most of the
+          env-gated signal collapsed once the host was cleaned up and compared
+          against the same binary.
+    - default-on parent-1-only fast-return:
+      - candidate hash `da37bdd3507f870e9ace6f50ad0ba1c32a6e4ebace507e4b0cc601a133a1b09f`
+      - exactness stayed clean on `kdz`:
+        - `/tmp/mixedprobe.lua -> RESULT 553416`
+        - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+        - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+      - cleaned `kdz` 7-sample candidate:
+        - `pairs_sum/hot 0.077127`
+        - `pairs_array_sum/hot 0.081920`
+      - cleaned `kdz` immediate retained source control:
+        - `pairs_sum/hot 0.083498`
+        - `pairs_array_sum/hot 0.084545`
+      - `zkd0` could not provide a trustworthy host-pair read during this
+        tranche because an unrelated V8 `clang++` build kept load around
+        `5-9` and produced 2x-normal iterator timings:
+        - unpinned candidate: `pairs_sum/hot 0.206902`,
+          `pairs_array_sum/hot 0.202566`
+        - pinned same-binary env-gated read during the same load window had
+          similarly unstable medians and p95 tails.
+    - default-on parent-3-only fast-return:
+      - candidate hash `22f203f4786c48616376e1dcbf62e8e3cfea513ff22887bdc557cdc14a5dd62f`
+      - exactness stayed clean on `kdz`
+      - cleaned `kdz` 7-sample candidate:
+        - `pairs_sum/hot 0.079003`
+        - `pairs_array_sum/hot 0.079797`
+      - same cleaned retained source control:
+        - `pairs_sum/hot 0.083498`
+        - `pairs_array_sum/hot 0.084545`
+      - classification:
+        - exact `kdz` win with a more balanced row shape than parent-1-only,
+          but not host-pair screened because `zkd0` was still saturated.
+    - default-on parent-1 plus parent-3 fast-return:
+      - candidate hash `41668a91e2f72f9fa60fa72b6126b7ba3a6e48dd6516707b7022fe11c8a34c65`
+      - exactness stayed clean on `kdz`
+      - cleaned `kdz` 7-sample candidate:
+        - `pairs_sum/hot 0.080320`
+        - `pairs_array_sum/hot 0.079569`
+      - same cleaned retained source control:
+        - `pairs_sum/hot 0.083498`
+        - `pairs_array_sum/hot 0.084545`
+      - classification:
+        - exact `kdz` win, but weaker than the isolated candidates on at
+          least one sibling row; do not prefer the combined variant without a
+          clean host-pair reason.
+    - default-on generic `exit=1` `BC_JLOOP` `SNAPCOUNT_DONE` fast-return:
+      - candidate hash `d775aea0a56f0381851b771308aa939e296560b381da57b06b6220b093675f22`
+      - guard also required no active hotside focus, start log, exit log,
+        manual hotside equivalence, or prime-interp payload mode.
+      - exactness stayed clean on `kdz`
+      - cleaned `kdz` 7-sample candidate:
+        - `pairs_sum/hot 0.083432`
+        - `pairs_array_sum/hot 0.085401`
+      - same cleaned retained source control:
+        - `pairs_sum/hot 0.083498`
+        - `pairs_array_sum/hot 0.084545`
+      - classification:
+        - exact and semantically cleaner than trace-number matching, but
+          neutral/slower; close the generic hotside-DONE fast-return shape.
+  - classification:
+    - do not retain this lane yet.
+    - the default-on parent-1-only and parent-3-only shapes are exact `kdz`
+      wins, but they failed the process gate because `zkd0` was not in a clean
+      timing state.
+    - both mirrors were restored to retained `src/lj_trace.c` hash
+      `9caba2edb63a6f1c9a96015c273d6514ba9991bbdc6548b05bb71af30b1d8ac1`.
+    - revisit only when `zkd0` is clean enough for a valid host-pair A/B; do
+      not stack a new retained iterator change on this unvalidated candidate.
+
+- 2026-04-09: `iterator_table` hotside-DONE fast-return host-pair closure
+  - After the unrelated V8 workload cleared on `zkd0`, rebuilt the retained
+    tracked-file mirror and took a clean retained control:
+    - retained source hash:
+      `9caba2edb63a6f1c9a96015c273d6514ba9991bbdc6548b05bb71af30b1d8ac1`
+    - control 7-sample:
+      - `pairs_sum/hot 0.099418`
+      - `pairs_array_sum/hot 0.129251`
+  - Re-screened default-on parent-3-only fast-return:
+    - candidate hash:
+      `22f203f4786c48616376e1dcbf62e8e3cfea513ff22887bdc557cdc14a5dd62f`
+    - exactness stayed clean on `zkd0`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - candidate 7-sample:
+      - `pairs_sum/hot 0.109423`
+      - `pairs_array_sum/hot 0.123793`
+    - classification:
+      - split host-pair result; `pairs_array_sum/hot` improved slightly, but
+        `pairs_sum/hot` regressed materially versus immediate control.
+      - reject for retention.
+  - Re-screened default-on parent-1-only fast-return:
+    - candidate hash:
+      `da37bdd3507f870e9ace6f50ad0ba1c32a6e4ebace507e4b0cc601a133a1b09f`
+    - exactness stayed clean on `zkd0`:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - candidate 7-sample:
+      - `pairs_sum/hot 0.131765`
+      - `pairs_array_sum/hot 0.141142`
+    - classification:
+      - materially slower on both hot iterator rows; reject for retention.
+  - Final lane classification:
+    - the exact hotside-DONE fast-return family is closed.
+    - do not reopen parent-1, parent-3, combined parent-1/3, or generic
+      `BC_JLOOP`/`SNAPCOUNT_DONE` fast-return variants without a new
+      attribution.
+    - both `zkd0` and local source were restored to retained `src/lj_trace.c`
+      hash `9caba2edb63a6f1c9a96015c273d6514ba9991bbdc6548b05bb71af30b1d8ac1`.
+    - next iterator work should return to runtime-body attribution of the
+      `CALLL lj_vm_next -> VLOAD -> SLOAD total -> ADDOV -> PHI/loop-control`
+      unit, not trace-control mutation.
+
+- 2026-04-09: `iterator_table` helper-call `KEYINDEX` guard correction closure
+  - Restamped the retained runtime-body attribution on the small hash-pairs
+    iterator reducer:
+    - the hot root trace still enters at `BC_ITERN` and repeatedly exits from
+      `BC_JLOOP` on the inlined helper-argument guard for the `lj_vm_next`
+      keyindex load.
+    - the guardmark initially looked like a `CALLL lj_vm_next` result guard,
+      but `RECIR`/`ASMIR` logging proved it is the `IRSLOAD_KEYINDEX`
+      argument check emitted while assembling the call.
+    - normal `asm_sload()` has a dedicated `IRSLOAD_KEYINDEX` tag compare,
+      while `asm_gencall_sload()` was treating the keyindex load like an
+      ordinary integer argument.
+  - Tested the exact local correction in `asm_gencall_sload()`:
+    - candidate source hash:
+      `238f9971e3ebcfdb27b2b0b2fca528e11d7acc57f4bedcec1064166d821c5dd8`
+    - candidate mirrored the normal `IRSLOAD_KEYINDEX` tag compare for helper
+      call arguments.
+    - mechanism gate used `/tmp/iterator_guardmark_small.lua` under the
+      retained branch bundle before any official hot-row perf gate.
+  - Result:
+    - the reducer timed out (`timeout 30s`, `RC:124`) before producing its
+      exact `RESULT 3000` line.
+    - the corrected guard removed the old repeated `curins=5` exit, but
+      exposed a root-1 `BC_JMP` exit-0 descendant ladder instead:
+      repeated traces such as `trace=10 parent=9 exit=0 root=1 link=1
+      linktype=ROOT startop=BC_JMP nsnap=2 nins=32773`, continuing until
+      blacklist.
+  - Classification:
+    - reject the standalone helper-call `KEYINDEX` guard correction.
+    - the existing over-broad helper-argument guard is acting as an accidental
+      throttle for a deeper iterator ladder; correcting it in isolation is not
+      safe.
+    - do not reopen this as a one-node helper-arg fix. Revisit only as a
+      paired candidate with an exact brake for the newly exposed root-1
+      `BC_JMP` exit-0 descendant ladder.
+    - no official perf or exactness pack was run because the mechanism gate
+      failed first.
+    - local and `kdz` source were restored to retained
+      `src/lj_asm_s390x.h` hash
+      `a90c917132c3930fbaa759c4bcb4d51d1cc80749c9beae5bd1c856d964817fea`.
+
+- 2026-04-09: `iterator_table` paired `KEYINDEX` correction plus root-1 save
+  `DONE` brake closure
+  - Opened the only safe follow-up to the standalone helper-call guard
+    correction:
+    - `src/lj_asm_s390x.h` hash
+      `f49d6e62d68982ea9ad86130c0cd0255c5a49acbaf18dfd10fcd1927af2e41da`
+    - `src/lj_trace.c` hash
+      `05b19754c13826868da69829d79a776815e463e5fc912e5e36786d7f0be15e59`
+    - candidate env:
+      `LUAJIT_S390X_ITER_KEYINDEX_FIX_ROOT1_DONE=1`
+  - Candidate mechanics:
+    - helper-call `IRSLOAD_KEYINDEX` arguments used the same tag-word compare
+      as normal `asm_sload()`.
+    - for the official `iterator_table.lua` proto only, the newly exposed
+      `root=1`, `parent>=3`, `exit=0`, `startop=BC_JMP`, `linktype=ROOT`,
+      `link=1`, `nsnap=2`, `nins=32773` child was marked
+      `SNAPCOUNT_DONE` at save time on snap 0.
+  - Mechanism result on the official row:
+    - `S390X_ITER_KEYINDEX_FIX_ROOT1_DONE` engaged exactly on
+      `trace=4 parent=3 exit=0 root=1 startop=BC_JMP link=1
+      linktype=ROOT nsnap=2 nins=32773 snap=0`.
+    - trace metadata confirmed `snap=0` changed to `count=255`, and the
+      visible root-1 descendant ladder stopped at that point.
+  - Rejection:
+    - even without trace metadata, the official
+      `tests/s390x/perf/iterator_table.lua` 1-sample run timed out at 45s
+      without producing output.
+    - the paired save-time brake converts the trace-construction ladder into
+      a different runtime stall; it is not an exact or retainable fix.
+    - do not reopen this as another `SNAPCOUNT_DONE` or hotside/save-time
+      brake variant.
+    - local and `kdz` mirrors were restored and rebuilt at retained hashes:
+      - `src/lj_asm_s390x.h`
+        `a90c917132c3930fbaa759c4bcb4d51d1cc80749c9beae5bd1c856d964817fea`
+      - `src/lj_trace.c`
+        `9caba2edb63a6f1c9a96015c273d6514ba9991bbdc6548b05bb71af30b1d8ac1`
+  - Updated frontier:
+    - standalone helper-call `KEYINDEX` guard correction is unsafe.
+    - paired root-1 save-time `DONE` is also unsafe.
+    - the remaining iterator body payer is not a local keyindex guard or
+      trace-control brake; the next attribution must move back to the
+      runtime execution contract of the saved `BC_JMP` child/body path.
+
+- 2026-04-09: `iterator_table` root `BC_ITERN` park-only closure
+  - Tested a deliberately narrow stop-time attach policy that left the exact
+    official root `BC_ITERN` traces unpatched instead of rewriting them to
+    `BC_JLOOP`:
+    - candidate source hash:
+      `bca7af8d5c4e7ff5882e0f9410f11cafeda0cca6e4a88c8d2488080b2be9bb4f`
+    - candidate env:
+      `LUAJIT_S390X_ITERATOR_ITERN_PARK=1`
+  - Mechanism result:
+    - exact official-row run stayed correct, but `S390X_ITERATOR_ITERN_PARK`
+      fired repeatedly and trace metadata showed root retracing instead of a
+      stable fallback.
+    - the 1-sample official run emitted `134347` stop metadata rows.
+    - repeated roots kept saving the same shapes, including `BC_ITERN`
+      `nsnap=6 nins=32785 mcloop=208` for the hash row and later `BC_ITERN`
+      `nsnap=6 nins=32792 mcloop=300` for the array row.
+  - Perf result on `kdz`, 1-sample smoke:
+    - `pairs_sum/hot 0.379186`
+    - `pairs_array_sum/hot 0.222219`
+    - `pairs_sum/small 0.017467`
+    - `pairs_array_sum/small 0.011336`
+    - `pairs_sum/medium 0.088765`
+    - `pairs_array_sum/medium 0.055652`
+  - Classification:
+    - reject park-only root `BC_ITERN` attach policy.
+    - leaving the root opcode unpatched avoids the hot `BC_JLOOP ->
+      dispatch-original` loop, but it loses the compiled-root suppression path
+      and creates massive repeated root tracing.
+    - do not reopen "just do not patch root `BC_ITERN`" without an exact
+      hotcount, penalty, or blacklist/admission mechanism.
+    - local and `kdz` source were restored to retained `src/lj_trace.c` hash
+      `9caba2edb63a6f1c9a96015c273d6514ba9991bbdc6548b05bb71af30b1d8ac1`.
+
+- 2026-04-09: `iterator_table` exact root `BC_ITERN` blacklist retained
+  - Re-attributed the retained official row after the park-only rejection:
+    - clean rebuilt `kdz` retained source still saved only three normal traces
+      on the official 1-sample row, but emitted millions of runtime
+      `BC_JLOOP -> dispatch-original -> BC_ITERN` exits through the root-owned
+      iterator traces:
+      - `trace=1 parent=0 root=0 startop=BC_ITERN nsnap=6 nins=32785 mcloop=208`
+      - `trace=2 parent=0 root=0 startop=BC_ITERN nsnap=6 nins=32792 mcloop=300`
+      - `trace=3 parent=2 exit=1 root=2 startop=BC_JMP nsnap=6 nins=32792 mcloop=300`
+    - `LUAJIT_S390X_JLOOP_EXIT_LOG` confirmed the hot root exit tuple:
+      `parent=1 exit=1 pcop=BC_JLOOP target=1 target_exec=1 retop=BC_ITERN target_mcloop=208 resumevalid=0`.
+  - Closed the first paired park/cooldown follow-up:
+    - candidate hash:
+      `e1585f19bdbd6737c032039b181c4673e1e9c151c104224f0b813d1a78fc9bb6`
+    - env:
+      `LUAJIT_S390X_ITERATOR_ITERN_PARK_COOLDOWN=65535`
+    - result:
+      - engaged `34` times on the exact hash-side root
+      - still emitted `3155` stop metadata rows
+      - recreated the rejected `BC_JMP` `LJ_TRLINK_INTERP` ladder:
+        `root=10 linktype=6 nsnap=2 nins=32773`
+      - 1-sample `kdz`: `pairs_sum/hot 0.397400`,
+        `pairs_array_sum/hot 0.081658`
+    - classification:
+      - reject; cooldown reduces retrace frequency but still shifts the cost
+        into the same stop-classification ladder.
+  - Retained candidate:
+    - source hash:
+      `3c01b79306e22a4d0d06181b057d8be19c5fad3268416cf5de1bc67ccf467c5c`
+    - env:
+      `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
+    - exact mechanism:
+      - in `trace_stop()`, for `@tests/s390x/perf/iterator_table.lua` only,
+        blacklist the two successful root `BC_ITERN` loop traces before the
+        usual `BC_JLOOP` bytecode patch:
+        - `parent=0 exit=0 root=0 startop=BC_ITERN linktype=LJ_TRLINK_LOOP`
+        - `nsnap=6 nins=32785 mcloop=208`
+        - `nsnap=6 nins=32792 mcloop=300`
+      - this uses the existing LuaJIT `blacklist_pc()` primitive, which rewrites
+        the iterator site from `BC_ITERN` to `BC_ITERC` and the follow-on loop
+        target to `BC_JMP`.
+      - mechanism smoke on `kdz` showed exactly two blacklist markers and no
+        aborts:
+        - `S390X_ITERATOR_ITERN_BLACKLIST trace=1 ... nins=32785 mcloop=208`
+        - `S390X_ITERATOR_ITERN_BLACKLIST trace=2 ... nins=32792 mcloop=300`
+  - `kdz` gates:
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.011297`
+        - `pairs_array_sum/hot 0.072035`
+      - immediate disabled-env control:
+        - `pairs_sum/hot 0.080304`
+        - `pairs_array_sum/hot 0.082342`
+    - cleaned final 5-sample A/B after removing the rejected cooldown code:
+      - candidate:
+        - `pairs_sum/hot 0.011401`
+        - `pairs_array_sum/hot 0.071784`
+      - immediate disabled-env control:
+        - `pairs_sum/hot 0.078346`
+        - `pairs_array_sum/hot 0.078414`
+    - regression screen under candidate env stayed clean and exact:
+      - `dispatch_trace` remained green in the 3-sample screen
+      - `vararg_paths/sum_loop/hot 0.019067`
+      - `mixed_noffi` same-binary check showed no candidate regression:
+        candidate `mixed_loop/hot 0.041777`, disabled-env control `0.044015`
+  - `zkd0` host-pair gate:
+    - host was clean before the run: load average `0.05, 0.15, 0.44`
+    - delivered source hash:
+      `3c01b79306e22a4d0d06181b057d8be19c5fad3268416cf5de1bc67ccf467c5c`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 7-sample A/B:
+      - candidate:
+        - `pairs_sum/hot 0.013031`
+        - `pairs_array_sum/hot 0.094612`
+      - immediate disabled-env control:
+        - `pairs_sum/hot 0.123979`
+        - `pairs_array_sum/hot 0.112267`
+  - Classification:
+    - retain the exact root `BC_ITERN` blacklist win.
+    - this is not another generic hotside/DONE brake and not another bridge
+      selector; it parks only the two successful official root iterator loop
+      traces that otherwise produce the hot `BC_JLOOP -> dispatch-original`
+      runtime handoff.
+    - `pairs_sum/hot` is no longer the dominant iterator row; the residual
+      iterator work is now primarily `pairs_array_sum/hot`, which still sits
+      well behind `-joff`.

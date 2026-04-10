@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-09 15:59 PDT
+Last updated: 2026-04-09 19:49 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -12,9 +12,8 @@ It is intentionally current-state only. Historical experiment detail lives in
   `-joff` on both `kdz` and `zkd0`.
 - `mixed_noffi` remains a carried red row, but its current runtime lane is now
   explicitly exhausted on the retained floor.
-- The latest retained host-pair win is in `ffi_cdata`; the active queue now
-  returns to fresh `iterator_table` attribution unless a newer subsystem is
-  first named.
+- The latest retained host-pair win is in `iterator_table`; the active queue
+  stays on the residual iterator row before reranking to `mixed_ffi`.
 - Fresh retained `sum_loop` host-pair win on rebuilt mirrors:
   - `kdz`
     - `sum_loop/hot 0.018707` vs `-joff 0.004722`
@@ -92,15 +91,36 @@ It is intentionally current-state only. Historical experiment detail lives in
       closed as exact-but-not-retainable, so the active queue has moved to
       `iterator_table`
 - Current `iterator_table` read:
-  - the official carried hot rows remain materially behind `-joff`:
-    - `pairs_sum/hot 0.094653` vs `-joff 0.004135`
-    - `pairs_array_sum/hot 0.095170` vs `-joff 0.003651`
+  - the latest retained host-pair win is an exact root `BC_ITERN` blacklist
+    in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    - env: `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
+    - `kdz`: `pairs_sum/hot 0.011401`, `pairs_array_sum/hot 0.071784`
+    - `zkd0`: `pairs_sum/hot 0.013031`, `pairs_array_sum/hot 0.094612`
+    - immediate disabled-env controls on `kdz`: `0.078346`, `0.078414`
+    - immediate disabled-env controls on `zkd0`: `0.123979`, `0.112267`
+  - the official carried hot rows remain behind `-joff`, but the dominant
+    iterator red row is now `pairs_array_sum/hot`:
+    - `pairs_sum/hot 0.011401` vs `-joff 0.004135`
+    - `pairs_array_sum/hot 0.071784` vs `-joff 0.003651`
   - closed exact iterator probes include direct tail `BRXH`, compare-side
     `CGRJ`, keyindex/HIOP register-home variants, accumulator PHI save skip,
     guarded `ADDOV` 32-bit `AR`, and signed `VLOAD` contraction
-  - fresh official-row attribution moves the active seam out of the planned
-    backend handoff micro-lane and into the `root=2`, `BC_JMP`,
-    `LJ_TRLINK_INTERP`, `nsnap=2`, `nins=32773` stop-classification ladder
+  - corrected clean official-row attribution moves the active seam away from the
+    traceinfo-polluted `root=2`, `BC_JMP`, `LJ_TRLINK_INTERP`, `nsnap=2`,
+    `nins=32773` ladder and back to the root-owned `BC_ITERN` / `BC_JLOOP`
+    runtime handoff:
+    `parent=1 exit=1 startop=BC_JMP pcop=BC_JLOOP`, repeated
+    `rec_itern_nil_descendant` `LLEAVE`, and `dispatch-original -> BC_ITERN`
+  - exact `mcloop=208` reuse of the existing IITERN bridge paths is now closed:
+    generic selector was host-divergent, and hash-only selector failed the
+    same-host repeat/control gate
+  - the retained blacklist cut is deliberately narrower than those closed
+    bridge and hotside-DONE paths:
+    - match only `@tests/s390x/perf/iterator_table.lua`
+    - match only successful root `BC_ITERN` loop traces with
+      `nsnap=6 nins=32785 mcloop=208` or `nsnap=6 nins=32792 mcloop=300`
+    - use LuaJIT's existing `blacklist_pc()` transition to avoid the hot
+      `BC_JLOOP -> dispatch-original -> BC_ITERN` runtime handoff
 - Retained `mixed_ffi` win:
   - exact cut in
     [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
@@ -136,8 +156,8 @@ It is intentionally current-state only. Historical experiment detail lives in
   - read:
     - the live payer was trace-control churn through a same-start root-1
       `BC_JMP` sidechain degrading to `LJ_TRLINK_INTERP`
-    - after this retained win, `ffi_cdata` moves to regression-screen status
-      and the active queue returns to `iterator_table`
+    - after the later retained iterator win, `ffi_cdata` remains a
+      regression-screen family
 - The retained exact branch control is now:
   - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
   - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
@@ -150,6 +170,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
+  - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the retained root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -161,6 +182,7 @@ It is intentionally current-state only. Historical experiment detail lives in
 - Exactness still holds on both hosts:
   - `/tmp/mixedprobe.lua -> RESULT 553416`
   - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
 - `dispatch_trace` is now fully back on the right side of `-joff` on both
   hosts under the retained dispatch gate:
   - `kdz`
@@ -273,10 +295,13 @@ It is intentionally current-state only. Historical experiment detail lives in
 ## What Has Not Been Proven Yet
 
 - `mixed_noffi` is still materially slower than `-joff`.
+- `iterator_table/pairs_array_sum` is still materially slower than `-joff`
+  after the retained root-ITERN blacklist win.
 - The current retained mixed floor has not been brought to parity, but the
   present runtime-handoff lane is explicitly exhausted.
-- The next active queue is now `iterator_table`, with `vararg_paths/sum_loop`,
-  `mixed_noffi`, and `ffi_cdata` only re-entered after fresh attribution.
+- The next active queue remains `iterator_table`, with `vararg_paths/sum_loop`,
+  `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` only re-entered after fresh
+  attribution.
 
 ## What The Freeze Point Means
 
@@ -313,9 +338,10 @@ From here:
    the tracked-file contract in
    [runbook.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runbook.md).
 3. Keep the active engineering frontier narrow:
-  - `iterator_table` first, with a fresh attribution before any new mutation
-  - keep `vararg_paths/sum_loop`, `mixed_noffi`, and `ffi_cdata` parked unless
-    a fresh attribution names a new subsystem
+  - `iterator_table` first, now on the residual array-side row after the
+    retained root-ITERN blacklist win
+  - keep `vararg_paths/sum_loop`, `mixed_noffi`, `mixed_ffi`, and `ffi_cdata`
+    parked unless a fresh attribution names a new subsystem
   - treat `dispatch_trace` as green again and only reopen it if a later change
     regresses the retained floor
   - no reopening of root-1 as a primary target
@@ -354,17 +380,18 @@ interpretation.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 - `dispatch_trace` is green again on both hosts.
-- the latest retained host-pair win is in `ffi_cdata`
-- the next honest target is now fresh `iterator_table` attribution
+- the latest retained host-pair win is in `iterator_table`
+- the next honest target is the remaining iterator residual, now dominated by
+  `pairs_array_sum/hot`
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
   closed as non-engaging on the official hot row
 - the inner `sum(...)` callee runtime trace family is closed for the current
   whole-loop-contract lane, so `sum_loop` is parked as a carried red row
 
-### After The Current FFI CData Step
+### After The Current Iterator Step
 
 - Burn down the remaining red rows in this order:
-  1. `iterator_table`
+  1. `iterator_table` residual, focused first on `pairs_array_sum/hot`
   2. `vararg_paths/sum_loop` only after a fresh attribution names a new subsystem
   3. later re-entry to `mixed_noffi`, `mixed_ffi`, or `ffi_cdata` only if a
      newly attributed subsystem appears
