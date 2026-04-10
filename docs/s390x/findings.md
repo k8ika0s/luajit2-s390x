@@ -25518,3 +25518,115 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       near parity.
     - The next move should be a fresh retained-matrix rerank, not another
       iterator trace-control edit unless a new attribution names one.
+
+- 2026-04-10: `ffi_cdata` width-loop abort route-around variants closed
+  - After the retained iterator hash-side hotcount park, the next rerank moved
+    the remaining active probe to the near-parity `ffi_cdata` residual:
+    `pair_loop/hot` and `mixed_width_loop/hot`.
+  - Fresh attribution on the retained `kdz` floor found a real width-loop abort
+    shape after the retained pair-loop root `BC_FORL` blacklist:
+    - chunk `@tests/s390x/perf/ffi_cdata.lua`
+    - `trace=2`
+    - `parent=0`
+    - `exit=0`
+    - `root=0`
+    - `startop=BC_FORL`
+    - abort `pc=BC_TGETB`
+    - abort reason `LJ_TRERR_NYIIR`
+  - Candidate 1, exact immediate `blacklist_pc()` on that aborting root
+    `BC_FORL`, was exact and clean on `kdz`:
+    - delivered source hash:
+      `327615b69517230fafeb6ca654061b382c46d427946fc0beee1ac587e789f81d`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `kdz` same-binary A/B:
+      - candidate: `pair_loop/hot 0.017172`,
+        `mixed_width_loop/hot 0.028216`
+      - immediate retained control: `pair_loop/hot 0.018477`,
+        `mixed_width_loop/hot 0.029581`
+      - candidate rerun: `pair_loop/hot 0.017399`,
+        `mixed_width_loop/hot 0.028387`
+    - `zkd0` exactness stayed clean and the mechanism fired, but host-pair
+      perf was not retainable:
+      - 11-sample candidate: `pair_loop/hot 0.020219`,
+        `mixed_width_loop/hot 0.034747`
+      - 11-sample control: `pair_loop/hot 0.024100`,
+        `mixed_width_loop/hot 0.033574`
+      - 11-sample candidate rerun: `pair_loop/hot 0.019932`,
+        `mixed_width_loop/hot 0.035294`
+      - denser confirmation showed the sibling direction flipping across
+        runs, not a stable host-pair win
+  - Candidate 2, exact abort-site hotcount park without bytecode rewriting,
+    also closed:
+    - delivered `kdz` source hash:
+      `69b338f3f656e7882134f3fb888b0f038795853b18e6d1766097fd2872f00a81`
+    - exactness stayed clean
+    - mechanism fired repeatedly in the same official-row run:
+      `S390X_FFI_CDATA_WIDTH_FORL_ABORT_HOTCOUNT_PARK 11`
+    - `kdz` same-binary A/B:
+      - candidate: `pair_loop/hot 0.016914`,
+        `mixed_width_loop/hot 0.028007`
+      - immediate retained control: `pair_loop/hot 0.017012`,
+        `mixed_width_loop/hot 0.028032`
+      - candidate rerun: `pair_loop/hot 0.017804`,
+        `mixed_width_loop/hot 0.029196`
+  - Classification:
+    - close the width-loop abort route-around family.
+    - The immediate `blacklist_pc()` version is exact but not host-pair
+      retainable because `zkd0` does not carry the sibling row cleanly.
+    - The hotcount-park version is mechanism-valid but does not suppress the
+      recurring abort cycle and regresses on the `kdz` rerun.
+    - The retained mirrors were restored to the prior
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      hash `2bd797692817a9f3c606273f4c5356b39d8f4a1c2627a4bbbb9bc86b7405d87e`.
+    - Next step: rerank the remaining near-parity rows from the clean retained
+      floor before opening another code lane.
+
+- 2026-04-10: retained-floor rerank after `ffi_cdata` width-abort closure
+  - Restored both rebuilt mirrors to the retained
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    hash `2bd797692817a9f3c606273f4c5356b39d8f4a1c2627a4bbbb9bc86b7405d87e`.
+  - Compact retained `kdz` rerank against `-joff`:
+    - `vararg_paths/sum_loop/hot 0.004471` vs `0.004437`
+    - `vararg_paths/retlast_loop/hot 0.002003` vs `0.002021`
+    - `vararg_paths/retconst_loop/hot 0.000536` vs `0.000529`
+    - `iterator_table/pairs_sum/hot 0.005393` vs `0.004193`
+    - `iterator_table/pairs_array_sum/hot 0.003940` vs `0.003713`
+    - `mixed_noffi/mixed_loop/hot 0.004037` vs `0.004013`
+    - `mixed_ffi/mixed_ffi_loop/hot 0.012004` vs `0.013828`
+    - `ffi_cdata/pair_loop/hot 0.016911` vs `0.017930`
+    - `ffi_cdata/mixed_width_loop/hot 0.027745` vs `0.028721`
+  - Official-row iterator attribution under the retained floor:
+    - no new trace starts/stops/aborts in the logged run after the retained
+      proto-NOJIT route-around was active
+    - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+    - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 228`
+    - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 228`
+    - `S390X_CALL 12`
+    - `S390X_IR kind=vload 6`
+    - read: the residual iterator payer is still repeated hotcount/trace-hot
+      admission into already parked iterator protos, not a new backend
+      `lj_vm_next` mcode shape.
+  - A reduced `pairs_sum`-only probe was explicitly rejected as attribution
+    evidence because the retained matcher is chunk-locked to
+    `@tests/s390x/perf/iterator_table.lua`; the temp copy missed the official
+    proto-NOJIT route-around and ran at `pairs_sum/hot 0.095188`.
+  - Denser official iterator confirmation on `kdz`:
+    - JIT: `pairs_sum/hot 0.004418`,
+      `pairs_array_sum/hot 0.003948`
+    - `-joff`: `pairs_sum/hot 0.004205`,
+      `pairs_array_sum/hot 0.003706`
+    - JIT rerun: `pairs_sum/hot 0.004560`,
+      `pairs_array_sum/hot 0.004021`
+    - `-joff` rerun: `pairs_sum/hot 0.004374`,
+      `pairs_array_sum/hot 0.003783`
+  - Classification:
+    - iterator remains the only visible red residual in the compact rerank, but
+      the remaining delta is small and sits on a family whose obvious C-level,
+      hotside, backend, and VM bridge variants are already closed.
+    - Do not reopen iterator again without a new payer beyond repeated
+      proto-NOJIT hotcount/trace-hot admission.
+    - Current practical queue is to look for a genuinely new subsystem rather
+      than mutate the already closed iterator route-around lane again.
