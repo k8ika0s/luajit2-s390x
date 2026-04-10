@@ -579,8 +579,8 @@ void lj_trace_s390x_vm_root_entry_log(GCtrace *T, const TValue *base)
 
 static int lj_trace_s390x_dispatch_forl_skip_jfori_match(jit_State *J)
 {
-  if (!(LJ_TARGET_S390X &&
-	lj_trace_s390x_dispatch_forl_skip_jfori_enabled() &&
+#if LJ_TARGET_S390X
+  if (!(lj_trace_s390x_dispatch_forl_skip_jfori_enabled() &&
 	J->parent == 0 && J->exitno == 0 &&
 	bc_op(J->cur.startins) == BC_FORL))
     return 0;
@@ -598,19 +598,26 @@ static int lj_trace_s390x_dispatch_forl_skip_jfori_match(jit_State *J)
   if (J->cur.nsnap == 8 && J->cur.nins == 32793)
     return 1;
 
-  return LJ_TARGET_S390X &&
-	 0;
+  return 0;
+#else
+  UNUSED(J);
+  return 0;
+#endif
 }
 
 static int lj_trace_s390x_dispatch_forl_park_root_match(jit_State *J)
 {
-  return LJ_TARGET_S390X &&
-         lj_trace_s390x_dispatch_forl_skip_jfori_enabled() &&
+#if LJ_TARGET_S390X
+  return lj_trace_s390x_dispatch_forl_skip_jfori_enabled() &&
          J->parent == 0 && J->exitno == 0 &&
          bc_op(J->cur.startins) == BC_FORL &&
          ((J->cur.nsnap == 9 &&
           (J->cur.nins == 32795 || J->cur.nins == 32791)) ||
           (J->cur.nsnap == 8 && J->cur.nins == 32793));
+#else
+  UNUSED(J);
+  return 0;
+#endif
 }
 
 static int lj_trace_s390x_dispatch_hotexit_proto_match(GCproto *pt)

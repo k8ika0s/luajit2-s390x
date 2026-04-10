@@ -1115,6 +1115,66 @@ static void crec_alloc(jit_State *J, RecordFFData *rd, CTypeID id)
     crec_finalizer(J, trcd, 0, fin);
 }
 
+#if LJ_TARGET_S390X
+static int crec_s390x_small_struct_arg_byval(CType *d)
+{
+  return ctype_isstruct(d->info) &&
+	 (d->size == 1 || d->size == 2 || d->size == 4 || d->size == 8);
+}
+
+static int crec_s390x_struct_1fp(CTState *cts, CType *ct)
+{
+  CTSize sz = ct->size;
+  if (!(sz == sizeof(float) || sz == sizeof(double))) return 0;
+  if ((ct->info & CTF_UNION)) return 0;
+  while (ct->sib) {
+    ct = ctype_get(cts, ct->sib);
+    if (ctype_isfield(ct->info)) {
+      CType *sct = ctype_rawchild(cts, ct);
+      if (ctype_isfp(sct->info) && sct->size == sz)
+	return (sz >> 2);
+      break;
+    } else if (ctype_isbitfield(ct->info)) {
+      break;
+    } else if (ctype_isxattrib(ct->info, CTA_SUBTYPE)) {
+      CType *sct = ctype_rawchild(cts, ct);
+      if (sct->size)
+	return crec_s390x_struct_1fp(cts, sct);
+    }
+  }
+  return 0;
+}
+
+static TRef crec_s390x_small_struct_arg(jit_State *J, CTState *cts, CType *d,
+					TRef sp, cTValue *o)
+{
+  TRef ptr;
+  int ft = crec_s390x_struct_1fp(cts, d);
+  argv2cdata(J, sp, o);
+  ptr = emitir(IRT(IR_ADD, IRT_PTR), sp, lj_ir_kintp(J, sizeof(GCcdata)));
+  if (ft == 2) {
+    return emitir(IRT(IR_XLOAD, IRT_NUM), ptr, 0);
+  } else if (ft == 1) {
+    return emitir(IRT(IR_XLOAD, IRT_FLOAT), ptr, 0);
+  } else if (d->size == 8) {
+    lj_needsplit(J);
+    return emitir(IRT(IR_XLOAD, IRT_U64), ptr, 0);
+  } else if (d->size == 4) {
+    return emitir(IRT(IR_XLOAD, IRT_U32), ptr, 0);
+  } else {
+    IRType t = d->size == 2 ? IRT_U16 : IRT_U8;
+    TRef tr = emitir(IRT(IR_XLOAD, t), ptr, 0);
+    return emitconv(tr, IRT_U32, t, 0);
+  }
+}
+
+static TRef crec_s390x_cdata_payload_arg(jit_State *J, TRef sp, cTValue *o)
+{
+  argv2cdata(J, sp, o);
+  return emitir(IRT(IR_ADD, IRT_PTR), sp, lj_ir_kintp(J, sizeof(GCcdata)));
+}
+#endif
+
 /* Record argument conversions.
 ** Note: may reallocate cts->tab and invalidate CType pointers.
 */
@@ -1151,6 +1211,7 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
   for (n = 0, base = J->base+1, o = rd->argv+1; *base; n++, base++, o++) {
     CTypeID did;
     CType *d;
+    int isvararg = 0;
 
     if (n >= CCI_NARGS_MAX)
       lj_trace_err(J, LJ_TRERR_NYICALL);
@@ -1172,8 +1233,21 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
       }
 #endif
       did = lj_ccall_ctid_vararg(cts, o);  /* Infer vararg type. */
+      isvararg = 1;
     }
     d = ctype_raw(cts, did);
+#if LJ_TARGET_S390X
+    if (ctype_isstruct(d->info) && crec_s390x_small_struct_arg_byval(d)) {
+      tr = crec_s390x_small_struct_arg(J, cts, d, *base, o);
+      goto donearg;
+    } else if (!isvararg && ctype_isstruct(d->info)) {
+      tr = crec_s390x_cdata_payload_arg(J, *base, o);
+      goto donearg;
+    } else if (ctype_iscomplex(d->info)) {
+      tr = crec_s390x_cdata_payload_arg(J, *base, o);
+      goto donearg;
+    }
+#endif
     if (!(ctype_isnum(d->info) || ctype_isptr(d->info) ||
 	  ctype_isenum(d->info)))
       lj_trace_err(J, LJ_TRERR_NYICALL);
@@ -1229,6 +1303,9 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
     if (!ctype_isfp(d->info) && ngpr) {
       ngpr--;
     }
+#endif
+#if LJ_TARGET_S390X
+  donearg:
 #endif
     args[n] = tr;
   }

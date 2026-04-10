@@ -568,6 +568,10 @@ static void canonicalize_slots(jit_State *J)
   }
 }
 
+#if LJ_TARGET_S390X
+static void lj_record_s390x_lleave_log(jit_State *J, const char *site);
+#endif
+
 /* Stop recording. */
 void lj_record_stop(jit_State *J, TraceLink linktype, TraceNo lnk)
 {
@@ -588,6 +592,30 @@ void lj_record_stop(jit_State *J, TraceLink linktype, TraceNo lnk)
 	    (unsigned int)J->cur.root, (unsigned int)J->framedepth,
 	    (unsigned int)J->retdepth);
   }
+#if LJ_TARGET_S390X
+  if (J->parent != 0 &&
+      J->exitno == 0 &&
+      J->cur.root != 0 &&
+      J->parent != J->cur.root &&
+      lnk != 0 &&
+      lnk != J->cur.root &&
+      linktype == LJ_TRLINK_ROOT &&
+      bc_op(J->cur.startins) == BC_JMP &&
+      J->pc > proto_bc(J->pt) &&
+      bc_op(J->pc[-1]) == BC_JFORI &&
+      bc_d(J->pc[bc_j(J->pc[-1])-1]) == lnk) {
+    GCtrace *parentT = traceref(J, J->parent);
+    if (J->exitno < parentT->nsnap &&
+	parentT->root == J->cur.root &&
+	parentT->linktype == LJ_TRLINK_ROOT &&
+	parentT->link == lnk &&
+	parentT->snap[J->exitno].nent == 0) {
+      parentT->snap[J->exitno].count = SNAPCOUNT_DONE;
+      lj_record_s390x_lleave_log(J, "record_stop_exit0_dup_root_bridge_descendant");
+      lj_trace_err(J, LJ_TRERR_LLEAVE);
+    }
+  }
+#endif
   lj_record_s390x_ir_log(J, linktype, lnk);
 #if LJ_TARGET_S390X
   if (J->s390x_nil_restart_desc &&
@@ -1551,6 +1579,25 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
 	      (unsigned int)ev, (unsigned int)lnk,
 	      (unsigned int)J->framedepth,
 	      (unsigned int)J->retdepth);
+    }
+    if (J->parent != 0 &&
+	J->exitno == 0 &&
+	J->cur.root != 0 &&
+	J->framedepth + J->retdepth == 0 &&
+	bc_op(J->cur.startins) == BC_JMP &&
+	J->pc == J->startpc &&
+	J->pc > proto_bc(J->pt) &&
+	bc_op(*J->pc) != BC_KSTR &&
+	bc_op(J->pc[-1]) == BC_JFORI &&
+	bc_d(J->pc[bc_j(J->pc[-1])-1]) == J->cur.root) {
+      GCtrace *parentT = traceref(J, J->parent);
+      if (J->exitno < parentT->nsnap &&
+	  (J->parent == J->cur.root || parentT->root == J->cur.root) &&
+	  parentT->snap[J->exitno].nent == 0) {
+	parentT->snap[J->exitno].count = SNAPCOUNT_DONE;
+	lj_record_s390x_lleave_log(J, "rec_loop_jit_exit0_dup_loop_descendant");
+	lj_trace_err(J, LJ_TRERR_LLEAVE);
+      }
     }
     if (lj_record_s390x_recloop_focus_enabled() &&
 	J->parent >= 3 && J->exitno == 0 && J->cur.root == 1 &&
