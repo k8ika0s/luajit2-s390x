@@ -137,6 +137,8 @@ Current localized hotside mechanism carry:
 
 - exact env:
   - `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`
+  - `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT=1` for the exact
+    lower-frame `lua_abs_same_callsite` follow-up route-around only
 - exact scope:
   - [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua)
   - [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua)
@@ -152,7 +154,9 @@ Current localized hotside mechanism carry:
   - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
     `1.922286 -> 0.033094`
   - `lower_frame_same_callsite/lua_abs_same_callsite/hot`:
-    `0.058123 -> 0.049683`
+    `0.058123 -> 0.049683` with the hotside carry, then
+    `0.048729 -> 0.015022` with the exact proto-NOJIT follow-up on the same
+    rebuilt mirror
 - host-pair `zkd0` signal:
   - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
     `0.705713 -> 0.013471`
@@ -163,7 +167,9 @@ Current localized hotside mechanism carry:
   - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
     `2.340587 -> 0.048359`
   - `lower_frame_same_callsite/lua_abs_same_callsite/hot`:
-    `0.094302 -> 0.063420`
+    `0.094302 -> 0.063420` with the hotside carry, then
+    `0.058875 -> 0.020010` with the exact proto-NOJIT follow-up on the same
+    rebuilt mirror
 - read:
   - this restores the localized helper/route-around experiment rows without
     promoting them into the stable matrix
@@ -171,8 +177,9 @@ Current localized hotside mechanism carry:
     shape, and chunk-name checks so non-target carried rows should stay on the
     retained floor
   - the lower-frame row did not hit the old `lua_lower_frame_retf` seam; the
-    retained extension targets the exact numeric `FORL/JFORI -> MODVN`
-    side-ladder behind that regression suite
+    hotside extension targets the exact numeric `FORL/JFORI -> MODVN`
+    side-ladder behind that regression suite, and the follow-up proto-NOJIT
+    route-around parks only the exact saved root trace-1 body
   - `mixed_noffi` remains noisy on `zkd0` and stays a regression screen, not a
     reopened primary target
 

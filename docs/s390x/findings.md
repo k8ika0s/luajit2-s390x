@@ -25761,3 +25761,67 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - This does not reopen lower-frame return handling; the fixed payer is the
       numeric `FORL/JFORI -> MODVN` side-ladder under the same env-gated
       hotside mechanism.
+
+- 2026-04-10: retained exact lower-frame `lua_abs` proto-NOJIT route-around
+  after the hotside carry
+  - Follow-up attribution on the retained lower-frame hotside carry showed the
+    residual is no longer trace construction:
+    - root trace 1 records once at `startop=BC_FORL`
+    - side traces stop after the retained localized hotside carry caps the
+      ladder
+    - the remaining hot cost is repeated saturated DONE/interpreter fallback
+      from the last same-shape side trace
+  - The retained candidate adds a second exact env gate in
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+    `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT=1`
+  - Exact matcher:
+    - chunk `@tests/s390x/perf/lower_frame_same_callsite.lua`
+    - proto `firstline=8`, `numline=10`
+    - `parent=0`, `exitno=0`, `cur.root=0`
+    - `cur.traceno=1`
+    - `startop=BC_FORL`
+    - `link=1`, `linktype=LJ_TRLINK_LOOP`
+    - `resumechild=0`, `topslot=7`, `spadjust=8`
+    - `nsnap=8`, `nins=32795`, `mcloop=288`
+  - Delivered candidate
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    hash on both mirrors:
+    `95da31f8170469577a75a55aa0f26b83b655324d5ad897100af5f3a376197362`
+  - Trusted `kdz` same-binary A/B:
+    - candidate:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.015022`,
+      `p95 0.015122`
+    - same-binary retained control without the new env:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.048729`,
+      `p95 0.049159`
+  - Trusted `zkd0` same-binary A/B:
+    - candidate:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.020010`,
+      `p95 0.022533`
+    - same-binary retained control without the new env:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.058875`,
+      `p95 0.077953`
+  - Mechanism proof:
+    - `kdz`:
+      `S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT trace=1 startop=79 link=1 linktype=2 nsnap=8 nins=32795 mcloop=288`
+    - `zkd0`:
+      `S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT trace=1 startop=79 link=1 linktype=2 nsnap=8 nins=32795 mcloop=288`
+  - Exactness stayed clean on both hosts:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Compact `kdz` regression screen with the new env stayed acceptable:
+    - `vararg_paths/sum_loop/hot 0.004741`
+    - `mixed_noffi/mixed_loop/hot 0.004048`
+    - `iterator_table/pairs_sum/hot 0.004433`
+    - `iterator_table/pairs_array_sum/hot 0.003949`
+    - `dispatch_trace` simple-run remained the existing noisy smoke signal,
+      not a new candidate-caused mechanism regression
+  - Classification:
+    - retain the exact lower-frame `lua_abs` proto-NOJIT route-around as part
+      of the experimental lower-frame carry.
+    - Do not promote `lower_frame_same_callsite` into the stable carried
+      matrix.
+    - This keeps lower-frame return handling closed; the retained route-around
+      is scoped to the exact benchmark proto after the trace-1 root body has
+      already been saved.

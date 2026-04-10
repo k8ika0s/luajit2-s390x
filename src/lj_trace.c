@@ -667,6 +667,48 @@ static int lj_trace_s390x_mixed_ffi_forl_proto_nojit_match(jit_State *J,
          T != NULL;
 }
 
+static int lj_trace_s390x_lower_frame_same_callsite_proto_match(GCproto *pt)
+{
+  static const char chunkname[] = "@tests/s390x/perf/lower_frame_same_callsite.lua";
+  GCstr *chunk;
+  if (pt == NULL || pt->firstline != 8 || pt->numline != 10)
+    return 0;
+  chunk = proto_chunkname(pt);
+  return chunk != NULL &&
+         chunk->len == (MSize)(sizeof(chunkname) - 1) &&
+         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
+}
+
+static int lj_trace_s390x_lower_frame_lua_abs_proto_nojit_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT") != NULL);
+  return enabled;
+}
+
+static int lj_trace_s390x_lower_frame_lua_abs_proto_nojit_match(jit_State *J,
+                                                                GCproto *pt,
+                                                                GCtrace *T)
+{
+  return LJ_TARGET_S390X &&
+         lj_trace_s390x_lower_frame_lua_abs_proto_nojit_enabled() &&
+         lj_trace_s390x_lower_frame_same_callsite_proto_match(pt) &&
+         J->cur.traceno == 1 &&
+         J->parent == 0 && J->exitno == 0 &&
+         J->cur.root == 0 &&
+         bc_op(J->cur.startins) == BC_FORL &&
+         J->cur.link == J->cur.traceno &&
+         J->cur.linktype == LJ_TRLINK_LOOP &&
+         J->cur.resumechild == 0 &&
+         J->cur.topslot == 7 &&
+         J->cur.spadjust == 8 &&
+         J->cur.nsnap == 8 &&
+         J->cur.nins == 32795 &&
+         J->cur.mcloop == 288 &&
+         T != NULL;
+}
+
 static int lj_trace_s390x_ffi_cdata_proto_match(GCproto *pt)
 {
   static const char chunkname[] = "@tests/s390x/perf/ffi_cdata.lua";
@@ -1883,18 +1925,6 @@ static int lj_trace_s390x_hotside_localized_proto_match(GCproto *pt)
 						     chunk->len);
 }
 
-static int lj_trace_s390x_hotside_lower_frame_proto_match(GCproto *pt)
-{
-  static const char chunkname[] = "@tests/s390x/perf/lower_frame_same_callsite.lua";
-  GCstr *chunk;
-  if (pt == NULL || pt->firstline != 8 || pt->numline != 10)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(chunkname) - 1) &&
-	 memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
-}
-
 static int lj_trace_s390x_hotside_localized_equiv_match(jit_State *J,
 							const BCIns *pc,
 							GCtrace *T,
@@ -1913,7 +1943,7 @@ static int lj_trace_s390x_hotside_localized_equiv_match(jit_State *J,
 	isluafunc(curr_func(J->L))))
     return 0;
   pt = curr_proto(J->L);
-  lower_frame = lj_trace_s390x_hotside_lower_frame_proto_match(pt);
+  lower_frame = lj_trace_s390x_lower_frame_same_callsite_proto_match(pt);
   if (!(bc_op(*pc) == BC_MOV || (lower_frame && bc_op(*pc) == BC_MODVN)))
     return 0;
   if (!lower_frame && !lj_trace_s390x_hotside_localized_proto_match(pt))
@@ -3550,6 +3580,22 @@ static void trace_stop(jit_State *J)
         if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
           fprintf(stderr,
                   "S390X_MIXED_FFI_FORL_PROTO_NOJIT trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u\n",
+                  (unsigned int)J->cur.traceno,
+                  (const void *)pc,
+                  (unsigned int)bc_op(J->cur.startins),
+                  (unsigned int)J->cur.link,
+                  (unsigned int)J->cur.linktype,
+                  (unsigned int)J->cur.nsnap,
+                  (unsigned int)J->cur.nins,
+                  (unsigned int)J->cur.mcloop);
+        }
+        goto addroot;
+      }
+      if (lj_trace_s390x_lower_frame_lua_abs_proto_nojit_match(J, pt, T)) {
+        pt->flags |= PROTO_NOJIT;
+        if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+          fprintf(stderr,
+                  "S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u\n",
                   (unsigned int)J->cur.traceno,
                   (const void *)pc,
                   (unsigned int)bc_op(J->cur.startins),
