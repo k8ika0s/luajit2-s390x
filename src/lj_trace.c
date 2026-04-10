@@ -817,6 +817,23 @@ static int lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_enabled(void)
   return enabled;
 }
 
+static int lj_trace_s390x_mixed_noffi_early_proto_nojit_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT") != NULL);
+  return enabled;
+}
+
+static int lj_trace_s390x_mixed_noffi_itern_nojit_hotcount_park_match(jit_State *J)
+{
+  return LJ_TARGET_S390X &&
+         lj_trace_s390x_mixed_noffi_early_proto_nojit_enabled() &&
+         J->pt != NULL && (J->pt->flags & PROTO_NOJIT) &&
+         J->pc != NULL && bc_op(*J->pc) == BC_ITERN &&
+         lj_trace_s390x_mixed_noffi_proto_match(J->pt);
+}
+
 static int lj_trace_s390x_mixed_noffi_iterl_blacklist_match(jit_State *J,
                                                             GCproto *pt,
                                                             GCtrace *T)
@@ -3253,6 +3270,16 @@ static void trace_start(jit_State *J)
                 (unsigned int)J->pt->firstline,
                 (unsigned int)J->pt->numline);
       }
+    } else if (lj_trace_s390x_mixed_noffi_itern_nojit_hotcount_park_match(J)) {
+      hotcount_set(J2GG(J), J->pc+1, 0x7fffu);
+      if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+        fprintf(stderr,
+                "S390X_MIXED_NOFFI_ITERN_NOJIT_HOTCOUNT_PARK pc=%p op=%u val=%u firstline=%u numline=%u\n",
+                (const void *)J->pc, (unsigned int)bc_op(*J->pc),
+                (unsigned int)0x7fff,
+                (unsigned int)J->pt->firstline,
+                (unsigned int)J->pt->numline);
+      }
     }
     J->state = LJ_TRACE_IDLE;  /* Silently ignored. */
     return;
@@ -3462,9 +3489,11 @@ static void trace_stop(jit_State *J)
   case BC_ITERL:
     if (lj_trace_s390x_mixed_noffi_iterl_blacklist_match(J, pt, T)) {
       blacklist_pc(pt, pc);
+      if (lj_trace_s390x_mixed_noffi_early_proto_nojit_enabled())
+        pt->flags |= PROTO_NOJIT;
       if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
         fprintf(stderr,
-                "S390X_MIXED_NOFFI_ITERL_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u\n",
+                "S390X_MIXED_NOFFI_ITERL_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u proto_nojit=%u\n",
                 (unsigned int)J->cur.traceno,
                 (const void *)pc,
                 (unsigned int)bc_op(J->cur.startins),
@@ -3472,7 +3501,8 @@ static void trace_stop(jit_State *J)
                 (unsigned int)J->cur.linktype,
                 (unsigned int)J->cur.nsnap,
                 (unsigned int)J->cur.nins,
-                (unsigned int)J->cur.mcloop);
+                (unsigned int)J->cur.mcloop,
+                (unsigned int)lj_trace_s390x_mixed_noffi_early_proto_nojit_enabled());
       }
       goto addroot;
     }

@@ -25324,3 +25324,100 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       be a fresh rerank between the remaining `mixed_noffi` residual and the
       near-parity iterator hash row, not a return to the rejected hotcount
       variant.
+
+- 2026-04-10: `mixed_noffi` early proto-NOJIT plus `BC_ITERN` hotcount park
+  retained
+  - Fresh official-row attribution after the post-root abort blacklist showed
+    the row still paid post-tri-root mixed churn without hot trace-entry or
+    child-entry runtime logs:
+    - official row on `kdz`: `mixed_loop/hot 0.005086`
+    - focused retained counts:
+      - `TRACE_SLOT 56`
+      - `TRACE_META_SNAP 10`
+      - `RECSTOP 10`
+      - `TRACE_START 7`
+      - `TRACE_ABORT 4`
+    - saved retained roots:
+      - trace 1 `startop=BC_ITERL`, `nsnap=2`, `nins=32792`, `mcloop=360`
+      - trace 2 `startop=BC_ITERN`, `nsnap=6`, `nins=32785`, `mcloop=208`
+      - trace 3 `startop=BC_FORL`, `linktype=STITCH`, `nsnap=2`,
+        `nins=32798`, `mcloop=0`
+  - Closed predecessor:
+    - `LUAJIT_S390X_MIXED_NOFFI_POST_STITCH_PROTO_NOJIT=1`
+    - exact mechanism engaged and removed one abort, but was slower:
+      - candidate `mixed_loop/hot 0.005221`
+      - immediate control `0.005179`
+      - candidate rerun `0.005439`
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    - exact mechanism:
+      - at the retained root `BC_ITERL` blacklist, set `PROTO_NOJIT` only for
+        `@tests/s390x/perf/mixed_noffi.lua`
+      - when the same proto later reaches `trace_start()` through PROTO_NOJIT
+        at `BC_ITERN`, park `hotcount(J->pc+1)` at `0x7fff`
+      - leave the retained tri-root blacklists and post-root abort blacklist
+        unchanged
+    - focused `kdz` proof:
+      - `TRACE_START 35`
+      - `S390X_MIXED_NOFFI_ITERN_NOJIT_HOTCOUNT_PARK 33`
+      - `S390X_TRACE_META_SNAP 2`
+      - `S390X_TRACE_META 1`
+      - `S390X_RECSTOP 1`
+      - exactly one `S390X_MIXED_NOFFI_ITERL_BLACKLIST` marker with
+        `proto_nojit=1`
+  - `kdz` gates:
+    - delivered source hash for
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `6e864343ddf1d68392c0059f4447646ea5b10992ef81413dbfbb5ef033311aca`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 9-sample A/B:
+      - candidate:
+        - `mixed_loop/hot 0.004077`
+      - immediate retained control:
+        - `mixed_loop/hot 0.005073`
+      - candidate rerun:
+        - `mixed_loop/hot 0.004041`
+    - compact retained regression screen:
+      - `dispatch_trace/numeric_loop/hot 0.013789`
+      - `dispatch_trace/side_exit_loop/hot 0.017693`
+      - `dispatch_trace/hotexit_loop/hot 0.467935`
+      - `vararg_paths/sum_loop/hot 0.004452`
+      - `vararg_paths/retlast_loop/hot 0.002070`
+      - `vararg_paths/retconst_loop/hot 0.000597`
+      - `iterator_table/pairs_sum/hot 0.005645`
+      - `iterator_table/pairs_array_sum/hot 0.004662`
+      - `mixed_noffi/mixed_loop/hot 0.004128`
+      - `mixed_ffi/mixed_ffi_loop/hot 0.014760`
+      - `ffi_cdata/pair_loop/hot 0.017028`
+      - `ffi_cdata/mixed_width_loop/hot 0.028198`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `6e864343ddf1d68392c0059f4447646ea5b10992ef81413dbfbb5ef033311aca`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary A/B:
+      - candidate: `mixed_loop/hot 0.006033`
+      - immediate retained control: `mixed_loop/hot 0.005954`
+      - candidate rerun: `mixed_loop/hot 0.005562`
+    - 21-sample alternating pair:
+      - candidate: `mixed_loop/hot 0.005732`
+      - immediate retained control: `mixed_loop/hot 0.007818`
+    - compact retained regression screen:
+      - `mixed_noffi/mixed_loop/hot 0.006232`
+      - sibling suite medians were noisy but exact and in the retained band for
+        this exact mixed-only matcher
+  - Classification:
+    - retain the exact early proto-NOJIT plus `BC_ITERN` hotcount park.
+    - `mixed_noffi` moves on trusted `kdz` from `0.005083` to `0.004041`
+      against `-joff 0.003734`.
+    - This puts `mixed_noffi` near parity. The next step should be a fresh
+      retained-matrix rerank, with iterator fallback/runtime attribution the
+      most plausible next seam, not another mixed trace-control variant.
