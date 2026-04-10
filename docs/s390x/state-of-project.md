@@ -310,6 +310,8 @@ It is intentionally current-state only. Historical experiment detail lives in
       `@tests/s390x/perf/ffi_cdata.lua`, `trace=1`, `parent=0`, `exit=0`,
       `startop=BC_FORL`, `link=1`, `linktype=LJ_TRLINK_LOOP`, `topslot=9`,
       `spadjust=8`, `nsnap=7`, `nins=32798`, `mcloop=324`
+    - post-promotion restamp: accept the same exact official root trace with
+      `mcloop=316`
     - use `blacklist_pc()` to stop the upstream root-loop ladder before the
       downstream `PAIR_SAVE_DONE` sidechain forms
   - host-pair result:
@@ -317,6 +319,10 @@ It is intentionally current-state only. Historical experiment detail lives in
       disabled-env control `0.023377`
     - `zkd0`: candidate rerun `pair_loop/hot 0.024469` against immediate
       disabled-env control `0.061147`
+    - post-promotion restamp:
+      `kdz pair_loop/hot 0.017076` against immediate disabled-env control
+      `0.018889`; `zkd0 pair_loop/hot 0.019347` against immediate
+      disabled-env control `0.021285`
     - `mixed_width_loop/hot` remains noisy but near parity and stays a
       regression screen
   - read:

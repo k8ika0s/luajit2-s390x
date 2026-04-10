@@ -839,7 +839,7 @@ static int lj_trace_s390x_ffi_cdata_pair_forl_blacklist_match(jit_State *J,
          J->cur.spadjust == 8 &&
          J->cur.nsnap == 7 &&
          J->cur.nins == 32798 &&
-         J->cur.mcloop == 324 &&
+         (J->cur.mcloop == 324 || J->cur.mcloop == 316) &&
          T != NULL;
 }
 
