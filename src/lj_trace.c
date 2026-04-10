@@ -926,6 +926,14 @@ static int lj_trace_s390x_iterator_itern_proto_nojit_enabled(void)
   return enabled;
 }
 
+static int lj_trace_s390x_iterator_array_itern_nojit_hotcount_park_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK") != NULL);
+  return enabled;
+}
+
 static int lj_trace_s390x_iterator_itern_exact_root_match(jit_State *J,
                                                           GCproto *pt,
                                                           GCtrace *T)
@@ -984,6 +992,18 @@ static int lj_trace_s390x_iterator_itern_proto_nojit_match(jit_State *J,
 {
   return lj_trace_s390x_iterator_itern_proto_nojit_enabled() &&
          lj_trace_s390x_iterator_itern_exact_root_match(J, pt, T);
+}
+
+static int lj_trace_s390x_iterator_array_itern_nojit_hotcount_park_match(jit_State *J)
+{
+  return LJ_TARGET_S390X &&
+         lj_trace_s390x_iterator_array_itern_nojit_hotcount_park_enabled() &&
+         lj_trace_s390x_iterator_itern_proto_nojit_enabled() &&
+         J->parent == 0 && J->exitno == 0 &&
+         J->pt != NULL && (J->pt->flags & PROTO_NOJIT) &&
+         J->pc != NULL && bc_op(*J->pc) == BC_ITERN &&
+         J->pt->firstline == 22 && J->pt->numline == 8 &&
+         lj_trace_s390x_iterator_table_proto_match(J->pt);
 }
 
 static int lj_trace_s390x_mixed_ffi_post_stitch_save_done_enabled(void)
@@ -3181,6 +3201,16 @@ static void trace_start(jit_State *J)
 		 "bad hot bytecode %d", bc_op(*J->pc));
       setbc_op(J->pc, (int)bc_op(*J->pc)+(int)BC_ILOOP-(int)BC_LOOP);
       J->pt->flags |= PROTO_ILOOP;
+    } else if (lj_trace_s390x_iterator_array_itern_nojit_hotcount_park_match(J)) {
+      hotcount_set(J2GG(J), J->pc+1, 0x7fffu);
+      if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+        fprintf(stderr,
+                "S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK pc=%p op=%u val=%u firstline=%u numline=%u\n",
+                (const void *)J->pc, (unsigned int)bc_op(*J->pc),
+                (unsigned int)0x7fff,
+                (unsigned int)J->pt->firstline,
+                (unsigned int)J->pt->numline);
+      }
     }
     J->state = LJ_TRACE_IDLE;  /* Silently ignored. */
     return;
@@ -3448,6 +3478,9 @@ static void trace_stop(jit_State *J)
       goto addroot;
     } else if (lj_trace_s390x_iterator_itern_proto_nojit_match(J, pt, T)) {
       pt->flags |= PROTO_NOJIT;
+      if (pt->firstline == 22 && pt->numline == 8 &&
+          lj_trace_s390x_iterator_array_itern_nojit_hotcount_park_enabled())
+        hotcount_set(J2GG(J), pc+1, 0x7fffu);
       if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
         fprintf(stderr,
                 "S390X_ITERATOR_ITERN_PROTO_NOJIT trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u\n",
