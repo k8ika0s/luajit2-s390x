@@ -65,6 +65,7 @@ JIT_CORE_LUA_FILES = [
 JIT_CORE_FFI_LUA_FILES = {
     "tests/s390x/jit_core/ffi_call_trace.lua",
     "tests/s390x/jit_core/ffi_cdata_trace.lua",
+    "tests/s390x/jit_core/ffi_fixed_struct_call_trace.lua",
     "tests/s390x/jit_core/ffi_ptr_call_trace.lua",
     "tests/s390x/jit_core/trace_event_postloop.lua",
 }
@@ -98,7 +99,12 @@ SOAK_FFI_LUA_FILES = {
 PERF_FFI_LUA_FILES = {
     "tests/s390x/perf/ffi_calls.lua",
     "tests/s390x/perf/ffi_cdata.lua",
+    "tests/s390x/perf/ffi_fixed_struct_calls.lua",
     "tests/s390x/perf/mixed_ffi.lua",
+}
+
+PERF_ORACLE_LUA_FILES = {
+    "tests/s390x/perf/ffi_fixed_struct_calls.lua",
 }
 
 PERF_TOP_CROSS_ARCH_COUNT = 5
@@ -145,6 +151,13 @@ PERF_FAMILY_METADATA = {
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Cdata load/store perf probe.",
+    },
+    "ffi_fixed_struct_calls": {
+        "default_gate": False,
+        "promotion_order": 6,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Fixed aggregate FFI call-lowering probe for s390x.",
     },
     "be_helpers": {
         "default_gate": False,
@@ -1168,6 +1181,9 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
         ).strip()
     if suite == "jit_core":
         caps = testlj_caps(stage, variant)
+        oracle_steps = ""
+        if variant.ffi == "on":
+            oracle_steps = f"CC={variant.compiler} sh tests/s390x/build_oracles.sh"
         core_tests = [
             test for test in JIT_CORE_LUA_FILES
             if variant.ffi == "on" or test not in JIT_CORE_FFI_LUA_FILES
@@ -1191,6 +1207,7 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
+            {oracle_steps}
             {lua_steps}
             for test in tests/s390x/jit_core/*.lua; do
               [ -e "$test" ] || continue
@@ -1290,6 +1307,8 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             'bench_json="$S390X_STEP_DIR/benchmarks.jsonl"',
             'rm -f "$bench_json"',
         ]
+        if any(test in PERF_ORACLE_LUA_FILES for test in bench_files):
+            bench_steps.append(f"CC={variant.compiler} sh tests/s390x/build_oracles.sh")
         for test in bench_files:
             stem = pathlib.Path(test).stem
             stdout_path = f'$S390X_STEP_DIR/bench-logs/{stem}.stdout.log'

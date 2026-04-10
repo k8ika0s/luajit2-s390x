@@ -298,6 +298,11 @@ Current status:
   `small_u8`, `small_u16`, `small_u32`, 8-byte `small_u64`,
   `struct { float }`, `struct { double }`, 16-byte `big_pair`, and 16-byte
   `hfa2d` arguments without opening the struct-return path.
+- `ffi_fixed_struct_calls.lua` now provides the perf/promotion harness for
+  fixed aggregate call lowering. It covers register and overflow forms for
+  small integer aggregates, single-field FP aggregates, and read-only indirect
+  large aggregates; use it as the A/B truth pack before broadening the fixed
+  aggregate claim.
 - Stop line: `long double` and vector varargs are not part of the current claim.
   Cheap `kdz1` probes showed `long double` construction from Lua numbers fails
   at conversion time and GCC vector vararg calls are already `NYI` at the FFI
@@ -369,6 +374,7 @@ Qualification:
 - `tests/s390x/jit_core/ffi_fp_struct_vararg_call_trace.lua`
 - `tests/s390x/jit_core/ffi_complex_vararg_call_trace.lua`
 - `tests/s390x/jit_core/math_random_trace.lua`
+- `tests/s390x/perf/ffi_fixed_struct_calls.lua`
 - `tests/s390x/perf/mixed_ffi.lua`
 
 Stop conditions:
