@@ -809,6 +809,14 @@ static int lj_trace_s390x_mixed_noffi_iterl_blacklist_enabled(void)
   return enabled;
 }
 
+static int lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = (getenv("LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST") != NULL);
+  return enabled;
+}
+
 static int lj_trace_s390x_mixed_noffi_iterl_blacklist_match(jit_State *J,
                                                             GCproto *pt,
                                                             GCtrace *T)
@@ -829,6 +837,40 @@ static int lj_trace_s390x_mixed_noffi_iterl_blacklist_match(jit_State *J,
          J->cur.nins == 32792 &&
          J->cur.mcloop == 360 &&
          T != NULL;
+}
+
+static int lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_match(jit_State *J,
+                                                                  GCproto *pt,
+                                                                  TraceError e)
+{
+  return LJ_TARGET_S390X &&
+         lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_enabled() &&
+         lj_trace_s390x_mixed_noffi_proto_match(pt) &&
+         e == LJ_TRERR_LLEAVE &&
+         J->cur.traceno == 4 &&
+         J->parent == 0 && J->exitno == 0 &&
+         J->cur.root == 0 &&
+         bc_op(J->cur.startins) == BC_ITERL &&
+         J->pc != NULL && bc_op(*J->pc) == BC_IFORL;
+}
+
+static void lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_log(jit_State *J,
+                                                                 BCIns *startpc,
+                                                                 TraceError e)
+{
+  if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+    fprintf(stderr,
+            "S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST trace=%u parent=%u exit=%u root=%u startpc=%p startop=%u pc=%p op=%u err=%u\n",
+            (unsigned int)J->cur.traceno,
+            (unsigned int)J->parent,
+            (unsigned int)J->exitno,
+            (unsigned int)J->cur.root,
+            (const void *)startpc,
+            (unsigned int)bc_op(J->cur.startins),
+            (const void *)J->pc,
+            (unsigned int)bc_op(*J->pc),
+            (unsigned int)e);
+  }
 }
 
 static int lj_trace_s390x_mixed_noffi_forl_stitch_blacklist_enabled(void)
@@ -3746,10 +3788,15 @@ static int trace_abort(jit_State *J)
   if (J->parent == 0 && !bc_isret(bc_op(J->cur.startins))) {
     if (J->exitno == 0) {
       BCIns *startpc = mref(J->cur.startpc, BCIns);
+      GCproto *pt = &gcref(J->cur.startpt)->pt;
       if (e == LJ_TRERR_RETRY)
 	hotcount_set(J2GG(J), startpc+1, 1);  /* Immediate retry. */
+      else if (lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_match(J, pt, e)) {
+	blacklist_pc(pt, startpc);
+	lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_log(J, startpc, e);
+      }
       else
-	penalty_pc(J, &gcref(J->cur.startpt)->pt, startpc, e);
+	penalty_pc(J, pt, startpc, e);
     } else {
       traceref(J, J->exitno)->link = J->exitno;  /* Self-link is blacklisted. */
     }

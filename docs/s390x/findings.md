@@ -17,9 +17,9 @@ read.
 - `dispatch_trace` is green again on both hosts and should only be reopened if
   a later change regresses the retained floor.
 - The latest retained host-pair win is in `mixed_noffi`; exact root
-  `BC_ITERL`, root `BC_ITERN`, and stitched root `BC_FORL` blacklists cut
-  `mixed_loop/hot` from the old `0.012123` row to `kdz 0.005129` and
-  `zkd0 0.008931..0.010174`.
+  `BC_ITERL`, root `BC_ITERN`, stitched root `BC_FORL`, and post-root
+  `BC_ITERL` abort blacklists cut `mixed_loop/hot` from the old `0.012123`
+  row to `kdz 0.005083` and `zkd0 0.006745..0.008970`.
 - `mixed_noffi` is still slightly behind `-joff`, so the next active step is
   fresh attribution of the remaining small residual, not a return to the
   closed helper/recorder lanes.
@@ -47,9 +47,11 @@ read.
   - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
+  - `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
+  - `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
@@ -25227,3 +25229,98 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       regression.
     - the next move should be a fresh rerank from the retained matrix rather
       than another unscoped iterator trace-control edit.
+
+- 2026-04-10: `mixed_noffi` exact post-root `BC_ITERL` abort blacklist
+  retained
+  - Fresh attribution after the iterator array hotcount park showed the
+    official `mixed_noffi` hot row still had a narrow post-retained churn
+    point after the three saved mixed roots:
+    - saved trace stops stayed at the retained tri-root floor:
+      - `S390X_MIXED_NOFFI_ITERL_BLACKLIST`
+      - `S390X_MIXED_NOFFI_ITERN_BLACKLIST`
+      - `S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST`
+    - the official hot-only attribution then repeatedly retried an unsaved
+      root trace:
+      `trace=4 parent=0 exit=0 startop=BC_ITERL pc=BC_IFORL err=LJ_TRERR_LLEAVE`
+    - focused control counts on `kdz` were `TRACE_META_STOP 3`,
+      `TRACE_ABORT 11`, and `RECSTOP 20`
+  - Closed first candidate:
+    - `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_HOTCOUNT_PARK=1`
+    - exact mechanism engaged on the intended trace-4 abort shape, but it
+      worsened the mechanism by repeatedly resetting the hotcount:
+      `S390X_MIXED_NOFFI_ITERL_ABORT_HOTCOUNT_PARK 25`,
+      `TRACE_ABORT 28`
+    - rejected before perf retention
+  - Retained candidate:
+    - env:
+      `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST=1`
+    - exact code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_abort()`
+    - exact matcher:
+      - chunk `@tests/s390x/perf/mixed_noffi.lua`
+      - `trace=4`, `parent=0`, `exit=0`, `root=0`
+      - `startop=BC_ITERL`
+      - abort `pc=BC_IFORL`
+      - abort reason `LJ_TRERR_LLEAVE`
+    - exact mechanism:
+      - call the existing `blacklist_pc()` on that root `BC_ITERL` start PC
+        only for the post-root abort shape
+      - leave the retained tri-root save-time blacklists unchanged
+      - focused `kdz` proof:
+        - `S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST 1`
+        - `TRACE_ABORT 11 -> 4`
+        - `RECSTOP 20 -> 9`
+        - `TRACE_META_STOP` stays `3`
+  - `kdz` gates:
+    - delivered source hash for
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+      `5a30276813fca909a559de8bb6d30fac8b7c8a4cda3009cc044d67e5083006f3`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 9-sample A/B:
+      - candidate:
+        - `mixed_loop/hot 0.005091`
+      - immediate retained control:
+        - `mixed_loop/hot 0.005128`
+      - candidate rerun:
+        - `mixed_loop/hot 0.005083`
+    - compact retained regression screen:
+      - `dispatch_trace/numeric_loop/hot 0.014233`
+      - `dispatch_trace/side_exit_loop/hot 0.017526`
+      - `dispatch_trace/hotexit_loop/hot 0.137125`
+      - `vararg_paths/sum_loop/hot 0.004415`
+      - `vararg_paths/retlast_loop/hot 0.001994`
+      - `vararg_paths/retconst_loop/hot 0.000532`
+      - `iterator_table/pairs_sum/hot 0.005559`
+      - `iterator_table/pairs_array_sum/hot 0.003979`
+      - `mixed_noffi/mixed_loop/hot 0.005073`
+      - `mixed_ffi/mixed_ffi_loop/hot 0.012056`
+      - `ffi_cdata/pair_loop/hot 0.017197`
+      - `ffi_cdata/mixed_width_loop/hot 0.028166`
+  - `zkd0` host-pair gate:
+    - delivered source hash:
+      `5a30276813fca909a559de8bb6d30fac8b7c8a4cda3009cc044d67e5083006f3`
+    - exactness stayed clean:
+      - `/tmp/mixedprobe.lua -> RESULT 553416`
+      - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+      - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - same-binary 9-sample A/B:
+      - candidate:
+        - `mixed_loop/hot 0.008970`
+      - immediate retained control:
+        - `mixed_loop/hot 0.009240`
+      - candidate rerun:
+        - `mixed_loop/hot 0.006745`
+    - `zkd0` stayed noisy, but both candidate reads were in the candidate
+      direction versus the immediate same-binary control.
+  - Classification:
+    - retain the exact post-root `BC_ITERL` LLEAVE-abort blacklist.
+    - `mixed_noffi` moves on trusted `kdz` from `0.005129` to `0.005083`
+      against `-joff 0.003734`.
+    - This closes the named post-root abort-churn seam; the next step should
+      be a fresh rerank between the remaining `mixed_noffi` residual and the
+      near-parity iterator hash row, not a return to the rejected hotcount
+      variant.
