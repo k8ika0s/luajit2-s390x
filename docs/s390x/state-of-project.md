@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 08:35 PDT
+Last updated: 2026-04-10 09:50 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -23,6 +23,12 @@ It is intentionally current-state only. Historical experiment detail lives in
 - `mixed_noffi` is no longer the old `0.012123` carried row. It is now near
   parity, so the next active queue is a fresh retained-matrix rerank rather
   than a return to the closed helper/recorder lanes.
+- The localized helper/route-around experiment rows now have a retained
+  env-gated hotside carry in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+  `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`. It is guarded by
+  `S390X_PERF_BENCH_FILE`, exact proto line shape, and chunk-name checks, so it
+  is not a new stable-matrix row and does not reopen `mixed_noffi`.
 - Current retained `mixed_noffi` host-pair rows on rebuilt mirrors:
   - `kdz`: `mixed_loop/hot 0.004041` vs `-joff 0.003734`
   - `zkd0`: `mixed_loop/hot 0.005562..0.006232` vs `-joff 0.004387`
@@ -286,6 +292,7 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT=1`
+  - `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`
   - default-on `SIDETRACE_TYPEINS_DONE`
   - the retained root-2 hash-bridge floor in
     [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
