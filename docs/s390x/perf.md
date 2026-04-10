@@ -131,7 +131,7 @@ experiment evidence, not top-level progress rows.
 | [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | narrow experiment-only control |
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
-| [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | checked-in regression suite, but not currently restamped into the retained carried matrix |
+| [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | lower-frame regression suite; now covered by the env-gated localized hotside carry, but still not a stable matrix row |
 
 Current localized hotside mechanism carry:
 
@@ -141,6 +141,7 @@ Current localized hotside mechanism carry:
   - [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua)
   - [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua)
   - [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua)
+  - [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
 - trusted `kdz` signal after the tightened bench-file/line-shape gate:
   - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
     `0.337923 -> 0.009042`
@@ -150,6 +151,8 @@ Current localized hotside mechanism carry:
     `2.989597 -> 0.032992`
   - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
     `1.922286 -> 0.033094`
+  - `lower_frame_same_callsite/lua_abs_same_callsite/hot`:
+    `0.058123 -> 0.049683`
 - host-pair `zkd0` signal:
   - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
     `0.705713 -> 0.013471`
@@ -159,12 +162,17 @@ Current localized hotside mechanism carry:
     `3.614130 -> 0.038311`
   - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot`:
     `2.340587 -> 0.048359`
+  - `lower_frame_same_callsite/lua_abs_same_callsite/hot`:
+    `0.094302 -> 0.063420`
 - read:
   - this restores the localized helper/route-around experiment rows without
     promoting them into the stable matrix
   - the implementation is guarded by `S390X_PERF_BENCH_FILE`, exact proto line
     shape, and chunk-name checks so non-target carried rows should stay on the
     retained floor
+  - the lower-frame row did not hit the old `lua_lower_frame_retf` seam; the
+    retained extension targets the exact numeric `FORL/JFORI -> MODVN`
+    side-ladder behind that regression suite
   - `mixed_noffi` remains noisy on `zkd0` and stays a regression screen, not a
     reopened primary target
 

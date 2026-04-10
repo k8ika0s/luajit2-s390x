@@ -1512,6 +1512,7 @@ static int lj_trace_s390x_hotside_localized_name_match(const char *name,
   static const char be_helpers[] = "tests/s390x/perf/be_helpers_localized.lua";
   static const char promotion_static[] = "tests/s390x/perf/promotion_core_static_stop.lua";
   static const char route_around[] = "tests/s390x/perf/route_around_reducers.lua";
+  static const char lower_frame[] = "tests/s390x/perf/lower_frame_same_callsite.lua";
   if (len > 0 && name[0] == '@') {
     name++;
     len--;
@@ -1521,7 +1522,9 @@ static int lj_trace_s390x_hotside_localized_name_match(const char *name,
 	 (len == sizeof(promotion_static) - 1 &&
 	  memcmp(name, promotion_static, sizeof(promotion_static) - 1) == 0) ||
 	 (len == sizeof(route_around) - 1 &&
-	  memcmp(name, route_around, sizeof(route_around) - 1) == 0);
+	  memcmp(name, route_around, sizeof(route_around) - 1) == 0) ||
+	 (len == sizeof(lower_frame) - 1 &&
+	  memcmp(name, lower_frame, sizeof(lower_frame) - 1) == 0);
 }
 
 static int lj_trace_s390x_hotside_localized_bench_enabled(void)
@@ -1880,6 +1883,18 @@ static int lj_trace_s390x_hotside_localized_proto_match(GCproto *pt)
 						     chunk->len);
 }
 
+static int lj_trace_s390x_hotside_lower_frame_proto_match(GCproto *pt)
+{
+  static const char chunkname[] = "@tests/s390x/perf/lower_frame_same_callsite.lua";
+  GCstr *chunk;
+  if (pt == NULL || pt->firstline != 8 || pt->numline != 10)
+    return 0;
+  chunk = proto_chunkname(pt);
+  return chunk != NULL &&
+	 chunk->len == (MSize)(sizeof(chunkname) - 1) &&
+	 memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
+}
+
 static int lj_trace_s390x_hotside_localized_equiv_match(jit_State *J,
 							const BCIns *pc,
 							GCtrace *T,
@@ -1889,15 +1904,19 @@ static int lj_trace_s390x_hotside_localized_equiv_match(jit_State *J,
   TraceNo rootno;
   GCtrace *root;
   GCproto *pt;
+  int lower_frame;
   if (!(LJ_TARGET_S390X &&
 	lj_trace_s390x_hotside_localized_active_enabled() &&
 	pc != NULL && T != NULL && snap != NULL &&
-	exitno == 0 && bc_op(*pc) == BC_MOV &&
+	exitno == 0 &&
 	bc_op(T->startins) == BC_JMP &&
 	isluafunc(curr_func(J->L))))
     return 0;
   pt = curr_proto(J->L);
-  if (!lj_trace_s390x_hotside_localized_proto_match(pt))
+  lower_frame = lj_trace_s390x_hotside_lower_frame_proto_match(pt);
+  if (!(bc_op(*pc) == BC_MOV || (lower_frame && bc_op(*pc) == BC_MODVN)))
+    return 0;
+  if (!lower_frame && !lj_trace_s390x_hotside_localized_proto_match(pt))
     return 0;
   rootno = T->root ? T->root : T->traceno;
   root = traceref(J, rootno);

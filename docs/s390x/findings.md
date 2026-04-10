@@ -25696,3 +25696,68 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - Keep `mixed_noffi` parked unless a fresh attribution names a new
       subsystem; the next search should continue from the remaining
       near-parity rerank, not from broad hotside canon/share.
+
+- 2026-04-10: extended localized hotside carry to the lower-frame same-callsite
+  regression row
+  - Attribution on
+    [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
+    corrected the initial seam read:
+    - `lua_abs_same_callsite/hot` is not paying through
+      `lua_lower_frame_retf`
+    - the live row records a root `BC_FORL`, then a repeated side-trace ladder:
+      `startop=BC_JMP`, `pc=BC_MODVN`, `prevop=BC_JFORI`, `root_startop=BC_FORL`
+    - the heavy exit/recret attribution pass saw `S390X_RECRET_BRANCH 0`, so
+      the old lower-frame return lane stays closed
+  - The retained code change keeps the same exact env gate,
+    `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`, and extends the
+    localized hotside matcher only for:
+    - chunk `@tests/s390x/perf/lower_frame_same_callsite.lua`
+    - proto `firstline=8`, `numline=10`
+    - `exit=0`
+    - `pc=BC_MODVN`
+    - side trace `startop=BC_JMP`
+    - root trace `startop=BC_FORL`
+  - Delivered candidate
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    hash:
+    `aa09bfd578e455bf68b6380bce4c5d38a4e1b8cb193157e19c8172ca528f421d`
+  - Immediate reverted control
+    [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+    hash:
+    `9e1e2c094808d547eb28234458763c7b816ce31e374abe933d18906fef00ef97`
+  - Trusted `kdz` same-host A/B:
+    - candidate:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.049683`,
+      `p95 0.050666`
+    - immediate reverted retained control:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.058123`,
+      `p95 10.303693`
+  - Trusted `zkd0` same-host A/B:
+    - candidate:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.063420`,
+      `p95 0.067905`
+    - immediate reverted retained control:
+      `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.094302`,
+      `p95 13.361811`
+  - Mechanism proof on `kdz`:
+    - `S390X_HOTSIDE_LOCALIZED_MATCH 1919743`
+    - dominant event:
+      `phase=canon parent=7 exit=0 root=1 pcop=BC_MODVN startop=BC_JMP root_startop=BC_FORL`
+    - one `share-done` event on the same shape
+  - Exactness gates stayed clean on both hosts:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Compact `kdz` regression screen stayed acceptable:
+    - `dispatch_trace` remains noisy in the compact non-truth-pack run but did
+      not show a new mechanism failure
+    - `vararg_paths`, `mixed_noffi`, and `iterator_table` stayed on the
+      retained near-parity floor in the compact pass
+  - Classification:
+    - retain the scoped lower-frame extension as part of the localized
+      hotside experiment carry.
+    - Do not promote `lower_frame_same_callsite` into the stable carried
+      matrix.
+    - This does not reopen lower-frame return handling; the fixed payer is the
+      numeric `FORL/JFORI -> MODVN` side-ladder under the same env-gated
+      hotside mechanism.
