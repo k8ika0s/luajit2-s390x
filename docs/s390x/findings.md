@@ -28213,3 +28213,34 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `mixed_noffi`, or `vararg_paths` from these post-fix probes. The current
   branch remains in no-active-performance-seam state until the full retained
   env screen names a repeated material official-row payer.
+
+## 2026-04-11: current lab promotion integration superseded the narrow `INT_MINMAX` restore
+
+- Source point:
+  `origin/k8ika0s/s390x-current-lab-promote` rebased from bring-up WIP at
+  `0ac1e7eb`, integrated onto the newer WIP head by cherry-picking the staged
+  promotion commits rather than merging older lab history wholesale.
+- Integrated queue:
+  - `8ae70cbb Fix s390x fixed integer call argument extension`
+  - `41b95a31 Park unsafe s390x modulo concat traces`
+  - `5bae4799 Checkpoint s390x dispatch JFORI skip probe`
+  - `eab1c716 Fix s390x guarded overflow PHI restore`
+- Important merge decision:
+  the local narrow `fa4badad` `INT_MINMAX` restore was replaced by the promoted
+  PHI-based guarded-overflow restore. The retained source now uses
+  `asm_s390x_guarded_ov_preserve_ref()` for loop-body register/register
+  integer `ADDOV` / `SUBOV`, which preserves the PHI-carried pre-overflow
+  value instead of special-casing only `IR_MIN` / `IR_MAX` producers.
+- Test coverage:
+  [addsub_overflow_guard.lua](../../tests/s390x/jit_be/addsub_overflow_guard.lua)
+  now also enables `LUAJIT_S390X_INT_MINMAX=1` and covers the opt-in
+  `math.max` accumulator boundary cases:
+  `max_loop(60000) 2700030000`,
+  `max_loop(64000) 3072032000`,
+  `max_loop(70000) 3675035000`,
+  `max_loop(80000) 4800040000`.
+- Read:
+  keep the promoted broader PHI restore unless focused correctness regresses.
+  Do not drop it because `mixed_noffi` remains a separate WIP guardrail; the
+  lab prefix testing showed narrowing this restore broke the guarded overflow
+  boundary again.
