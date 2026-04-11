@@ -26667,3 +26667,143 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - `vararg_paths` remains parked.
     - the iterator residual still points at `BC_ITERN` runtime/hotcount cost,
       but direct VM-body reshaping is now unsafe without an isolated proof.
+
+- 2026-04-10: retained `BC_ITERN` array value direct-store win; closed deeper
+  hotcount/body reshapes as unsafe or host-divergent
+  - Continued the retained full-env iterator attack from the current branch
+    floor, with [src/vm_s390x.dasc](../../src/vm_s390x.dasc) and
+    [src/lj_trace.c](../../src/lj_trace.c) delivered through the tracked
+    mirror only.
+  - Rejected candidate: preserved-state array/no-hot split in `BC_ITERN`
+    - mechanism: preload `TAB/asize/array/index`, bypass the hotcount check
+      for array-part iteration, and keep an inline preserved-state hotcheck
+      for hash-part iteration.
+    - delivered `kdz` hash:
+      `59652cdca8370395e724db563e48221e9ff101a179f2864cfac85bb40cc1739c`
+      for [src/vm_s390x.dasc](../../src/vm_s390x.dasc)
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `kdz` candidate rerun:
+      `/tmp/itern-array-nohot-preserve-rerun-20260410191147`
+      - `pairs_sum/hot 0.004411`
+      - `pairs_array_sum/hot 0.003735`
+    - immediate retained-source control:
+      `/tmp/itern-array-nohot-preserve-control-rerun-20260410191319`
+      - `pairs_sum/hot 0.005337`
+      - `pairs_array_sum/hot 0.004027`
+    - `zkd0` was too noisy for a scalar read, but clean samples did not support
+      the array/no-hot split as host-pair safe:
+      `/tmp/itern-array-nohot-preserve-zkd0-candidate-rerun-20260410191926`
+      vs retained controls
+      `/tmp/itern-retained-zkd0-control-20260410192139` and
+      `/tmp/itern-retained-zkd0-control2-20260410193120`.
+    - classification:
+      do not retain. The kdz win is real, but the split drops the array
+      hotcount contract and remains host-divergent on `zkd0`.
+  - Rejected candidate: preserved-state hotcheck before the array/hash split
+    - delivered `kdz` hash:
+      `c92889743c75b15227ec0bda73693abee6472c9a1ed15750fb318d567f0f2ff6`
+    - exactness stayed clean.
+    - `kdz` candidate:
+      `/tmp/itern-preserve-hotcheck-candidate-20260410192338`
+      - `pairs_sum/hot 0.005400`
+      - `pairs_array_sum/hot 0.003995`
+    - classification:
+      not retainable. Keeping the hotcount check for both sides before
+      classification loses the hash-row gain.
+  - Rejected candidate: compare-first split with duplicated inline hotchecks
+    - delivered `kdz` hash:
+      `16df3c5bae7522809411c8a9e6683872538f626052472627b7ad60979c6d65e2`
+    - exactness stayed clean.
+    - `kdz` candidate:
+      `/tmp/itern-compare-hotcheck-candidate-20260410192514`
+      - `pairs_sum/hot 0.005333`
+      - `pairs_array_sum/hot 0.003947`
+    - classification:
+      not retainable. It was neutral on hash and only a small array move.
+  - Rejected candidate: hash-fallthrough compare-first layout
+    - delivered `kdz` hash:
+      `dbc14bf384a9f589a88e1f309cd4482663a36c543d1305588b4ec1b685dff08c`
+    - exactness stayed clean.
+    - `kdz` candidate:
+      `/tmp/itern-hash-fallthrough-candidate-20260410192644`
+      - `pairs_sum/hot 0.005075`
+      - `pairs_array_sum/hot 0.003947`
+    - `zkd0` candidate:
+      `/tmp/itern-hash-fallthrough-zkd0-candidate-20260410192852`
+      - noisy, but the clean hash samples were not better than retained
+        controls.
+    - classification:
+      do not retain. This is safer than the no-hot split but still failed the
+      host-pair hash screen.
+  - Rejected candidate: global `hotcheck` immediate fullword mask with `nilf`
+    - delivered `kdz` hash:
+      `367bb286c04e018058994044bfd767fb2fa8e149ec99457e06e3f2eaeea14ae5`
+    - result:
+      exactness failed immediately with a `/tmp/mixedprobe.lua` segfault in
+      `/tmp/hotcheck-nilf-candidate-20260410193405`.
+    - classification:
+      invalid. `nilf` does not satisfy this 64-bit address contract; keep the
+      existing `llill` plus `ngr` form unless a new proof supplies a correct
+      full-width immediate mask.
+  - Rejected candidate: global `hotcheck` shift-mask proof
+    - delivered `kdz` hash:
+      `a9b2d7894235f238247a7bbebf643e144464bbc4a6146e69d3e5194a026b6b40`
+    - exactness stayed clean.
+    - candidate:
+      `/tmp/hotcheck-shiftmask-candidate-20260410193656`
+      - `pairs_sum/hot 0.004498`
+      - `pairs_array_sum/hot 0.003972`
+    - immediate retained-source control:
+      `/tmp/hotcheck-shiftmask-control-20260410193814`
+      - `pairs_sum/hot 0.004441`
+      - `pairs_array_sum/hot 0.003960`
+    - classification:
+      not retainable; exact but neutral/slower than immediate control.
+  - Retained candidate: direct array-slot store in `BC_ITERN`
+    - code surface:
+      [src/vm_s390x.dasc](../../src/vm_s390x.dasc) `BC_ITERN` array value path.
+    - mechanism:
+      replace `lgr RB, TMPR0; stg RB, 8(RA, BASE)` with
+      `stg TMPR0, 8(RA, BASE)`. This only removes a redundant copy before
+      storing the returned array value and leaves hash traversal, hotcount
+      policy, trace-control, and recorder state unchanged.
+    - delivered candidate hash:
+      `6258afa430c94b5c91ca307aea8d0b07585bd3b6efceec66f1265e465cbc2d02`
+      for [src/vm_s390x.dasc](../../src/vm_s390x.dasc)
+    - exactness stayed clean on both hosts:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `kdz` candidate:
+      `/tmp/itern-array-direct-store-candidate-20260410194028`
+      - `pairs_sum/hot 0.004476`
+      - `pairs_array_sum/hot 0.003938`
+    - immediate retained-source control:
+      `/tmp/itern-array-direct-store-control-20260410194140`
+      - `pairs_sum/hot 0.004488`
+      - `pairs_array_sum/hot 0.004017`
+    - `zkd0` candidate:
+      `/tmp/itern-array-direct-store-zkd0-candidate-20260410194332`
+      and rerun
+      `/tmp/itern-array-direct-store-zkd0-candidate-rerun-20260410194353`
+      - rerun `pairs_sum/hot 0.006066`
+      - rerun `pairs_array_sum/hot 0.006153`
+      - accepted as not materially worse than retained on the noisy host.
+    - `kdz` regression screen:
+      `/tmp/itern-array-direct-store-final-regression-20260410194500`
+      kept exactness clean and dispatch/vararg near parity.
+    - focused follow-up for noisy broad-screen rows:
+      `/tmp/itern-array-direct-store-focused-regression-20260410194537`
+      - `ffi_cdata/pair_loop/hot 0.016965` vs `-joff 0.017072`
+      - `ffi_cdata/mixed_width_loop/hot 0.028076` vs `-joff 0.028010`
+      - `mixed_noffi/mixed_loop/hot 0.003880` vs `-joff 0.003760`
+      - `iterator_table/pairs_sum/hot 0.004550`
+      - `iterator_table/pairs_array_sum/hot 0.003959`
+    - classification:
+      retain. This is a small but host-safe low-level iterator win and closes
+      the current direct `BC_ITERN` VM-body micro-lane. The remaining iterator
+      residual should be reranked from the retained direct-store floor before
+      opening another subsystem.

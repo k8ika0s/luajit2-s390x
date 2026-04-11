@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-10 16:10 PDT
+Last updated: 2026-04-10 19:46 PDT
 
 ## Canonical Perf Suite
 
@@ -18,7 +18,7 @@ enough for retained policy rows.
 
 | Suite file | Family | Workloads | Role in the matrix |
 | --- | --- | --- | --- |
-| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback and hash/array-side hotcount parks; post-promotion carried-floor restamp still leaves it near parity |
+| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback, hash/array-side hotcount parks, and the direct `BC_ITERN` array-slot store cut; still near parity |
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | retained exact root `BC_ITERL` / `BC_ITERN` / stitched `BC_FORL` blacklists, exact post-root `BC_ITERL` abort blacklist, and exact early proto-NOJIT / `BC_ITERN` hotcount park; now near parity |
 | [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win plus exact root-FORL proto-NOJIT fallback; now near parity and a regression screen |
 | [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | helper-heavy carried-floor controls; stabilized after post-promotion drift with an exact root-`BC_FORL` proto-NOJIT route-around |
@@ -54,8 +54,8 @@ number is ugly.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.005427` | `0.005611` | `-0.000184`, `0.97x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor kdz restamp; retained iterator floor still near parity |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003971` | `0.003670` | `+0.000301`, `1.08x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor kdz restamp; sibling remains near parity but slightly slower |
+| `pairs_sum/hot` | `iterator_table` | `0.004476` | `0.004326` | `+0.000150`, `1.03x` | `kdz` | `2026-04-10 19:40 PDT` | retained direct `BC_ITERN` array-slot store; hash row neutral in same-window A/B |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003938` | `0.003706` | `+0.000232`, `1.06x` | `kdz` | `2026-04-10 19:40 PDT` | retained direct `BC_ITERN` array-slot store; small host-pair-safe array win |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
 | `number_helper_loop/hot` | `be_helpers` | `0.002378` | `0.002280` | `+0.000098`, `1.04x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
@@ -86,8 +86,8 @@ shrink.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.005427` | `0.005611` | `-0.000184`, `0.97x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor restamp; retained iterator floor still near parity |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003971` | `0.003670` | `+0.000301`, `1.08x` | `kdz` | `2026-04-10 13:12 PDT` | post-promotion carried-floor restamp; near parity with a small sibling gap |
+| `pairs_sum/hot` | `iterator_table` | `0.004476` | `0.004326` | `+0.000150`, `1.03x` | `kdz` | `2026-04-10 19:40 PDT` | retained direct `BC_ITERN` array-slot store; hash row neutral in same-window A/B |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003938` | `0.003706` | `+0.000232`, `1.06x` | `kdz` | `2026-04-10 19:40 PDT` | retained direct `BC_ITERN` array-slot store; small host-pair-safe array win |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; zkd0 confirmation `0.002530` vs `-joff 0.003831` |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.005002` vs `-joff 0.007007` |
@@ -214,10 +214,12 @@ Current frontier after the post-promotion stabilization pass:
   - trusted `zkd0`: `number_helper_loop/hot 0.002554`,
     `be_pack_loop/hot 0.020728`, `direct_abs/hot 0.012293`,
     `stored_abs/hot 0.008434`
-- the active engineering frontier can now move back to the remaining
-  near-parity carried rows, with `iterator_table` as the default next
-  attribution target unless a fresh rerank names a larger honest payer
-- retained iterator cut:
+- the latest retained iterator cut is the direct `BC_ITERN` array-slot store in
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+  `lgr RB, TMPR0; stg RB, 8(RA, BASE)` is now `stg TMPR0, 8(RA, BASE)`.
+  It is exact on both hosts, keeps hash/hotcount policy unchanged, and moves
+  the trusted `kdz` array row from immediate control `0.004017` to candidate
+  `0.003938`.
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
     - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
