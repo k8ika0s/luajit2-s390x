@@ -27746,6 +27746,43 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       tranche for guarded `ADDOV`/integer minmax, or another official-row
       stability pass if the user chooses to keep correctness parked
 
+- 2026-04-11: isolated a dispatch-only `FORL` / `JFORI` candidate on `kdz1`
+  without carrying the failed numeric min/max workaround:
+  - branch/worktree:
+    `k8ika0s/s390x-dispatch-numeric-probe` at
+    `/private/tmp/luajit2-s390x-dispatch-numeric-probe`
+  - remote probe:
+    `/root/luajit2-s390x-isa/manual-minmax/dispatch-jfori-default-probe-20260411124634/repo`
+  - retained source change:
+    - make the dispatch `FORL` JFORI-skip route-around default-on, with opt-out
+      `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI=1`
+    - scope both skip and park-root matching through the exact
+      `@tests/s390x/perf/dispatch_trace.lua` proto matcher before mutating
+      `trace_stop()`
+  - kdz1 validation:
+    - `dispatch_trace` default passed:
+      `numeric_loop/hot 0.002161`, `side_exit_loop/hot 0.004605`,
+      `hotexit_loop/hot 0.005607`
+    - opt-out reproduced the known failure:
+      `numeric_loop/hot: expected 3839172, got 0`
+    - `mod_int_trace`, `trace_gc_churn`, `mixed_stress`, all `jit_be/*.lua`,
+      and all `jit_loops/*.lua` except the known `pairs_loop.lua` stall passed
+    - `pairs_loop.lua` remained the inherited stall under a 20s timeout
+    - `numeric_retrace_probe.lua` passed as diagnostic evidence only
+  - rejected numeric side candidate:
+    - a broad `asm_s390x_minmax_feeds_guarded_ov()` abort guard made
+      `tests/s390x/perf/numeric_ops.lua` pass, but broke
+      `tests/s390x/jit_be/numeric_ops.lua` because the small `math.min` /
+      `math.max` loop no longer traced
+    - action:
+      do not carry that guard; keep the guarded `ADDOV` / integer minmax bug as
+      a separate backend correctness seam
+  - promotion posture:
+    - this is a narrow lab route-around/checkpoint for the reopened official
+      `dispatch_trace` family, not a general `FORL` / `JFORI` fix
+    - before promotion, restamp against current bringup with the opt-out
+      causality check and at least one broader perf matrix pass
+
 - 2026-04-11: retained guarded loop-body `ADDOV` / `SUBOV` overflow fix
   - Root cause:
     the fixed integer `SLOAD` typecheck ordering stopped masking a shared
