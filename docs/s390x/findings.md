@@ -27266,3 +27266,89 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     `0.0007` matrix rows should not be used as the current carried floor; rerank
     from the new parity/near-parity retained floor before opening the next
     subsystem.
+
+- 2026-04-11: closed stale iterator `BC_FORL` stitch-root guess and reranked
+  from the retained floor
+  - Opened then rejected a throwaway exact
+    `LUAJIT_S390X_ITERATOR_FORL_STITCH_BLACKLIST` probe in
+    [src/lj_trace.c](../../src/lj_trace.c).
+  - Intended matcher:
+    - official `@tests/s390x/perf/iterator_table.lua`
+    - root trace context
+    - `startop=BC_FORL`
+    - `linktype=LJ_TRLINK_STITCH`
+    - `nsnap=2`, `nins=32781`, `mcloop=66087`
+  - Result on rebuilt `kdz`:
+    `/tmp/iterator-forl-stitch-ab-20260411070510`
+    - marker count was `0` in both candidate passes
+    - trace-meta logging instead exposed a repeated `root=2`, `parent=N`,
+      `exit=0`, `startop=BC_JMP`, `linktype=LJ_TRLINK_STITCH`,
+      `nsnap=2`, `nins=32781` side chain
+  - Classification:
+    - reject and revert before further work
+    - the candidate targeted a stale root-`BC_FORL` seam and did not engage
+    - do not stack on this trace-meta-only side chain without a fresh
+      official-row proof, because earlier notes already showed trace-meta can
+      expose non-retention iterator ladders
+  - Restored clean tracked source on `kdz`:
+    - [src/lj_trace.c](../../src/lj_trace.c):
+      `e7c83ef8770fa5cf819b4f8d8e301f330131759b6e885eb08bf613429fddc0a4`
+    - direct `src/` rebuild completed successfully
+  - Fresh `kdz` retained-env rerank:
+    `/tmp/next-targets-clean-rerank-20260411070814`
+    - `iterator_table/pairs_sum/hot 0.004080` vs `-joff 0.004795`
+    - `iterator_table/pairs_array_sum/hot 0.003672` vs `-joff 0.003696`
+    - `be_helpers/number_helper_loop/hot 0.002279` vs `-joff 0.002769`
+    - `be_helpers/be_pack_loop/hot 0.018812` vs `-joff 0.022212`
+    - `bitops_mix/mix_bits/hot 0.001861` vs `-joff 0.002044`
+    - `dispatch_trace` was at parity
+    - `vararg_paths` was at parity or faster except noise-sized residuals
+    - broad `mixed_ffi` / `ffi_cdata` rows looked red in this pass, so they
+      were rechecked before opening code
+  - Focused `mixed_ffi` / `ffi_cdata` recheck on `kdz`:
+    `/tmp/ffi-mixed-focused-rerun-20260411070907`
+    - `mixed_ffi_loop/hot` candidate-like retained reads:
+      `0.012038`, `0.012038`, `0.012734`
+    - same-window `-joff` reads:
+      `0.012290`, `0.013850`, `0.011993`
+    - `ffi_cdata/pair_loop/hot` retained reads:
+      `0.017102`, `0.017304`, `0.017402`
+    - same-window `-joff` reads:
+      `0.017051`, `0.017301`, `0.017808`
+    - `ffi_cdata/mixed_width_loop/hot` retained reads:
+      `0.027988`, `0.028163`, `0.028290`
+    - same-window `-joff` reads:
+      `0.027947`, `0.028574`, `0.029335`
+    - retained mechanism markers still fired:
+      - `S390X_MIXED_FFI_FORL_PROTO_NOJIT 1`
+      - `S390X_FFI_CDATA_PAIR_FORL_BLACKLIST 1`
+      - save-DONE fallback markers stayed at `0`, as expected after the
+        upstream proto/blacklist route-arounds
+    - classification: the broad red read was timing noise, not a code target
+  - High-sample `kdz` top-residual stability pass:
+    `/tmp/top-residual-stability-20260411070957`
+    - `iterator_table/pairs_sum/hot 0.004272` vs `-joff 0.004266`
+    - `iterator_table/pairs_array_sum/hot 0.003699` vs `-joff 0.003703`
+    - `mixed_noffi/mixed_loop/hot 0.003797` vs `-joff 0.003748`
+    - `vararg_paths/sum_loop/hot 0.004490` vs `-joff 0.004967`
+    - `logical_chain_tail_add/chain_tail_add/hot 0.001879` vs
+      `-joff 0.001904`
+    - `be_helpers/number_helper_loop/hot 0.002272` vs `-joff 0.002347`
+    - `be_helpers/be_pack_loop/hot 0.018765` vs `-joff 0.018799`
+  - `zkd0` top-residual screen after syncing the same clean tracked source:
+    `/tmp/zkd0-top-residual-stability-20260412021114`
+    - `iterator_table` and `logical_chain_tail_add` were faster than `-joff`
+    - `mixed_noffi` was effectively parity
+    - `be_helpers`, `mixed_ffi`, `ffi_cdata`, and `vararg_paths/retconst_loop`
+      showed noisy host-local red reads with high p95 tails
+    - because `kdz` is the policy signal and did not name a stable payer, do
+      not open a zkd0-only patch target from this pass
+  - Current queue:
+    - no retained-source code change from this tranche
+    - all major official rows are at parity/faster or within noise on `kdz`
+      under the full retained env
+    - the only stable remaining kdz residual is the tiny
+      `mixed_noffi/mixed_loop` gap of about `0.000049s`; do not reopen its
+      exhausted lanes without a new official-row attribution
+    - next work should be a fresh matrix/proof pass before any new mutation,
+      not another trace-control guess

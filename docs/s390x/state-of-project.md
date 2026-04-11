@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 00:00 PDT
+Last updated: 2026-04-11 07:10 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -92,11 +92,22 @@ It is intentionally current-state only. Historical experiment detail lives in
   - trusted `zkd0` focused same-source A/B: `mix_bits/hot 0.003830 -> 0.001969`,
     `chain_tail_add/hot 0.003976 -> 0.002125`,
     `chain_tail_store/hot 0.003794 -> 0.002741`
+- The latest post-promotion-core rerank did not name a material new `kdz` code
+  target. After rejecting a non-engaging iterator root-`BC_FORL` stitch guess
+  and restoring clean retained source, the high-sample `kdz` pass showed:
+  - `iterator_table/pairs_sum/hot 0.004272` vs `-joff 0.004266`
+  - `iterator_table/pairs_array_sum/hot 0.003699` vs `-joff 0.003703`
+  - `mixed_noffi/mixed_loop/hot 0.003797` vs `-joff 0.003748`
+  - `vararg_paths/sum_loop/hot 0.004490` vs `-joff 0.004967`
+  - `logical_chain_tail_add/chain_tail_add/hot 0.001879` vs `-joff 0.001904`
+  - `be_helpers/number_helper_loop/hot 0.002272` vs `-joff 0.002347`
+  - `be_helpers/be_pack_loop/hot 0.018765` vs `-joff 0.018799`
 - The active engineering frontier remains the remaining near-parity carried
-  rows. The direct iterator VM-body and delayed dispatch micro-lanes are now
-  closed after the retained direct-store, hotcount-park-width, post-proto
-  no-hot dispatch cut, and current-shape promotion-core bitops/logic
-  route-around; rerank from this floor before opening the next subsystem.
+  rows. The current policy signal is to avoid another trace-control guess until
+  a fresh proof pass names a stable official-row payer; the direct iterator
+  VM-body and delayed dispatch micro-lanes are closed after the retained
+  direct-store, hotcount-park-width, post-proto no-hot dispatch cut, and
+  current-shape promotion-core bitops/logic route-around.
 - The localized helper/route-around experiment rows now have a retained
   env-gated hotside carry in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
@@ -630,13 +641,14 @@ interpretation.
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
 
-### After The Iterator Hash-Side Hotcount Park
+### After The Near-Parity Rerank
 
-- Burn down the remaining red rows in this order:
-  1. return to `iterator_table` unless a fresh carried-floor rerank names a
-     larger honest residual
-  2. keep `be_helpers`, `ffi_calls`, `mixed_noffi`, `mixed_ffi`, and
-     `ffi_cdata` parked unless a new subsystem is first named
+- Do not default back into `iterator_table` trace-control. The latest kdz
+  high-sample pass put the official iterator hot rows at parity.
+- Keep `mixed_noffi`, `mixed_ffi`, `ffi_cdata`, `be_helpers`, and `ffi_calls`
+  parked unless a fresh official-row attribution names a stable subsystem.
+- The next mutation should start from a fresh matrix/proof pass under the full
+  retained env, not from a reduced-probe or trace-meta-only ladder.
 
 ## Where To Look Next
 
