@@ -130,7 +130,7 @@ experiment evidence, not top-level progress rows.
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | static-stop FFI mechanism suite; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | narrow experiment-only control |
-| [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
+| [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | lower-frame regression suite; now covered by the env-gated localized hotside carry, but still not a stable matrix row |
 
 Current localized / route-around mechanism carries:
@@ -183,6 +183,8 @@ Current localized / route-around mechanism carries:
     [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua);
     the same exact class now also covers
     [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+    and
+    [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua)
   - trusted `kdz` retained-source control -> candidate:
     `be_helpers_localized/number_helper_loop_local_tobit/hot 0.004864 -> 0.001386`,
     `be_helpers_localized/be_pack_loop_local_ops_real/hot 0.010978 -> 0.008632`,
@@ -198,6 +200,10 @@ Current localized / route-around mechanism carries:
     `direct_abs_literal_stop_real/hot 0.013968 -> 0.010142`
     and `stored_abs_literal_stop_real/hot 0.010697 -> 0.006919`;
     the compact regression read held at `0.010020` and `0.006893`
+  - follow-up trusted `kdz` retained-source control -> candidate for
+    `logic_add_phi_noboundary`:
+    `logic_add_phi_noboundary/hot 0.002156 -> 0.001857`;
+    the compact regression read held at `0.001937`
   - `zkd0` same-source screen:
     `be_helpers_localized/number_helper_loop_local_tobit/hot 0.001789`,
     `be_helpers_localized/be_pack_loop_local_ops_real/hot 0.008459`,
@@ -211,6 +217,9 @@ Current localized / route-around mechanism carries:
   - follow-up `zkd0` `ffi_calls_static_stop` screen:
     `direct_abs_literal_stop_real/hot 0.012448` vs `-joff 0.013297`,
     and `stored_abs_literal_stop_real/hot 0.008949` vs `-joff 0.009072`
+  - follow-up `zkd0` `logic_add_phi_noboundary` screen:
+    `logic_add_phi_noboundary/hot 0.002060` vs immediate control `0.002944`,
+    with rerun `0.002036`
 - read:
   - this restores the localized helper/route-around experiment rows without
     promoting them into the stable matrix

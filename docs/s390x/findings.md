@@ -27574,3 +27574,66 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - Do not promote this suite into the stable top matrix and do not reopen
       FFI call lowering from this result; the fixed payer is the exact
       static-stop route-around shape.
+
+- 2026-04-11: retained promotion-core proto-NOJIT extension for
+  `logic_add_phi_noboundary`
+  - Fresh retained `kdz` high-sample stability pass:
+    `/tmp/next-target-stability-20260411085435`
+    - `logic_add_phi_noboundary/hot 0.002042` vs `-joff 0.001915`
+    - official iterator/dispatch/static-stop rows were at parity or within
+      noise, so this was the only stable remaining mechanism-row payer.
+  - Attribution:
+    - the live trace is the same exact promotion-core root `BC_FORL` route-
+      around class as the retained bitops/logic-chain siblings:
+      `trace=1`, `parent=0`, `exit=0`, `root=0`, `link=1`,
+      `linktype=LJ_TRLINK_LOOP`, `firstline=23`, `numline=8`,
+      `nsnap=4`, `nins=32862`, `mcloop=1632`.
+    - no backend lowering or hotside/recorder mutation was opened; this is a
+      chunk/shape restamp of the existing env-gated
+      `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` route-around.
+  - Retained code change:
+    [src/lj_trace.c](../../src/lj_trace.c) adds
+    `@tests/s390x/perf/logic_add_phi_noboundary.lua` to the promotion-core
+    chunk matcher and accepts only:
+    - `firstline=23`, `numline=8`, `nsnap=4`, `nins=32862`,
+      `mcloop=1632`
+  - Delivered candidate source hash on `kdz` and `zkd0`:
+    [src/lj_trace.c](../../src/lj_trace.c)
+    `48c93d8b207df7c8e268e7ae89da6c0ed3f6db25c6071a6e5141b5f89e57d7b7`
+  - `kdz` candidate proof:
+    `/tmp/logic-phi-candidate-kdz-20260411085927`
+    - mechanism marker:
+      `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=1 ... firstline=23 ... nsnap=4 nins=32862 mcloop=1632`
+    - `logic_add_phi_noboundary/hot 0.001857`
+  - `kdz` immediate retained-source control:
+    `/tmp/logic-phi-control-kdz-20260411090053`
+    - `logic_add_phi_noboundary/hot 0.002156`
+  - `kdz` exactness and adjacent regression screen:
+    `/tmp/logic-phi-regression-kdz-20260411090206`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `logic_add_phi_noboundary/hot 0.001937`
+    - adjacent rows stayed in retained bands:
+      `bitops_mix`, `logical_chain_tail_add`, `logical_chain_tail_store`,
+      `dispatch_trace`, `iterator_table`, `vararg_paths`, and `mixed_noffi`
+  - `zkd0` host-pair screen on the same source:
+    - exactness stayed clean for the same three probes
+    - `/tmp/logic-phi-candidate-zkd0-20260411090320`:
+      `logic_add_phi_noboundary/hot 0.002060`
+    - `/tmp/logic-phi-control-zkd0-20260411090434`:
+      `logic_add_phi_noboundary/hot 0.002944`
+    - `/tmp/logic-phi-candidate-zkd0-rerun-20260411090547`:
+      `logic_add_phi_noboundary/hot 0.002036`
+    - a focused dispatch/iterator rerun
+      `/tmp/logic-phi-zkd0-focused-regression-20260411090608` showed noisy
+      host tails but no mechanism path for this chunk-exact patch to affect
+      those official rows.
+  - Classification:
+    - retain. This closes the `logic_add_phi_noboundary` mechanism-only gap
+      with the same exact promotion-core root `BC_FORL` proto-NOJIT
+      route-around.
+    - Do not promote this suite into the stable top matrix and do not reopen
+      broad logic/bitop backend work from this result; the fixed payer is the
+      exact exit-dominated root `BC_FORL` experiment body.
