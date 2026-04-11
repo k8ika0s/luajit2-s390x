@@ -2110,14 +2110,28 @@ static void asm_add(ASMState *as, IRIns *ir)
       asm_s390x_ir_log_addk(as, ir, ir->op1, ir->op2, dest, left, k);
       if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
 	RegSet allow = rset_exclude(RSET_GPR_NOB, dest);
-	Reg tmp = ra_scratch(as, allow);
-	asm_s390x_add_log(as, "addov_k_int_eq", ir, dest, left, RID_NONE, tmp);
-	asm_s390x_guard_log(as, "addov_k_int_eq", ir, CC_NE, 0, k);
-	asm_guardcc(as, CC_NE);
-	emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
-	emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, k));
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+	if (as->loopref && as->curins > as->loopref) {
+	  RegSet sallow = rset_exclude(allow, left);
+	  Reg res = ra_scratch(as, sallow);
+	  Reg tmp = ra_scratch(as, rset_exclude(sallow, res));
+	  asm_s390x_add_log(as, "addov_k_int_eq", ir, dest, left, RID_NONE, tmp);
+	  asm_s390x_guard_log(as, "addov_k_int_eq", ir, CC_NE, 0, k);
+	  emit_movrr(as, ir, dest, res);
+	  asm_guardcc(as, CC_NE);
+	  emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
+	  emit_u32(as, S390X_INS_RI(S390XI_AGHI, res, k));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	} else {
+	  Reg tmp = ra_scratch(as, allow);
+	  asm_s390x_add_log(as, "addov_k_int_eq", ir, dest, left, RID_NONE, tmp);
+	  asm_s390x_guard_log(as, "addov_k_int_eq", ir, CC_NE, 0, k);
+	  asm_guardcc(as, CC_NE);
+	  emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
+	  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, k));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+	}
       } else {
 	if (irt_isguard(ir->t)) {
 	  asm_s390x_guard_log(as, "addov_k", ir, CC_OF, 0, k);
@@ -2154,17 +2168,32 @@ static void asm_add(ASMState *as, IRIns *ir)
   }
   if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
     RegSet allow = RSET_GPR_NOB & ~RID2RSET(dest) & ~RID2RSET(right);
-    Reg tmp = ra_scratch(as, allow);
-    asm_s390x_add_log(as, "addov_rr_int_eq", ir, dest, left, right, tmp);
-    asm_s390x_guard_log(as, "addov_rr_int_eq", ir, CC_NE, 0,
-			(int)(ir->op2 - REF_BIAS));
-    asm_guardcc(as, CC_NE);
-    emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
-    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
-    emit_u32(as, S390X_INS_RXE(S390XI_AGR, dest, right));
-    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
-    if (dest != left)
-      emit_movrr(as, ir, dest, left);
+    if (as->loopref && as->curins > as->loopref) {
+      RegSet sallow = allow & ~RID2RSET(left);
+      Reg res = ra_scratch(as, sallow);
+      Reg tmp = ra_scratch(as, sallow & ~RID2RSET(res));
+      asm_s390x_add_log(as, "addov_rr_int_eq", ir, dest, left, right, tmp);
+      asm_s390x_guard_log(as, "addov_rr_int_eq", ir, CC_NE, 0,
+			  (int)(ir->op2 - REF_BIAS));
+      emit_movrr(as, ir, dest, res);
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
+      emit_u32(as, S390X_INS_RXE(S390XI_AGR, res, right));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+    } else {
+      Reg tmp = ra_scratch(as, allow);
+      asm_s390x_add_log(as, "addov_rr_int_eq", ir, dest, left, right, tmp);
+      asm_s390x_guard_log(as, "addov_rr_int_eq", ir, CC_NE, 0,
+			  (int)(ir->op2 - REF_BIAS));
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
+      emit_u32(as, S390X_INS_RXE(S390XI_AGR, dest, right));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+      if (dest != left)
+	emit_movrr(as, ir, dest, left);
+    }
   } else {
     if (irt_isguard(ir->t)) {
       asm_s390x_guard_log(as, "addov_rr", ir, CC_OF, 0,
@@ -2446,14 +2475,28 @@ static void asm_sub(ASMState *as, IRIns *ir)
       left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
       if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
 	RegSet allow = rset_exclude(RSET_GPR_NOB, dest);
-	Reg tmp = ra_scratch(as, allow);
-	asm_s390x_add_log(as, "subov_k_int_eq", ir, dest, left, RID_NONE, tmp);
-	asm_s390x_guard_log(as, "subov_k_int_eq", ir, CC_NE, 0, -k);
-	asm_guardcc(as, CC_NE);
-	emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
-	emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, -k));
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+	if (as->loopref && as->curins > as->loopref) {
+	  RegSet sallow = rset_exclude(allow, left);
+	  Reg res = ra_scratch(as, sallow);
+	  Reg tmp = ra_scratch(as, rset_exclude(sallow, res));
+	  asm_s390x_add_log(as, "subov_k_int_eq", ir, dest, left, RID_NONE, tmp);
+	  asm_s390x_guard_log(as, "subov_k_int_eq", ir, CC_NE, 0, -k);
+	  emit_movrr(as, ir, dest, res);
+	  asm_guardcc(as, CC_NE);
+	  emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
+	  emit_u32(as, S390X_INS_RI(S390XI_AGHI, res, -k));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	} else {
+	  Reg tmp = ra_scratch(as, allow);
+	  asm_s390x_add_log(as, "subov_k_int_eq", ir, dest, left, RID_NONE, tmp);
+	  asm_s390x_guard_log(as, "subov_k_int_eq", ir, CC_NE, 0, -k);
+	  asm_guardcc(as, CC_NE);
+	  emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
+	  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, -k));
+	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+	}
       } else {
 	if (irt_isguard(ir->t))
 	  asm_guardcc(as, CC_OF);
@@ -2488,17 +2531,32 @@ static void asm_sub(ASMState *as, IRIns *ir)
   asm_s390x_ir_log_sub(as, ir, ir->op1, ir->op2, dest, left, right);
   if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
     RegSet allow = RSET_GPR_NOB & ~RID2RSET(dest) & ~RID2RSET(right);
-    Reg tmp = ra_scratch(as, allow);
-    asm_s390x_add_log(as, "subov_rr_int_eq", ir, dest, left, right, tmp);
-    asm_s390x_guard_log(as, "subov_rr_int_eq", ir, CC_NE, 0,
-			(int)(ir->op2 - REF_BIAS));
-    asm_guardcc(as, CC_NE);
-    emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
-    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
-    emit_u32(as, S390X_INS_RXE(S390XI_SGR, dest, right));
-    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
-    if (dest != left)
-      emit_movrr(as, ir, dest, left);
+    if (as->loopref && as->curins > as->loopref) {
+      RegSet sallow = allow & ~RID2RSET(left);
+      Reg res = ra_scratch(as, sallow);
+      Reg tmp = ra_scratch(as, sallow & ~RID2RSET(res));
+      asm_s390x_add_log(as, "subov_rr_int_eq", ir, dest, left, right, tmp);
+      asm_s390x_guard_log(as, "subov_rr_int_eq", ir, CC_NE, 0,
+			  (int)(ir->op2 - REF_BIAS));
+      emit_movrr(as, ir, dest, res);
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
+      emit_u32(as, S390X_INS_RXE(S390XI_SGR, res, right));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+    } else {
+      Reg tmp = ra_scratch(as, allow);
+      asm_s390x_add_log(as, "subov_rr_int_eq", ir, dest, left, right, tmp);
+      asm_s390x_guard_log(as, "subov_rr_int_eq", ir, CC_NE, 0,
+			  (int)(ir->op2 - REF_BIAS));
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
+      emit_u32(as, S390X_INS_RXE(S390XI_SGR, dest, right));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+      if (dest != left)
+	emit_movrr(as, ir, dest, left);
+    }
   } else {
     if (irt_isguard(ir->t))
       asm_guardcc(as, CC_OF);

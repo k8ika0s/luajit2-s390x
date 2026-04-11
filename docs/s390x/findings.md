@@ -27745,3 +27745,81 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - the next honest retained-floor work is either a dedicated correctness
       tranche for guarded `ADDOV`/integer minmax, or another official-row
       stability pass if the user chooses to keep correctness parked
+
+- 2026-04-11: retained guarded loop-body `ADDOV` / `SUBOV` overflow fix
+  - Root cause:
+    the fixed integer `SLOAD` typecheck ordering stopped masking a shared
+    s390x guarded integer overflow bug. In loop bodies, the guarded
+    integer-equality `ADDOV` / `SUBOV` lowering could write the PHI/result
+    register before the overflow guard branched, so the guard exit restored a
+    wrapped 32-bit accumulator value instead of widening or exiting with the
+    pre-overflow state.
+  - Fix:
+    [lj_asm_s390x.h](../../src/lj_asm_s390x.h) now uses a loop-body-only
+    scratch result for the guarded integer-equality `ADDOV` / `SUBOV`
+    branches. The scratch result is sign-extended and compared before the
+    guard; the real result register is copied only on guard fallthrough. The
+    non-loop-body lowering is unchanged.
+  - Added regression:
+    [addsub_overflow_guard.lua](../../tests/s390x/jit_be/addsub_overflow_guard.lua)
+    covers traced positive and negative accumulator loops across the signed
+    32-bit boundary:
+    `sum_loop(70000) 2450035000`,
+    `sub_loop(70000) -2450035000`,
+    plus the `65535` / `65536` / `65537` boundary points.
+  - `kdz` validation:
+    - pre-fix repro:
+      `sum70000 -1844866760`,
+      `sum65536 -2147385344`,
+      `sub70000 1844866760`,
+      `sub65536 2147385344`
+    - fixed repro:
+      `sum70000 2450035000`,
+      `sum65536 2147516416`,
+      `sum65537 2147581953`,
+      `sub70000 -2450035000`,
+      `sub65536 -2147516416`,
+      `sub65537 -2147581953`
+    - retained-env exactness:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - default-path guardrails passed:
+      `tests/s390x/jit_be/numeric_ops.lua`,
+      `tests/s390x/jit_be/large_immediates.lua`,
+      `tests/s390x/jit_core/math_random_trace.lua`,
+      `tests/s390x/perf/dispatch_trace.lua`,
+      `tests/s390x/perf/iterator_table.lua`,
+      `tests/s390x/perf/mixed_noffi.lua`,
+      `tests/s390x/perf/vararg_paths.lua`,
+      `tests/s390x/perf/be_helpers.lua`,
+      `tests/s390x/perf/ffi_calls.lua`,
+      `tests/s390x/perf/mixed_ffi.lua`,
+      `tests/s390x/perf/ffi_cdata.lua`
+    - `tests/s390x/ffi_abi/run.lua` did not execute on the mirror because
+      `tests/s390x/ffi_abi/build/liboracle.so` was missing there; this is a
+      harness setup gap, not a failed JIT assertion.
+  - `zkd0` validation:
+    - fixed repro:
+      `sum70000 2450035000`,
+      `sum65536 2147516416`,
+      `sum65537 2147581953`,
+      `sub70000 -2450035000`,
+      `sub65536 -2147516416`,
+      `sub65537 -2147581953`
+    - retained-env exactness:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - default-path guardrails passed:
+      `tests/s390x/jit_be/numeric_ops.lua`,
+      `tests/s390x/perf/dispatch_trace.lua`,
+      `tests/s390x/perf/iterator_table.lua`,
+      `tests/s390x/perf/vararg_paths.lua`
+  - Separate downstream symptom:
+    `tests/s390x/perf/numeric_ops.lua` still opts into
+    `LUAJIT_S390X_INT_MINMAX=1` and fails `max_loop/hot` with
+    `expected 3072032000, got 924628301`. The same `max_loop(64000)` is
+    correct with that opt-in env unset, so keep the remaining failure scoped
+    to the separate `asm_intmin_max()` lane rather than broadening this
+    guarded `ADDOV` / `SUBOV` fix.
