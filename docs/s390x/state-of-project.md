@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 07:30 PDT
+Last updated: 2026-04-11 13:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,15 +8,52 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The branch is in a post-promotion stabilization pass, not a new frontier
-  attack.
-- A two-host full-env rerun on current head `8f775c23` confirmed the apparent
+- The branch is in a post-correctness stabilization/restamp pass, not a new
+  frontier attack. The current retained source point is
+  `0ac1e7eb Fix s390x loop ADDOV overflow guards`.
+- The retained loop-body guarded `ADDOV` / `SUBOV` overflow fix is carried and
+  pushed. It fixes the plain traced accumulator boundary on both hosts without
+  reopening the default-path exactness gates.
+- The current map is: clean tooling/env restamp first, separate opt-in
+  `LUAJIT_S390X_INT_MINMAX=1` correctness lane second, and performance work
+  only after repeated full-retained-env same-host A/B names a stable official
+  payer.
+- Latest direct `kdz` retained-env matrix sweep:
+  `/tmp/kdz-full-retained-matrix-20260411131732`. The one-pass iterator and
+  `ffi_cdata` red residuals did not repeat under the immediate 31-sample
+  focused rerun at `/tmp/kdz-focused-retained-rerun-20260411131809`; no stable
+  performance payer is open from that data.
+- A denser iterator follow-up did not reopen `iterator_table` as an active
+  code lane. `pairs_sum/hot` showed intermittent red readings in
+  `/tmp/kdz-iterator-order-ab-20260411132932`, but
+  `/tmp/kdz-iterator-log-slowfast-20260411133900` proved the retained hash
+  `ITERN_PROTO_NOJIT` / post-proto no-hot path fired in both fast and slow
+  runs, and `/tmp/kdz-iterator-joff-process-jitter-20260411134125` showed the
+  same slow band under `-joff`. Treat that as process-level jitter until a
+  repeated official-row JIT-only payer appears.
+- The retained env contract is now canonicalized in
+  [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+  and imported by the iterator, dispatch, and broader-throughput truth-pack
+  helpers.
+  Do not use raw iterator restamp data unless it was run with
+  `--candidate retained_baseline`, which is now the default.
+- Iterator tooling note: the official `iterator_table` row remains near parity
+  under the full retained env, but the focused `array_value` texit hook can
+  segfault during truth-pack instrumentation. That capture is now marked
+  unavailable with raw logs retained; it is not a runtime benchmark failure and
+  must not drive code changes by itself.
+- Broader-throughput tooling note: reduced vararg focused probes can still
+  fail validation or trace-count capture under the retained env while the
+  official `vararg_paths` row completes at parity. Keep those as reduced-probe
+  caveats unless a failure reproduces in the official benchmark row.
+- An earlier two-host full-env rerun on `8f775c23` confirmed the apparent
   post-promotion collapse was an incomplete-env run artifact, not a reason to
-  merge the lab/freeze branch as a rescue. Use the full retained env contract
-  from
+  merge the lab/freeze branch as a rescue. That rule still holds at
+  `0ac1e7eb`: use the full retained env contract from
   [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
   for matrix reads.
-- The current source recovery point is the existing
+- The currently retained trace-control recovery point still includes the
+  existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
   post-promotion `ffi_cdata` restamp:
   `J->cur.mcloop == 324 || J->cur.mcloop == 316`.

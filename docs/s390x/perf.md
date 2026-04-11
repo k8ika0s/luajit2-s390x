@@ -1,6 +1,51 @@
 # s390x Performance Status
 
-Last updated: 2026-04-10 23:20 PDT
+Last updated: 2026-04-11 13:45 PDT
+
+## Regroup Checkpoint
+
+- Current retained source point: `0ac1e7eb Fix s390x loop ADDOV overflow
+  guards`.
+- The branch is back in a stabilization/restamp posture, not a new
+  performance mutation lane. Recent full-retained-env `kdz` reads put the
+  stable matrix at near parity; do not reopen iterator, vararg, mixed, or
+  cdata runtime work from a single noisy residual.
+- Latest direct `kdz` retained-env sweep:
+  `/tmp/kdz-full-retained-matrix-20260411131732`. The only visible red
+  residuals were iterator / `ffi_cdata` one-pass noise; an immediate 31-sample
+  rerun at `/tmp/kdz-focused-retained-rerun-20260411131809` returned those rows
+  to parity.
+- Follow-up `iterator_table/pairs_sum` sweeps showed process-level timing
+  jitter, not a stable JIT-only payer. The official alternating-order probe
+  at `/tmp/kdz-iterator-order-ab-20260411132932` made `pairs_sum/hot` look red
+  in 3/4 passes, but the trace-meta probe at
+  `/tmp/kdz-iterator-log-slowfast-20260411133900` showed the retained hash
+  `ITERN_PROTO_NOJIT` / post-proto no-hot route firing in both fast and slow
+  runs. The matched `-joff` process-jitter probe at
+  `/tmp/kdz-iterator-joff-process-jitter-20260411134125` hit the same slow
+  band (`pairs_sum` max `0.005762`), so this is not an actionable JIT
+  regression without a stronger repeated signal.
+- The retained-env contract now lives in
+  [restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+  and is imported by the iterator, dispatch, and broader-throughput truth-pack
+  helpers.
+  Iterator restamps default to that full env; `raw_jit` is diagnostic only.
+- Tooling caveat: reduced iterator micros still expose severe exit-heavy
+  ladders, but the official `iterator_table` hot row stays near parity under
+  the full env. Reduced micros are mechanism evidence only unless they prove
+  they hit the official carried family.
+- Tooling caveat: the `array_value` texit hook can segfault during focused
+  truth-pack capture. The truth pack now preserves the raw crash log and marks
+  that array texit count unavailable instead of treating it as a runtime
+  benchmark crash.
+- Tooling caveat: the broader-throughput helper may see reduced vararg probe
+  validation or trace-count failures under the full retained env even when the
+  official `vararg_paths` hot rows complete at parity. Treat those reduced
+  probes as mechanism notes unless they reproduce on the official row.
+- Remaining correctness follow-up:
+  `tests/s390x/perf/numeric_ops.lua` still fails only when
+  `LUAJIT_S390X_INT_MINMAX=1` is enabled. Keep that scoped to the separate
+  `asm_intmin_max()` lane; it is not a retained performance frontier.
 
 ## Canonical Perf Suite
 

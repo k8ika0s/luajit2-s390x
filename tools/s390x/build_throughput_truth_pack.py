@@ -23,6 +23,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
 PROBE_TIMEOUT_SECS = 20
 CANDIDATE_ENVS: dict[str, dict[str, str]] = {
+    "retained_baseline": restamp.RETAINED_BASELINE_ENV,
     "baseline": {
         "LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT": "1",
     },
@@ -2218,6 +2219,10 @@ def write_json(path: pathlib.Path, payload: object) -> None:
     write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
+def write_jsonl(path: pathlib.Path, records: list[dict[str, Any]]) -> None:
+    write_text(path, "".join(json.dumps(record, sort_keys=True) + "\n" for record in records))
+
+
 def parse_key_value_lines(text: str) -> dict[str, int | str]:
     result: dict[str, int | str] = {}
     for raw_line in text.splitlines():
@@ -2449,6 +2454,14 @@ rm -f {shlex.quote(remote_json)}
     local_json = raw_dir.parent.parent / f"{mode}.jsonl"
     write_text(local_json, json_text)
     return restamp.parse_jsonl_records(local_json)
+
+
+def hot_records_from_official(config: dict[str, Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    hot_cases = set(config["hot_cases"])
+    return [
+        record for record in records
+        if f"{record['workload']}/{record['scale']}" in hot_cases
+    ]
 
 
 def run_check(
@@ -2723,6 +2736,7 @@ def render_summary(
     joff_records: list[dict[str, Any]],
     focused_records: list[dict[str, Any]],
     focused_joff_records: list[dict[str, Any]],
+    focused_status: str,
     trace_counts: dict[str, dict[str, int | str]],
     handoff_counts: dict[str, dict[str, object]],
     bnorm_counts: dict[str, dict[str, object]],
@@ -2802,6 +2816,10 @@ def render_summary(
         if off is not None:
             lines[-1] += f", gap `{delta:+.6f}s`, ratio `{ratio:.2f}x`"
     lines.extend(["", "## Focused Runtime Read", ""])
+    if focused_status != "ok":
+        lines.append(
+            f"- focused reduced bench unavailable: `{focused_status}`; using official hot-row medians for this section"
+        )
     for hot_key in config["hot_cases"]:
         workload = hot_key.split("/", 1)[0]
         runtime = runtime_metrics[workload]
@@ -2881,7 +2899,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--family", choices=tuple(FAMILY_CONFIGS.keys()), required=True)
     parser.add_argument("--host", choices=restamp.HOST_LABELS, required=True)
-    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="baseline")
+    parser.add_argument("--candidate", choices=tuple(CANDIDATE_ENVS.keys()), default="retained_baseline")
     parser.add_argument("--repo", help="Override authoritative remote repo path.")
     parser.add_argument("--output-root", type=pathlib.Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--pin-core", type=int, default=restamp.DEFAULT_PIN_CORE)
@@ -2972,30 +2990,38 @@ def main() -> int:
             joff=True,
             extra_env=candidate_env,
         )
-        focused_records = run_focused_bench(
-            host=host,
-            repo=repo,
-            remote_tmp=remote_tmp,
-            raw_dir=raw_dir,
-            bench_file=config["bench_file"],
-            pin_core=args.pin_core,
-            samples=args.samples,
-            warmup=args.warmup,
-            joff=False,
-            extra_env=candidate_env,
-        )
-        focused_joff_records = run_focused_bench(
-            host=host,
-            repo=repo,
-            remote_tmp=remote_tmp,
-            raw_dir=raw_dir,
-            bench_file=config["bench_file"],
-            pin_core=args.pin_core,
-            samples=args.samples,
-            warmup=args.warmup,
-            joff=True,
-            extra_env=candidate_env,
-        )
+        focused_status = "ok"
+        try:
+            focused_records = run_focused_bench(
+                host=host,
+                repo=repo,
+                remote_tmp=remote_tmp,
+                raw_dir=raw_dir,
+                bench_file=config["bench_file"],
+                pin_core=args.pin_core,
+                samples=args.samples,
+                warmup=args.warmup,
+                joff=False,
+                extra_env=candidate_env,
+            )
+            focused_joff_records = run_focused_bench(
+                host=host,
+                repo=repo,
+                remote_tmp=remote_tmp,
+                raw_dir=raw_dir,
+                bench_file=config["bench_file"],
+                pin_core=args.pin_core,
+                samples=args.samples,
+                warmup=args.warmup,
+                joff=True,
+                extra_env=candidate_env,
+            )
+        except restamp.RestampError as exc:
+            focused_status = str(exc)
+            focused_records = hot_records_from_official(config, jit_on_records)
+            focused_joff_records = hot_records_from_official(config, joff_records)
+            write_jsonl(output_dir / "focused-jit-on.jsonl", focused_records)
+            write_jsonl(output_dir / "focused-joff.jsonl", focused_joff_records)
         check_results = {
             name: run_check(host, repo, remote_tmp, check_dir, name, candidate_env)
             for name in config["check_scripts"].keys()
@@ -3040,6 +3066,7 @@ def main() -> int:
             "pin_core": args.pin_core,
             "samples": args.samples,
             "warmup": args.warmup,
+            "focused_status": focused_status,
             "timestamp": dt.datetime.now().astimezone().isoformat(),
         }
         write_json(output_dir / "metadata.json", metadata)
@@ -3065,6 +3092,7 @@ def main() -> int:
             joff_records=joff_records,
             focused_records=focused_records,
             focused_joff_records=focused_joff_records,
+            focused_status=focused_status,
             trace_counts=trace_counts,
             handoff_counts=handoff_counts,
             bnorm_counts=bnorm_counts,

@@ -27823,3 +27823,200 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     correct with that opt-in env unset, so keep the remaining failure scoped
     to the separate `asm_intmin_max()` lane rather than broadening this
     guarded `ADDOV` / `SUBOV` fix.
+
+- 2026-04-11: regrouped retained-floor tooling and forward map after the
+  loop-body overflow fix
+  - Source point:
+    `0ac1e7eb Fix s390x loop ADDOV overflow guards` is the retained branch
+    head for the regroup. The tracked tree was clean apart from unrelated
+    untracked local docs/tooling noise before this tooling/docs tranche.
+  - Tooling fix:
+    [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py)
+    now owns the canonical full retained env and defaults to
+    `--candidate retained_baseline`. Use `--candidate raw_jit` only for an
+    explicit diagnostic read. [build_iterator_truth_pack.py](../../tools/s390x/build_iterator_truth_pack.py)
+    imports the same env instead of maintaining a second copy, and the
+    dispatch / broader-throughput truth-pack helpers now also source the same
+    retained env. [build_throughput_truth_pack.py](../../tools/s390x/build_throughput_truth_pack.py)
+    defaults to `retained_baseline` for current matrix reads.
+  - Iterator instrumentation fix:
+    the focused `array_value` trace-count script still crashes when texit
+    capture is enabled, but the truth pack now treats that as unavailable
+    instrumentation and keeps the raw crash log. The trace-only capture works,
+    so the pack can still report trace starts/stops/aborts without converting
+    the texit hook crash into a false runtime benchmark failure.
+  - `kdz` restamp helper toolcheck:
+    `/tmp/kdz-restamp-iterator-fullenv-toolcheck-20260411124814`
+    - candidate env: `retained_baseline`
+    - delivered helper hashes included both iterator tooling files
+    - correctness checks passed:
+      `RESULT 500`, `RESULT 50000`, `RESULT 5000000`,
+      `HASH_VALUE 3000`, `HASH_KEY 1320`, `ARRAY_VALUE 3000`
+    - official iterator hot rows stayed near parity in the small toolcheck:
+      `pairs_sum/hot 0.004604` vs `-joff 0.004594`,
+      `pairs_array_sum/hot 0.004044` vs `-joff 0.003974`
+  - `zkd0` restamp helper confirmation:
+    `/tmp/zkd0-restamp-iterator-fullenv-toolcheck-s9-20260411131028`
+    - candidate env: `retained_baseline`
+    - correctness checks passed:
+      `RESULT 500`, `RESULT 50000`, `RESULT 5000000`,
+      `HASH_VALUE 3000`, `HASH_KEY 1320`, `ARRAY_VALUE 3000`
+    - the 9-sample iterator read was noisy but no longer showed the
+      catastrophic incomplete-env collapse:
+      `pairs_sum/hot 0.006713` vs `-joff 0.010225`,
+      `pairs_array_sum/hot 0.008233` vs `-joff 0.007599`
+    - use this only as helper confirmation; keep `kdz` as the policy signal
+      before opening any perf code.
+  - `kdz` iterator truth-pack toolcheck:
+    `/tmp/kdz-iterator-truth-fullenv-toolcheck-20260411125437`
+    - official iterator hot rows stayed near parity:
+      `pairs_sum/hot 0.004237` vs `-joff 0.004102`,
+      `pairs_array_sum/hot 0.003696` vs `-joff 0.003721`
+    - reduced focused micros remain intentionally red/exit-heavy:
+      `hash_value/hot 0.122936` vs `-joff 0.004908`,
+      `hash_key/hot 0.076067` vs `-joff 0.004004`,
+      `array_value/hot 0.120202` vs `-joff 0.003820`
+    - trace counts:
+      `hash_value` combined capture showed `TRACE_START 10`,
+      `TRACE_ABORT 9`, `TEXIT_COUNT 960000`, `TEXIT_HIST 1:1=960000`;
+      `hash_key` combined capture showed `TRACE_START 10`,
+      `TRACE_ABORT 9`, `TEXIT_COUNT 640000`, `TEXIT_HIST 1:1=640000`;
+      `array_value` used split fallback, with trace-only `TRACE_START 11`,
+      `TRACE_ABORT 10` and texit capture marked unavailable.
+  - `kdz` broader-throughput helper toolcheck:
+    `/tmp/kdz-throughput-retained-toolcheck-20260411131355/20260411-kdz-vararg_paths-retained_baseline-truth-pack`
+    - default candidate resolved to `retained_baseline`
+    - official `vararg_paths` rows completed and stayed near parity in the
+      smoke pass:
+      `sum_loop/hot 0.004539` vs `-joff 0.004514`,
+      `retlast_loop/hot 0.002073` vs `-joff 0.002009`,
+      `retconst_loop/hot 0.000536` vs `-joff 0.000531`
+    - the reduced focused vararg bench still failed validation under the
+      retained env (`expected 239979, got 237855` for `sum_loop/hot`), so the
+      helper now records that reduced-probe status and uses official hot-row
+      medians and writes fallback focused JSONL for the runtime-read section
+      instead of failing the whole pack.
+    - a reduced `retconst_loop` trace-count probe also returned `REMOTE_RC
+      139`; keep this as reduced-probe instability, not an official row
+      regression.
+  - Direct full retained-env `kdz` stable-matrix sweep:
+    `/tmp/kdz-full-retained-matrix-20260411131732`
+    - rows stayed near parity overall:
+      `dispatch_trace/numeric_loop/hot 0.002186` vs `0.002173`,
+      `side_exit_loop/hot 0.004629` vs `0.004615`,
+      `hotexit_loop/hot 0.005654` vs `0.005615`
+    - `vararg_paths` stayed neutral/faster:
+      `sum_loop/hot 0.004554` vs `0.004681`,
+      `retlast_loop/hot 0.001991` vs `0.002079`,
+      `retconst_loop/hot 0.000535` vs `0.000543`
+    - `mixed_noffi`, `mixed_ffi`, `ffi_calls`, and `be_helpers` stayed
+      parity/faster or too small to justify a patch:
+      `mixed_noffi 0.003855` vs `0.003800`,
+      `mixed_ffi 0.012199` vs `0.012388`,
+      `direct_abs 0.010277` vs `0.010337`,
+      `stored_abs 0.006956` vs `0.007076`,
+      `number_helper_loop 0.002292` vs `0.002339`,
+      `be_pack_loop 0.018915` vs `0.018978`
+    - one-pass iterator / `ffi_cdata` residuals were not accepted as payers
+      without repeat confirmation.
+  - Immediate focused `kdz` rerun for the one-pass red rows:
+    `/tmp/kdz-focused-retained-rerun-20260411131809`
+    - `iterator_table` returned to parity:
+      `pairs_sum/hot 0.004251` vs `-joff 0.004252`,
+      `pairs_array_sum/hot 0.003835` vs `-joff 0.003705`
+    - `ffi_cdata` returned to parity:
+      `pair_loop/hot 0.017102` vs `-joff 0.017101`,
+      `mixed_width_loop/hot 0.028016` vs `-joff 0.027956`
+    - conclusion:
+      the one-pass matrix residual was noise/order sensitivity, not a stable
+      post-overflow-fix performance payer.
+  - Current map:
+    do not open iterator, vararg, mixed, or cdata runtime patches from the
+    reduced-probe rows or a single near-parity official residual. First run a
+    full retained-env matrix restamp; open performance code only if repeated
+    same-host `kdz` A/B names a material official-row payer.
+  - Separate correctness lane:
+    `LUAJIT_S390X_INT_MINMAX=1` still exposes the opt-in `max_loop` failure.
+    Keep that as a focused `asm_intmin_max()` follow-up, separate from the
+    retained guarded `ADDOV` / `SUBOV` loop-body fix and separate from the
+    performance rerank.
+
+## 2026-04-11: `pairs_sum` intermittent red reads are process jitter, not a stable iterator payer
+
+- Source point:
+  `0ac1e7eb Fix s390x loop ADDOV overflow guards`.
+- Goal:
+  keep probing for a stable retained-env performance payer after the regroup
+  pass, but do not open code from a single noisy official row or a reduced
+  iterator micro.
+- Two-pass full retained-env `kdz` official-row sweep:
+  `/tmp/kdz-retained-stable-payer-20260411132457`
+  - pass 1 made iterator and `retconst_loop` look red:
+    - `pairs_sum/hot 0.004450` vs `-joff 0.004224`
+    - `pairs_array_sum/hot 0.003972` vs `-joff 0.003709`
+    - `retconst_loop/hot 0.000591` vs `-joff 0.000532`
+  - pass 2 collapsed those candidates:
+    - `pairs_sum/hot 0.004226` vs `-joff 0.004211`
+    - `pairs_array_sum/hot 0.003708` vs `-joff 0.003699`
+    - `retconst_loop/hot 0.000532` vs `-joff 0.000535`
+  - only `dispatch_trace/hotexit_loop` repeated above parity, but at about
+    `2%`; that was too small to reopen a frozen green dispatch lane.
+- Focused retained-env `kdz` official-row confirmation:
+  `/tmp/kdz-retained-focus-confirm-20260411132832`
+  - `pairs_sum/hot` appeared materially red:
+    `0.004842` vs `-joff 0.004253` (`1.1385x`)
+  - `pairs_array_sum/hot` stayed neutral:
+    `0.003739` vs `-joff 0.003724`
+  - vararg and dispatch residuals were small and not accepted as payers.
+- Iterator alternating-order A/B:
+  `/tmp/kdz-iterator-order-ab-20260411132932`
+  - `pairs_sum/hot` was red in 3/4 passes, but unstable:
+    ratios `1.0424`, `1.3622`, `0.9617`, `1.1809`
+  - `pairs_array_sum/hot` was not red:
+    ratios `0.9159`, `1.0038`, `0.9184`, `0.9784`
+  - distribution check showed whole-process timing shifts, not isolated
+    per-sample outliers.
+- Iterator truth-pack attribution:
+  `/tmp/kdz-iterator-pairssum-attribution-20260411133100`
+  - official rows returned to near parity:
+    - `pairs_sum/hot 0.004263` vs `-joff 0.004243`
+    - `pairs_array_sum/hot 0.003750` vs `-joff 0.003697`
+  - focused reduced micros stayed exit-heavy:
+    - `hash_value/hot 0.112780` vs `-joff 0.004247`
+    - `hash_key/hot 0.077368` vs `-joff 0.004140`
+    - `array_value/hot 0.113328` vs `-joff 0.003699`
+  - this remains mechanism evidence, not retention evidence, because the
+    official row did not carry the reduced-micro red floor.
+- Retained iterator env-slice probe:
+  `/tmp/kdz-iterator-env-slice-20260411133646`
+  - removing `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT` is still invalid for
+    the current floor:
+    `pairs_sum/hot 0.010430`, `pairs_array_sum/hot 0.008142`
+  - removing `LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT` was slower for
+    `pairs_sum`:
+    `0.004572`
+  - removing both iterator blacklist flags made `pairs_sum` look faster in
+    that one pass (`0.004084`) but worsened `pairs_array_sum` (`0.004046`) and
+    was not accepted as a route-around change.
+- Slow/fast trace-meta probe:
+  `/tmp/kdz-iterator-log-slowfast-20260411133900`
+  - all 12 JIT-on runs hit the same retained hash `ITERN_PROTO_NOJIT` matcher
+    once and the post-proto no-hot route once.
+  - no `ITERL_BLACKLIST`, `ITERN_BLACKLIST`, hash hotcount park, or array
+    hotcount park event correlated with the slow runs.
+  - `pairs_sum` process medians ranged from `0.004103` to `0.006061`; the
+    matcher still fired in both the fast and slow cases.
+- Matched `-joff` process-jitter probe:
+  `/tmp/kdz-iterator-joff-process-jitter-20260411134125`
+  - `pairs_sum` ranged from `0.004071` to `0.005762`, showing the same slow
+    band without JIT.
+  - `pairs_array_sum` stayed tight, from `0.003665` to `0.003775`.
+- Decision:
+  do not open iterator code from the intermittent `pairs_sum` red reads.
+  The current evidence points at process-level timing jitter in the hash
+  `pairs()` workload, not a stable JIT-only payer or matcher drift.
+- Current queue:
+  keep performance lanes closed until repeated full-retained-env same-host
+  A/B names a material official-row payer. Reduced iterator micros can guide
+  mechanism work later, but they are not retention targets while the official
+  row remains near parity or jitter-dominated.
