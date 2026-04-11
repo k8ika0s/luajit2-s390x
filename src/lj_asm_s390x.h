@@ -867,7 +867,7 @@ static int asm_s390x_modk_dsgr_enabled(void)
   if (enabled == -1) {
     const char *opt_in = getenv("LUAJIT_S390X_MODK_DSGR");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MODK_DSGR");
-    enabled = (opt_out == NULL) || opt_in != NULL;
+    enabled = (opt_in != NULL && opt_out == NULL);
   }
   return enabled;
 }

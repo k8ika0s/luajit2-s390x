@@ -576,6 +576,17 @@ Current status:
     geomean was `1.0038x`, or about `0.38%` slower with the existing path.
     Keep the probe and switch for future qualification, but do not promote
     modulo lowering from this signal.
+    A later promotion-gate failure in `trace_gc_churn.lua` reduced to this same
+    path: default-on `DSGR` modulo produced wrong `%64` totals in a retained
+    table-index loop and could drive the soak test into a `BC_LEN` crash.
+    `LUAJIT_S390X_DISABLE_MODK_DSGR=1` cleared both the reducer and the full
+    soak script, so `DSGR` modulo is now parked as explicit opt-in via
+    `LUAJIT_S390X_MODK_DSGR` and guarded by
+    `tests/s390x/jit_be/modk_retained_table.lua`.
+    Validation used the rebuilt retained `kdz1` repo
+    `isa-lab-modk-park-jitbe-20260411143000`: direct `jit_be/*.lua` and
+    `soak/*.lua` sweeps were green, while re-enabling
+    `LUAJIT_S390X_MODK_DSGR=1` still reproduced the soak crash.
   - A3 follow-up: fixed-call source classification is now instrumented under
     `LUAJIT_S390X_CALL_LOG`, and `ffi_fixed_call_pressure_trace.lua` plus
     `ffi_fixed_call_pressure.lua` cover the call-return-to-call pressure shape.
