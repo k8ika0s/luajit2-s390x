@@ -93,18 +93,22 @@ It is intentionally current-state only. Historical experiment detail lives in
     `chain_tail_add/hot 0.003976 -> 0.002125`,
     `chain_tail_store/hot 0.003794 -> 0.002741`
 - The same env-gated promotion-core route-around now also covers exact
-  mechanism-only localized/static-stop/route-around reducer rows:
+  mechanism-only localized/static-stop/route-around/FFI-static reducer rows:
   [be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua),
   [promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua),
+  [route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua),
   and
-  [route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua).
+  [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua).
   This reuses `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`; no new env
   knob or stable-matrix row was added. Trusted `kdz` retained-source controls
   moved to candidate rows of `0.001386` for localized `tobit`, `0.008632`
   for localized `be_pack`, `0.002281` / `0.001368` / `0.018765` for the
   static-stop reducers, and `0.047332` / `0.020023` / `0.020076` for the
-  route-around reducers; `zkd0` confirmed the same-source screen in retained
-  bands.
+  route-around reducers. The follow-up FFI static-stop extension moves `kdz`
+  `direct_abs_literal_stop_real` / `stored_abs_literal_stop_real` from
+  `0.013968` / `0.010697` controls to `0.010142` / `0.006919`, with `zkd0`
+  same-source rows at `0.012448` / `0.008949` versus `-joff 0.013297` /
+  `0.009072`.
 - The latest post-promotion-core rerank did not name a material new `kdz` code
   target. After rejecting a non-engaging iterator root-`BC_FORL` stitch guess
   and restoring clean retained source, the high-sample `kdz` pass showed:
@@ -127,7 +131,9 @@ It is intentionally current-state only. Historical experiment detail lives in
   `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1` and
   `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`. They are guarded by exact
   proto line shape and chunk-name checks, so they are not new stable-matrix
-  rows and do not reopen `mixed_noffi`. The same scoped carry now covers
+  rows and do not reopen `mixed_noffi`. The same promotion-core carry also
+  covers the exact shifted `ffi_calls_static_stop` protos. The same scoped
+  carry now covers
   [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
   after attribution showed its payer is a numeric `FORL/JFORI -> MODVN`
   side-ladder, not the old lower-frame return seam.

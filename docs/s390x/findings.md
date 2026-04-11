@@ -27508,3 +27508,69 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - Do not reopen broad hotside canon/share or helper arithmetic
       experiments from this result; the fixed payer is the exact
       exit-dominated root `BC_FORL` helper reducer body.
+
+- 2026-04-11: retained promotion-core proto-NOJIT extension for
+  `ffi_calls_static_stop`
+  - Follow-up rerank after the localized/static-stop/route-around reducer
+    extension left
+    [ffi_calls_static_stop.lua](../../tests/s390x/perf/ffi_calls_static_stop.lua)
+    as the next mechanism-only gap:
+    - retained `kdz` read before this extension:
+      `direct_abs_literal_stop_real/hot 0.013789` vs `-joff 0.010053`,
+      `stored_abs_literal_stop_real/hot 0.010659` vs `-joff 0.006944`
+    - no `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` marker fired before the
+      chunk/shape restamp
+  - Attribution:
+    - `ffi_calls_static_stop` is the same root `BC_FORL` FFI call route-around
+      class already retained for `ffi_calls`, but shifted to static-stop
+      protos:
+      `firstline=11`, `nsnap=6`, `nins=32802`, `mcloop=544` and
+      `firstline=19`, `nsnap=6`, `nins=32792`, `mcloop=352`.
+    - This is not a new FFI ABI/backend lane; it is an exact chunk/line-shape
+      extension of the existing
+      `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` route-around.
+  - Retained code change:
+    [src/lj_trace.c](../../src/lj_trace.c) adds
+    `@tests/s390x/perf/ffi_calls_static_stop.lua` to the promotion-core chunk
+    matcher and accepts only:
+    - `firstline=11`, `numline=6`, `nsnap=6`, `nins=32802`
+    - `firstline=19`, `numline=6`, `nsnap=6`, `nins=32792`
+  - Delivered candidate source hash on `kdz` and `zkd0`:
+    [src/lj_trace.c](../../src/lj_trace.c)
+    `1ea4a6687ffd3b040c4cf3a67f928c5b440e4f186abf7d3a034f88aeb52a1cb6`
+  - `kdz` candidate proof:
+    `/tmp/ffi-static-candidate-20260411080400`
+    - `direct_abs_literal_stop_real/hot 0.010142` vs `-joff 0.010372`
+    - `stored_abs_literal_stop_real/hot 0.006919` vs `-joff 0.007085`
+    - mechanism markers:
+      - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=1 ... firstline=11 ... nsnap=6 nins=32802 mcloop=544`
+      - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=2 ... firstline=19 ... nsnap=6 nins=32792 mcloop=352`
+  - `kdz` immediate retained-source control:
+    `/tmp/ffi-static-control-20260411080520`
+    - `direct_abs_literal_stop_real/hot 0.013968` vs `-joff 0.010206`
+    - `stored_abs_literal_stop_real/hot 0.010697` vs `-joff 0.006960`
+  - `kdz` compact regression screen:
+    `/tmp/ffi-static-candidate-regression-20260411080645`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `ffi_calls_static_stop/direct_abs_literal_stop_real/hot 0.010020`
+    - `ffi_calls_static_stop/stored_abs_literal_stop_real/hot 0.006893`
+    - adjacent official rows stayed in retained bands:
+      `dispatch_trace`, `iterator_table`, `vararg_paths`, `mixed_noffi`,
+      `ffi_calls`, and `be_helpers`
+  - `zkd0` same-source screen:
+    - exactness stayed clean for the same three probes
+    - `/tmp/ffi-static-candidate-zkd0-20260412030820`:
+      `direct_abs_literal_stop_real/hot 0.012448` vs `-joff 0.013297`,
+      `stored_abs_literal_stop_real/hot 0.008949` vs `-joff 0.009072`
+    - mechanism markers on `zkd0`:
+      - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=1 ... firstline=11 ... nsnap=6 nins=32802 mcloop=544`
+      - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=2 ... firstline=19 ... nsnap=6 nins=32792 mcloop=352`
+  - Classification:
+    - retain. This closes the `ffi_calls_static_stop` mechanism-only gap with
+      the same exact promotion-core root `BC_FORL` proto-NOJIT route-around.
+    - Do not promote this suite into the stable top matrix and do not reopen
+      FFI call lowering from this result; the fixed payer is the exact
+      static-stop route-around shape.
