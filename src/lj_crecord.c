@@ -1168,11 +1168,6 @@ static TRef crec_s390x_small_struct_arg(jit_State *J, CTState *cts, CType *d,
   }
 }
 
-static TRef crec_s390x_cdata_payload_arg(jit_State *J, TRef sp, cTValue *o)
-{
-  argv2cdata(J, sp, o);
-  return emitir(IRT(IR_ADD, IRT_PTR), sp, lj_ir_kintp(J, sizeof(GCcdata)));
-}
 #endif
 
 /* Record argument conversions.
@@ -1187,6 +1182,9 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
   MSize i, n;
   TRef tr, *base;
   cTValue *o;
+#if LJ_TARGET_S390X
+  int s390x_va_gpr_seen = 0, s390x_va_fpr_seen = 0;
+#endif
 #if LJ_TARGET_X86
 #if LJ_ABI_WIN
   TRef *arg0 = NULL, *arg1 = NULL;
@@ -1237,15 +1235,28 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
     }
     d = ctype_raw(cts, did);
 #if LJ_TARGET_S390X
-    if (ctype_isstruct(d->info) && crec_s390x_small_struct_arg_byval(d)) {
+    if (isvararg &&
+	((ctype_isfp(d->info) && !ctype_isstruct(d->info)) ||
+	 (ctype_isstruct(d->info) && crec_s390x_struct_1fp(cts, d)))) {
+      if (s390x_va_gpr_seen)
+	lj_trace_err(J, LJ_TRERR_NYICALL);
+      s390x_va_fpr_seen = 1;
+    } else if (isvararg) {
+      if (s390x_va_fpr_seen)
+	lj_trace_err(J, LJ_TRERR_NYICALL);
+      s390x_va_gpr_seen = 1;
+    }
+    if (!isvararg && ctype_isstruct(d->info)) {
+      lj_trace_err(J, LJ_TRERR_NYICALL);
+    } else if (ctype_isstruct(d->info) && crec_s390x_struct_1fp(cts, d)) {
+      lj_trace_err(J, LJ_TRERR_NYICALL);
+    } else if (ctype_isstruct(d->info) && crec_s390x_small_struct_arg_byval(d)) {
       tr = crec_s390x_small_struct_arg(J, cts, d, *base, o);
       goto donearg;
-    } else if (!isvararg && ctype_isstruct(d->info)) {
-      tr = crec_s390x_cdata_payload_arg(J, *base, o);
-      goto donearg;
     } else if (ctype_iscomplex(d->info)) {
-      tr = crec_s390x_cdata_payload_arg(J, *base, o);
-      goto donearg;
+      lj_trace_err(J, LJ_TRERR_NYICALL);
+    } else if (isvararg && d->size <= 4 && ctype_isinteger_or_bool(d->info)) {
+      lj_trace_err(J, LJ_TRERR_NYICALL);
     }
 #endif
     if (!(ctype_isnum(d->info) || ctype_isptr(d->info) ||
@@ -1268,6 +1279,13 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
 	else
 	  tr = emitconv(tr, IRT_INT, d->size==1 ? IRT_I8 : IRT_I16,IRCONV_SEXT);
       }
+#if LJ_TARGET_S390X
+      if (d->size <= 4 && tref_typerange(tr, IRT_INT, IRT_U32)) {
+	IRType dt = (d->info & CTF_UNSIGNED) ? IRT_U64 : IRT_I64;
+	tr = emitconv(tr, dt, tref_type(tr),
+		      (d->info & CTF_UNSIGNED) ? 0 : IRCONV_SEXT);
+      }
+#endif
     } else if (LJ_SOFTFP32 && ctype_isfp(d->info) && d->size > 4) {
       lj_needsplit(J);
     }

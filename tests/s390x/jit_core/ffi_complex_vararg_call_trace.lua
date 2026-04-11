@@ -38,4 +38,4 @@ local actual = run(200)
 capture.stop()
 
 t.approx(actual, expected, 1e-12, "ffi complex vararg total")
-t.truthy(t.find_trace_event(capture.events, "stop"), "ffi complex vararg traced")
+t.truthy(t.find_trace_event(capture.events, "abort"), "ffi complex vararg parked")

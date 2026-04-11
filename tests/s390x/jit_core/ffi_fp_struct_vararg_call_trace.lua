@@ -71,7 +71,7 @@ local function check(fn, label)
   capture.stop()
 
   t.approx(actual, expected, 1e-9, label .. " total")
-  t.truthy(t.find_trace_event(capture.events, "stop"), label .. " traced")
+  t.truthy(t.find_trace_event(capture.events, "abort"), label .. " parked")
 end
 
 t.truthy(select(1, jit.status()), "jit enabled")

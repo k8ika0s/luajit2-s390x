@@ -61,8 +61,8 @@ local actual_read = run_read(200)
 read_capture.stop()
 
 t.approx(actual_read, expected_read, 1e-9, "ffi fixed complex call total")
-t.truthy(t.find_trace_event(read_capture.events, "stop"),
-         "ffi fixed complex call traced")
+t.truthy(t.find_trace_event(read_capture.events, "abort"),
+         "ffi fixed complex call parked")
 
 jit.off(run_pressure, true)
 local expected_pressure = run_pressure(200)
@@ -74,8 +74,8 @@ pressure_capture.stop()
 
 t.approx(actual_pressure, expected_pressure, 1e-9,
          "ffi fixed complex pressure total")
-t.truthy(t.find_trace_event(pressure_capture.events, "stop"),
-         "ffi fixed complex pressure traced")
+t.truthy(t.find_trace_event(pressure_capture.events, "abort"),
+         "ffi fixed complex pressure parked")
 
 local zmut = ffi.new("complex double", { 3.0, 4.0 })
 jit.off(run_mut, true)
@@ -90,5 +90,5 @@ mut_capture.stop()
 t.approx(actual_mut, expected_mut, 1e-9, "ffi fixed complex mut total")
 t.approx(zmut.re, 3.0, 1e-12, "ffi fixed complex mut arg.re")
 t.approx(zmut.im, 4.0, 1e-12, "ffi fixed complex mut arg.im")
-t.truthy(t.find_trace_event(mut_capture.events, "stop"),
-         "ffi fixed complex mut traced")
+t.truthy(t.find_trace_event(mut_capture.events, "abort"),
+         "ffi fixed complex mut parked")

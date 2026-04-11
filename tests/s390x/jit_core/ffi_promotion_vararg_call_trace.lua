@@ -55,4 +55,4 @@ capture.stop()
 
 t.eq(actual_int, expected_int, "ffi promoted int vararg total")
 t.approx(actual_float, expected_float, 1e-12, "ffi float cdata vararg total")
-t.truthy(t.find_trace_event(capture.events, "stop"), "ffi promotion vararg traced")
+t.truthy(t.find_trace_event(capture.events, "abort"), "ffi promotion vararg parked")

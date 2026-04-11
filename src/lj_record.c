@@ -2057,6 +2057,13 @@ static void rec_call_setup(jit_State *J, BCReg func, ptrdiff_t nargs)
     fbase[0] = ix.mobj;  /* Replace function. */
     functv = &ix.mobjv;
   }
+#if LJ_TARGET_S390X
+  if (isluafunc(funcV(functv)) &&
+      (funcproto(funcV(functv))->flags & PROTO_VARARG)) {
+    setintV(&J->errinfo, (int32_t)bc_op(*J->pc));
+    lj_trace_err_info(J, LJ_TRERR_NYIBC);
+  }
+#endif
   kfunc = rec_call_specialize(J, funcV(functv), fbase[0]);
 #if LJ_FR2
   fbase[0] = kfunc;
@@ -3178,6 +3185,10 @@ static void rec_func_vararg(jit_State *J)
   GCproto *pt = J->pt;
   BCReg s, fixargs, vframe = J->maxslot+1+LJ_FR2;
   lj_assertJ((pt->flags & PROTO_VARARG), "FUNCV in non-vararg function");
+#if LJ_TARGET_S390X
+  setintV(&J->errinfo, BC_FUNCV);
+  lj_trace_err_info(J, LJ_TRERR_NYIBC);
+#endif
   if (J->baseslot + vframe + pt->framesize >= LJ_MAX_JSLOTS)
     lj_trace_err(J, LJ_TRERR_STACKOV);
   J->base[vframe-1-LJ_FR2] = J->base[-1-LJ_FR2];  /* Copy function up. */
@@ -3621,6 +3632,12 @@ void lj_record_ins(jit_State *J)
   lbase = J->L->base;
   ins = *pc;
   op = bc_op(ins);
+#if LJ_TARGET_S390X
+  if (J->pt && J->pt->firstline != 0 && (J->pt->flags & PROTO_VARARG)) {
+    setintV(&J->errinfo, (int32_t)op);
+    lj_trace_err_info(J, LJ_TRERR_NYIBC);
+  }
+#endif
   ra = bc_a(ins);
   lj_record_s390x_recbc_log(J, pc, ins, ra, bc_b(ins), bc_c(ins));
   ix.val = 0;

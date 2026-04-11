@@ -82,5 +82,5 @@ t.eq(actual_small_u32, expected_small_u32, "fixed struct pressure small_u32 tota
 t.eq(actual_small_u64, expected_small_u64, "fixed struct pressure small_u64 total")
 t.approx(actual_one_double, expected_one_double, 1e-12,
          "fixed struct pressure one_double total")
-t.truthy(t.find_trace_event(capture.events, "stop"),
-         "fixed struct pressure traced")
+t.truthy(t.find_trace_event(capture.events, "abort"),
+         "fixed struct pressure parked")

@@ -370,6 +370,37 @@ Current status:
   promotion material, with JIT-on about `28.2%` slower geomean than JIT-off
   across the focused complex rows; the `complex_take7_call` pressure row was
   the least bad but still slower by about `7.5%` to `8.4%`.
+- Current-tip remediation correction, 2026-04-11:
+  - Rebased lab validation on `kdz1` found several A3 paths that were already
+    unsafe in retained lab snapshots, not introduced by the rebase:
+    32-bit cdata integer varargs, promoted small integer/bool/enum varargs,
+    mixed GPR/FPR varargs, complex arguments, FP-bearing aggregate arguments,
+    fixed aggregate arguments under pressure, and Lua vararg function traces.
+  - Keep the fixed integer call-argument extension: s390x traced fixed calls
+    now sign-/zero-extend integer arguments of 32 bits or less to clean
+    64-bit GPR slots. This fixes the pre-existing `ffi_stack_call_trace.lua`
+    signed i32 stack-call corruption.
+  - Park the unsafe FFI sublanes at the recorder with `NYICALL` instead of
+    native crash or silent corruption: complex args, non-vararg struct args,
+    FP single-field struct args, sub-64-bit integer cdata varargs, and mixed
+    GPR/FPR vararg calls. The focused `jit_core` tests now require numeric
+    correctness plus trace abort for parked families.
+  - Park non-main Lua vararg function tracing on s390x. Main chunks are
+    excluded because LuaJIT marks them vararg; actual nested vararg functions
+    are rejected at call setup, `FUNCV`, and central bytecode recording. This
+    converts the pre-existing `vararg_paths.lua` segfault/wrong-result failure
+    into interpreter fallback.
+  - Green `kdz1` gate on the rebased archive
+    `/root/luajit2-s390x-isa/manual-minmax/isa-lab-rebased-7c6c-gate-20260411105245/repo`:
+    `ffi_abi/run.lua`, decimal module correctness, full `jit_be`, the focused
+    FFI vararg/fixed-call trace family, `trace_gc_churn.lua`,
+    `mixed_stress.lua`, and perf smoke for `numeric_retrace_probe.lua`,
+    `vararg_paths.lua`, `ffi_calls.lua`, `ffi_cdata.lua`, `mixed_ffi.lua`,
+    `decimal_convert.lua`, and `decimal_arith.lua` all returned `rc=0`.
+  - Promotion posture: the fixed integer call-argument extension is a real
+    correctness candidate. The parked FFI/Lua vararg and aggregate paths are
+    enablement guards only; do not promote them as speed wins, and do not
+    re-open A3 broad vararg/aggregate tracing without a lower-level ABI fix.
 - Stop line: `long double` and vector varargs are not part of the current claim.
   Cheap `kdz1` probes showed `long double` construction from Lua numbers fails
   at conversion time and GCC vector vararg calls are already `NYI` at the FFI

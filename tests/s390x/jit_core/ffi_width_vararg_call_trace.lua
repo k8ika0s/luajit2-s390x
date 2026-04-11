@@ -53,4 +53,4 @@ capture.stop()
 
 t.eq(actual_i32, expected_i32, "ffi i32 vararg total")
 t.eq(actual_u32, expected_u32, "ffi u32 vararg total")
-t.truthy(t.find_trace_event(capture.events, "stop"), "ffi width vararg traced")
+t.truthy(t.find_trace_event(capture.events, "abort"), "ffi width vararg parked")

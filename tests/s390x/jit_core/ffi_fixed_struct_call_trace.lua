@@ -63,4 +63,4 @@ local actual = run(200)
 capture.stop()
 
 t.approx(actual, expected, 1e-6, "ffi fixed struct call total")
-t.truthy(t.find_trace_event(capture.events, "stop"), "ffi fixed struct call traced")
+t.truthy(t.find_trace_event(capture.events, "abort"), "ffi fixed struct call parked")
