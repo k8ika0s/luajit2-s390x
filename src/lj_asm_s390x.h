@@ -3157,7 +3157,19 @@ static void asm_uref(ASMState *as, IRIns *ir)
     }
   }
 }
-ASM_S390X_STUB_IR(asm_fref)
+
+static void asm_fref(ASMState *as, IRIns *ir)
+{
+  RegSet allow = RSET_GPR_NOB;
+  Reg dest = ra_dest_nobase(as, ir, allow, -247);
+  Reg base = ra_alloc1_nobase(as, ir->op1, rset_exclude(allow, dest), -248);
+  int32_t ofs = (int32_t)field_ofs[ir->op2];
+
+  emit_addptr(as, dest, ofs);
+  if (dest != base)
+    emit_movrr(as, ir, dest, base);
+}
+
 static void asm_strref(ASMState *as, IRIns *ir)
 {
   RegSet allow = RSET_GPR_NOB;
@@ -3725,7 +3737,40 @@ static void asm_conv(ASMState *as, IRIns *ir)
   }
 }
 
-ASM_S390X_STUB_IR(asm_strto)
+static void asm_strto(ASMState *as, IRIns *ir)
+{
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_strscan_num];
+  IRRef args[2];
+  int32_t ofs = 0;
+  Reg tmp;
+
+  ra_evictset(as, RSET_SCRATCH);
+  if (ra_used(ir)) {
+    if (ra_hasspill(ir->s)) {
+      ofs = sps_scale(ir->s);
+      if (ra_hasreg(ir->r)) {
+	ra_free(as, ir->r);
+	ra_modified(as, ir->r);
+	emit_spload(as, ir, ir->r, ofs);
+      }
+    } else {
+      Reg dest = ra_dest(as, ir, RSET_FPR);
+      emit_spload(as, ir, dest, ofs);
+    }
+  }
+
+  asm_guardcc(as, CC_EQ);
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, RID_RET, 0));
+
+  args[0] = ir->op1;      /* GCstr *str */
+  args[1] = ASMREF_TMP1;  /* TValue *n  */
+  asm_gencall(as, ci, args);
+
+  tmp = ra_releasetmp(as, ASMREF_TMP1);
+  lj_assertA(tmp != RID_SP, "strto tmp uses RID_SP");
+  emit_addptr(as, tmp, ofs);
+  emit_movrr(as, ir, tmp, RID_SP);
+}
 
 #undef ASM_S390X_STUB_IR
 

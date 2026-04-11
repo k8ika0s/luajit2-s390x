@@ -28315,3 +28315,63 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   then the `mixed_noffi` mismatch, then the `pairs_loop.lua` timeout. After
   that, rerun the full retained-env matrix before opening a new performance
   lane.
+
+## 2026-04-11: s390x parity-gap cleanup for modulo, FREF, and STRTO
+
+- Scope:
+  while the inherited `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua`
+  guardrails remain owned by the parallel issue flow, the parity backlog moved
+  on the isolated VM/backend gaps that do not depend on those failures.
+- Implemented candidate:
+  - filled `asm_fref()` in [lj_asm_s390x.h](../../src/lj_asm_s390x.h) with the
+    direct `base + field_ofs[op2]` address materialization path.
+  - filled `asm_strto()` in [lj_asm_s390x.h](../../src/lj_asm_s390x.h) using
+    the existing s390x call/guard convention: pass `SP+spill_or_tmp` to
+    `lj_strscan_num`, compare `RID_RET` with zero, guard on `CC_EQ`, then reload
+    the numeric result only when the IR is live.
+  - filled `vm_mod` and routed FP `BC_MODVN` / `BC_MODNV` / `BC_MODVV` in
+    [vm_s390x.dasc](../../src/vm_s390x.dasc) through Lua `%` semantics:
+    `x - floor(x/y) * y`; integer and metamethod cases still fall back through
+    the existing paths.
+  - added [strto_trace.lua](../../tests/s390x/jit_core/strto_trace.lua) to
+    cover hot `tonumber()` success and parse-failure exit behavior.
+- kdz tracked-mirror validation:
+  - delivered hashes:
+    `src/lj_asm_s390x.h`
+    `20ec5a7c8bec404eb25f0f32c6b1c064cf3e9256dc38fe40b2496707bf28fd6b`,
+    `src/vm_s390x.dasc`
+    `1d14100b14466e7a15e2a938ed74c8acb95013466bdad062d11170833208e0b2`,
+    `tests/s390x/jit_core/strto_trace.lua`
+    `589df6cadc7ac982f8fa79f042da91d9cb563a17456875fecf81a6f579bdd781`.
+  - direct build passed with existing warning noise only.
+  - passed:
+    `tests/s390x/jit_core/strto_trace.lua`,
+    `tests/s390x/jit_core/mod_trace.lua`,
+    `/tmp/fp_mod_probe.lua`,
+    `tests/s390x/pure_lua/arithmetic.lua`,
+    `tests/s390x/jit_core/mod_int_trace.lua`,
+    `tests/s390x/jit_loops/mod_hotexit_stress.lua`,
+    `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+    `tests/s390x/jit_be/numeric_ops.lua`,
+    retained-env `tests/s390x/perf/dispatch_trace.lua`,
+    `tests/s390x/perf/numeric_ops.lua`,
+    `tests/s390x/perf/ffi_cdata.lua`,
+    and `tests/s390x/perf/mixed_ffi.lua`.
+  - canonical retained-env exact probes passed:
+    `/tmp/mixedprobe.lua -> RESULT 553416`,
+    `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+    `/tmp/ipairs_only_probe.lua -> RESULT 576000`.
+- zkd0 confirmation:
+  - delivered hashes matched kdz for the three touched paths.
+  - direct build passed.
+  - passed:
+    `tests/s390x/jit_core/strto_trace.lua`,
+    `tests/s390x/jit_core/mod_trace.lua`,
+    `/tmp/fp_mod_probe.lua`,
+    `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+    and retained-env `tests/s390x/perf/dispatch_trace.lua`.
+- Read:
+  this tranche closes three concrete x86-parity/backend stubs without changing
+  the current inherited-guardrail ownership. The remaining compiled-vararg
+  VM NYI is still parked because x86/x64 also leave compiled vararg functions
+  NYI.
