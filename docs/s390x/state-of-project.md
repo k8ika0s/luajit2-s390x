@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 14:21 PDT
+Last updated: 2026-04-11 15:04 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,63 +8,45 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The branch is in a post-correctness stabilization/restamp pass, not a new
-  frontier attack. The current retained source point is
-  `0ac1e7eb Fix s390x loop ADDOV overflow guards` plus the narrow opt-in
-  `INT_MINMAX` overflow-snapshot follow-up in
-  [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h).
-- The retained loop-body guarded `ADDOV` / `SUBOV` overflow fix is carried and
-  pushed. It fixes the plain traced accumulator boundary on both hosts without
-  reopening the default-path exactness gates.
-- The opt-in `LUAJIT_S390X_INT_MINMAX=1` correctness lane is now closed for
-  the carried `max_loop(64000)` symptom on both hosts. Performance work still
-  only resumes after repeated full-retained-env same-host A/B names a stable
-  official payer.
-- Post-`INT_MINMAX` retained-env payer screens did not reopen a code lane:
-  the broad `kdz` screen at `/tmp/kdz-post-intminmax-jitter-20260411142000`
-  made `mixed_ffi` and dispatch hotexit look mildly red, but focused reruns at
-  `/tmp/kdz-post-intminmax-focused-jitter-20260411142500` and
-  `/tmp/kdz-post-intminmax-dispatch-jitter-20260411143000` classified those
-  reads as jitter/noise rather than stable JIT-only payers.
-- Latest direct `kdz` retained-env matrix sweep:
-  `/tmp/kdz-full-retained-matrix-20260411131732`. The one-pass iterator and
-  `ffi_cdata` red residuals did not repeat under the immediate 31-sample
-  focused rerun at `/tmp/kdz-focused-retained-rerun-20260411131809`; no stable
-  performance payer is open from that data.
-- A denser iterator follow-up did not reopen `iterator_table` as an active
-  code lane. `pairs_sum/hot` showed intermittent red readings in
-  `/tmp/kdz-iterator-order-ab-20260411132932`, but
-  `/tmp/kdz-iterator-log-slowfast-20260411133900` proved the retained hash
-  `ITERN_PROTO_NOJIT` / post-proto no-hot path fired in both fast and slow
-  runs, and `/tmp/kdz-iterator-joff-process-jitter-20260411134125` showed the
-  same slow band under `-joff`. Treat that as process-level jitter until a
-  repeated official-row JIT-only payer appears.
-- New retained-jitter probe:
-  [tools/s390x/probe_retained_jitter.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/probe_retained_jitter.py).
-  Use it before opening a near-red perf lane. The first kdz toolcheck at
-  `/tmp/kdz-retained-jitter-toolcheck-20260411135500` confirmed that current
-  iterator/vararg residuals are not stable JIT-only payers.
-- The retained env contract is now canonicalized in
+- The branch is now at
+  `f3baca74 Fix s390x guarded overflow PHI restore`, with the staged
+  `origin/k8ika0s/s390x-current-lab-promote` tranche integrated and pushed.
+  The promoted PHI-based guarded-overflow restore supersedes the narrower
+  local `INT_MINMAX` snapshot fix.
+- Core post-merge gates are clean. On `kdz`, the rebuilt canonical mirror
+  passed `addsub_overflow_guard`, `numeric_ops`, all
+  `tests/s390x/jit_be/*.lua`, retained-env `dispatch_trace`, and the dispatch
+  opt-out causality check. A focused `zkd0` confirmation passed the same
+  overflow/numeric/dispatch opt-out surfaces.
+- Current clean-family retained-env perf artifact:
+  `/tmp/kdz-post-merge-perf-clean-20260411150101`.
+  The clean rows do not show a broad post-promotion regression:
+  - `dispatch_trace`: `numeric_loop 1.0005x`, `side_exit_loop 0.9891x`,
+    `hotexit_loop 0.9940x`
+  - `iterator_table`: `pairs_sum 0.9735x` but jitter-dominated
+    (`0.6955..1.1636`), `pairs_array_sum 0.9328x`
+  - `mixed_ffi`: `mixed_ffi_loop 0.0671x`
+  - `ffi_calls`: `direct_abs 0.0274x`, `stored_abs 0.0402x`
+  - `ffi_cdata`: `pair_loop 1.0012x`, `mixed_width_loop 1.0039x`
+  - `be_helpers`: `number_helper_loop 0.9493x`, `be_pack_loop 1.0074x`
+- `numeric_ops` is correct and faster than `-joff` after the PHI restore:
+  `max_loop/hot` returns `3072032000`, with hot ratios
+  `abs 0.242x`, `div 0.082x`, `sqrt 0.065x`, `min 0.061x`, and
+  `max 0.693x`.
+- Current known inherited guardrails:
+  - `tests/s390x/perf/vararg_paths.lua` segfaults with `rc=139`
+  - `tests/s390x/perf/mixed_noffi.lua` fails the known result-mismatch class
+    with `rc=1`
+  - `tests/s390x/jit_loops/pairs_loop.lua` times out with `rc=124`
+- The retained env contract is canonicalized in
   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   and imported by the iterator, dispatch, and broader-throughput truth-pack
-  helpers.
-  Do not use raw iterator restamp data unless it was run with
-  `--candidate retained_baseline`, which is now the default.
-- Iterator tooling note: the official `iterator_table` row remains near parity
-  under the full retained env, but the focused `array_value` texit hook can
-  segfault during truth-pack instrumentation. That capture is now marked
-  unavailable with raw logs retained; it is not a runtime benchmark failure and
-  must not drive code changes by itself.
-- Broader-throughput tooling note: reduced vararg focused probes can still
-  fail validation or trace-count capture under the retained env while the
-  official `vararg_paths` row completes at parity. Keep those as reduced-probe
-  caveats unless a failure reproduces in the official benchmark row.
-- An earlier two-host full-env rerun on `8f775c23` confirmed the apparent
-  post-promotion collapse was an incomplete-env run artifact, not a reason to
-  merge the lab/freeze branch as a rescue. That rule still holds at
-  `0ac1e7eb`: use the full retained env contract from
-  [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
-  for matrix reads.
+  helpers. Do not use partial-env runs for retention decisions.
+- Next work should prioritize the inherited guardrails before small clean-row
+  perf residuals: first `vararg_paths` segfault, then `mixed_noffi` mismatch,
+  then `pairs_loop.lua` timeout. After those are stable, rerun the full
+  retained-env matrix and open performance code only if repeated same-host
+  `kdz` A/B names a material JIT-only payer.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
