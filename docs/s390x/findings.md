@@ -26358,3 +26358,64 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - this is a matcher-drift repair, not a new runtime subsystem.
     - the direct iterator `BC_ITERN` suppression lane remains closed; the
       next frontier should be reranked from the current retained matrix.
+
+- 2026-04-10: full retained-env matrix rerun after the promotion-collapse scare
+  - Current source and policy point:
+    - local and rebuilt mirrors were on `8f775c23`
+      (`Restamp ffi_cdata post-promotion matcher`)
+    - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      contains the required exact `ffi_cdata` restamp:
+      `J->cur.mcloop == 324 || J->cur.mcloop == 316`
+    - do not use the old freeze branch as a rescue path; the recovery contract
+      is current bring-up head plus the complete retained env from
+      [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+  - `kdz` rebuild and verification:
+    - delivered hashes:
+      - `src/lj_trace.c`: `15eafdb3fe18933cf5d3467fb505213035faea9067975b59eb8d76c5fabd631c`
+      - `tools/s390x/build_iterator_truth_pack.py`:
+        `91e15bf41c25e3a45d0d24cc278054c05c3fea1894a00da03a4f3f6545d762ea`
+    - full-env artifacts:
+      - `/tmp/bringup-full-retained-matrix-20260410165646.log`
+      - `/tmp/bringup-full-retained-matrix-20260410165729.log`
+    - second pass hot rows:
+      - `be_helpers`: `number_helper_loop 0.002231` vs `0.002247`,
+        `be_pack_loop 0.018667` vs `0.018667`
+      - `dispatch_trace`: `numeric_loop 0.002159` vs `0.002171`,
+        `side_exit_loop 0.004516` vs `0.004537`,
+        `hotexit_loop 0.005538` vs `0.005530`
+      - `ffi_calls`: `direct_abs 0.010145` vs `0.010180`,
+        `stored_abs 0.006929` vs `0.006976`
+      - `ffi_cdata`: `pair_loop 0.016945` vs `0.016968`,
+        `mixed_width_loop 0.028203` vs `0.027795`
+      - `iterator_table`: `pairs_sum 0.005325` vs `0.005695`,
+        `pairs_array_sum 0.003971` vs `0.003669`
+      - `mixed_ffi`: `mixed_ffi_loop 0.012212` vs `0.012222`
+      - `mixed_noffi`: `mixed_loop 0.004074` vs `0.004018`
+      - `vararg_paths`: `sum_loop 0.004437` vs `0.004400`,
+        `retlast_loop 0.002017` vs `0.002002`,
+        `retconst_loop 0.000561` vs `0.000542`
+    - exactness stayed clean under the same full env:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `zkd0` confirmation:
+    - delivered hashes matched `kdz`
+    - full-env artifact:
+      `/tmp/bringup-full-retained-matrix-20260411115853.log`
+    - the host was noisier, but the full env still recovered the branch-level
+      floor across the same matrix:
+      `be_helpers`, `ffi_calls`, `ffi_cdata`, `iterator_table/pairs_sum`,
+      `mixed_ffi`, and `mixed_noffi` were not collapsed
+    - residual monitor rows on that pass were:
+      `dispatch_trace/numeric_loop`, `iterator_table/pairs_array_sum`,
+      and `vararg_paths/sum_loop`
+    - exactness stayed clean under the same full env:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Classification:
+    - the bad performance read came from running an incomplete retained env,
+      not from the promoted A1/A3 backend/FFI source itself.
+    - do not merge more lab/freeze code to recover this floor.
+    - continue future perf probes from current bring-up head with the full
+      retained env, then rerank remaining near-parity residuals.
