@@ -108,10 +108,15 @@ It is intentionally current-state only. Historical experiment detail lives in
   `direct_abs_literal_stop_real` / `stored_abs_literal_stop_real` from
   `0.013968` / `0.010697` controls to `0.010142` / `0.006919`, with `zkd0`
   same-source rows at `0.012448` / `0.008949` versus `-joff 0.013297` /
-  `0.009072`.
-- The latest post-promotion-core rerank did not name a material new `kdz` code
-  target. After rejecting a non-engaging iterator root-`BC_FORL` stitch guess
-  and restoring clean retained source, the high-sample `kdz` pass showed:
+  `0.009072`. The latest exact restamp also covers
+  [logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua)
+  at `firstline=23`, `nsnap=4`, `nins=32862`, `mcloop=1632`, moving trusted
+  `kdz` from immediate control `0.002156` to `0.001857` and `zkd0` from
+  immediate control `0.002944` to `0.002060` / rerun `0.002036`.
+- The latest post-promotion-core official-row rerank did not name a material
+  new `kdz` stable-matrix target. After rejecting a non-engaging iterator
+  root-`BC_FORL` stitch guess and restoring clean retained source, the
+  high-sample `kdz` pass showed:
   - `iterator_table/pairs_sum/hot 0.004272` vs `-joff 0.004266`
   - `iterator_table/pairs_array_sum/hot 0.003699` vs `-joff 0.003703`
   - `mixed_noffi/mixed_loop/hot 0.003797` vs `-joff 0.003748`
