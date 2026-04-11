@@ -27860,3 +27860,46 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     correct with that opt-in env unset, so keep the remaining failure scoped
     to the separate `asm_intmin_max()` lane rather than broadening this
     guarded `ADDOV` / `SUBOV` fix.
+
+- 2026-04-11: narrowed and fixed the remaining integer-minmax `ADDOV` restore
+  seam on `kdz1`
+  - Root cause:
+    the loop-body guarded `ADDOV` fix preserved operand 1 in the result
+    register before the overflow guard. That is correct for plain accumulator
+    loops, but `math.max` traces can commute the guarded add as
+    `ADDOV max_value, accumulator`. On overflow the guard snapshot restored the
+    preserved `max_value` as the accumulator, producing
+    `max_loop(64000) -> 924628301` instead of `3072032000`.
+  - Fix:
+    `asm_s390x_guarded_ov_preserve_ref()` finds the PHI consuming the guarded
+    overflow result and preserves that PHI's previous value at the guard. The
+    change is limited to loop-body register/register `ADDOV` / `SUBOV`; the
+    constant forms and non-loop-body lowering remain unchanged.
+  - Added regression:
+    `tests/s390x/jit_be/addsub_overflow_guard.lua` now opts into
+    `LUAJIT_S390X_INT_MINMAX=1` and covers the commuted `math.max`
+    accumulator boundary cases:
+    `max_loop(60000) 2700030000`,
+    `max_loop(64000) 3072032000`,
+    `max_loop(70000) 3675035000`,
+    `max_loop(80000) 4800040000`.
+  - `kdz1` validation on
+    `/root/luajit2-s390x-isa/manual-minmax/dispatch-jfori-default-probe-20260411124634/repo`:
+    - `tests/s390x/jit_be/addsub_overflow_guard.lua` passed
+    - `tests/s390x/jit_be/numeric_ops.lua` passed
+    - `tests/s390x/perf/numeric_ops.lua` passed, including
+      `max_loop/hot median=0.001768`
+    - `tests/s390x/perf/numeric_retrace_probe.lua` passed with bounded trace
+      counts
+    - `tests/s390x/perf/dispatch_trace.lua` passed under the retained lab
+      hash/text env
+    - all `tests/s390x/jit_be/*.lua` passed
+    - all `tests/s390x/jit_loops/*.lua` passed except the inherited
+      `pairs_loop.lua` timeout, which was skipped in the sweep
+    - corrected soak paths `tests/s390x/soak/trace_gc_churn.lua` and
+      `tests/s390x/soak/mixed_stress.lua` passed
+  - Remaining inherited guardrail:
+    `tests/s390x/perf/mixed_noffi.lua` still fails independently of this fix.
+    The pre-PHI-preserve ADDOV base `f75c2851` also failed the same row, so
+    treat it as a separate mixed iterator/hash lane rather than a blocker for
+    the integer-minmax overflow restore fix.
