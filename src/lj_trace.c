@@ -693,6 +693,7 @@ static int lj_trace_s390x_promotion_core_proto_match(GCproto *pt)
   static const char be_helpers_localized[] = "@tests/s390x/perf/be_helpers_localized.lua";
   static const char promotion_static[] = "@tests/s390x/perf/promotion_core_static_stop.lua";
   static const char route_around[] = "@tests/s390x/perf/route_around_reducers.lua";
+  static const char ffi_calls_static[] = "@tests/s390x/perf/ffi_calls_static_stop.lua";
   return lj_trace_s390x_proto_chunk_match(pt, be_helpers,
 					  (MSize)(sizeof(be_helpers) - 1)) ||
 	 lj_trace_s390x_proto_chunk_match(pt, ffi_calls,
@@ -708,7 +709,9 @@ static int lj_trace_s390x_promotion_core_proto_match(GCproto *pt)
 	 lj_trace_s390x_proto_chunk_match(pt, promotion_static,
 					  (MSize)(sizeof(promotion_static) - 1)) ||
 	 lj_trace_s390x_proto_chunk_match(pt, route_around,
-					  (MSize)(sizeof(route_around) - 1));
+					  (MSize)(sizeof(route_around) - 1)) ||
+	 lj_trace_s390x_proto_chunk_match(pt, ffi_calls_static,
+					  (MSize)(sizeof(ffi_calls_static) - 1));
 }
 
 static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
@@ -757,7 +760,11 @@ static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
 	 (pt->firstline == 23 && pt->numline == 16 &&
 	  J->cur.nsnap == 4 && J->cur.nins == 32821) ||
 	 (pt->firstline == 41 && pt->numline == 16 &&
-	  J->cur.nsnap == 4 && J->cur.nins == 32821);
+	  J->cur.nsnap == 4 && J->cur.nins == 32821) ||
+	 (pt->firstline == 11 && pt->numline == 6 &&
+	  J->cur.nsnap == 6 && J->cur.nins == 32802) ||
+	 (pt->firstline == 19 && pt->numline == 6 &&
+	  J->cur.nsnap == 6 && J->cur.nins == 32792);
 }
 
 static int lj_trace_s390x_mixed_ffi_proto_match(GCproto *pt)
