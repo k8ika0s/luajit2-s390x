@@ -3315,6 +3315,7 @@ dotypecheck:
       }
       asm_s390x_guard_log(as, "sload_int", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
       if (ir->op1 == 4 &&
 	  ir->op2 == (IRSLOAD_INHERIT|IRSLOAD_TYPECHECK) &&
 	  asm_s390x_forl_current_compare_fix_enabled()) {
@@ -3333,7 +3334,6 @@ dotypecheck:
 	emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM >> 15));
 	emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
       }
-      emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
     } else if (irt_isnum(t)) {
       Reg limit = ra_scratch(as, rset_exclude(tallow, tmp));
       if (asm_s390x_sloadmap_log_enabled()) {
