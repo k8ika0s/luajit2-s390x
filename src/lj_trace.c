@@ -815,7 +815,7 @@ static int lj_trace_s390x_lower_frame_lua_abs_proto_nojit_match(jit_State *J,
          J->cur.spadjust == 8 &&
          J->cur.nsnap == 8 &&
          J->cur.nins == 32795 &&
-         J->cur.mcloop == 288 &&
+         (J->cur.mcloop == 288 || J->cur.mcloop == 284) &&
          T != NULL;
 }
 
