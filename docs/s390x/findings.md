@@ -26419,3 +26419,251 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - do not merge more lab/freeze code to recover this floor.
     - continue future perf probes from current bring-up head with the full
       retained env, then rerank remaining near-parity residuals.
+
+- 2026-04-10: closed `BC_ITERN` hotcount-park sentinel skip as
+  mechanism-valid but hash-regressive
+  - Fresh full-env `kdz` rerank from current head:
+    `/tmp/bringup-full-retained-rerank-20260410171153`
+    - delivered retained hashes before candidate:
+      - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+        `15eafdb3fe18933cf5d3467fb505213035faea9067975b59eb8d76c5fabd631c`
+      - [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py):
+        `91e15bf41c25e3a45d0d24cc278054c05c3fea1894a00da03a4f3f6545d762ea`
+    - rerank kept `iterator_table` as the visible red row on that pass:
+      - `pairs_sum/hot 0.005639` vs `-joff 0.004187`
+      - `pairs_array_sum/hot 0.004559` vs `-joff 0.003662`
+    - the rest of the compact matrix was near parity or smaller/noisier, with
+      `mixed_ffi/mixed_ffi_loop 0.012827` vs `0.012246` the next visible
+      candidate if iterator remains closed.
+  - Official full-env iterator attribution:
+    `/tmp/iterator-official-fullenv-meta-20260410-1700`
+    - exact root saves still came from the retained iterator proto-NOJIT path:
+      `S390X_ITERATOR_ITERN_PROTO_NOJIT` for the hash proto
+      `firstline=12 numline=8 nsnap=6 nins=32785 mcloop=208` and the array proto
+      `firstline=22 numline=8 nsnap=6 nins=32792 mcloop=300`
+    - steady recurrence remained the retained hotcount park path:
+      `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK` and
+      `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK`
+  - Candidate 1, broad `BC_ITERN` `0x7fff` sentinel skip:
+    - code surface:
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    - mechanism: replace the `BC_ITERN` `hotloop` macro with the same hotcount
+      sequence plus a skip when the current hotcount slot is the retained
+      `0x7fff` park value.
+    - delivered `kdz` candidate hashes:
+      - [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+        `5d57a7f6021634d016454ace2dc54a94bb99cb4a179bc6f78d18fa2b9639f6f4`
+      - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+        `15eafdb3fe18933cf5d3467fb505213035faea9067975b59eb8d76c5fabd631c`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - mechanism proof:
+      - candidate artifact:
+        `/tmp/itern-sentinel-candidate-20260410171538`
+      - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+      - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 0`
+      - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 0`
+    - `kdz` perf:
+      - candidate: `pairs_sum/hot 0.005174`,
+        `pairs_array_sum/hot 0.003910`
+      - immediate retained-source control:
+        `/tmp/itern-sentinel-control-20260410171704`
+      - control: `pairs_sum/hot 0.004627`,
+        `pairs_array_sum/hot 0.004036`
+    - classification:
+      - broad sentinel skip helps the array row but regresses the hash row.
+      - do not retain.
+  - Candidate 2, array-only distinct sentinel:
+    - code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      and
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    - mechanism: change only the exact retained array-side C matcher to park at
+      `0x7ffe`, keep the hash-side park at `0x7fff`, and make the VM skip only
+      `0x7ffe`.
+    - delivered `kdz` candidate hashes:
+      - [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+        `836343f73b919bfe68c43ed0c6cdaf92b44e479bae580a02299880964f20a069`
+      - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+        `50036ecd037205aafdc801156eb134dda4fea4e377c5a835f524ddcf1a5269db`
+    - exactness stayed clean.
+    - mechanism proof:
+      - candidate artifact:
+        `/tmp/itern-array-sentinel-candidate-20260410171859`
+      - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+      - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 228`
+      - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 0`
+    - `kdz` perf:
+      - candidate: `pairs_sum/hot 0.005170`,
+        `pairs_array_sum/hot 0.003926`
+      - immediate retained-source control:
+        `pairs_sum/hot 0.004627`,
+        `pairs_array_sum/hot 0.004036`
+    - classification:
+      - exact array-side sentinel skip is also not retainable because the extra
+        pre-hotloop check still runs on the hash-side `BC_ITERN` path and
+        regresses `pairs_sum`.
+      - the direct `BC_ITERN` hotcount-sentinel family is closed unless a future
+        design can avoid adding a per-iteration hash-side check, for example a
+        real per-PC/non-hot dispatch route rather than another pre-hotloop
+        branch sequence.
+      - both local and `kdz` mirrors were restored to the retained source hashes:
+        [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+        `3da0908dc9f51e295b88249c90a995192ba8a54fbd1254013aa4b85ffea04f7d`
+        and
+        [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+        `15eafdb3fe18933cf5d3467fb505213035faea9067975b59eb8d76c5fabd631c`.
+
+- 2026-04-10: post-sentinel rerank closed `mixed_ffi` as noise and rejected
+  three lower iterator hotcount/root-entry follow-ons
+  - Rechecked the next visible rerank row, `mixed_ffi`, on the retained
+    full-env `kdz` mirror before opening code:
+    - focused artifact:
+      `/tmp/mixed-ffi-fullenv-meta-20260410172407`
+    - mechanism:
+      - `S390X_MIXED_FFI_FORL_PROTO_NOJIT 1`
+      - `S390X_MIXED_FFI_POST_STITCH_SAVE_DONE 0`
+      - `S390X_TRACE_META phase=stop 2`
+      - `S390X_TRACE_ABORT 0`
+      - `S390X_RECSTOP 2`
+    - denser A/B artifact:
+      `/tmp/mixed-ffi-ab-20260410-20260410172444`
+    - result:
+      `mixed_ffi_loop/hot 0.012309` vs `-joff 0.012546`
+    - classification:
+      `mixed_ffi` is not a live blocker on this retained pass; the earlier
+      `0.012827` rerank read was noise.
+  - Fresh compact rerank from the same retained `kdz` mirror:
+    `/tmp/fullenv-compact-rerank-20260410172520`
+    - visible official residuals:
+      - `iterator_table/pairs_sum/hot 0.005507` vs `-joff 0.004077`
+      - `iterator_table/pairs_array_sum/hot 0.003967` vs `-joff 0.003689`
+      - `vararg_paths/sum_loop/hot 0.004578` vs `-joff 0.004440`
+      - `mixed_ffi/mixed_ffi_loop/hot 0.012526` vs `-joff 0.012254`
+    - the rest of the compact carried matrix stayed near parity.
+    - this kept iterator as the only material official residual, but in the
+      already-narrow direct `BC_ITERN` / proto-NOJIT hotcount family.
+  - Rejected candidate: half-rate `BC_ITERN` hotcount decrement
+    - code surface:
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+    - mechanism: use `hotcheck HOTCOUNT_CALL` for `BC_ITERN` instead of the
+      normal `hotloop` decrement, leaving the rest of the policy unchanged.
+    - delivered candidate hash:
+      `c5bf3dea0f9fa22db85896348ac89b3af9da3455ec5c212716ae186a74c89aea`
+    - exactness stayed clean on `kdz`:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - candidate artifact:
+      `/tmp/itern-halfhot-candidate-20260410172810`
+      - `pairs_sum/hot 0.005195`
+      - `pairs_array_sum/hot 0.004316`
+    - immediate retained-source control:
+      `/tmp/itern-halfhot-control-20260410172927`
+      - `pairs_sum/hot 0.004427`
+      - `pairs_array_sum/hot 0.003959`
+    - classification:
+      do not retain. Halving the decrement is worse than the retained source
+      and materially hurts the array row.
+  - Rejected candidate: lower-instruction hotcount hash computation
+    - code surface:
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+      `hotcheck` macro
+    - mechanism: replace the original 64-bit copy/shift/mask sequence with a
+      low-32-bit register form:
+      `llgfr; srl; nill`
+    - delivered candidate hash:
+      `fa3f862a450db130fbdee240b0911e680e25d17c88daf4dacbddc208b0c2c700`
+    - result:
+      immediate `kdz` exactness failed with a segfault on
+      `/tmp/mixedprobe.lua`
+    - classification:
+      invalid. Keep the existing `lgr; srlg; llill; ngr` hotcount hash
+      sequence unless a separate proof explains the low-32 crash.
+  - Rejected candidate: patch retained iterator `BC_ITERN` proto-NOJIT saves
+    to `BC_JLOOP`
+    - code surface:
+      [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+      `trace_stop()` `BC_ITERN` retained proto-NOJIT path
+    - mechanism: after the exact retained `S390X_ITERATOR_ITERN_PROTO_NOJIT`
+      save, also patch the start bytecode to `BC_JLOOP` before `addroot`.
+    - delivered candidate hash:
+      `27701b5588d1ab357af34b7da9f44ae11d072b44c4e3843230a45d2f843ae9ae`
+    - exactness probes stayed clean, but the official iterator row segfaulted
+      immediately under the full retained env:
+      `/tmp/iterator-itern-jloop-candidate-20260410173555`
+    - classification:
+      invalid. The retained `BC_ITERN` proto-NOJIT path must keep avoiding the
+      normal `BC_JLOOP` patch; reopening that entry path is unsafe for the
+      official iterator family.
+  - Restore:
+    - local and `kdz` mirrors were returned to retained source hashes:
+      - [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+        `3da0908dc9f51e295b88249c90a995192ba8a54fbd1254013aa4b85ffea04f7d`
+      - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+        `15eafdb3fe18933cf5d3467fb505213035faea9067975b59eb8d76c5fabd631c`
+    - exactness after restore stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Classification:
+    - keep `mixed_ffi` parked.
+    - close the lower direct `BC_ITERN` hotcount family: sentinel skip,
+      half-rate decrement, lower-instruction hash, fast-return, non-hot
+      dispatch, and unsafe `BC_JLOOP` patch are all screened out.
+    - the remaining iterator residual is real but now needs a new subsystem
+      attribution beyond direct hotcount/root-entry manipulation.
+
+- 2026-04-10: `vararg_paths` post-iterator recheck stayed green; unsafe
+  array/no-hot `BC_ITERN` VM split closed
+  - Rechecked the next compact-rerank residual in `vararg_paths` before code:
+    - artifact:
+      `/tmp/vararg-sumloop-postiter-meta-20260410173821`
+    - trusted `kdz` 9-sample A/B:
+      - `sum_loop/hot 0.004457` vs `-joff 0.004797`
+      - `retlast_loop/hot 0.001984` vs `-joff 0.002193`
+      - `retconst_loop/hot 0.000549` vs `-joff 0.000613`
+    - mechanism:
+      - `S390X_SUM_LOOP_FORL_BLACKLIST 1`
+      - `S390X_VARARG_SIBLING_FORL_BLACKLIST 2`
+      - `S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ 1`
+      - `S390X_SUM_LOOP_SELECT_CONST_GGET 1`
+      - `S390X_TRACE_META phase=stop 3`
+      - `S390X_TRACE_ABORT 12`
+    - classification:
+      `vararg_paths` is not a live blocker on this retained pass; keep it as a
+      regression screen.
+  - Rejected candidate: split the `BC_ITERN` VM path so array-part iteration
+    bypasses hotcount while hash-side iteration still runs the original
+    `hotloop`
+    - code surface:
+      [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+      `BC_ITERN`
+    - intended mechanism:
+      preserve hash-side root tracing while taking the array-side benefit seen
+      in the already-rejected global non-hot dispatch experiment.
+    - delivered candidate hash:
+      `81c44bef2087990c16de0d8cc80973b3a061990c32a9c60805359d2a81cbc7b7`
+    - result:
+      immediate `kdz` exactness failed with a segfault on
+      `/tmp/mixedprobe.lua`
+    - classification:
+      invalid. Do not split/reorder the hand-written `BC_ITERN` VM body without
+      a lower-level proof harness; the path is sensitive to `PC` placement,
+      local labels, and bridge/non-hot entry invariants.
+  - Restore:
+    - local and `kdz` mirrors were returned to retained source hashes:
+      - [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc):
+        `3da0908dc9f51e295b88249c90a995192ba8a54fbd1254013aa4b85ffea04f7d`
+      - [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
+        `15eafdb3fe18933cf5d3467fb505213035faea9067975b59eb8d76c5fabd631c`
+    - exactness after restore stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - Classification:
+    - `vararg_paths` remains parked.
+    - the iterator residual still points at `BC_ITERN` runtime/hotcount cost,
+      but direct VM-body reshaping is now unsafe without an isolated proof.
