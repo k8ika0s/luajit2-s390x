@@ -1185,6 +1185,43 @@ Stop conditions:
 
 - if debug registration remains niche and unmeasurable
 
+### C3. Iterator Restore Safety Guards
+
+Current lab checkpoint:
+
+- `kdz1` promotion-gate follow-up found two separate nested-loop correctness
+  hazards after the AREF store fix:
+  - a root `FORL` trace exiting at another `FORL` snapshot can form a side
+    trace that stitches back into the root trace and corrupts the accumulator
+  - a root `ITERL` trace for `ipairs` can restore the accumulator incorrectly
+    even when hot side traces are suppressed
+- The first reducer was a top-level/upvalue array length loop:
+  `for j = 1, #top do total = total + top[j] end`. With the guard disabled by
+  `LUAJIT_S390X_DISABLE_ROOT_FORL_EXIT_PARK=1`, it still reproduces the bad
+  `-14` result; with the guard enabled, it returns the expected `576000`.
+- The second reducer is now tracked as
+  `tests/s390x/jit_be/ipairs_numeric_array.lua`. The failing family is
+  `for _, value in ipairs(numbers) do ... end`; explicit constant-bound and
+  local indexed array loads are not the same bug.
+- Remediation is intentionally conservative:
+  - park root `FORL` hot side exits that resume at a `FORL` snapshot
+  - park root `ITERL` traces on s390x by blacklisting the start bytecode
+  - keep opt-outs for investigation:
+    `LUAJIT_S390X_DISABLE_ROOT_FORL_EXIT_PARK` and
+    `LUAJIT_S390X_DISABLE_ROOT_ITERL_PARK`
+- Direct validation on retained `kdz1` repo
+  `/root/luajit2-s390x-isa/manual-minmax/isa-lab-modk-park-jitbe-20260411143000/repo`
+  after rebuild:
+  - `tests/s390x/jit_be/*.lua`: green, including
+    `aref_dynamic_store.lua`, `ipairs_numeric_array.lua`, and
+    `modk_retained_table.lua`
+  - `tests/s390x/soak/*.lua`: green, including `trace_gc_churn.lua`
+  - smoke perf correctness: `iterator_table.lua`, `mixed_noffi.lua`, and
+    `be_helpers.lua` all returned `rc=0`
+- Promotion posture: correctness guard only. This is not a speed lane. Keep the
+  underlying restore/link-entry bug open for deeper trace machinery work before
+  considering removal of the parks.
+
 ## Deferred Research
 
 Keep these documented, but out of the active execution queue:
