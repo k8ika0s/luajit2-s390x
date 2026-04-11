@@ -837,6 +837,19 @@ Current status:
     JIT-off was `-1.14%` and z13 JIT-on was `-7.45%`. Keep the promotion
     claim scoped to the `%w`/`%a`/`%d`/`%p`/`%P` text-pattern span8 lane and
     carry `string_kernels` as a watch item, not as a promoted transform claim.
+    The same scoped signal survives the rebase onto bring-up `9fb58e44`.
+    Post-rebase validation
+    `isa-lab-rebased-text-generic-20260411110000` versus
+    `isa-lab-rebased-text-span8-20260411110000` completed cleanly on `kdz1`
+    with zero failures and `270` common benchmark rows. Across all common rows,
+    `span8/generic` was `0.8828x` (`-11.72%`). The intended text families
+    remained favorable: baseline JIT-on `text_patterns` was about `-16.16%`,
+    `text_mixed` about `-16.23%`, and `text_combo` about `-13.67%`; z13 JIT-on
+    was about `-17.27%`, `-14.50%`, and `-10.44%` respectively. Guardrails
+    remain noisy rather than promotable: baseline JIT-on `be_helpers` regressed
+    about `+2.49%` and `string_kernels` about `+1.77%`, while JIT-off and z13
+    readings were neutral-to-favorable or much smaller. Keep this as a
+    span8 text-pattern/mixed/combo promotion candidate with guardrail caveats.
     A range-based ASCII punctuation classifier was rejected. It was
     correctness-clean, including an exhaustive `0..255` `%p` smoke check, but
     `/tmp/isa-text-punct-fastspan-ab-20260410221214` gave back too much of the
