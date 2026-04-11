@@ -689,8 +689,10 @@ interpretation.
   route-around
 - `be_helpers` and `ffi_calls` are back to near/parity on trusted `kdz` and
   confirmed on `zkd0` after the exact root-`BC_FORL` proto-NOJIT route-around
-- `iterator_table`, `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked
-  near parity unless a fresh attribution names a new subsystem
+- `iterator_table` is back at the exact root-`BC_ITERN` proto-NOJIT floor by
+  checking that exact shape before the broader iterator root blacklist
+- `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity unless
+  a fresh attribution names a new subsystem
 - the first exact recorder-side nested `BC_JFORI` handoff attempt is now
   closed as non-engaging on the official hot row
 - the inner `sum(...)` whole-loop-contract backend lane is closed, and the
@@ -701,8 +703,9 @@ interpretation.
 
 ### After The Near-Parity Rerank
 
-- Do not default back into `iterator_table` trace-control. The latest kdz
-  high-sample pass put the official iterator hot rows at parity.
+- Do not broaden `iterator_table` trace-control. The latest `kdz1` pass keeps
+  the exact `BC_ITERN` proto-NOJIT route at parity while preserving the broad
+  iterator blacklist as the fallback for non-exact shapes.
 - Keep `mixed_noffi`, `mixed_ffi`, `ffi_cdata`, `be_helpers`, and `ffi_calls`
   parked unless a fresh official-row attribution names a stable subsystem.
 - The next mutation should start from a fresh matrix/proof pass under the full
