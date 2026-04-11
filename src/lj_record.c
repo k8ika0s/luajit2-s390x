@@ -499,6 +499,26 @@ static int lj_record_s390x_vararg_sum_proto_match(GCproto *pt)
          memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
 }
 
+static int lj_record_s390x_vararg_record_guard_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_VARARG_RECORD_GUARD");
+    enabled = (LJ_TARGET_S390X && opt_out == NULL);
+  }
+  return enabled;
+}
+
+static int lj_record_s390x_proto_has_varg(GCproto *pt)
+{
+  const BCIns *pc = proto_bc(pt);
+  const BCIns *endpc = pc + pt->sizebc;
+  for (; pc < endpc; pc++)
+    if (bc_op(*pc) == BC_VARG)
+      return 1;
+  return 0;
+}
+
 static int lj_record_s390x_sum_loop_select_exit0_done_match(jit_State *J,
                                                              TraceLink linktype,
                                                              TraceNo lnk)
@@ -3178,6 +3198,11 @@ static void rec_func_vararg(jit_State *J)
   GCproto *pt = J->pt;
   BCReg s, fixargs, vframe = J->maxslot+1+LJ_FR2;
   lj_assertJ((pt->flags & PROTO_VARARG), "FUNCV in non-vararg function");
+  if (lj_record_s390x_vararg_record_guard_enabled() &&
+      !lj_record_s390x_proto_has_varg(pt)) {
+    pt->flags |= PROTO_NOJIT;
+    lj_trace_err(J, LJ_TRERR_CJITOFF);
+  }
   if (J->baseslot + vframe + pt->framesize >= LJ_MAX_JSLOTS)
     lj_trace_err(J, LJ_TRERR_STACKOV);
   J->base[vframe-1-LJ_FR2] = J->base[-1-LJ_FR2];  /* Copy function up. */
