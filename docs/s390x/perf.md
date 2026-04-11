@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-10 19:46 PDT
+Last updated: 2026-04-10 23:20 PDT
 
 ## Canonical Perf Suite
 
@@ -18,7 +18,7 @@ enough for retained policy rows.
 
 | Suite file | Family | Workloads | Role in the matrix |
 | --- | --- | --- | --- |
-| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback, hash/array-side hotcount parks, and the direct `BC_ITERN` array-slot store cut; still near parity |
+| [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback, hash/array-side hotcount parks, direct `BC_ITERN` array-slot store cut, and delayed post-proto `BC_ITERN` no-hot dispatch; at parity |
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | retained exact root `BC_ITERL` / `BC_ITERN` / stitched `BC_FORL` blacklists, exact post-root `BC_ITERL` abort blacklist, and exact early proto-NOJIT / `BC_ITERN` hotcount park; now near parity |
 | [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win plus exact root-FORL proto-NOJIT fallback; now near parity and a regression screen |
 | [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | helper-heavy carried-floor controls; stabilized after post-promotion drift with an exact root-`BC_FORL` proto-NOJIT route-around |
@@ -54,8 +54,8 @@ number is ugly.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004458` | `0.004276` | `+0.000182`, `1.04x` | `kdz` | `2026-04-10 20:22 PDT` | retained unsigned s390x hotcount load plus exact iterator `BC_ITERN` `0xffff` hotcount park; hash row beats immediate control |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003896` | `0.003676` | `+0.000220`, `1.06x` | `kdz` | `2026-04-10 20:22 PDT` | retained unsigned s390x hotcount load plus exact iterator `BC_ITERN` `0xffff` hotcount park; array row beats immediate control |
+| `pairs_sum/hot` | `iterator_table` | `0.004292` | `0.004276` | `+0.000016`, `1.00x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch after exact iterator proto-NOJIT root; host-pair clean |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003588` | `0.003676` | `-0.000088`, `0.98x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch after exact iterator proto-NOJIT root; host-pair clean |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
 | `number_helper_loop/hot` | `be_helpers` | `0.002378` | `0.002280` | `+0.000098`, `1.04x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
@@ -86,8 +86,8 @@ shrink.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004458` | `0.004276` | `+0.000182`, `1.04x` | `kdz` | `2026-04-10 20:22 PDT` | retained unsigned s390x hotcount load plus exact iterator `BC_ITERN` `0xffff` hotcount park; hash row beats immediate control |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003896` | `0.003676` | `+0.000220`, `1.06x` | `kdz` | `2026-04-10 20:22 PDT` | retained unsigned s390x hotcount load plus exact iterator `BC_ITERN` `0xffff` hotcount park; array row beats immediate control |
+| `pairs_sum/hot` | `iterator_table` | `0.004292` | `0.004276` | `+0.000016`, `1.00x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch; zkd0 confirmation `0.006538` vs retained control `0.007506` |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003588` | `0.003676` | `-0.000088`, `0.98x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch; zkd0 confirmation `0.005348` vs retained control `0.007088` |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; zkd0 confirmation `0.002530` vs `-joff 0.003831` |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.005002` vs `-joff 0.007007` |
@@ -195,8 +195,9 @@ Current frontier after the post-promotion stabilization pass:
   trusted `kdz` rerun `sum_loop/hot 0.004437`, `retlast_loop/hot 0.001997`,
   `retconst_loop/hot 0.000598`, with `zkd0` confirmation at
   `0.005042`, `0.002420`, and `0.000652`
-- `iterator_table` remains near parity on the full carried env floor and
-  stays a regression screen, not the first reopened blocker
+- `iterator_table` is at parity on the full carried env floor after the
+  delayed post-proto `BC_ITERN` no-hot dispatch cut and stays a regression
+  screen, not the first reopened blocker
 - `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity under
   the carried floor
 - `dispatch_trace` has been stabilized after its post-promotion collapse with
@@ -214,55 +215,41 @@ Current frontier after the post-promotion stabilization pass:
   - trusted `zkd0`: `number_helper_loop/hot 0.002554`,
     `be_pack_loop/hot 0.020728`, `direct_abs/hot 0.012293`,
     `stored_abs/hot 0.008434`
-- the latest retained iterator cut is the unsigned s390x hotcount load plus
-  exact iterator `BC_ITERN` no-JIT hotcount park at `0xffff`:
-  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
-  now loads the 16-bit hotcount with `llgh`, and
-  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-  parks only the exact iterator hash/array no-JIT sites at `0xffff`.
-  It halves the retained iterator no-JIT hotcount retriggers without adding a
-  per-iteration sentinel check:
-  `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 228 -> 114` and
-  `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 228 -> 114` on `kdz`.
-  Trusted `kdz` same-window A/B:
-  candidate rerun `pairs_sum/hot 0.004458`, `pairs_array_sum/hot 0.003896`;
-  immediate retained-source control `0.004604`, `0.004108`.
-  The prior retained direct `BC_ITERN` array-slot store remains part of the
-  carried floor.
+- the latest retained iterator cut is delayed post-proto `BC_ITERN` no-hot
+  dispatch:
+  after the exact retained iterator root `BC_ITERN` proto-NOJIT save fires in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_dispatch.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_dispatch.c)
+  switches process-local `BC_ITERN` dispatch to `lj_vm_IITERN`. This preserves
+  the hash-side root formation that the earlier global no-hot candidate broke,
+  then removes the remaining hotcount/proto retry cost for the official row.
+  Trusted `kdz` same-binary A/B:
+  candidate `pairs_sum/hot 0.004292`, `pairs_array_sum/hot 0.003588`;
+  immediate retained-source control `0.004501`, `0.003917`. Trusted `zkd0`
+  screen: candidate `0.006538`, `0.005348`; immediate retained-source control
+  `0.007506`, `0.007088`.
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
     - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
     - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
     - `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
     - `LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK=1`
+    - `LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT=1`
   - exact mechanism:
-    - in [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c), blacklist only the two official root
-      `BC_ITERN` loop traces in
-      [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua):
-      `nsnap=6 nins=32785 mcloop=208` and
-      `nsnap=6 nins=32792 mcloop=300`
-    - this uses the existing `blacklist_pc()` primitive and prevents the hot
-      `BC_JLOOP -> dispatch-original -> BC_ITERN` runtime handoff without
-      re-opening hotside-DONE or bridge-selector lanes
-    - after those two roots are blacklisted, blacklist the newly exposed exact
-      root `BC_ITERL` array loop trace:
-      `nsnap=2 nins=32798 mcloop=512`
-    - this removes the `root=3` `BC_JMP` exit-0 loop-descendant chain on the
-      official full row
-    - then, for the exact array-side root `BC_ITERN` proto only
-      (`firstline=22`, `numline=8`), park the proto-NOJIT hotcount at the
-      root-save point and later proto-NOJIT reentry without converting the
-      bytecode to generic `BC_ITERC`
-  - host-pair result:
-    - latest `kdz`: hash-side candidate rerun `pairs_sum/hot 0.004532`,
-      `pairs_array_sum/hot 0.003973`; immediate retained source control
-      `0.005543` and `0.003950`
-    - latest `zkd0`: hash-side candidate rerun `pairs_sum/hot 0.005227`,
-      `pairs_array_sum/hot 0.005431`; immediate retained source control
-      `0.008212` and `0.006333`
+    - first keep the older exact iterator route-arounds in place:
+      root `BC_ITERN`/`BC_ITERL` blacklists, proto-NOJIT fallback, hash/array
+      hotcount parks at `0xffff`, and the direct `BC_ITERN` array-slot store
+    - once the exact retained root `BC_ITERN` proto-NOJIT path forms, set a
+      process-local s390x flag and make later `BC_ITERN` dispatch use the
+      non-hot `lj_vm_IITERN` entry
+    - the `kdz` mechanism run changed `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK`
+      and `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK` from recurring park
+      hits to `0` after one `S390X_ITERATOR_POST_PROTO_ITERN_NOHOT` activation
   - read:
-    - the root-ITERN proto-NOJIT fallback keeps the fast interpreter `ITERN`
-      path instead of the slower blacklisted `ITERC` generic fallback
+    - the root-ITERN proto-NOJIT fallback still keeps the fast interpreter
+      `ITERN` path instead of the slower blacklisted `ITERC` generic fallback
+    - delaying the no-hot dispatch switch until after that root forms avoids
+      the known hash-row regression from the rejected global no-hot candidate
     - both iterator hot rows are now near parity, so the next active queue
       should rerank rather than opening another iterator micro-edit by default
 - the first post-iterator `mixed_ffi` save-time cut is retained:

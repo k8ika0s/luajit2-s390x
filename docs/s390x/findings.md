@@ -27111,3 +27111,82 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     skip, no array/no-hot split, no direct sentinel re-entry, no generic hash
     node multiply-to-shift rewrite, and no `BC_ITERN` global non-hot dispatch
     without a new proof that avoids the known hash-row regression.
+
+- 2026-04-10: retained delayed post-proto iterator `BC_ITERN` no-hot dispatch
+  - Corrected the next official-row attribution after an invalid temp-copy
+    probe missed the exact `@tests/s390x/perf/iterator_table.lua` retained
+    proto-NOJIT matchers. The valid official-file meta pass was:
+    `/tmp/iterator-official-file-meta-20260410230558`
+    - official rows:
+      - `pairs_sum/hot 0.004642`
+      - `pairs_array_sum/hot 0.004178`
+    - mechanism:
+      - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+      - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 114`
+      - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 114`
+      - `S390X_ITERATOR_ITERN_BLACKLIST 0`
+      - `S390X_ITERATOR_ITERL_BLACKLIST 0`
+      - `sidecheck_interp 0`
+      - `S390X_TRACE_ABORT 2`
+    - retained official roots:
+      - trace 1: `BC_ITERN`, `nins=32785`, `mcloop=208`
+      - trace 2: `BC_ITERN`, `nins=32792`, `mcloop=300`
+    - read:
+      the official row was still paying repeated hotcount/proto retry cost
+      after the retained iterator root `BC_ITERN` proto-NOJIT path, not a new
+      backend `lj_vm_next` result-contract seam.
+  - Retained candidate:
+    `LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT=1`.
+    - [src/lj_trace.c](../../src/lj_trace.c) activates a process-local flag
+      after the exact iterator `BC_ITERN` proto-NOJIT save fires.
+    - [src/lj_dispatch.c](../../src/lj_dispatch.c) then routes `BC_ITERN` to
+      `lj_vm_IITERN` while JIT hotcount dispatch is otherwise active.
+    - [src/lj_trace.h](../../src/lj_trace.h) exposes the tiny s390x dispatch
+      query.
+    - This differs from the rejected global `BC_ITERN` non-hot dispatch:
+      hash-side root formation remains intact first, then the remaining
+      official-row hotcount/proto retry cost is removed.
+  - `kdz` same-binary A/B:
+    `/tmp/iterator-post-proto-nohot-ab-20260410230941`
+    - candidate:
+      - `pairs_sum/hot 0.004292`
+      - `pairs_array_sum/hot 0.003588`
+    - immediate retained-source control:
+      - `pairs_sum/hot 0.004501`
+      - `pairs_array_sum/hot 0.003917`
+  - `kdz` exactness and mechanism:
+    `/tmp/iterator-post-proto-nohot-mech-20260410231111`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `S390X_ITERATOR_POST_PROTO_ITERN_NOHOT 1`
+    - `S390X_ITERATOR_ITERN_PROTO_NOJIT 1`
+    - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 0`
+    - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 0`
+  - `zkd0` host-pair screen:
+    `/tmp/iterator-post-proto-nohot-zkd0-ab-20260410231151`
+    - exactness stayed clean for the same three probes
+    - candidate:
+      - `pairs_sum/hot 0.006538`
+      - `pairs_array_sum/hot 0.005348`
+    - immediate retained-source control:
+      - `pairs_sum/hot 0.007506`
+      - `pairs_array_sum/hot 0.007088`
+  - `kdz` compact regression screen:
+    `/tmp/iterator-post-proto-nohot-regression-20260410231328`
+    - `dispatch_trace`: `numeric_loop/hot 0.002173`,
+      `side_exit_loop/hot 0.004560`, `hotexit_loop/hot 0.005587`
+    - `vararg_paths`: `sum_loop/hot 0.004519`,
+      `retlast_loop/hot 0.002008`, `retconst_loop/hot 0.000554`
+    - `mixed_noffi`: `mixed_loop/hot 0.003818`
+    - `mixed_ffi`: `mixed_ffi_loop/hot 0.012600`
+    - `ffi_cdata`: `pair_loop/hot 0.017188`,
+      `mixed_width_loop/hot 0.027807`
+    - `iterator_table`: `pairs_sum/hot 0.004223`,
+      `pairs_array_sum/hot 0.003598`
+  - Classification:
+    retain. The delayed post-proto `BC_ITERN` no-hot dispatch is host-pair
+    clean, removes the remaining official iterator hotcount park events, and
+    keeps non-iterator regression rows in carried bands. The direct iterator
+    no-hot lane is now closed again; rerank from this floor rather than
+    opening another iterator micro-edit by default.

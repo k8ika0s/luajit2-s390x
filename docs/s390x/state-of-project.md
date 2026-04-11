@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 19:46 PDT
+Last updated: 2026-04-10 23:20 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -42,20 +42,23 @@ It is intentionally current-state only. Historical experiment detail lives in
     - `sum_loop/hot 0.005042` vs `-joff 0.004885`
     - `retlast_loop/hot 0.002420` vs `-joff 0.002243`
     - `retconst_loop/hot 0.000652` vs `-joff 0.000638`
-- `iterator_table` now carries two low-level VM wins on top of the full
-  retained env floor:
+- `iterator_table` now carries three low-level VM/control wins on top of the
+  full retained env floor:
   [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
   stores the array-side `BC_ITERN` returned value directly from `TMPR0`
   instead of copying through `RB` first, and the shared s390x `hotcheck` macro
   now loads the 16-bit hotcount with `llgh` so the exact iterator
   `BC_ITERN` no-JIT hotcount parks in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
-  can use `0xffff` instead of `0x7fff`. Trusted `kdz` same-window A/B for the
-  latest park-width cut: candidate rerun `pairs_sum/hot 0.004458`,
-  `pairs_array_sum/hot 0.003896`; immediate retained control `0.004604`,
-  `0.004108`. Mechanism logs show both hash and array no-JIT hotcount park
-  events dropped from `228` to `114`. `zkd0` exactness stayed clean; the rerun
-  improved hash materially and left array within small noise on the noisy host.
+  can use `0xffff` instead of `0x7fff`. The latest retained cut adds
+  `LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT=1`: after the exact iterator
+  root `BC_ITERN` proto-NOJIT save fires, `BC_ITERN` dispatch switches to
+  `lj_vm_IITERN` for the rest of the process. Trusted `kdz` same-binary A/B:
+  candidate `pairs_sum/hot 0.004292`,
+  `pairs_array_sum/hot 0.003588`; immediate retained control `0.004501`,
+  `0.003917`. Trusted `zkd0` screen: candidate `0.006538`, `0.005348`;
+  retained control `0.007506`, `0.007088`. Mechanism logs show the remaining
+  hash/array no-JIT hotcount park events drop to zero after the delayed switch.
 - `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity on the
   carried floor; `mixed_noffi` still has noisy reads and should not be
   reopened without a fresh exact attribution.
@@ -81,8 +84,9 @@ It is intentionally current-state only. Historical experiment detail lives in
     `direct_abs/hot 0.012293` vs reopened control `0.016268`,
     `stored_abs/hot 0.008434` vs reopened control `0.012996`
 - The active engineering frontier remains the remaining near-parity carried
-  rows. The direct `BC_ITERN` VM-body micro-lane is now closed after the
-  retained direct-store cut; rerank from this floor before opening the next
+  rows. The direct iterator VM-body and delayed dispatch micro-lanes are now
+  closed after the retained direct-store, hotcount-park-width, and post-proto
+  no-hot dispatch cuts; rerank from this floor before opening the next
   subsystem.
 - The localized helper/route-around experiment rows now have a retained
   env-gated hotside carry in
