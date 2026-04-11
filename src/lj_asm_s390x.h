@@ -1733,6 +1733,9 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 	}
       }
       lj_assertA(rset_test(as->freeset, gpr), "reg %d not free", gpr);
+      if (irt_isint(IR(ref)->t) || irt_isu32(IR(ref)->t))
+	emit_u32(as, S390X_INS_RXE(irt_isint(IR(ref)->t) ? S390XI_LGFR :
+				   S390XI_LLGFR, gpr, gpr));
       ra_leftov(as, gpr, ref);
     nextgpr:
       gpr++;

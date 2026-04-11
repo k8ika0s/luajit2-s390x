@@ -1268,6 +1268,13 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
 	else
 	  tr = emitconv(tr, IRT_INT, d->size==1 ? IRT_I8 : IRT_I16,IRCONV_SEXT);
       }
+#if LJ_TARGET_S390X
+      if (d->size <= 4 && tref_typerange(tr, IRT_INT, IRT_U32)) {
+	IRType dt = (d->info & CTF_UNSIGNED) ? IRT_U64 : IRT_I64;
+	tr = emitconv(tr, dt, tref_type(tr),
+		      (d->info & CTF_UNSIGNED) ? 0 : IRCONV_SEXT);
+      }
+#endif
     } else if (LJ_SOFTFP32 && ctype_isfp(d->info) && d->size > 4) {
       lj_needsplit(J);
     }
