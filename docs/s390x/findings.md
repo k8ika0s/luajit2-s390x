@@ -28129,3 +28129,50 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the `INT_MINMAX` follow-up is a correctness closure, not a new performance
   frontier. The performance queue remains closed until repeated full-retained
   env same-host A/B names a stable official-row payer.
+
+## 2026-04-11: post-`INT_MINMAX` retained-env payer screens did not reopen a lane
+
+- Source point:
+  `fa4badad Fix s390x INT_MINMAX overflow snapshot`.
+- Broad `kdz` retained-env jitter screen:
+  `/tmp/kdz-post-intminmax-jitter-20260411142000`
+  - families:
+    `iterator_table`, `mixed_ffi`, `ffi_cdata`, `mixed_noffi`,
+    `vararg_paths`, `dispatch_trace`
+  - samples/warmup/passes:
+    `1` sample, `2` warmups, `3` alternating JIT-on / `-joff` passes
+  - initial read:
+    `mixed_ffi/mixed_ffi_loop/hot` looked red in `3/3` passes with median
+    ratio `1.0565`, and `dispatch_trace/hotexit_loop/hot` looked mildly red
+    with median ratio `1.0530`.
+  - non-payers in that pass:
+    `iterator_table/pairs_sum/hot` was faster than `-joff` in all `3/3`
+    passes, `mixed_noffi/mixed_loop/hot` was near parity, and
+    `vararg_paths/sum_loop/hot` was near parity.
+- Focused `mixed_ffi` / `ffi_cdata` / dispatch rerun:
+  `/tmp/kdz-post-intminmax-focused-jitter-20260411142500`
+  - samples/warmup/passes:
+    `3` samples, `2` warmups, `5` alternating passes
+  - `mixed_ffi/mixed_ffi_loop/hot` did not survive as a stable payer:
+    median ratio `1.0134`, ratio range `0.8504..1.3991`, JIT jitter
+    `1.4190`, `-joff` jitter `1.2161`
+  - `ffi_cdata/pair_loop/hot` and `ffi_cdata/mixed_width_loop/hot` also stayed
+    jitter-dominated rather than naming a stable JIT-only payer.
+  - `dispatch_trace/hotexit_loop/hot` still looked mildly red in that mixed
+    family rerun, so it got a dedicated confirmation pass.
+- Dispatch-only confirmation:
+  `/tmp/kdz-post-intminmax-dispatch-jitter-20260411143000`
+  - samples/warmup/passes:
+    `5` samples, `2` warmups, `7` alternating passes
+  - `hotexit_loop/hot` closed:
+    median ratio `0.9813`, `0/7` red passes
+  - `side_exit_loop/hot` closed:
+    median ratio `0.9833`, `1/7` red passes
+  - `numeric_loop/hot` stayed effectively parity:
+    median ratio `1.0014`, with matched jitter in both JIT-on and `-joff`
+    processes
+- Decision:
+  do not reopen `mixed_ffi`, `ffi_cdata`, `dispatch_trace`, `iterator_table`,
+  `mixed_noffi`, or `vararg_paths` from these post-fix probes. The current
+  branch remains in no-active-performance-seam state until the full retained
+  env screen names a repeated material official-row payer.

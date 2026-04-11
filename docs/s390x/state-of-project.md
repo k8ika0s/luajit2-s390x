@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 14:14 PDT
+Last updated: 2026-04-11 14:21 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -20,6 +20,12 @@ It is intentionally current-state only. Historical experiment detail lives in
   the carried `max_loop(64000)` symptom on both hosts. Performance work still
   only resumes after repeated full-retained-env same-host A/B names a stable
   official payer.
+- Post-`INT_MINMAX` retained-env payer screens did not reopen a code lane:
+  the broad `kdz` screen at `/tmp/kdz-post-intminmax-jitter-20260411142000`
+  made `mixed_ffi` and dispatch hotexit look mildly red, but focused reruns at
+  `/tmp/kdz-post-intminmax-focused-jitter-20260411142500` and
+  `/tmp/kdz-post-intminmax-dispatch-jitter-20260411143000` classified those
+  reads as jitter/noise rather than stable JIT-only payers.
 - Latest direct `kdz` retained-env matrix sweep:
   `/tmp/kdz-full-retained-matrix-20260411131732`. The one-pass iterator and
   `ffi_cdata` red residuals did not repeat under the immediate 31-sample

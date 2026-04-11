@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 14:14 PDT
+Last updated: 2026-04-11 14:21 PDT
 
 ## Regroup Checkpoint
 
@@ -55,6 +55,13 @@ Last updated: 2026-04-11 14:14 PDT
   on `kdz` after the narrow loop-body `IR_MIN` / `IR_MAX` producer snapshot
   fix. `zkd0` also passes the focused opt-in `MAX 64000 3072032000` repro.
   This remains a correctness closure, not a retained performance frontier.
+- Post-fix payer screens did not reopen a lane:
+  `/tmp/kdz-post-intminmax-jitter-20260411142000`,
+  `/tmp/kdz-post-intminmax-focused-jitter-20260411142500`, and
+  `/tmp/kdz-post-intminmax-dispatch-jitter-20260411143000`.
+  The broad pass made `mixed_ffi` and dispatch hotexit look mildly red, but
+  focused reruns classified both as jitter/noise rather than stable JIT-only
+  payers.
 
 ## Canonical Perf Suite
 
