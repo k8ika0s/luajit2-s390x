@@ -4299,3 +4299,44 @@ localized-helper carried-`total` lane
   - the promotion can be carried with the `sum_loop` matcher restamp
   - do not use the rejected sum-proto exclusion from the generic duplicate
     descendant guard; it exposed a worse `sum_loop` ladder
+
+## 2026-04-11 07:10 PDT
+
+- Post-promotion-core retained-floor rerank after the current-shape
+  bitops/logic route-around:
+  - rejected a throwaway iterator root-`BC_FORL` stitch blacklist probe because
+    it did not engage on the official retained row
+  - restored the clean retained source and rebuilt `kdz`
+  - artifact:
+    `/tmp/top-residual-stability-20260411070957`
+- Current trusted `kdz` high-sample hot rows:
+  - `iterator_table/pairs_sum/hot 0.004272` vs `-joff 0.004266`
+  - `iterator_table/pairs_array_sum/hot 0.003699` vs `-joff 0.003703`
+  - `mixed_noffi/mixed_loop/hot 0.003797` vs `-joff 0.003748`
+  - `vararg_paths/sum_loop/hot 0.004490` vs `-joff 0.004967`
+  - `logical_chain_tail_add/chain_tail_add/hot 0.001879` vs `-joff 0.001904`
+  - `be_helpers/number_helper_loop/hot 0.002272` vs `-joff 0.002347`
+  - `be_helpers/be_pack_loop/hot 0.018765` vs `-joff 0.018799`
+- Focused recheck of broad `mixed_ffi` / `ffi_cdata` red reads:
+  `/tmp/ffi-mixed-focused-rerun-20260411070907`
+  - `mixed_ffi_loop/hot` retained reads were `0.012038`, `0.012038`,
+    `0.012734` against same-window `-joff` reads `0.012290`, `0.013850`,
+    `0.011993`
+  - `ffi_cdata/pair_loop/hot` retained reads were `0.017102`, `0.017304`,
+    `0.017402` against same-window `-joff` reads `0.017051`, `0.017301`,
+    `0.017808`
+  - `ffi_cdata/mixed_width_loop/hot` retained reads were `0.027988`,
+    `0.028163`, `0.028290` against same-window `-joff` reads `0.027947`,
+    `0.028574`, `0.029335`
+- `zkd0` top-residual screen:
+  `/tmp/zkd0-top-residual-stability-20260412021114`
+  - iterator and `logical_chain_tail_add` were faster than `-joff`
+  - `mixed_noffi` was effectively parity
+  - several other rows showed noisy host-local red reads with high p95 tails,
+    but trusted `kdz` did not name a stable payer
+- Read:
+  - the active floor is near parity under the full retained env
+  - do not reopen iterator trace-control, mixed-noffi, or FFI lanes from this
+    pass without a fresh official-row proof
+  - the next code mutation should start with a fresh matrix/proof pass, not a
+    trace-meta-only ladder or a stale reduced-probe seam
