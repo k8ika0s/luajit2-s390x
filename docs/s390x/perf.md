@@ -62,9 +62,9 @@ number is ugly.
 | `be_pack_loop/hot` | `be_helpers` | `0.018912` | `0.018973` | `-0.000061`, `1.00x` | `kdz` | `2026-04-10 16:10 PDT` | exact helper route-around; host-pair clean and at parity on kdz |
 | `direct_abs/hot` | `ffi_calls` | `0.010257` | `0.010148` | `+0.000109`, `1.01x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
 | `stored_abs/hot` | `ffi_calls` | `0.007338` | `0.006981` | `+0.000357`, `1.05x` | `kdz` | `2026-04-10 16:10 PDT` | exact call route-around; host-pair clean |
-| `mix_bits/hot` | `bitops_mix` | `0.000730` | `0.002148` | `-0.001418`, `0.34x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic/bitops control |
-| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000748` | `0.002107` | `-0.001359`, `0.35x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
-| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000594` | `0.002025` | `-0.001431`, `0.29x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
+| `mix_bits/hot` | `bitops_mix` | `0.001882` | `0.001854` | `+0.000028`, `1.02x` | `kdz` | `2026-04-11 00:00 PDT` | exact promotion-core root-`BC_FORL` proto-NOJIT route-around for the current retained bitops shape; host-pair clean |
+| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.001829` | `0.001825` | `+0.000004`, `1.00x` | `kdz` | `2026-04-11 00:00 PDT` | exact promotion-core root-`BC_FORL` proto-NOJIT route-around for the current retained logic-chain shape; host-pair clean |
+| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.001763` | `0.001839` | `-0.000076`, `0.96x` | `kdz` | `2026-04-11 00:00 PDT` | exact promotion-core root-`BC_FORL` proto-NOJIT route-around for the current retained logic-chain shape; host-pair clean |
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; host-pair clean and slightly faster than `-joff` on kdz |
 | `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; restored the promoted carried floor to near/parity |

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 23:20 PDT
+Last updated: 2026-04-11 00:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -32,7 +32,7 @@ It is intentionally current-state only. Historical experiment detail lives in
 - The delivered
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
   hash is now identical on local, `kdz`, and `zkd0`:
-  `30c8e50bc45235bc8bed7208d537cecce6acc4b90fcc597a968542349cbc4cc4`.
+  `e7c83ef8770fa5cf819b4f8d8e301f330131759b6e885eb08bf613429fddc0a4`.
 - Current retained `vararg_paths` rows after the sibling restamp:
   - trusted `kdz` rerun:
     - `sum_loop/hot 0.004437` vs `-joff 0.004789`
@@ -83,11 +83,20 @@ It is intentionally current-state only. Historical experiment detail lives in
     `0.006344`, `be_pack_loop/hot 0.020728` vs reopened control `0.023800`,
     `direct_abs/hot 0.012293` vs reopened control `0.016268`,
     `stored_abs/hot 0.008434` vs reopened control `0.012996`
+- The same exact promotion-core root-`BC_FORL` proto-NOJIT route-around now
+  covers the current retained bitops/logic-chain shapes after a fresh rerank
+  showed the older 2026-04-04 `0.0007` bitops matrix row was stale:
+  - trusted `kdz`: `bitops_mix/mix_bits/hot 0.001882` vs `-joff 0.001854`,
+    `logical_chain_tail_add/hot 0.001829` vs `-joff 0.001825`,
+    `logical_chain_tail_store/hot 0.001763` vs `-joff 0.001839`
+  - trusted `zkd0` focused same-source A/B: `mix_bits/hot 0.003830 -> 0.001969`,
+    `chain_tail_add/hot 0.003976 -> 0.002125`,
+    `chain_tail_store/hot 0.003794 -> 0.002741`
 - The active engineering frontier remains the remaining near-parity carried
   rows. The direct iterator VM-body and delayed dispatch micro-lanes are now
-  closed after the retained direct-store, hotcount-park-width, and post-proto
-  no-hot dispatch cuts; rerank from this floor before opening the next
-  subsystem.
+  closed after the retained direct-store, hotcount-park-width, post-proto
+  no-hot dispatch cut, and current-shape promotion-core bitops/logic
+  route-around; rerank from this floor before opening the next subsystem.
 - The localized helper/route-around experiment rows now have a retained
   env-gated hotside carry in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):

@@ -27190,3 +27190,79 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     keeps non-iterator regression rows in carried bands. The direct iterator
     no-hot lane is now closed again; rerank from this floor rather than
     opening another iterator micro-edit by default.
+
+- 2026-04-11: retained current-shape promotion-core bitops/logic
+  root-`BC_FORL` proto-NOJIT route-around
+  - Fresh retained `kdz` rerank showed the stale 2026-04-04 `promotion_core`
+    bitops/logic rows were no longer the current carried floor:
+    - `bitops_mix/mix_bits/hot 0.002463` vs `-joff 0.001862`
+    - `logical_chain_tail_add/chain_tail_add/hot 0.002359` vs `-joff 0.001825`
+    - `logical_chain_tail_store/chain_tail_store/hot 0.002279` vs
+      `-joff 0.001839`
+  - Hotside env matrix on `kdz` did not recover the old `0.0007` row:
+    `/tmp/bitops-env-matrix-20260410235222`
+    - retained: `mix_bits/hot 0.002413`
+    - `DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`: `0.002440`
+    - explicit `HOTSIDE_CANON_SHARE_UGET_LOOPROOT=1`: `0.002371`
+    - broad `HOTSIDE_CANON_SHARE_EQUIV=1`: `0.002504`
+    - classification: this is not a missing hotside env lever on the current
+      retained floor.
+  - Retained code change in
+    [src/lj_trace.c](../../src/lj_trace.c):
+    - keep the existing `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`
+      gate
+    - extend the exact chunk matcher to:
+      - `@tests/s390x/perf/bitops_mix.lua`
+      - `@tests/s390x/perf/logical_chain_tail_add.lua`
+      - `@tests/s390x/perf/logical_chain_tail_store.lua`
+    - require root trace context, `startop=BC_FORL`, `linktype=LJ_TRLINK_LOOP`,
+      self-loop link, and exact `firstline` / `numline` / `nsnap` / `nins` /
+      `mcloop` shapes:
+      - bitops and add-tail: `nsnap=4`, `nins=32875`, `mcloop=1852`
+      - store-tail: `nsnap=6`, `nins=32869`, `mcloop=1756`
+  - `kdz` same-source A/B:
+    `/tmp/promotion-logic-forl-proto-nojit-ab-20260410235753`
+    - `bitops_mix/mix_bits/hot`: `0.002438 -> 0.001813`
+    - `logical_chain_tail_add/chain_tail_add/hot`: `0.002396 -> 0.001871`
+    - `logical_chain_tail_store/chain_tail_store/hot`: `0.002298 -> 0.001808`
+    - mechanism hits:
+      - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT ... firstline=23 ... nsnap=4 nins=32875 mcloop=1852`
+      - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT ... firstline=21 ... nsnap=4 nins=32875 mcloop=1852`
+      - `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT ... firstline=21 ... nsnap=6 nins=32869 mcloop=1756`
+  - `kdz` exactness and regression screen:
+    `/tmp/promotion-logic-regression-20260410235827`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - `bitops_mix/mix_bits/hot 0.001882`
+    - `logical_chain_tail_add/chain_tail_add/hot 0.001829`
+    - `logical_chain_tail_store/chain_tail_store/hot 0.001763`
+    - adjacent retained floors stayed clean:
+      `dispatch_trace`, `iterator_table`, `vararg_paths`, `be_helpers`,
+      `ffi_calls`, `ffi_cdata`, `mixed_ffi`, and `mixed_noffi`
+  - `zkd0` host-pair A/B:
+    `/tmp/promotion-logic-forl-proto-nojit-ab-20260411185933`
+    - `bitops_mix/mix_bits/hot`: `0.003830 -> 0.001969`
+    - `logical_chain_tail_add/chain_tail_add/hot`: `0.003976 -> 0.002125`
+    - `logical_chain_tail_store/chain_tail_store/hot`: `0.003794 -> 0.002741`
+  - `zkd0` exactness screen:
+    `/tmp/promotion-logic-regression-20260411190000`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - broad perf rows were noisy on that run, so the focused same-source A/B is
+      the retention signal for this exact three-file matcher.
+  - Post-retention `kdz` rerank:
+    `/tmp/post-logic-rerank-20260411000539`
+    - `mix_bits/hot 0.001894` vs `-joff 0.001821`
+    - `chain_tail_add/hot 0.001832` vs `-joff 0.001890`
+    - `chain_tail_store/hot 0.001761` vs `-joff 0.001781`
+    - the remaining largest ratios are near-parity small gaps:
+      `number_helper_loop/hot 1.078x`, `pairs_sum/hot 1.037x`,
+      `mix_bits/hot 1.040x`
+  - Classification:
+    retain. This is a current-shape stabilization of the promotion-core
+    reduced bitops/logic controls, not a backend bitop-lowering win. The old
+    `0.0007` matrix rows should not be used as the current carried floor; rerank
+    from the new parity/near-parity retained floor before opening the next
+    subsystem.
