@@ -26976,3 +26976,138 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     regressed materially because the added test sits on the shared array path.
     The generic `BC_ITERN` hash-entry micro-lane is closed unless a future
     proof can avoid any added array-side instruction.
+
+- 2026-04-10: closed the next promotion-core `ffi_calls` / `be_helpers`
+  rerank pass after the iterator direct lanes
+  - Fresh `kdz` full retained-env `ffi_calls` truth pack:
+    `/tmp/ffi-calls-next-target-truth/20260410-kdz-ffi_calls-hotside_canon_share_uget_looproot_default-truth-pack`
+    - official benchmark rows:
+      - `direct_abs/hot 0.010234` vs `-joff 0.010284`
+      - `stored_abs/hot 0.006872` vs `-joff 0.006989`
+    - focused reduced rows remained exit-dominated, but the reduced helper
+      script does not prove it hit the official retained `@tests/s390x/perf/ffi_calls.lua`
+      proto route-around shape:
+      - `direct_abs`: `TRACE_START 2`, `TRACE_STOP 1`, `TRACE_ABORT 1`,
+        `TEXIT_COUNT 80001`
+      - `stored_abs`: `TRACE_START 2`, `TRACE_STOP 1`, `TRACE_ABORT 1`,
+        `TEXIT_COUNT 80001`
+    - Classification:
+      no `ffi_calls` code change. The official carried rows are already at or
+      slightly faster than `-joff` under the full retained env, so the reduced
+      exit-dominated probe is not an active top-matrix payer.
+  - Fresh `kdz` full retained-env `be_helpers` truth pack:
+    `/tmp/be-helpers-next-target-truth/20260410-kdz-be_helpers-hotside_canon_share_uget_looproot_default-truth-pack`
+    - official benchmark rows:
+      - `number_helper_loop/hot 0.002484` vs `-joff 0.002259`
+      - `be_pack_loop/hot 0.019920` vs `-joff 0.018755`
+    - focused reduced rows remained exit-dominated:
+      - `number_helper_loop`: `TRACE_START 2`, `TRACE_STOP 0`,
+        `TRACE_ABORT 2`, `TEXIT_COUNT 64001`
+      - `be_pack_loop`: `TRACE_START 2`, `TRACE_STOP 0`, `TRACE_ABORT 2`,
+        `TEXIT_COUNT 64001`
+  - Candidate opened and rejected:
+    add an env-gated immediate `blacklist_pc(pt, pc)` path under the existing
+    exact `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` matcher, first for all
+    promotion-core protos and then narrowed to the exact `number_helper_loop`
+    proto only.
+    - broad candidate source hash on `kdz` / `zkd0`:
+      [src/lj_trace.c](../../src/lj_trace.c)
+      `1a0828f75a5e2e6cea8981bbc06898e7425cd079fd749ccb7b8c6aa2e82bbd7b`
+    - narrowed candidate source hash on `kdz` / `zkd0`:
+      [src/lj_trace.c](../../src/lj_trace.c)
+      `b18c55b7c3ad1af8b3dd2f9d3da161f537a29cc4f8c239136f2e4a47a2f68bb2`
+  - `kdz` A/B looked promising:
+    - broad candidate:
+      `/tmp/be-helpers-promotion-core-blacklist-candidate`
+      - `number_helper_loop/hot 0.002261`
+      - `be_pack_loop/hot 0.018728`
+    - immediate retained control:
+      `/tmp/be-helpers-promotion-core-blacklist-control`
+      - `number_helper_loop/hot 0.002334`
+      - `be_pack_loop/hot 0.018914`
+    - narrowed candidate:
+      `/tmp/be-helpers-promotion-core-number-blacklist-kdz-candidate`
+      - `number_helper_loop/hot 0.002255`
+      - `be_pack_loop/hot 0.018747`
+  - `zkd0` rejected the candidate under the sibling-retention rule:
+    - broad candidate:
+      `/tmp/be-helpers-promotion-core-blacklist-zkd0-candidate`
+      - `number_helper_loop/hot 0.002672`
+      - `be_pack_loop/hot 0.021309`
+    - immediate retained control:
+      `/tmp/be-helpers-promotion-core-blacklist-zkd0-control`
+      - `number_helper_loop/hot 0.003116`
+      - `be_pack_loop/hot 0.020751`
+    - narrowed candidate:
+      `/tmp/be-helpers-promotion-core-number-blacklist-zkd0-candidate`
+      - `number_helper_loop/hot 0.002870`
+      - `be_pack_loop/hot 0.024517`
+    - immediate retained control rerun:
+      `/tmp/be-helpers-promotion-core-number-blacklist-zkd0-control-rerun`
+      - `number_helper_loop/hot 0.003612`
+      - `be_pack_loop/hot 0.022970`
+  - Classification:
+    do not retain. Immediate `BC_FORL` blacklisting improves the target
+    `number_helper_loop` on both hosts, but it leaves or correlates with a
+    material `be_pack_loop` sibling loss on `zkd0`. Keep the existing exact
+    promotion-core `PROTO_NOJIT` route-around unchanged and rerank to the next
+    non-parked family.
+
+- 2026-04-10: retained-floor rerank after promotion-core blacklist closure
+  - The rejected `src/lj_trace.c` candidate was reverted locally and on both
+    mirrors; delivered retained hashes after restore:
+    - [src/lj_trace.c](../../src/lj_trace.c):
+      `f7a3edd254a1acc9ffb12cb32001fd9a1ec60ebf45400ff79f9c36438d460134`
+    - [docs/s390x/findings.md](../../docs/s390x/findings.md):
+      `40cd98e756111e6e12ac20a619ebae27ec1c6f479c5af915c246f26e002d6cc5`
+  - Fresh `kdz` full retained-env FFI/mixed restamp:
+    `/tmp/next-family-restamp-20260410224041`
+    - `ffi_cdata/pair_loop/hot 0.017256` vs `-joff 0.017569`
+    - `ffi_cdata/mixed_width_loop/hot 0.028246` vs `-joff 0.028615`
+    - `mixed_ffi/mixed_ffi_loop/hot 0.012329` vs `-joff 0.012434`
+    - Classification:
+      no FFI-cdata or mixed-FFI code target. These official rows are faster
+      than `-joff` on the restored source under the full retained env.
+  - Fresh `kdz` full retained-env `vararg_paths` truth pack:
+    `/tmp/vararg-next-rerank-truth/20260410-kdz-vararg_paths-hotside_canon_share_uget_looproot_default-truth-pack`
+    - `sum_loop/hot 0.004726` vs `-joff 0.004616`
+    - `retlast_loop/hot 0.002007` vs `-joff 0.002068`
+    - `retconst_loop/hot 0.000537` vs `-joff 0.000538`
+    - focused reduced probes remain exit-dominated, but reduced handoff probes
+      report no live `JFORI_HANDOFF`, `lua_intrace_return`, `lua_lower_frame_retf`,
+      or `lua_lleave` hits on this current floor.
+    - Classification:
+      do not reopen the closed recorder-side vararg or `sum_loop` backend
+      micro-lanes for a `+0.000110s` official-row residual.
+  - Fresh `kdz` full retained-env `mixed_noffi` truth pack:
+    `/tmp/mixed-noffi-next-rerank-truth/20260410-kdz-mixed_noffi-hotside_canon_share_uget_looproot_default-truth-pack`
+    - `mixed_loop/hot 0.003808` vs `-joff 0.003767`
+    - focused reduced probe remains very red (`0.049113` vs `0.003845`) with
+      `TRACE_START 102`, `TRACE_STOP 102`, `TEXIT_COUNT 195722`, but the
+      official row is effectively at parity.
+    - Classification:
+      keep `mixed_noffi` parked unless a future official-row attribution names
+      a genuinely new subsystem; the current reduced probe is not retention
+      evidence by itself.
+  - Fresh `kdz` five-sample iterator truth pack:
+    `/tmp/iterator-retained-truth-s5-20260410224501`
+    - official rows:
+      - `pairs_sum/hot 0.005081` vs `-joff 0.004134`
+      - `pairs_array_sum/hot 0.003927` vs `-joff 0.003647`
+    - focused reducers remain the dominant red signal:
+      - `hash_value/hot 0.112542` vs `-joff 0.004132`
+      - `hash_key/hot 0.079049` vs `-joff 0.003963`
+      - `array_value/hot 0.113340` vs `-joff 0.003683`
+    - seam and family attribution stayed unchanged:
+      - `first_loop_leave_after_helper_result`
+      - `hash_value`: `same_closed_lazy_key_family`
+      - `array_value`: `array_root_linked_side_path`
+      - recurring root/side abort pattern: root candidate `BC_ITERN` aborts
+        with `inner loop in root trace`, side candidate starts at `parent=1`
+        `exit=1` and aborts with `leaving loop in root trace`
+  - Current queue:
+    iterator remains the only material official-row payer after the rerank, but
+    the already-screened direct lanes stay closed: no generic hash `asize == 0`
+    skip, no array/no-hot split, no direct sentinel re-entry, no generic hash
+    node multiply-to-shift rewrite, and no `BC_ITERN` global non-hot dispatch
+    without a new proof that avoids the known hash-row regression.
