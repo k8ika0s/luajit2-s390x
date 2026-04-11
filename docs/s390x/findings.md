@@ -26852,3 +26852,97 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - local and `kdz` mirrors were restored to the retained direct-store
       [src/vm_s390x.dasc](../../src/vm_s390x.dasc) hash
       `6258afa430c94b5c91ca307aea8d0b07585bd3b6efceec66f1265e465cbc2d02`.
+
+- 2026-04-10: retained iterator unsigned hotcount park-width cut
+  - Starting floor:
+    retained direct array-slot store in
+    [src/vm_s390x.dasc](../../src/vm_s390x.dasc), delivered hash
+    `6258afa430c94b5c91ca307aea8d0b07585bd3b6efceec66f1265e465cbc2d02`,
+    plus the full retained env contract.
+  - Attribution:
+    official-row logs on the retained direct-store floor still showed two
+    exact root `BC_ITERN` proto-NOJIT saves followed by recurring no-JIT
+    hotcount park retries:
+    - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+    - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 228`
+    - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 228`
+    - focused reducers remained much redder than the official row, so they
+      were not used as retention evidence.
+  - Retained candidate:
+    - [src/vm_s390x.dasc](../../src/vm_s390x.dasc) `hotcheck` now loads the
+      16-bit hotcount with `llgh` instead of signed `lgh`.
+    - [src/lj_trace.c](../../src/lj_trace.c) parks only the exact iterator
+      hash/array `BC_ITERN` no-JIT sites at `0xffff` instead of `0x7fff`.
+    - mechanism:
+      keep normal positive hotcount behavior unchanged, but allow the exact
+      retained iterator park sites to use the full unsigned 16-bit range and
+      halve their no-JIT hotcount retrigger rate without a per-iteration
+      sentinel branch.
+    - delivered hashes:
+      - [src/vm_s390x.dasc](../../src/vm_s390x.dasc):
+        `3a5e15492977667a6edd9e6aec473d76f27fc392bce7f373af23af4f542fd3b8`
+      - [src/lj_trace.c](../../src/lj_trace.c):
+        `f7a3edd254a1acc9ffb12cb32001fd9a1ec60ebf45400ff79f9c36438d460134`
+  - `kdz` exactness:
+    `/tmp/itern-unsigned-hotcount-candidate-20260410202003`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `kdz` same-window A/B:
+    - candidate:
+      `/tmp/itern-unsigned-hotcount-candidate-rerun-20260410202230`
+      - `pairs_sum/hot 0.004458`
+      - `pairs_array_sum/hot 0.003896`
+    - immediate retained-source control:
+      `/tmp/itern-unsigned-hotcount-control-20260410202059`
+      - `pairs_sum/hot 0.004604`
+      - `pairs_array_sum/hot 0.004108`
+    - fresh `-joff` read:
+      `/tmp/itern-unsigned-hotcount-kdz-joff-20260410202735`
+      - `pairs_sum/hot 0.004276`
+      - `pairs_array_sum/hot 0.003676`
+  - Mechanism proof:
+    `/tmp/itern-unsigned-hotcount-candidate-rerun-20260410202230`
+    - `S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK 114`
+    - `S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK 114`
+    - `S390X_ITERATOR_ITERN_PROTO_NOJIT 2`
+    - `val=65535 228`
+    - `val=32767 0`
+  - `zkd0` screen:
+    - candidate exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - first candidate read was noisy:
+      `/tmp/itern-unsigned-hotcount-zkd0-candidate-20260410202352`
+      - `pairs_sum/hot 0.009193`, `pairs_array_sum/hot 0.006417`
+    - immediate retained-source control was also noisy:
+      `/tmp/itern-unsigned-hotcount-zkd0-control-20260410202504`
+      - `pairs_sum/hot 0.008200`, `pairs_array_sum/hot 0.005510`
+    - candidate rerun:
+      `/tmp/itern-unsigned-hotcount-zkd0-candidate-rerun2-20260410202628`
+      - `pairs_sum/hot 0.006764`
+      - `pairs_array_sum/hot 0.005583`
+    - classification:
+      accept as host-pair safe: the rerun materially improves the hash row
+      against noisy control and leaves the array row within small noise.
+  - `kdz` regression screen:
+    `/tmp/itern-unsigned-hotcount-kdz-regression-20260410202658`
+    - exactness stayed clean.
+    - `dispatch_trace`: `numeric_loop/hot 0.002170`,
+      `side_exit_loop/hot 0.004543`, `hotexit_loop/hot 0.005608`
+    - `vararg_paths`: `sum_loop/hot 0.004495`,
+      `retlast_loop/hot 0.002119`, `retconst_loop/hot 0.000611`
+    - `mixed_noffi/mixed_loop/hot 0.003826`
+    - `mixed_ffi/mixed_ffi_loop/hot 0.012395`
+    - `ffi_cdata/pair_loop/hot 0.017364`,
+      `mixed_width_loop/hot 0.028256`
+    - `be_helpers/number_helper_loop/hot 0.002449`,
+      `be_pack_loop/hot 0.018759`
+    - focused `numeric_ops.lua` and `large_immediates.lua` exited cleanly.
+  - Classification:
+    retain. This is the first post-direct-store iterator pickup that changes
+    the remaining official hotcount payer directly without reopening the
+    rejected direct VM-body split or adding per-iteration sentinel checks. The
+    next iterator target should be re-attributed from this new park-width
+    floor.
