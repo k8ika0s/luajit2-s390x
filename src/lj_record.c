@@ -3621,6 +3621,12 @@ void lj_record_ins(jit_State *J)
   lbase = J->L->base;
   ins = *pc;
   op = bc_op(ins);
+#if LJ_TARGET_S390X
+  if (op == BC_MODVN && bc_op(pc[1]) == BC_CAT) {
+    setintV(&J->errinfo, (int32_t)op);
+    lj_trace_err_info(J, LJ_TRERR_NYIBC);
+  }
+#endif
   ra = bc_a(ins);
   lj_record_s390x_recbc_log(J, pc, ins, ra, bc_b(ins), bc_c(ins));
   ix.val = 0;
