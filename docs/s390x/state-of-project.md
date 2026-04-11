@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 16:10 PDT
+Last updated: 2026-04-10 16:59 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -10,6 +10,16 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 - The branch is in a post-promotion stabilization pass, not a new frontier
   attack.
+- A two-host full-env rerun on current head `8f775c23` confirmed the apparent
+  post-promotion collapse was an incomplete-env run artifact, not a reason to
+  merge the lab/freeze branch as a rescue. Use the full retained env contract
+  from
+  [tools/s390x/build_iterator_truth_pack.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/build_iterator_truth_pack.py)
+  for matrix reads.
+- The current source recovery point is the existing
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  post-promotion `ffi_cdata` restamp:
+  `J->cur.mcloop == 324 || J->cur.mcloop == 316`.
 - The ISA lab A3/A1/trace promotion remains carried together with the exact
   `sum_loop` root-`BC_FORL` restamp that accepts the promoted `mcloop=304`
   shape.
