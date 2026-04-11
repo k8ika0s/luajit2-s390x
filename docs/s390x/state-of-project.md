@@ -92,6 +92,19 @@ It is intentionally current-state only. Historical experiment detail lives in
   - trusted `zkd0` focused same-source A/B: `mix_bits/hot 0.003830 -> 0.001969`,
     `chain_tail_add/hot 0.003976 -> 0.002125`,
     `chain_tail_store/hot 0.003794 -> 0.002741`
+- The same env-gated promotion-core route-around now also covers exact
+  mechanism-only localized/static-stop/route-around reducer rows:
+  [be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua),
+  [promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua),
+  and
+  [route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua).
+  This reuses `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`; no new env
+  knob or stable-matrix row was added. Trusted `kdz` retained-source controls
+  moved to candidate rows of `0.001386` for localized `tobit`, `0.008632`
+  for localized `be_pack`, `0.002281` / `0.001368` / `0.018765` for the
+  static-stop reducers, and `0.047332` / `0.020023` / `0.020076` for the
+  route-around reducers; `zkd0` confirmed the same-source screen in retained
+  bands.
 - The latest post-promotion-core rerank did not name a material new `kdz` code
   target. After rejecting a non-engaging iterator root-`BC_FORL` stitch guess
   and restoring clean retained source, the high-sample `kdz` pass showed:
@@ -108,13 +121,13 @@ It is intentionally current-state only. Historical experiment detail lives in
   VM-body and delayed dispatch micro-lanes are closed after the retained
   direct-store, hotcount-park-width, post-proto no-hot dispatch cut, and
   current-shape promotion-core bitops/logic route-around.
-- The localized helper/route-around experiment rows now have a retained
-  env-gated hotside carry in
+- The localized helper/route-around experiment rows now have retained
+  env-gated hotside and exact promotion-core proto-NOJIT carries in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
-  `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`. It is guarded by
-  `S390X_PERF_BENCH_FILE`, exact proto line shape, and chunk-name checks, so it
-  is not a new stable-matrix row and does not reopen `mixed_noffi`. The same
-  scoped carry now covers
+  `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1` and
+  `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`. They are guarded by exact
+  proto line shape and chunk-name checks, so they are not new stable-matrix
+  rows and do not reopen `mixed_noffi`. The same scoped carry now covers
   [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
   after attribution showed its payer is a numeric `FORL/JFORI -> MODVN`
   side-ladder, not the old lower-frame return seam.

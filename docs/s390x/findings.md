@@ -27421,3 +27421,90 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       `mcloop=288` to `mcloop=284`.
     - Do not promote `lower_frame_same_callsite` into the stable top matrix;
       it remains an env-gated mechanism/regression suite.
+
+- 2026-04-11: retained promotion-core proto-NOJIT extension for localized
+  helper/static-stop/route-around experiment rows
+  - Fresh retained `kdz` truth pack for
+    [be_helpers_localized.lua](../../tests/s390x/perf/be_helpers_localized.lua)
+    under the full retained env:
+    `/tmp/next-targets-truth/20260411-kdz-be_helpers_localized-hotside_canon_share_uget_looproot_default-truth-pack`
+    - `number_helper_loop_local_tobit/hot 0.004854` vs `-joff 0.001363`
+    - `be_pack_loop_local_ops_real/hot 0.010639` vs `-joff 0.007686`
+    - focused runtime read stayed exit-dominated:
+      `TRACE_START 2`, `TRACE_STOP 1`, `TRACE_ABORT 1`,
+      `TEXIT_COUNT 64001`
+  - Attribution:
+    - `number_helper_loop_local_tobit` records a root `BC_FORL` body with
+      `MULOV i, 65537` before the intended `bit.tobit` narrowing; after the
+      31-bit boundary the guarded overflow exits each iteration.
+    - The sibling helper/static-stop/route-around reducers are the same
+      exact root `BC_FORL` route-around class, not a new hotside
+      canonicalization target.
+  - Retained code change:
+    [src/lj_trace.c](../../src/lj_trace.c) extends the existing
+    `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` exact matcher to:
+    - `@tests/s390x/perf/be_helpers_localized.lua`
+    - `@tests/s390x/perf/promotion_core_static_stop.lua`
+    - `@tests/s390x/perf/route_around_reducers.lua`
+  - Exact retained matcher hits on `kdz`:
+    - `firstline=10`, `nsnap=4`, `nins=32788`, `mcloop=296`
+    - `firstline=19`, `nsnap=4`, `nins=32821`, `mcloop=656`
+    - `firstline=4`, `nsnap=4`, `nins=32797`, `mcloop=432`
+    - `firstline=12`, `nsnap=4`, `nins=32788`, `mcloop=296`
+    - `firstline=21`, `nsnap=4`, `nins=32840`, `mcloop=1032`
+    - `firstline=9`, `nsnap=4`, `nins=32840`, `mcloop=1032`
+    - `firstline=23`, `nsnap=4`, `nins=32821`, `mcloop=656`
+    - `firstline=41`, `nsnap=4`, `nins=32821`, `mcloop=656`
+  - Delivered source hash on `kdz` and `zkd0`:
+    [src/lj_trace.c](../../src/lj_trace.c)
+    `d8ee958e3c3b0786a0f6663ff1be5ee25df94aee904d3ce68bd3fb66ed21499e`
+  - `kdz` same-host retained-source control:
+    - `be_helpers_localized/number_helper_loop_local_tobit/hot 0.004864`
+    - `be_helpers_localized/be_pack_loop_local_ops_real/hot 0.010978`
+    - `promotion_core_static_stop/number_helper_literal_stop_real/hot 0.005313`
+    - `promotion_core_static_stop/number_helper_literal_stop_real_local_tobit/hot 0.004824`
+    - `promotion_core_static_stop/be_pack_literal_stop_real/hot 0.021907`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop/hot 0.054883`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot 0.027238`
+    - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot 0.027347`
+  - `kdz` candidate:
+    - `be_helpers_localized/number_helper_loop_local_tobit/hot 0.001386`
+      then compact regression read `0.001332`
+    - `be_helpers_localized/be_pack_loop_local_ops_real/hot 0.008632`
+      then compact regression read `0.007730`
+    - `promotion_core_static_stop/number_helper_literal_stop_real/hot 0.002281`
+      then compact regression read `0.002256`
+    - `promotion_core_static_stop/number_helper_literal_stop_real_local_tobit/hot 0.001368`
+      then compact regression read `0.001365`
+    - `promotion_core_static_stop/be_pack_literal_stop_real/hot 0.018765`
+      then compact regression read `0.018737`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop/hot 0.047332`
+      then compact regression read `0.048481`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot 0.020023`
+      then compact regression read `0.021197`
+    - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot 0.020076`
+      then compact regression read `0.020113`
+  - `kdz` exactness and adjacent regression screen:
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - adjacent rows stayed in retained bands:
+      `dispatch_trace`, `iterator_table`, `vararg_paths`, `be_helpers`,
+      `ffi_calls`, `mixed_noffi`, and `ffi_cdata`
+  - `zkd0` host-pair screen on the same source:
+    - exactness stayed clean for the same three probes
+    - `be_helpers_localized/number_helper_loop_local_tobit/hot 0.001789`
+    - `be_helpers_localized/be_pack_loop_local_ops_real/hot 0.008459`
+    - `promotion_core_static_stop/number_helper_literal_stop_real/hot 0.002544`
+    - `promotion_core_static_stop/number_helper_literal_stop_real_local_tobit/hot 0.001552`
+    - `promotion_core_static_stop/be_pack_literal_stop_real/hot 0.020241`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop/hot 0.051895`
+    - `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot 0.021296`
+    - `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot 0.022199`
+  - Classification:
+    - retain. This is an exact extension of the existing
+      `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` route-around for
+      mechanism-only reducer rows, not a new stable top-matrix row.
+    - Do not reopen broad hotside canon/share or helper arithmetic
+      experiments from this result; the fixed payer is the exact
+      exit-dominated root `BC_FORL` helper reducer body.
