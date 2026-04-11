@@ -27816,13 +27816,14 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       `tests/s390x/perf/dispatch_trace.lua`,
       `tests/s390x/perf/iterator_table.lua`,
       `tests/s390x/perf/vararg_paths.lua`
-  - Separate downstream symptom:
-    `tests/s390x/perf/numeric_ops.lua` still opts into
+  - Separate downstream symptom at this source point:
+    `tests/s390x/perf/numeric_ops.lua` still opted into
     `LUAJIT_S390X_INT_MINMAX=1` and fails `max_loop/hot` with
     `expected 3072032000, got 924628301`. The same `max_loop(64000)` is
     correct with that opt-in env unset, so keep the remaining failure scoped
     to the separate `asm_intmin_max()` lane rather than broadening this
-    guarded `ADDOV` / `SUBOV` fix.
+    guarded `ADDOV` / `SUBOV` fix. This lane is closed by the later
+    2026-04-11 `INT_MINMAX` overflow snapshot follow-up entry below.
 
 - 2026-04-11: regrouped retained-floor tooling and forward map after the
   loop-body overflow fix
@@ -27935,11 +27936,11 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     reduced-probe rows or a single near-parity official residual. First run a
     full retained-env matrix restamp; open performance code only if repeated
     same-host `kdz` A/B names a material official-row payer.
-  - Separate correctness lane:
-    `LUAJIT_S390X_INT_MINMAX=1` still exposes the opt-in `max_loop` failure.
-    Keep that as a focused `asm_intmin_max()` follow-up, separate from the
-    retained guarded `ADDOV` / `SUBOV` loop-body fix and separate from the
-    performance rerank.
+  - Separate correctness lane at this regroup point:
+    `LUAJIT_S390X_INT_MINMAX=1` exposed the opt-in `max_loop` failure.
+    That stayed separate from the retained guarded `ADDOV` / `SUBOV`
+    loop-body fix and separate from the performance rerank, and is closed by
+    the later 2026-04-11 `INT_MINMAX` overflow snapshot follow-up entry below.
 
 ## 2026-04-11: `pairs_sum` intermittent red reads are process jitter, not a stable iterator payer
 
@@ -28061,3 +28062,70 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   run this helper as the pre-code screen for any near-red official row. A row
   should only advance to code attribution if repeated passes show material
   JIT-on separation while the matching `-joff` process jitter remains tight.
+
+## 2026-04-11: opt-in `INT_MINMAX` overflow snapshot follow-up closed
+
+- Source point:
+  `c190e8be Add retained-env jitter probe` plus the narrow
+  [lj_asm_s390x.h](../../src/lj_asm_s390x.h) follow-up in this entry.
+- Trigger:
+  after `0ac1e7eb` fixed retained loop-body guarded `ADDOV` / `SUBOV`
+  overflow, the opt-in integer min/max lane still failed:
+  `LUAJIT_S390X_INT_MINMAX=1 tests/s390x/perf/numeric_ops.lua` reported
+  `max_loop/hot: expected 3072032000, got 924628301`.
+- Root cause:
+  the retained scratch-result `ADDOV` fix intentionally keeps the real
+  destination unchanged until the guard falls through, so an overflow exit can
+  restore the pre-add accumulator. In the opt-in `math.max` loop, the
+  preceding `IR_MAX` could reuse that same `ADDOV` destination register before
+  the guarded add. On overflow, the exit snapshot then saw the `MAX` value in
+  the accumulator slot instead of the pre-add total.
+- Fix:
+  in the loop-body guarded integer `ADDOV` scratch path, when the left operand
+  is `IR_MIN` or `IR_MAX`, preserve the right operand in the `ADDOV`
+  destination before computing the scratch 64-bit add and compare. This keeps
+  the compare adjacent to the guard, preserves the retained scratch-result
+  overflow behavior, and only touches the opt-in min/max producer shape.
+- `kdz` validation:
+  - delivered
+    [lj_asm_s390x.h](../../src/lj_asm_s390x.h) hash:
+    `faa03381daea35fb729dae08ee869b55a06b74b4d61b34ca3a0cfe93dc1eef1a`
+  - opt-in repro:
+    `MAX 64000 3072032000`,
+    `MIN 64000 1024032000`
+  - focused correctness:
+    `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+    `tests/s390x/jit_be/numeric_ops.lua`
+  - opt-in perf correctness:
+    `S390X_PERF_SAMPLES=1 S390X_PERF_WARMUP=1 tests/s390x/perf/numeric_ops.lua`
+    completed, including `numeric_ops/max_loop/hot`
+  - retained exactness:
+    `/tmp/mixedprobe.lua -> RESULT 553416`,
+    `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+    `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - retained-env smoke:
+    `tests/s390x/perf/vararg_paths.lua`,
+    `tests/s390x/perf/dispatch_trace.lua`,
+    `tests/s390x/perf/iterator_table.lua`,
+    `tests/s390x/perf/mixed_noffi.lua`
+- `zkd0` validation:
+  - delivered
+    [lj_asm_s390x.h](../../src/lj_asm_s390x.h) hash:
+    `faa03381daea35fb729dae08ee869b55a06b74b4d61b34ca3a0cfe93dc1eef1a`
+  - opt-in repro:
+    `MAX 64000 3072032000`,
+    `MIN 64000 1024032000`
+  - focused correctness:
+    `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+    `tests/s390x/jit_be/numeric_ops.lua`
+  - retained exactness:
+    `/tmp/mixedprobe.lua -> RESULT 553416`,
+    `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+    `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - retained-env smoke:
+    `tests/s390x/perf/vararg_paths.lua`,
+    `tests/s390x/perf/iterator_table.lua`
+- Read:
+  the `INT_MINMAX` follow-up is a correctness closure, not a new performance
+  frontier. The performance queue remains closed until repeated full-retained
+  env same-host A/B names a stable official-row payer.
