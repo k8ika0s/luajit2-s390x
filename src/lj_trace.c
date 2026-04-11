@@ -690,6 +690,9 @@ static int lj_trace_s390x_promotion_core_proto_match(GCproto *pt)
   static const char bitops_mix[] = "@tests/s390x/perf/bitops_mix.lua";
   static const char logic_add[] = "@tests/s390x/perf/logical_chain_tail_add.lua";
   static const char logic_store[] = "@tests/s390x/perf/logical_chain_tail_store.lua";
+  static const char be_helpers_localized[] = "@tests/s390x/perf/be_helpers_localized.lua";
+  static const char promotion_static[] = "@tests/s390x/perf/promotion_core_static_stop.lua";
+  static const char route_around[] = "@tests/s390x/perf/route_around_reducers.lua";
   return lj_trace_s390x_proto_chunk_match(pt, be_helpers,
 					  (MSize)(sizeof(be_helpers) - 1)) ||
 	 lj_trace_s390x_proto_chunk_match(pt, ffi_calls,
@@ -699,7 +702,13 @@ static int lj_trace_s390x_promotion_core_proto_match(GCproto *pt)
 	 lj_trace_s390x_proto_chunk_match(pt, logic_add,
 					  (MSize)(sizeof(logic_add) - 1)) ||
 	 lj_trace_s390x_proto_chunk_match(pt, logic_store,
-					  (MSize)(sizeof(logic_store) - 1));
+					  (MSize)(sizeof(logic_store) - 1)) ||
+	 lj_trace_s390x_proto_chunk_match(pt, be_helpers_localized,
+					  (MSize)(sizeof(be_helpers_localized) - 1)) ||
+	 lj_trace_s390x_proto_chunk_match(pt, promotion_static,
+					  (MSize)(sizeof(promotion_static) - 1)) ||
+	 lj_trace_s390x_proto_chunk_match(pt, route_around,
+					  (MSize)(sizeof(route_around) - 1));
 }
 
 static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
@@ -732,7 +741,23 @@ static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
 	  J->cur.mcloop == 1852) ||
 	 (pt->firstline == 21 && pt->numline == 14 &&
 	  J->cur.nsnap == 6 && J->cur.nins == 32869 &&
-	  J->cur.mcloop == 1756);
+	  J->cur.mcloop == 1756) ||
+	 (pt->firstline == 10 && pt->numline == 7 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32788) ||
+	 (pt->firstline == 19 && pt->numline == 14 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32821) ||
+	 (pt->firstline == 4 && pt->numline == 6 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32797) ||
+	 (pt->firstline == 12 && pt->numline == 7 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32788) ||
+	 (pt->firstline == 21 && pt->numline == 10 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32840) ||
+	 (pt->firstline == 9 && pt->numline == 12 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32840) ||
+	 (pt->firstline == 23 && pt->numline == 16 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32821) ||
+	 (pt->firstline == 41 && pt->numline == 16 &&
+	  J->cur.nsnap == 4 && J->cur.nins == 32821);
 }
 
 static int lj_trace_s390x_mixed_ffi_proto_match(GCproto *pt)

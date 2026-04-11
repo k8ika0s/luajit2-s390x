@@ -125,15 +125,15 @@ experiment evidence, not top-level progress rows.
 
 | Suite file | Family | Why it is not in the stable matrix |
 | --- | --- | --- |
-| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | localized helper experiments; now covered by the env-gated localized hotside carry, but still not a stable matrix row |
-| [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | static-stop mechanism suite |
+| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | localized helper experiments; now covered by the env-gated localized hotside carry and exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
+| [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | static-stop mechanism suite; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | static-stop FFI mechanism suite |
-| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family |
+| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | narrow experiment-only control |
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | lower-frame regression suite; now covered by the env-gated localized hotside carry, but still not a stable matrix row |
 
-Current localized hotside mechanism carry:
+Current localized / route-around mechanism carries:
 
 - exact env:
   - `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV=1`
@@ -173,6 +173,34 @@ Current localized hotside mechanism carry:
     `0.058875 -> 0.020010` with the exact proto-NOJIT follow-up on the same
     rebuilt mirror; after the `mcloop=284` restamp, `zkd0` reads
     `0.047349 -> 0.019229` and `0.048731 -> 0.020043`
+- current promotion-core proto-NOJIT reducer extension:
+  - same env knob as the stable promotion-core route-around:
+    `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`
+  - exact chunks:
+    [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua),
+    [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua),
+    and
+    [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua)
+  - trusted `kdz` retained-source control -> candidate:
+    `be_helpers_localized/number_helper_loop_local_tobit/hot 0.004864 -> 0.001386`,
+    `be_helpers_localized/be_pack_loop_local_ops_real/hot 0.010978 -> 0.008632`,
+    `promotion_core_static_stop/number_helper_literal_stop_real/hot 0.005313 -> 0.002281`,
+    `promotion_core_static_stop/number_helper_literal_stop_real_local_tobit/hot 0.004824 -> 0.001368`,
+    `promotion_core_static_stop/be_pack_literal_stop_real/hot 0.021907 -> 0.018765`,
+    `route_around_reducers_truth_pack/be_pack_literal_stop/hot 0.054883 -> 0.047332`,
+    `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot 0.027238 -> 0.020023`,
+    and
+    `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot 0.027347 -> 0.020076`
+  - `zkd0` same-source screen:
+    `be_helpers_localized/number_helper_loop_local_tobit/hot 0.001789`,
+    `be_helpers_localized/be_pack_loop_local_ops_real/hot 0.008459`,
+    `promotion_core_static_stop/number_helper_literal_stop_real/hot 0.002544`,
+    `promotion_core_static_stop/number_helper_literal_stop_real_local_tobit/hot 0.001552`,
+    `promotion_core_static_stop/be_pack_literal_stop_real/hot 0.020241`,
+    `route_around_reducers_truth_pack/be_pack_literal_stop/hot 0.051895`,
+    `route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot 0.021296`,
+    and
+    `route_around_reducers_truth_pack/be_pack_loop_local_ops/hot 0.022199`
 - read:
   - this restores the localized helper/route-around experiment rows without
     promoting them into the stable matrix
@@ -184,6 +212,9 @@ Current localized hotside mechanism carry:
     side-ladder behind that regression suite, and the follow-up proto-NOJIT
     route-around parks only the exact saved root trace-1 body with
     `mcloop=288` or `mcloop=284`
+  - the current promotion-core extension fixes exact exit-dominated root
+    `BC_FORL` helper reducer bodies; it does not reopen broad hotside
+    canon/share or helper arithmetic experiments
   - `mixed_noffi` remains noisy on `zkd0` and stays a regression screen, not a
     reopened primary target
 
