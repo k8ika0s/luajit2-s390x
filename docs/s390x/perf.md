@@ -25,6 +25,13 @@ Last updated: 2026-04-11 13:45 PDT
   `/tmp/kdz-iterator-joff-process-jitter-20260411134125` hit the same slow
   band (`pairs_sum` max `0.005762`), so this is not an actionable JIT
   regression without a stronger repeated signal.
+- The process-jitter check is now reusable via
+  [probe_retained_jitter.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/probe_retained_jitter.py).
+  Its first kdz toolcheck,
+  `/tmp/kdz-retained-jitter-toolcheck-20260411135500`, confirmed the current
+  iterator/vararg near-red rows swing across alternating JIT-on / `-joff`
+  processes and should not drive code changes without repeated JIT-only
+  separation.
 - The retained-env contract now lives in
   [restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   and is imported by the iterator, dispatch, and broader-throughput truth-pack

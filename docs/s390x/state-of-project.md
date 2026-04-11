@@ -31,6 +31,11 @@ It is intentionally current-state only. Historical experiment detail lives in
   runs, and `/tmp/kdz-iterator-joff-process-jitter-20260411134125` showed the
   same slow band under `-joff`. Treat that as process-level jitter until a
   repeated official-row JIT-only payer appears.
+- New retained-jitter probe:
+  [tools/s390x/probe_retained_jitter.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/probe_retained_jitter.py).
+  Use it before opening a near-red perf lane. The first kdz toolcheck at
+  `/tmp/kdz-retained-jitter-toolcheck-20260411135500` confirmed that current
+  iterator/vararg residuals are not stable JIT-only payers.
 - The retained env contract is now canonicalized in
   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   and imported by the iterator, dispatch, and broader-throughput truth-pack

@@ -28020,3 +28020,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   A/B names a material official-row payer. Reduced iterator micros can guide
   mechanism work later, but they are not retention targets while the official
   row remains near parity or jitter-dominated.
+
+## 2026-04-11: added retained-env jitter probe for official-row payer screening
+
+- Added:
+  [tools/s390x/probe_retained_jitter.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/probe_retained_jitter.py)
+- Purpose:
+  make the current payer-screening policy reproducible instead of relying on
+  one-off Python snippets. The helper:
+  - imports the canonical full retained env from
+    `tools/s390x/restamp_iterator_perf.py`
+  - syncs tracked files and rebuilds the canonical remote mirror by default
+  - runs official `tests/s390x/perf/*.lua` families only
+  - alternates JIT-on and `-joff` process order across repeated passes
+  - writes pass JSONL files plus `summary.md`, `aggregate.json`, and
+    `pass-rows.json`
+  - reports both JIT and `-joff` process jitter so process-level slow bands
+    do not get misclassified as JIT-only payers.
+- First kdz toolcheck:
+  `/tmp/kdz-retained-jitter-toolcheck-20260411135500`
+  - command shape:
+    `--family iterator_table --family vararg_paths --passes 4 --samples 1 --warmup 2 --skip-sync --skip-build`
+  - this intentionally reused the already rebuilt canonical kdz mirror from
+    the preceding retained-env probes.
+  - aggregate result:
+    - `iterator_table/pairs_sum/hot` median ratio `0.9982`, ratio range
+      `0.7736..1.2638`, JIT jitter `1.3610`, `-joff` jitter `1.3858`
+    - `iterator_table/pairs_array_sum/hot` median ratio `0.9634`, ratio range
+      `0.9387..1.0338`
+    - `vararg_paths/sum_loop/hot` median ratio `0.9864`
+    - `vararg_paths/retlast_loop/hot` median ratio `0.9864`
+    - `vararg_paths/retconst_loop/hot` median ratio `1.0067`
+  - read:
+    the currently visible iterator/vararg near-red rows swing across both
+    modes and do not name a stable retained-env JIT-only payer.
+- Validation:
+  `python3 -m py_compile tools/s390x/probe_retained_jitter.py` and
+  `git diff --check` passed.
+- Next use:
+  run this helper as the pre-code screen for any near-red official row. A row
+  should only advance to code attribution if repeated passes show material
+  JIT-on separation while the matching `-joff` process jitter remains tight.
