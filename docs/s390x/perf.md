@@ -156,7 +156,9 @@ Current localized hotside mechanism carry:
   - `lower_frame_same_callsite/lua_abs_same_callsite/hot`:
     `0.058123 -> 0.049683` with the hotside carry, then
     `0.048729 -> 0.015022` with the exact proto-NOJIT follow-up on the same
-    rebuilt mirror
+    rebuilt mirror; after current-source drift from `mcloop=288` to
+    `mcloop=284`, the restamped matcher reads `0.030186 -> 0.015201` and
+    `0.029826 -> 0.014881` on `kdz`
 - host-pair `zkd0` signal:
   - `be_helpers_localized/number_helper_loop_local_tobit/hot`:
     `0.705713 -> 0.013471`
@@ -169,7 +171,8 @@ Current localized hotside mechanism carry:
   - `lower_frame_same_callsite/lua_abs_same_callsite/hot`:
     `0.094302 -> 0.063420` with the hotside carry, then
     `0.058875 -> 0.020010` with the exact proto-NOJIT follow-up on the same
-    rebuilt mirror
+    rebuilt mirror; after the `mcloop=284` restamp, `zkd0` reads
+    `0.047349 -> 0.019229` and `0.048731 -> 0.020043`
 - read:
   - this restores the localized helper/route-around experiment rows without
     promoting them into the stable matrix
@@ -179,7 +182,8 @@ Current localized hotside mechanism carry:
   - the lower-frame row did not hit the old `lua_lower_frame_retf` seam; the
     hotside extension targets the exact numeric `FORL/JFORI -> MODVN`
     side-ladder behind that regression suite, and the follow-up proto-NOJIT
-    route-around parks only the exact saved root trace-1 body
+    route-around parks only the exact saved root trace-1 body with
+    `mcloop=288` or `mcloop=284`
   - `mixed_noffi` remains noisy on `zkd0` and stays a regression screen, not a
     reopened primary target
 

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 07:10 PDT
+Last updated: 2026-04-11 07:30 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -32,7 +32,7 @@ It is intentionally current-state only. Historical experiment detail lives in
 - The delivered
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
   hash is now identical on local, `kdz`, and `zkd0`:
-  `e7c83ef8770fa5cf819b4f8d8e301f330131759b6e885eb08bf613429fddc0a4`.
+  `29d6bcdd6375d9b3ff4c7e36dbbecabf219daaf57319ecffdb15b2641257397f`.
 - Current retained `vararg_paths` rows after the sibling restamp:
   - trusted `kdz` rerun:
     - `sum_loop/hot 0.004437` vs `-joff 0.004789`
@@ -122,8 +122,10 @@ It is intentionally current-state only. Historical experiment detail lives in
   `lua_abs_same_callsite` follow-up route-around:
   `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT=1`. It parks only the exact
   saved trace-1 root body for the lower-frame benchmark proto after the
-  hotside carry, cutting `kdz 0.048729 -> 0.015022` and
-  `zkd0 0.058875 -> 0.020010` on same-binary rebuilt-mirror A/B.
+  hotside carry. The matcher now accepts the retained `mcloop=288` shape and
+  the current `mcloop=284` drift shape. Same-binary rebuilt-mirror A/B after
+  the restamp cuts `kdz 0.030186 -> 0.015201` and `0.029826 -> 0.014881`,
+  and cuts `zkd0 0.047349 -> 0.019229` and `0.048731 -> 0.020043`.
 - The ISA lab A3/A1/trace promotion slice is merged into the bring-up branch
   at `640e9641`, with one integration restamp on top: the retained
   `sum_loop` root-FORL blacklist now accepts the promoted root trace

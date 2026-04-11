@@ -27352,3 +27352,72 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       exhausted lanes without a new official-row attribution
     - next work should be a fresh matrix/proof pass before any new mutation,
       not another trace-control guess
+
+- 2026-04-11: retained lower-frame same-callsite `mcloop=284` restamp
+  - The post-near-parity sweep moved into experiment/mechanism rows after the
+    stable matrix failed to name a material `kdz` payer.
+  - Fresh `kdz` experiment-family sweep:
+    `/tmp/experimental-family-rerank-20260411072422`
+    - `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.030319` vs
+      `-joff 0.015093`
+    - this was a drift in an existing env-gated experimental carry, not a new
+      stable-matrix row
+  - Mechanism read:
+    `/tmp/lower-frame-mech-20260411072533`
+    - `S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT 0`
+    - live root trace was the retained lower-frame shape except for `mcloop`:
+      - `trace=1`
+      - `parent=0`, `exit=0`, `root=0`
+      - `startop=BC_FORL`
+      - `link=1`, `linktype=LJ_TRLINK_LOOP`
+      - `topslot=7`, `spadjust=8`
+      - `nsnap=8`, `nins=32795`
+      - `mcloop=284`
+    - retained matcher only accepted `mcloop=288`
+  - Retained code change:
+    [src/lj_trace.c](../../src/lj_trace.c)
+    `lj_trace_s390x_lower_frame_lua_abs_proto_nojit_match()` now accepts
+    exactly `(mcloop == 288 || mcloop == 284)` for the same chunk/proto/root
+    trace shape.
+  - Delivered source hash:
+    - [src/lj_trace.c](../../src/lj_trace.c):
+      `29d6bcdd6375d9b3ff4c7e36dbbecabf219daaf57319ecffdb15b2641257397f`
+  - `kdz` same-binary A/B:
+    `/tmp/lower-frame-restamp-clean-ab-20260411072730`
+    - control:
+      - `lua_abs_same_callsite/hot 0.030186`
+      - `lua_abs_same_callsite/hot 0.029826`
+    - candidate:
+      - `lua_abs_same_callsite/hot 0.015201`
+      - `lua_abs_same_callsite/hot 0.014881`
+    - mechanism:
+      `S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT trace=1 ... nsnap=8 nins=32795 mcloop=284`
+  - `kdz` exactness and compact regression:
+    `/tmp/lower-frame-restamp-kdz-regression-20260411072809`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - adjacent rows stayed in retained bands:
+      `dispatch_trace`, `iterator_table`, `vararg_paths`, `mixed_noffi`,
+      `mixed_ffi`, `ffi_cdata`, `be_helpers`, and `ffi_calls`
+    - candidate `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.014950`
+  - `zkd0` host-pair screen:
+    `/tmp/lower-frame-restamp-zkd0-ab-20260412023004`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - control:
+      - `lua_abs_same_callsite/hot 0.047349`
+      - `lua_abs_same_callsite/hot 0.048731`
+    - candidate:
+      - `lua_abs_same_callsite/hot 0.019229`
+      - `lua_abs_same_callsite/hot 0.020043`
+    - mechanism:
+      `S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT trace=1 ... nsnap=8 nins=32795 mcloop=284`
+  - Classification:
+    - retain. This restores the existing lower-frame same-callsite
+      experimental route-around after current source drifted from
+      `mcloop=288` to `mcloop=284`.
+    - Do not promote `lower_frame_same_callsite` into the stable top matrix;
+      it remains an env-gated mechanism/regression suite.
