@@ -127,6 +127,11 @@ void lj_dispatch_update(global_State *g)
     if ((mode & (DISPMODE_JIT|DISPMODE_REC)) == DISPMODE_JIT) {
       f_forl = makeasmfunc(lj_bc_ofs[BC_FORL]);
       f_iterl = makeasmfunc(lj_bc_ofs[BC_ITERL]);
+#if LJ_TARGET_S390X
+      if (lj_trace_s390x_iterator_itern_nohot_dispatch_active())
+        f_itern = &lj_vm_IITERN;
+      else
+#endif
       f_itern = makeasmfunc(lj_bc_ofs[BC_ITERN]);
       f_loop = makeasmfunc(lj_bc_ofs[BC_LOOP]);
       f_funcf = makeasmfunc(lj_bc_ofs[BC_FUNCF]);
@@ -558,4 +563,3 @@ void LJ_FASTCALL lj_dispatch_profile(lua_State *L, const BCIns *pc)
   ERRNO_RESTORE
 }
 #endif
-
