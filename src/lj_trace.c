@@ -333,8 +333,9 @@ static int lj_trace_s390x_vm_root_entry_log_enabled(void)
 static int lj_trace_s390x_dispatch_forl_skip_jfori_enabled(void)
 {
   static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI") != NULL);
+  if (enabled == -1) {
+    enabled = (getenv("LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI") == NULL);
+  }
   return enabled;
 }
 
@@ -577,10 +578,14 @@ void lj_trace_s390x_vm_root_entry_log(GCtrace *T, const TValue *base)
   dump_count++;
 }
 
-static int lj_trace_s390x_dispatch_forl_skip_jfori_match(jit_State *J)
+static int lj_trace_s390x_dispatch_proto_match(GCproto *pt);
+
+static int lj_trace_s390x_dispatch_forl_skip_jfori_match(jit_State *J,
+							 GCproto *pt)
 {
 #if LJ_TARGET_S390X
   if (!(lj_trace_s390x_dispatch_forl_skip_jfori_enabled() &&
+	lj_trace_s390x_dispatch_proto_match(pt) &&
 	J->parent == 0 && J->exitno == 0 &&
 	bc_op(J->cur.startins) == BC_FORL))
     return 0;
@@ -601,14 +606,17 @@ static int lj_trace_s390x_dispatch_forl_skip_jfori_match(jit_State *J)
   return 0;
 #else
   UNUSED(J);
+  UNUSED(pt);
   return 0;
 #endif
 }
 
-static int lj_trace_s390x_dispatch_forl_park_root_match(jit_State *J)
+static int lj_trace_s390x_dispatch_forl_park_root_match(jit_State *J,
+							GCproto *pt)
 {
 #if LJ_TARGET_S390X
   return lj_trace_s390x_dispatch_forl_skip_jfori_enabled() &&
+         lj_trace_s390x_dispatch_proto_match(pt) &&
          J->parent == 0 && J->exitno == 0 &&
          bc_op(J->cur.startins) == BC_FORL &&
          ((J->cur.nsnap == 9 &&
@@ -616,6 +624,7 @@ static int lj_trace_s390x_dispatch_forl_park_root_match(jit_State *J)
           (J->cur.nsnap == 8 && J->cur.nins == 32793));
 #else
   UNUSED(J);
+  UNUSED(pt);
   return 0;
 #endif
 }
@@ -650,7 +659,7 @@ static int lj_trace_s390x_dispatch_forl_proto_nojit_match(jit_State *J,
 {
   if (!(LJ_TARGET_S390X &&
 	lj_trace_s390x_dispatch_proto_match(pt) &&
-	lj_trace_s390x_dispatch_forl_skip_jfori_match(J) &&
+	lj_trace_s390x_dispatch_forl_skip_jfori_match(J, pt) &&
 	J->parent == 0 && J->exitno == 0 &&
 	J->cur.root == 0 &&
 	T != NULL &&
@@ -1438,7 +1447,7 @@ static void lj_trace_s390x_dispatch_forl_park_root_hotexit_exact_cooldown(jit_St
   int value = lj_trace_s390x_dispatch_forl_park_root_hotexit_exact_cooldown_value();
   if (!(LJ_TARGET_S390X &&
         value > 0 &&
-        lj_trace_s390x_dispatch_forl_park_root_match(J) &&
+        lj_trace_s390x_dispatch_forl_park_root_match(J, pt) &&
         lj_trace_s390x_dispatch_hotexit_proto_match(pt) &&
         pc != NULL))
     return;
@@ -3738,8 +3747,8 @@ static void trace_stop(jit_State *J)
   switch (op) {
   case BC_FORL:
     {
-      int skip_jfori = lj_trace_s390x_dispatch_forl_skip_jfori_match(J);
-      int park_root = lj_trace_s390x_dispatch_forl_park_root_match(J);
+      int skip_jfori = lj_trace_s390x_dispatch_forl_skip_jfori_match(J, pt);
+      int park_root = lj_trace_s390x_dispatch_forl_park_root_match(J, pt);
       if (lj_trace_s390x_mixed_noffi_forl_stitch_blacklist_match(J, pt, T)) {
         blacklist_pc(pt, pc);
         if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
