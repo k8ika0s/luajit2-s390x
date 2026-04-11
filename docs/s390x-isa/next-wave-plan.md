@@ -4,6 +4,44 @@ This document resets the ISA lab after the first text-helper wave and defines
 the next ranked tracks, their first implementation slices, and their stop/go
 criteria.
 
+## Promotion Closure: 2026-04-11
+
+The current staged ISA-lab promotion queue is closed. The WIP branch accepted
+the final tranche and was pushed at `origin/k8ika0s/s390x-bringup-wip`
+`f3baca74`.
+
+Promoted areas that should not be reopened without a new, explicit hypothesis:
+
+- A3/A1 call and trace gains from `640e9641 Promote s390x ISA lab call and
+  trace gains`.
+- Fixed integer C call argument extension from `01ef1a11`.
+- Unsafe modulo-concat trace park from `d08772b2`.
+- Dispatch `FORL` / `JFORI` route-around from `afd63af4`.
+- Guarded `ADDOV` / `SUBOV` overflow repair, including the final PHI-restore
+  min/max fix, from `0ac1e7eb` and `f3baca74`.
+
+Post-merge WIP gates passed on the `kdz` canonical mirror:
+
+- `tests/s390x/jit_be/addsub_overflow_guard.lua`
+- `tests/s390x/jit_be/numeric_ops.lua`
+- `tests/s390x/perf/numeric_ops.lua`, including `max_loop/hot`
+- `tests/s390x/perf/dispatch_trace.lua` under the retained lab hash/text env
+- dispatch opt-out causality check, which still reproduces
+  `numeric_loop/hot: expected 3839172, got 0`
+- all `tests/s390x/jit_be/*.lua`
+
+Known inherited WIP guardrails, not reasons to reopen the promoted areas:
+
+- `tests/s390x/perf/vararg_paths.lua` segfaults with `rc=139`.
+- `tests/s390x/perf/mixed_noffi.lua` has a hot-row mismatch; the promoted
+  PHI-restore changes the mismatch class but is required for integer overflow
+  correctness.
+- `tests/s390x/jit_loops/pairs_loop.lua` times out with `rc=124`.
+
+Until those guardrails are deliberately selected as the next lab target, keep
+new architecture-feature exploration on the backburner and avoid retesting the
+promoted seams as open-ended lab work.
+
 ## Current Position
 
 - The text lane has produced real wins with `span8`, while `ascii8` is now

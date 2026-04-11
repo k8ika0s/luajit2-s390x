@@ -27745,3 +27745,37 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - the next honest retained-floor work is either a dedicated correctness
       tranche for guarded `ADDOV`/integer minmax, or another official-row
       stability pass if the user chooses to keep correctness parked
+
+- 2026-04-11: closed current ISA-lab promotion queue into bring-up WIP
+  - Final WIP target:
+    `origin/k8ika0s/s390x-bringup-wip` at `f3baca74`.
+  - Integrated promotion tranche:
+    - `01ef1a11` fixed s390x fixed integer call argument extension
+    - `d08772b2` parked unsafe modulo-concat traces
+    - `afd63af4` checkpointed the dispatch `FORL` / `JFORI` skip probe
+    - `f3baca74` fixed guarded overflow PHI restore
+  - Lab-to-WIP mapping:
+    - `cd818ae3` -> `01ef1a11`
+    - `eaf44036` -> `d08772b2`
+    - `93b8942c` -> `afd63af4`
+    - `4fd693b4` -> `f3baca74`
+    - `f75c2851` was intentionally not promoted because WIP already carried
+      the equivalent lane as `0ac1e7eb`
+  - Post-merge WIP gate:
+    - `addsub_overflow_guard`: passed
+    - `jit_be/numeric_ops.lua`: passed
+    - `perf/numeric_ops.lua`: passed, including `max_loop/hot`
+    - `dispatch_trace` default retained env: passed
+    - dispatch opt-out: expected failure reproduced
+      `numeric_loop/hot: expected 3839172, got 0`
+    - `jit_be_all`: passed
+  - Known inherited guardrails:
+    - `perf/vararg_paths.lua`: segfault, `rc=139`
+    - `perf/mixed_noffi.lua`: hot-row mismatch, `rc=1`
+    - `jit_loops/pairs_loop.lua`: timeout, `rc=124`
+  - Closure rule:
+    do not reopen fixed integer call args, modulo-concat parking, dispatch
+    `FORL` / `JFORI`, or guarded `ADDOV` / `SUBOV` PHI restore without a new
+    targeted regression or a specific hypothesis. The next lab seam should be
+    one of the inherited guardrails above, not a drift back into promoted
+    code.
