@@ -26807,3 +26807,48 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
       the current direct `BC_ITERN` VM-body micro-lane. The remaining iterator
       residual should be reranked from the retained direct-store floor before
       opening another subsystem.
+
+- 2026-04-10: closed two post-direct-store `BC_ITERN` follow-ons
+  - Starting floor:
+    retained direct array-slot store in
+    [src/vm_s390x.dasc](../../src/vm_s390x.dasc), delivered hash
+    `6258afa430c94b5c91ca307aea8d0b07585bd3b6efceec66f1265e465cbc2d02`.
+  - Rejected candidate: key-first array store order
+    - mechanism:
+      keep the direct value store but compute/store the numeric key before
+      storing the array value.
+    - delivered `kdz` hash:
+      `5c182d326a64f26adbd3ba7af310456174985d03d1c8ec9d103fde4e257355a8`
+    - exactness stayed clean:
+      `/tmp/mixedprobe.lua -> RESULT 553416`,
+      `/tmp/hash_value.lua -> HASH_VALUE 3000`,
+      `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+    - candidate:
+      `/tmp/itern-array-keyfirst-candidate-20260410194954`
+      - `pairs_sum/hot 0.005080`
+      - `pairs_array_sum/hot 0.003924`
+    - immediate retained direct-store control:
+      `/tmp/itern-array-keyfirst-control-20260410195111`
+      - `pairs_sum/hot 0.004499`
+      - `pairs_array_sum/hot 0.004002`
+    - classification:
+      do not retain. The tiny array improvement is outweighed by the hash-row
+      regression/noise against the immediate direct-store floor.
+  - Rejected candidate: generic hash node multiply-to-shift rewrite
+    - mechanism:
+      replace the generic `BC_ITERN` hash path `mghi ITYPE, #NODE` with
+      `sllg ITYPE, ITYPE, 5`, mirroring the specialized retained root2 bridge
+      path.
+    - delivered `kdz` hash:
+      `b44b9d1bbc46007561a5a99b836e0ea2bd30c11d90861bb1669cc1197a614afe`
+    - result:
+      exactness failed immediately:
+      `/tmp/itern-hash-node-shift-candidate-20260410195231`
+      hit `/tmp/mixedprobe.lua:10: attempt to perform arithmetic on local 'value' (a string value)`.
+    - classification:
+      invalid. The specialized root2 bridge shift is not a safe generic
+      replacement for `#NODE` in the normal `BC_ITERN` hash traversal.
+  - Restore:
+    - local and `kdz` mirrors were restored to the retained direct-store
+      [src/vm_s390x.dasc](../../src/vm_s390x.dasc) hash
+      `6258afa430c94b5c91ca307aea8d0b07585bd3b6efceec66f1265e465cbc2d02`.
