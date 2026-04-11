@@ -27637,3 +27637,111 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     - Do not promote this suite into the stable top matrix and do not reopen
       broad logic/bitop backend work from this result; the fixed payer is the
       exact exit-dominated root `BC_FORL` experiment body.
+
+- 2026-04-11: closed fresh iterator reducer crash as instrumentation-only and
+  reranked the retained floor
+  - Re-entered the iterator lane after the retained
+    `logic_add_phi_noboundary` win, with clean tracked source and the full
+    retained env from
+    [build_iterator_truth_pack.py](../../tools/s390x/build_iterator_truth_pack.py).
+  - A fresh iterator truth-pack attempt:
+    `/tmp/iterator-current-truth-20260411102714`
+    failed in the focused `array_value` trace-count phase with exit `139`.
+    Direct repro split the reducer into four variants:
+    - exact combined trace+texit capture: segfault, status `139`
+    - no hook: `RESULT 12000000`, status `0`
+    - trace hook only: `RESULT 12000000`, `TRACE_EVENT_COUNT 22`, status `0`
+    - texit hook only: `RESULT 12000000`, `TEXIT_COUNT 960000`, status `0`
+  - Classification:
+    - the `array_value_trace.lua` crash is a truth-pack instrumentation issue
+      from combined trace+texit capture, not evidence of a broken official
+      iterator row.
+    - Do not open iterator code from that temp reducer. If more focused
+      iterator instrumentation is needed, split trace and texit counting
+      instead of running the combined hook script.
+  - Official retained-env `kdz` iterator reruns did not name a stable hot-row
+    payer:
+    - initial 21-sample read:
+      `pairs_sum/hot 0.005032` vs `-joff 0.004120`,
+      `pairs_array_sum/hot 0.003728` vs `-joff 0.003722`
+    - immediate 41-sample official-file rerun:
+      `pairs_sum/hot 0.004324` vs `-joff 0.004480`,
+      `pairs_array_sum/hot 0.003944` vs `-joff 0.003937`
+    - three 31-sample focused passes:
+      - pass 1:
+        `pairs_sum/hot 0.004842` vs `-joff 0.004083`
+      - pass 2:
+        `pairs_sum/hot 0.004259` vs `-joff 0.004291`
+      - pass 3:
+        `pairs_sum/hot 0.004173` vs `-joff 0.004251`
+  - Important invalid-probe note:
+    an isolated `/tmp/pairs_sum_only.lua` copy went catastrophic
+    (`0.118968` vs `-joff 0.004083`) because the chunk name no longer matched
+    the exact retained iterator route-around. Do not use temp-copy iterator
+    reducers as retention evidence unless they prove they hit the official
+    `@tests/s390x/perf/iterator_table.lua` family.
+  - Full retained-env `kdz` rerank artifacts:
+    - `/tmp/kdz-top-rerank-20260411103553.log`
+    - `/tmp/kdz-residual-focus-20260411103626.log`
+    - `/tmp/kdz-remaining-perf-20260411103658.log`
+  - Rerank read:
+    - `dispatch_trace` is effectively parity after focused reruns:
+      pass-3 `side_exit_loop/hot 0.004595` vs `-joff 0.004584`,
+      `hotexit_loop/hot 0.005593` vs `-joff 0.005637`
+    - `vararg_paths/sum_loop` is a small/noisy residual:
+      focused passes ranged from faster (`0.004504` vs `0.004620`) to red
+      (`0.004653` vs `0.004480`)
+    - `mixed_ffi` also changed sign across focused passes:
+      `0.012080` vs `0.012036`,
+      `0.012490` vs `0.011971`,
+      `0.012339` vs `0.013110`
+    - `mixed_noffi`, `be_helpers`, `ffi_calls`, bitops/logic-chain, lower-frame
+      and localized helper rows stayed parity/faster or too small/noisy for a
+      patch target.
+  - Separate correctness blocker exposed by the same sweep:
+    [numeric_ops.lua](../../tests/s390x/perf/numeric_ops.lua) still fails under
+    JIT at `max_loop/hot` after enabling `LUAJIT_S390X_INT_MINMAX=1`:
+    `expected 3072032000, got -1222887894`. This is the known shared
+    `ADDOV`/integer-minmax correctness issue, not an iterator performance
+    seam. Keep it separate from the perf rerank; do not bury it inside an
+    iterator or trace-control patch.
+  - Follow-up correctness recheck on current `HEAD`:
+    - plain `sum_loop(70000)` is now reproducibly bad on `kdz` again after the
+      retained `SLOAD` ordering fix:
+      `sum70000 -1844866760`,
+      `sum65536 -2147385344`,
+      `sum65537 -2147319807`
+    - disposable remote build of the parent of
+      `f3d1bfca Fix s390x int SLOAD guard ordering` passes the same repro:
+      `sum70000 2450035000`,
+      `sum65536 2147516416`,
+      `sum65537 2147581953`
+    - interpretation:
+      the old bad `SLOAD` typecheck ordering masked the overflow issue by
+      exiting earlier; the fixed `SLOAD` order lets execution reach the shared
+      guarded `ADDOV` path.
+  - Rejected one narrow backend candidate in
+    [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h):
+    - candidate:
+      compute guarded integer `ADDOV` / `SUBOV` into a scratch result register,
+      compare the 64-bit result against its sign-extended low 32-bit value,
+      and copy to the result register only after the guard passed
+    - `kdz` result:
+      plain overflow fixed:
+      `sum70000 2450035000`,
+      `sum65536 2147516416`,
+      `sum65537 2147581953`
+    - rejection:
+      `numeric_ops/max_loop` still failed, now with `got 924628301`, and
+      retained `vararg_paths` exactness failed at
+      `sum_loop/small: expected 12855, got 14979`
+    - action:
+      backed the candidate out immediately; do not reopen this scratch-result
+      equality-guard shape without first explaining the vararg and min/max
+      result corruption.
+  - Current queue:
+    - no retained-source performance mutation from this pass
+    - do not reopen iterator reducer-only artifacts
+    - the next honest retained-floor work is either a dedicated correctness
+      tranche for guarded `ADDOV`/integer minmax, or another official-row
+      stability pass if the user chooses to keep correctness parked
