@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-10 16:59 PDT
+Last updated: 2026-04-10 19:46 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -42,9 +42,15 @@ It is intentionally current-state only. Historical experiment detail lives in
     - `sum_loop/hot 0.005042` vs `-joff 0.004885`
     - `retlast_loop/hot 0.002420` vs `-joff 0.002243`
     - `retconst_loop/hot 0.000652` vs `-joff 0.000638`
-- `iterator_table` remains near parity on the full carried env floor:
-  trusted `kdz` restamp `pairs_sum/hot 0.005427` vs `-joff 0.005611` and
-  `pairs_array_sum/hot 0.003971` vs `-joff 0.003670`.
+- `iterator_table` now carries one small low-level VM win on top of the full
+  retained env floor:
+  [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
+  stores the array-side `BC_ITERN` returned value directly from `TMPR0`
+  instead of copying through `RB` first. Trusted `kdz` same-window A/B:
+  candidate `pairs_sum/hot 0.004476`, `pairs_array_sum/hot 0.003938`;
+  immediate retained control `0.004488`, `0.004017`. `zkd0` exactness stayed
+  clean and the candidate was accepted as not materially worse on the noisy
+  host.
 - `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity on the
   carried floor; `mixed_noffi` still has noisy reads and should not be
   reopened without a fresh exact attribution.
@@ -69,9 +75,10 @@ It is intentionally current-state only. Historical experiment detail lives in
     `0.006344`, `be_pack_loop/hot 0.020728` vs reopened control `0.023800`,
     `direct_abs/hot 0.012293` vs reopened control `0.016268`,
     `stored_abs/hot 0.008434` vs reopened control `0.012996`
-- The active engineering frontier now moves back to the remaining near-parity
-  carried rows, with `iterator_table` as the default next attribution target
-  unless a fresh rerank names a larger honest payer.
+- The active engineering frontier remains the remaining near-parity carried
+  rows. The direct `BC_ITERN` VM-body micro-lane is now closed after the
+  retained direct-store cut; rerank from this floor before opening the next
+  subsystem.
 - The localized helper/route-around experiment rows now have a retained
   env-gated hotside carry in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):

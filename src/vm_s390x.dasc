@@ -4103,8 +4103,7 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lg TMPR0, 0(RD, ITYPE)
     |  cghi TMPR0, LJ_TNIL;  je >4
     |  // Copy array slot to returned value.
-    |  lgr RB, TMPR0
-    |  stg RB, 8(RA, BASE)
+    |  stg TMPR0, 8(RA, BASE)
     |  // Return array index as a numeric key.
     |  setint ITYPE, RC
     |  stg ITYPE, 0(RA, BASE)
