@@ -2544,9 +2544,15 @@ static void build_subroutines(BuildCtx *ctx)
   |  vm_round vm_trunc, 5 // Round towards 0.
   |
   |// FP modulo x%y. Called by BC_MOD* and vm_arith.
-  |->vm_mod: // NYI.
-  |  stg r0, 0
-  |  stg r0, 0
+  |// FARG1 = x, FARG2 = y. Result in FARG1.
+  |->vm_mod:
+  |  ldr f4, FARG1
+  |  ddbr FARG1, FARG2
+  |  fidbra FARG1, 7, FARG1, 0		// floor(x/y)
+  |  mdbr FARG2, FARG1
+  |  ldr FARG1, f4
+  |  sdbr FARG1, FARG2			// x - floor(x/y) * y
+  |  br r14
   |
   |// int64_t lj_vm_num2int_check(double x)
   |->vm_num2int_check:
@@ -3297,16 +3303,41 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
   case BC_DIVVN: case BC_DIVNV: case BC_DIVVV:
     |  ins_arithfp ddbr
     break;
-  // TODO: implement fast mod operation.
-  // x86_64 does floating point mod, however it might be better to use integer mod.
   case BC_MODVN:
-    |  j ->vmeta_arith_vno
+    |  ins_arithpre
+    |  ld FARG1, 0(RB, BASE)
+    |  ld FARG2, 0(RC, KBASE)
+    |  lg RB, 0(RB, BASE)
+    |  lg RC, 0(RC, KBASE)
+    |  checknumtp RB, ->vmeta_arith_vno
+    |  checknumtp RC, ->vmeta_arith_vno
+    |  brasl r14, ->vm_mod
+    |  std FARG1, 0(RA, BASE)
+    |  ins_next
     break;
   case BC_MODNV:
-    |  j ->vmeta_arith_nvo
+    |  ins_arithpre
+    |  ld FARG2, 0(RB, BASE)
+    |  ld FARG1, 0(RC, KBASE)
+    |  lg RB, 0(RB, BASE)
+    |  lg RC, 0(RC, KBASE)
+    |  checknumtp RB, ->vmeta_arith_nvo
+    |  checknumtp RC, ->vmeta_arith_nvo
+    |  brasl r14, ->vm_mod
+    |  std FARG1, 0(RA, BASE)
+    |  ins_next
     break;
   case BC_MODVV:
-    |  j ->vmeta_arith_vvo
+    |  ins_arithpre
+    |  ld FARG1, 0(RB, BASE)
+    |  ld FARG2, 0(RC, BASE)
+    |  lg RB, 0(RB, BASE)
+    |  lg RC, 0(RC, BASE)
+    |  checknumtp RB, ->vmeta_arith_vvo
+    |  checknumtp RC, ->vmeta_arith_vvo
+    |  brasl r14, ->vm_mod
+    |  std FARG1, 0(RA, BASE)
+    |  ins_next
     break;
   case BC_POW:
     |  ins_ABC
