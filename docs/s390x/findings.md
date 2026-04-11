@@ -28375,3 +28375,55 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the current inherited-guardrail ownership. The remaining compiled-vararg
   VM NYI is still parked because x86/x64 also leave compiled vararg functions
   NYI.
+
+## 2026-04-11: perf matrix coverage for the closed modulo/FREF/STRTO gaps
+
+- Scope:
+  before opening the next VM-NYI tranche, add matrix coverage for the gap
+  closures retained in `fd067e8c`.
+- Added rows:
+  - `tests/s390x/perf/numeric_ops.lua`: `fp_mod_loop` covers FP `%` lowering
+    through the newly routed `vm_mod` path, including negative dividend cases.
+  - `tests/s390x/perf/be_helpers.lua`: `strto_loop` covers traced
+    `tonumber()` / `IR_STRTO`. The row uses the existing fresh-function
+    perf-harness pattern because the repeated-root second-invocation trace
+    issue is a separate guardrail lane, not a STRTO helper ABI failure.
+  - `tests/s390x/perf/ffi_cdata.lua`: `buffer_fref_loop` covers the newly
+    implemented `asm_fref()` through `string.buffer` field access.
+- kdz tracked-mirror validation:
+  - delivered hashes:
+    `tests/s390x/perf/be_helpers.lua`
+    `aceebc4b22741f66514381daa35b7a2cfe0cd573708a433eecbc926dcc45713a`,
+    `tests/s390x/perf/numeric_ops.lua`
+    `b28b38f16d200b1f25fa37e930c4c1afe8bee067648c5b0f039192e9d4f14b47`,
+    `tests/s390x/perf/ffi_cdata.lua`
+    `05987b93389d91049eb2fbf3379ae1d7af825d713d1d772f0c87336c53d0831a`.
+  - direct build passed with existing warning noise only.
+  - passed one-sample JIT and `-joff` runs for:
+    `tests/s390x/perf/be_helpers.lua`,
+    `tests/s390x/perf/numeric_ops.lua`,
+    and `tests/s390x/perf/ffi_cdata.lua`.
+  - focused correctness passed:
+    `tests/s390x/jit_core/strto_trace.lua`,
+    `tests/s390x/jit_core/mod_trace.lua`,
+    and `tests/s390x/jit_be/addsub_overflow_guard.lua`.
+  - representative new hot rows:
+    `be_helpers/strto_loop/hot 0.003545`,
+    `numeric_ops/fp_mod_loop/hot 0.000527`,
+    `ffi_cdata/buffer_fref_loop/hot 0.004915`.
+- zkd0 confirmation:
+  - delivered hashes matched kdz for the three perf files.
+  - direct build passed.
+  - passed one-sample JIT runs for:
+    `tests/s390x/perf/be_helpers.lua`,
+    `tests/s390x/perf/numeric_ops.lua`,
+    and `tests/s390x/perf/ffi_cdata.lua`.
+  - focused correctness passed:
+    `tests/s390x/jit_core/strto_trace.lua`,
+    `tests/s390x/jit_core/mod_trace.lua`,
+    and `tests/s390x/jit_be/addsub_overflow_guard.lua`.
+- Read:
+  coverage is now present for the three retained gap closures. The discovered
+  repeated-root STRTO second-invocation failure is aligned with the queued
+  guardrail-promotion lane and should not be fixed by broadening this
+  perf-coverage patch.

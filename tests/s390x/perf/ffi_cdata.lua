@@ -1,5 +1,6 @@
 local ffi = require("ffi")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
+local buffer = require("string.buffer")
 
 ffi.cdef[[
 typedef struct { int x; int y; } pair_t;
@@ -35,11 +36,24 @@ local function mixed_width_loop(n)
   return total
 end
 
+local function buffer_fref_loop(n)
+  local buf = buffer.new()
+  local total = 0
+  for i = 1, n do
+    buf:reset()
+    buf:put("abcdef")
+    buf:skip(i % 3)
+    total = total + #buf
+  end
+  return total
+end
+
 local cases = {}
 for _, scale in ipairs(bench.scale_order(scales)) do
   local n = scales[scale]
   local expected_pair = pair_loop(n)
   local expected_width = mixed_width_loop(n)
+  local expected_buffer = buffer_fref_loop(n)
   cases[#cases + 1] = {
     workload = "pair_loop",
     scale = scale,
@@ -56,6 +70,15 @@ for _, scale in ipairs(bench.scale_order(scales)) do
     run = mixed_width_loop,
     validate = function(result)
       bench.eq(result, expected_width, "mixed_width_loop/" .. scale)
+    end,
+  }
+  cases[#cases + 1] = {
+    workload = "buffer_fref_loop",
+    scale = scale,
+    iterations = n,
+    run = buffer_fref_loop,
+    validate = function(result)
+      bench.eq(result, expected_buffer, "buffer_fref_loop/" .. scale)
     end,
   }
 end

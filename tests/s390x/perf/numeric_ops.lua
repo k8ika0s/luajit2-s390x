@@ -29,6 +29,14 @@ local function div_loop(n)
   return total
 end
 
+local function fp_mod_loop(n)
+  local total = 0
+  for i = 1, n do
+    total = total + ((i + 0.25) % 7.5) + ((-i - 0.5) % 5.25)
+  end
+  return total
+end
+
 local function sqrt_loop(n)
   local total = 0
   for i = 1, n do
@@ -64,6 +72,7 @@ end
 
 local abs_loop_ref = make_reference(abs_loop)
 local div_loop_ref = make_reference(div_loop)
+local fp_mod_loop_ref = make_reference(fp_mod_loop)
 local sqrt_loop_ref = make_reference(sqrt_loop)
 local min_loop_ref = make_reference(min_loop)
 local max_loop_ref = make_reference(max_loop)
@@ -88,6 +97,16 @@ return function(n)
   local total = 0
   for i = 1, n do
     total = total + ((i + 0.5) / (i + 1.25))
+  end
+  return total
+end
+]]
+
+local FP_MOD_LOOP_CHUNK = [[
+return function(n)
+  local total = 0
+  for i = 1, n do
+    total = total + ((i + 0.25) % 7.5) + ((-i - 0.5) % 5.25)
   end
   return total
 end
@@ -136,6 +155,10 @@ local function build_div_loop()
   return load_loop(DIV_LOOP_CHUNK, "@numeric_ops_div")
 end
 
+local function build_fp_mod_loop()
+  return load_loop(FP_MOD_LOOP_CHUNK, "@numeric_ops_fp_mod")
+end
+
 local function build_sqrt_loop()
   return load_loop(SQRT_LOOP_CHUNK, "@numeric_ops_sqrt")
 end
@@ -159,6 +182,7 @@ for _, scale in ipairs(bench.scale_order(scales)) do
   local n = scales[scale]
   local expected_abs = abs_loop_ref(n)
   local expected_div = div_loop_ref(n)
+  local expected_fp_mod = fp_mod_loop_ref(n)
   local expected_sqrt = sqrt_loop_ref(n)
   local expected_min = min_loop_ref(n)
   local expected_max = max_loop_ref(n)
@@ -182,6 +206,17 @@ for _, scale in ipairs(bench.scale_order(scales)) do
     end,
     validate = function(result)
       approx_eq(result, expected_div, 1e-12, "div_loop/" .. scale)
+    end,
+  }
+  cases[#cases + 1] = {
+    workload = "fp_mod_loop",
+    scale = scale,
+    iterations = n,
+    run = function(iterations)
+      return run_fresh(build_fp_mod_loop, iterations)
+    end,
+    validate = function(result)
+      approx_eq(result, expected_fp_mod, 1e-9, "fp_mod_loop/" .. scale)
     end,
   }
   cases[#cases + 1] = {
