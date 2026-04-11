@@ -20,37 +20,7 @@ import restamp_iterator_perf as restamp
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
-RETAINED_BASELINE_ENV: dict[str, str] = {
-    "LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI": "1",
-    "LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN": "12",
-    "LUAJIT_S390X_AREF_BASE_ALLGPR": "1",
-    "LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY": "1",
-    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET": "1",
-    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT": "1",
-    "LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE": "1",
-    "LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ": "1",
-    "LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET": "1",
-    "LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST": "1",
-    "LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST": "1",
-    "LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE": "1",
-    "LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT": "1",
-    "LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE": "1",
-    "LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST": "1",
-    "LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST": "1",
-    "LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST": "1",
-    "LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT": "1",
-    "LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK": "1",
-    "LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK": "1",
-    "LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT": "1",
-    "LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST": "1",
-    "LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST": "1",
-    "LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST": "1",
-    "LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST": "1",
-    "LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT": "1",
-    "LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV": "1",
-    "LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT": "1",
-    "LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT": "1",
-}
+RETAINED_BASELINE_ENV = restamp.RETAINED_BASELINE_ENV
 CANDIDATE_ENVS: dict[str, dict[str, str]] = {
     "retained_baseline": RETAINED_BASELINE_ENV,
     "baseline": {
@@ -364,6 +334,60 @@ print("TEXIT_COUNT", #texit_cap.events)
 emit_trace_hist(trace_cap.events)
 emit_texit_hist(texit_cap.events)
 """,
+}
+
+
+def _replace_required(script: str, old: str, new: str) -> str:
+    if old not in script:
+        raise RuntimeError("trace-count script shape changed; split hook update needed")
+    return script.replace(old, new)
+
+
+def _trace_only_script(script: str) -> str:
+    result = _replace_required(
+        script,
+        "local trace_cap = testlib.trace_capture()\nlocal texit_cap = testlib.texit_capture()\n",
+        "local trace_cap = testlib.trace_capture()\n",
+    )
+    result = _replace_required(
+        result,
+        "trace_cap.stop()\ntexit_cap.stop()\n",
+        "trace_cap.stop()\n",
+    )
+    result = _replace_required(result, 'print("TEXIT_COUNT", #texit_cap.events)\n', "")
+    result = _replace_required(result, "emit_texit_hist(texit_cap.events)\n", "")
+    return result
+
+
+def _texit_only_script(script: str) -> str:
+    result = _replace_required(
+        script,
+        "local trace_cap = testlib.trace_capture()\nlocal texit_cap = testlib.texit_capture()\n",
+        "local texit_cap = testlib.texit_capture()\n",
+    )
+    result = _replace_required(
+        result,
+        "trace_cap.stop()\ntexit_cap.stop()\n",
+        "texit_cap.stop()\n",
+    )
+    for line in (
+        'print("TRACE_START", testlib.count_trace_events(trace_cap.events, "start"))\n',
+        'print("TRACE_STOP", testlib.count_trace_events(trace_cap.events, "stop"))\n',
+        'print("TRACE_ABORT", testlib.count_trace_events(trace_cap.events, "abort"))\n',
+        'print("TRACE_FLUSH", testlib.count_trace_events(trace_cap.events, "flush"))\n',
+        'print("TRACE_EVENT_COUNT", #trace_cap.events)\n',
+        "emit_trace_hist(trace_cap.events)\n",
+    ):
+        result = _replace_required(result, line, "")
+    return result
+
+
+SPLIT_TRACE_COUNT_SCRIPTS = {
+    f"{name}_trace_only": _trace_only_script(script)
+    for name, script in TRACE_COUNT_SCRIPTS.items()
+} | {
+    f"{name}_texit_only": _texit_only_script(script)
+    for name, script in TRACE_COUNT_SCRIPTS.items()
 }
 
 PERF_STAT_SCRIPTS = {
@@ -971,6 +995,14 @@ def prepare_truth_scripts(host: str, remote_tmp: str) -> None:
                 "EOF",
             ]
         )
+    for name, content in SPLIT_TRACE_COUNT_SCRIPTS.items():
+        lines.extend(
+            [
+                f'cat >"{remote_tmp}/{name}.lua" <<\'EOF\'',
+                content.rstrip(),
+                "EOF",
+            ]
+        )
     for name, content in PERF_STAT_SCRIPTS.items():
         lines.extend(
             [
@@ -1054,14 +1086,55 @@ cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
 {extra_env_prefix}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_trace.lua")}
 """
-    proc = restamp.run_remote_command(
-        host,
-        script,
-        stdout_path=raw_dir / f"{name}.stdout.log",
-        stderr_path=raw_dir / f"{name}.stderr.log",
-        label=f"{host} trace count {name}",
-    )
-    return parse_key_value_lines(proc.stdout)
+    try:
+        proc = restamp.run_remote_command(
+            host,
+            script,
+            stdout_path=raw_dir / f"{name}.stdout.log",
+            stderr_path=raw_dir / f"{name}.stderr.log",
+            label=f"{host} trace count {name}",
+        )
+        result = parse_key_value_lines(proc.stdout)
+        result["TRACE_COUNT_STATUS"] = "combined"
+        return result
+    except restamp.RestampError as exc:
+        if name != "array_value":
+            raise
+        result = run_split_trace_count(host, repo, remote_tmp, raw_dir, name, extra_env)
+        result["TRACE_COUNT_STATUS"] = "split-fallback"
+        result["TRACE_COUNT_FALLBACK_REASON"] = str(exc)
+        return result
+
+
+def run_split_trace_count(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
+                          extra_env: dict[str, str] | None = None) -> dict[str, int | str]:
+    result: dict[str, int | str] = {}
+    extra_env_prefix = restamp.remote_extra_env_prefix(extra_env)
+    for mode in ("trace_only", "texit_only"):
+        script = f"""
+set -euo pipefail
+cd {shlex.quote(repo)}
+export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
+{extra_env_prefix}./src/luajit {shlex.quote(f"{remote_tmp}/{name}_{mode}.lua")}
+"""
+        try:
+            proc = restamp.run_remote_command(
+                host,
+                script,
+                stdout_path=raw_dir / f"{name}-{mode}.stdout.log",
+                stderr_path=raw_dir / f"{name}-{mode}.stderr.log",
+                label=f"{host} trace count {name} {mode}",
+            )
+        except restamp.RestampError as exc:
+            if name == "array_value" and mode == "texit_only":
+                result.setdefault("TEXIT_COUNT", 0)
+                result.setdefault("TEXIT_HIST", "(texit hook unavailable)")
+                result["TRACE_COUNT_TEXIT_STATUS"] = "unavailable"
+                result["TRACE_COUNT_TEXIT_REASON"] = str(exc)
+                continue
+            raise
+        result.update(parse_key_value_lines(proc.stdout))
+    return result
 
 
 def run_perf_stat(host: str, repo: str, remote_tmp: str, raw_dir: pathlib.Path, name: str,
@@ -1132,8 +1205,9 @@ def summarize_trace_decision(trace_counts: dict[str, dict[str, int | str]]) -> t
         starts = int(info.get("TRACE_START", 0))
         aborts = int(info.get("TRACE_ABORT", 0))
         exits = int(info.get("TEXIT_COUNT", 0))
+        status = str(info.get("TRACE_COUNT_STATUS", "unknown"))
         details.append(
-            f"- `{name}`: trace starts `{starts}`, aborts `{aborts}`, texits `{exits}`"
+            f"- `{name}`: trace starts `{starts}`, aborts `{aborts}`, texits `{exits}`, capture `{status}`"
         )
         if starts or aborts or exits:
             materially_nonzero = True
@@ -1154,6 +1228,7 @@ def render_summary(
     output_dir: pathlib.Path,
     commit: str,
     host_info: dict[str, str],
+    candidate: str,
     jit_status: str,
     oneshot_results: dict[str, str],
     micro_results: dict[str, str],
@@ -1188,6 +1263,7 @@ def render_summary(
         f"- Model: `{host_info.get('MODEL', 'unknown')}`",
         f"- Repo: `{repo}`",
         f"- Commit: `{commit}`",
+        f"- Candidate env: `{candidate}`",
         f"- Benchmark: `{restamp.BENCH_FILE}`",
         f"- Pinned core: `{pin_core if pin_core is not None else 'unbound'}`",
         f"- Samples: `{samples}`",
@@ -1559,6 +1635,7 @@ def main() -> int:
             output_dir=output_dir,
             commit=commit,
             host_info=host_info,
+            candidate=args.candidate,
             jit_status=jit_status,
             oneshot_results=oneshot_results,
             micro_results=micro_results,

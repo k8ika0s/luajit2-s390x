@@ -44,8 +44,44 @@ AUTHORITATIVE_HASH_PATHS = [
     "src/vm_s390x.dasc",
     "tools/s390x/sync_remote_mirror.py",
     "tools/s390x/restamp_iterator_perf.py",
+    "tools/s390x/build_iterator_truth_pack.py",
     "docs/s390x/findings.md",
 ]
+RETAINED_BASELINE_ENV: dict[str, str] = {
+    "LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI": "1",
+    "LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN": "12",
+    "LUAJIT_S390X_AREF_BASE_ALLGPR": "1",
+    "LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY": "1",
+    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET": "1",
+    "LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT": "1",
+    "LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE": "1",
+    "LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ": "1",
+    "LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET": "1",
+    "LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST": "1",
+    "LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST": "1",
+    "LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE": "1",
+    "LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT": "1",
+    "LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE": "1",
+    "LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST": "1",
+    "LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST": "1",
+    "LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST": "1",
+    "LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT": "1",
+    "LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK": "1",
+    "LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK": "1",
+    "LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT": "1",
+    "LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST": "1",
+    "LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST": "1",
+    "LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST": "1",
+    "LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST": "1",
+    "LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT": "1",
+    "LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV": "1",
+    "LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT": "1",
+    "LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT": "1",
+}
+CANDIDATE_ENVS: dict[str, dict[str, str]] = {
+    "retained_baseline": RETAINED_BASELINE_ENV,
+    "raw_jit": {},
+}
 KNOWN_MACHINE_TYPES = {
     "8561": "z15",
     "3906": "z14",
@@ -699,6 +735,8 @@ def render_summary(
     repo: str,
     output_dir: pathlib.Path,
     commit: str,
+    candidate: str,
+    candidate_env: dict[str, str],
     host_info: dict[str, str],
     jit_status: str,
     oneshot_results: dict[str, str],
@@ -722,6 +760,7 @@ def render_summary(
         f"- Model: `{host_info.get('MODEL', 'unknown')}`",
         f"- Repo: `{repo}`",
         f"- Commit: `{commit}`",
+        f"- Candidate env: `{candidate}`",
         f"- Benchmark: `{BENCH_FILE}`",
         f"- Pinned core: `{pin_core if pin_core is not None else 'unbound'}`",
         f"- Samples: `{samples}`",
@@ -735,10 +774,19 @@ def render_summary(
         "- same benchmark file for `jit.on` and `-joff`",
         "- raw JSONL retained for both modes",
         "- raw owner logs and IR dumps retained for focused micros",
+        "- full retained env applied by default; use `--candidate raw_jit` only for explicit diagnostic runs",
+        "",
+        "## Retained Env",
+        "",
+    ]
+    for key, value in sorted(candidate_env.items()):
+        lines.append(f"- `{key}={value}`")
+
+    lines.extend([
         "",
         "## Delivered File Hashes",
         "",
-    ]
+    ])
     for relpath in AUTHORITATIVE_HASH_PATHS:
         digest = remote_hashes.get(relpath)
         lines.append(f"- `{relpath}`: `{digest if digest else 'missing'}`")
@@ -851,6 +899,7 @@ def validate_results(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Restamp the frozen s390x iterator perf baseline.")
     parser.add_argument("--host", choices=HOST_LABELS, required=True)
+    parser.add_argument("--candidate", choices=sorted(CANDIDATE_ENVS), default="retained_baseline")
     parser.add_argument("--repo", help="Remote clean repo path. Defaults to the authoritative repo for the selected host.")
     parser.add_argument("--output-dir", required=True, help="Local artifact output directory.")
     parser.add_argument("--pin-core", type=int, default=DEFAULT_PIN_CORE, help="Pinned CPU core for benchmark runs (default: 0).")
@@ -863,6 +912,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     host = args.host
+    candidate_env = CANDIDATE_ENVS[args.candidate]
     repo = args.repo or AUTHORITATIVE_REPOS[host]
     output_dir = pathlib.Path(args.output_dir).expanduser().resolve()
     raw_dir = output_dir / "raw"
@@ -883,11 +933,11 @@ def main() -> int:
     try:
         build_remote_repo(host, repo, raw_dir)
         jit_status = run_jit_status(host, repo, raw_dir)
-        oneshot_results = run_oneshot_checks(host, repo, remote_tmp, raw_dir)
+        oneshot_results = run_oneshot_checks(host, repo, remote_tmp, raw_dir, candidate_env)
         micro_results = {
-            "hash_value": run_micro(host, repo, remote_tmp, raw_dir, "hash_value"),
-            "hash_key": run_micro(host, repo, remote_tmp, raw_dir, "hash_key"),
-            "array_value": run_micro(host, repo, remote_tmp, raw_dir, "array_value"),
+            "hash_value": run_micro(host, repo, remote_tmp, raw_dir, "hash_value", candidate_env),
+            "hash_key": run_micro(host, repo, remote_tmp, raw_dir, "hash_key", candidate_env),
+            "array_value": run_micro(host, repo, remote_tmp, raw_dir, "array_value", candidate_env),
         }
         validate_results(
             host=host,
@@ -906,6 +956,7 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=False,
+            extra_env=candidate_env,
         )
         joff_records = run_iterator_bench(
             host=host,
@@ -917,16 +968,19 @@ def main() -> int:
             samples=args.samples,
             warmup=args.warmup,
             joff=True,
+            extra_env=candidate_env,
         )
 
         for name in MICRO_SCRIPTS:
-            run_owner_logs(host, repo, remote_tmp, owner_dir, name)
-            run_ir_dump(host, repo, remote_tmp, ir_dir, name)
+            run_owner_logs(host, repo, remote_tmp, owner_dir, name, candidate_env)
+            run_ir_dump(host, repo, remote_tmp, ir_dir, name, candidate_env)
 
         metadata = {
             "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
             "git_commit": commit,
             "host_label": host,
+            "candidate": args.candidate,
+            "candidate_env": candidate_env,
             "hostname": host_info.get("HOSTNAME_FQDN", host_info.get("HOSTNAME_SHORT", host)),
             "host_shortname": host_info.get("HOSTNAME_SHORT", host),
             "machine_type": host_info.get("MACHINE_TYPE", ""),
@@ -952,6 +1006,8 @@ def main() -> int:
             repo=repo,
             output_dir=output_dir,
             commit=commit,
+            candidate=args.candidate,
+            candidate_env=candidate_env,
             host_info=host_info,
             jit_status=jit_status,
             oneshot_results=oneshot_results,
