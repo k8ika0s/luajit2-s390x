@@ -26946,3 +26946,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
     rejected direct VM-body split or adding per-iteration sentinel checks. The
     next iterator target should be re-attributed from this new park-width
     floor.
+
+- 2026-04-10: closed iterator generic hash `asize == 0` early skip after the
+  unsigned hotcount park-width floor
+  - Candidate:
+    add `ltr TMPR1, TMPR1; je >5` after loading `TAB->asize` in the generic
+    [src/vm_s390x.dasc](../../src/vm_s390x.dasc) `BC_ITERN` path, so hash-only
+    tables with `asize == 0` bypass the array pointer load and array-part
+    compare before entering hash traversal.
+  - Delivered `kdz` candidate hash:
+    [src/vm_s390x.dasc](../../src/vm_s390x.dasc)
+    `59a291d56f21cafb0ae4ec72171da9e088b3c6efe6918e13a5fc7d57a1b6326e`.
+  - Exactness stayed clean:
+    `/tmp/itern-asize0-skip-candidate-20260410203119`
+    - `/tmp/mixedprobe.lua -> RESULT 553416`
+    - `/tmp/hash_value.lua -> HASH_VALUE 3000`
+    - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
+  - `kdz` same-window A/B:
+    - candidate:
+      `/tmp/itern-asize0-skip-candidate-20260410203119`
+      - `pairs_sum/hot 0.004431`
+      - `pairs_array_sum/hot 0.004041`
+    - immediate retained-source control:
+      `/tmp/itern-asize0-skip-control-20260410203229`
+      - `pairs_sum/hot 0.004450`
+      - `pairs_array_sum/hot 0.003917`
+  - Classification:
+    do not retain. The hash row moved only within noise and the array row
+    regressed materially because the added test sits on the shared array path.
+    The generic `BC_ITERN` hash-entry micro-lane is closed unless a future
+    proof can avoid any added array-side instruction.
