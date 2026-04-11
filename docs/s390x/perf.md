@@ -1,67 +1,52 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 14:21 PDT
+Last updated: 2026-04-11 15:04 PDT
 
 ## Regroup Checkpoint
 
-- Current retained source point: `0ac1e7eb Fix s390x loop ADDOV overflow
-  guards` plus the narrow opt-in `INT_MINMAX` overflow-snapshot follow-up in
-  [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h).
-- The branch is back in a stabilization/restamp posture, not a new
-  performance mutation lane. Recent full-retained-env `kdz` reads put the
-  stable matrix at near parity; do not reopen iterator, vararg, mixed, or
-  cdata runtime work from a single noisy residual.
-- Latest direct `kdz` retained-env sweep:
-  `/tmp/kdz-full-retained-matrix-20260411131732`. The only visible red
-  residuals were iterator / `ffi_cdata` one-pass noise; an immediate 31-sample
-  rerun at `/tmp/kdz-focused-retained-rerun-20260411131809` returned those rows
-  to parity.
-- Follow-up `iterator_table/pairs_sum` sweeps showed process-level timing
-  jitter, not a stable JIT-only payer. The official alternating-order probe
-  at `/tmp/kdz-iterator-order-ab-20260411132932` made `pairs_sum/hot` look red
-  in 3/4 passes, but the trace-meta probe at
-  `/tmp/kdz-iterator-log-slowfast-20260411133900` showed the retained hash
-  `ITERN_PROTO_NOJIT` / post-proto no-hot route firing in both fast and slow
-  runs. The matched `-joff` process-jitter probe at
-  `/tmp/kdz-iterator-joff-process-jitter-20260411134125` hit the same slow
-  band (`pairs_sum` max `0.005762`), so this is not an actionable JIT
-  regression without a stronger repeated signal.
-- The process-jitter check is now reusable via
-  [probe_retained_jitter.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/probe_retained_jitter.py).
-  Its first kdz toolcheck,
-  `/tmp/kdz-retained-jitter-toolcheck-20260411135500`, confirmed the current
-  iterator/vararg near-red rows swing across alternating JIT-on / `-joff`
-  processes and should not drive code changes without repeated JIT-only
-  separation.
-- The retained-env contract now lives in
-  [restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
-  and is imported by the iterator, dispatch, and broader-throughput truth-pack
-  helpers.
-  Iterator restamps default to that full env; `raw_jit` is diagnostic only.
-- Tooling caveat: reduced iterator micros still expose severe exit-heavy
-  ladders, but the official `iterator_table` hot row stays near parity under
-  the full env. Reduced micros are mechanism evidence only unless they prove
-  they hit the official carried family.
-- Tooling caveat: the `array_value` texit hook can segfault during focused
-  truth-pack capture. The truth pack now preserves the raw crash log and marks
-  that array texit count unavailable instead of treating it as a runtime
-  benchmark crash.
-- Tooling caveat: the broader-throughput helper may see reduced vararg probe
-  validation or trace-count failures under the full retained env even when the
-  official `vararg_paths` hot rows complete at parity. Treat those reduced
-  probes as mechanism notes unless they reproduce on the official row.
-- Correctness follow-up closed:
-  `LUAJIT_S390X_INT_MINMAX=1 tests/s390x/perf/numeric_ops.lua` now completes
-  on `kdz` after the narrow loop-body `IR_MIN` / `IR_MAX` producer snapshot
-  fix. `zkd0` also passes the focused opt-in `MAX 64000 3072032000` repro.
-  This remains a correctness closure, not a retained performance frontier.
-- Post-fix payer screens did not reopen a lane:
-  `/tmp/kdz-post-intminmax-jitter-20260411142000`,
-  `/tmp/kdz-post-intminmax-focused-jitter-20260411142500`, and
-  `/tmp/kdz-post-intminmax-dispatch-jitter-20260411143000`.
-  The broad pass made `mixed_ffi` and dispatch hotexit look mildly red, but
-  focused reruns classified both as jitter/noise rather than stable JIT-only
-  payers.
+- Current retained source point:
+  `f3baca74 Fix s390x guarded overflow PHI restore`, after integrating the
+  staged `origin/k8ika0s/s390x-current-lab-promote` tranche. The promoted
+  PHI-based guarded-overflow restore supersedes the narrower local
+  `INT_MINMAX` restore.
+- Core post-merge correctness gate is green on the rebuilt `kdz` canonical
+  mirror:
+  `addsub_overflow_guard`, `numeric_ops`, all `tests/s390x/jit_be/*.lua`,
+  retained-env `dispatch_trace`, and the dispatch opt-out causality check.
+  A focused `zkd0` confirmation also passed `addsub_overflow_guard`,
+  `numeric_ops`, retained-env `dispatch_trace`, and the dispatch opt-out
+  causality check.
+- Current post-merge clean-family perf artifact:
+  `/tmp/kdz-post-merge-perf-clean-20260411150101`.
+  It uses the full retained env, 3 samples, 2 warmups, and 3 alternating
+  JIT-on / `-joff` passes.
+- Clean-family hot-row read:
+  - `dispatch_trace/numeric_loop/hot`: median ratio `1.0005`
+  - `dispatch_trace/side_exit_loop/hot`: median ratio `0.9891`
+  - `dispatch_trace/hotexit_loop/hot`: median ratio `0.9940`
+  - `iterator_table/pairs_sum/hot`: median ratio `0.9735`, but with a wide
+    `0.6955..1.1636` ratio range and matching `-joff` jitter
+  - `iterator_table/pairs_array_sum/hot`: median ratio `0.9328`
+  - `mixed_ffi/mixed_ffi_loop/hot`: median ratio `0.0671`
+  - `ffi_calls/direct_abs/hot`: median ratio `0.0274`
+  - `ffi_calls/stored_abs/hot`: median ratio `0.0402`
+  - `ffi_cdata/pair_loop/hot`: median ratio `1.0012`
+  - `ffi_cdata/mixed_width_loop/hot`: median ratio `1.0039`
+  - `be_helpers/number_helper_loop/hot`: median ratio `0.9493`
+  - `be_helpers/be_pack_loop/hot`: median ratio `1.0074`
+- Numeric ops correctness/perf stays clean after the PHI restore:
+  `numeric_ops/max_loop/hot` returns `3072032000`; hot JIT / `-joff` ratios
+  are `abs 0.242x`, `div 0.082x`, `sqrt 0.065x`, `min 0.061x`, and
+  `max 0.693x`.
+- Known inherited guardrails under the current WIP head:
+  - `tests/s390x/perf/vararg_paths.lua` segfaults with `rc=139`
+  - `tests/s390x/perf/mixed_noffi.lua` fails with the known result-mismatch
+    class and `rc=1`
+  - `tests/s390x/jit_loops/pairs_loop.lua` times out with `rc=124`
+- Current performance read:
+  the clean families do not show a broad regression after the promotion.
+  The next engineering work should clear or re-attribute the inherited
+  guardrails before chasing small clean-family perf residuals.
 
 ## Canonical Perf Suite
 
@@ -112,6 +97,12 @@ enough for retained policy rows.
 This is the current retained matrix for the stable carried workloads. If a
 workload belongs to the carried suite, it should have one row here even if the
 number is ugly.
+
+Post-merge note: the snapshot in the regroup section is the authoritative
+current read for clean families at `f3baca74`. `vararg_paths` and
+`mixed_noffi` currently hit known inherited guardrails before they can produce
+trusted retained-env performance rows, so their older matrix values below are
+historical carried-floor context until those guardrails are repaired.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |

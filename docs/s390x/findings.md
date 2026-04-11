@@ -13,69 +13,63 @@ read.
 
 ## Current Frontier
 
-- `promotion_core` remains green on the envless first-enable slice.
-- `dispatch_trace` is green again on both hosts and should only be reopened if
-  a later change regresses the retained floor.
-- The latest retained host-pair win is in `mixed_noffi`; exact root
-  `BC_ITERL`, root `BC_ITERN`, stitched root `BC_FORL`, and post-root
-  `BC_ITERL` abort blacklists cut `mixed_loop/hot` from the old `0.012123`
-  row to `kdz 0.005083` and `zkd0 0.006745..0.008970`.
-- `mixed_noffi` is still slightly behind `-joff`, so the next active step is
-  fresh attribution of the remaining small residual, not a return to the
-  closed helper/recorder lanes.
-- The latest `vararg_paths` root-FORL blacklists remain retained and keep
-  `sum_loop/hot`, `retlast_loop/hot`, and `retconst_loop/hot` near parity on
-  both hosts.
-- `iterator_table`, `mixed_ffi`, and `ffi_cdata` are now near-parity regression
-  screens unless a fresh attribution names a new subsystem.
-- The retained exact branch control now carries:
-  - `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1`
-  - `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12`
-  - `LUAJIT_S390X_AREF_BASE_ALLGPR=1`
-  - `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY=1`
-  - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET=1`
-  - `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT=1`
-  - `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE=1`
-  - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
-  - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
-  - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
-  - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
-  - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
-  - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
-  - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
-  - `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`
-  - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
-  - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
-  - `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT=1`
-  - `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK=1`
-  - `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST=1`
-  - `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST=1`
-  - `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST=1`
-  - `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST=1`
-  - default-on `SIDETRACE_TYPEINS_DONE`
-  - the root-2 hash-bridge floor in
-    [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
-  - the retained `lj_vm_next` KEYINDEX base-reuse cut in
-    [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
-- Branch exactness gates remain:
-  - `/tmp/mixedprobe.lua -> RESULT 553416`
-  - `/tmp/hash_value.lua -> HASH_VALUE 3000`
-  - `/tmp/ipairs_only_probe.lua -> RESULT 576000`
-- Current `iterator_table` read on trusted `kdz` after the retained exact
-  root-ITERN proto-NOJIT fallback:
-  - `pairs_sum/hot 0.004708` vs `-joff 0.004135`
-  - `pairs_array_sum/hot 0.004269` vs `-joff 0.003651`
-  - the latest official-row attribution showed the post-blacklist payer was
-    the route-around contract itself: `blacklist_pc()` rewrote the fast
-    `BC_ITERN` interpreter path into generic `BC_ITERC`, while `-joff` kept
-    the fast non-hotcounting `vm_IITERN` path.
-  - the retained root-ITERN proto-NOJIT cut sets `PROTO_NOJIT` for only the
-    exact official root `BC_ITERN` trace family, preserving fast `ITERN`
-    steady-state execution and suppressing further trace attempts.
+- Current source point:
+  `f3baca74 Fix s390x guarded overflow PHI restore`, after integrating the
+  staged `origin/k8ika0s/s390x-current-lab-promote` tranche on top of the
+  newer WIP head. The local/remote branch is pushed and tracked source is
+  clean apart from unrelated untracked local noise.
+- Integrated promotion queue:
+  `01ef1a11` fixed fixed-integer call argument extension,
+  `d08772b2` parked unsafe modulo-concat traces,
+  `afd63af4` carried the dispatch JFORI skip probe, and
+  `f3baca74` replaced the local narrow `INT_MINMAX` restore with the broader
+  PHI-based guarded-overflow restore.
+- Core post-merge gates are green:
+  - `kdz`: `addsub_overflow_guard`, `numeric_ops`, all
+    `tests/s390x/jit_be/*.lua`, retained-env `dispatch_trace`, and dispatch
+    opt-out causality check
+  - `zkd0`: focused confirmation for `addsub_overflow_guard`,
+    `numeric_ops`, retained-env `dispatch_trace`, and dispatch opt-out
+    causality check
+  - dispatch opt-out still fails in the intended mode:
+    `numeric_loop/hot: expected 3839172, got 0`
+- Current post-merge retained-env perf snapshot:
+  `/tmp/kdz-post-merge-perf-clean-20260411150101`
+  - `dispatch_trace`: parity/green
+    - `numeric_loop/hot` median ratio `1.0005`
+    - `side_exit_loop/hot` median ratio `0.9891`
+    - `hotexit_loop/hot` median ratio `0.9940`
+  - `iterator_table`: not a stable red row
+    - `pairs_sum/hot` median ratio `0.9735`, but ratio range
+      `0.6955..1.1636` with matching `-joff` jitter
+    - `pairs_array_sum/hot` median ratio `0.9328`
+  - `mixed_ffi/mixed_ffi_loop/hot`: major JIT win, median ratio `0.0671`
+  - `ffi_calls`: major JIT win
+    - `direct_abs/hot` median ratio `0.0274`
+    - `stored_abs/hot` median ratio `0.0402`
+  - `ffi_cdata`: parity
+    - `pair_loop/hot` median ratio `1.0012`
+    - `mixed_width_loop/hot` median ratio `1.0039`
+  - `be_helpers`: neutral/green
+    - `number_helper_loop/hot` median ratio `0.9493`
+    - `be_pack_loop/hot` median ratio `1.0074`
+- Current inherited guardrails are explicit and should not be mixed into the
+  clean-family perf matrix:
+  - `tests/s390x/perf/vararg_paths.lua` segfaults with `rc=139`
+  - `tests/s390x/perf/mixed_noffi.lua` fails the known result-mismatch class
+    with `rc=1`
+  - `tests/s390x/jit_loops/pairs_loop.lua` still times out with `rc=124`
+- Branch exactness / retained-env contract:
+  use the full retained env from
+  [restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
+  for performance reads. Do not draw retention conclusions from partial-env
+  runs.
 - Next queue:
-  - fresh re-attribution of the remaining `mixed_noffi` residual
-  - re-enter `vararg_paths`, `mixed_ffi`, `iterator_table`, or `ffi_cdata` only
-    if a fresh attribution names a new subsystem or a retained regression
+  fix or re-attribute the inherited correctness guardrails before chasing
+  small perf residuals. In priority order: `vararg_paths` segfault,
+  `mixed_noffi` mismatch, then `pairs_loop.lua` timeout. Once those are
+  stable, rerun a full retained-env matrix and only open performance code if a
+  repeated same-host `kdz` A/B names a material JIT-only payer.
 
 ## Harness Status
 
@@ -28244,3 +28238,80 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Do not drop it because `mixed_noffi` remains a separate WIP guardrail; the
   lab prefix testing showed narrowing this restore broke the guarded overflow
   boundary again.
+
+## 2026-04-11: post-merge focused matrix shows clean families recovered and guardrails inherited
+
+- Source point:
+  `f3baca74 Fix s390x guarded overflow PHI restore`, pushed to
+  `origin/k8ika0s/s390x-bringup-wip`.
+- Focused correctness on rebuilt `kdz` canonical mirror:
+  - `tests/s390x/jit_be/addsub_overflow_guard.lua -> rc=0`
+  - `tests/s390x/jit_be/numeric_ops.lua -> rc=0`
+  - all `tests/s390x/jit_be/*.lua -> rc=0`
+  - retained-env `tests/s390x/perf/dispatch_trace.lua -> rc=0`
+  - dispatch opt-out causality check failed in the expected mode:
+    `numeric_loop/hot: expected 3839172, got 0`
+- Focused `zkd0` confirmation:
+  `addsub_overflow_guard`, `numeric_ops`, retained-env `dispatch_trace`, and
+  dispatch opt-out causality all passed.
+- Numeric ops post-merge read on `kdz`:
+  - JIT hot rows:
+    `abs_loop 0.000940`,
+    `div_loop 0.000187`,
+    `sqrt_loop 0.000230`,
+    `min_loop 0.000154`,
+    `max_loop 0.001890`
+  - `-joff` hot rows:
+    `abs_loop 0.003889`,
+    `div_loop 0.002293`,
+    `sqrt_loop 0.003517`,
+    `min_loop 0.002543`,
+    `max_loop 0.002729`
+  - hot ratios:
+    `abs 0.242x`,
+    `div 0.082x`,
+    `sqrt 0.065x`,
+    `min 0.061x`,
+    `max 0.693x`
+  - `max_loop/hot` correctness result:
+    `3072032000`
+- Clean-family retained-env perf snapshot:
+  `/tmp/kdz-post-merge-perf-clean-20260411150101`
+  - setup:
+    3 samples, 2 warmups, 3 alternating JIT-on / `-joff` passes, full retained
+    env from [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py)
+  - `dispatch_trace` stayed green:
+    - `numeric_loop/hot` median ratio `1.0005`, ratios
+      `1.0042, 1.0005, 0.9977`
+    - `side_exit_loop/hot` median ratio `0.9891`, ratios
+      `0.9954, 0.9891, 0.9045`
+    - `hotexit_loop/hot` median ratio `0.9940`, ratios
+      `0.9940, 0.9965, 0.9439`
+  - `iterator_table` did not name a stable payer:
+    - `pairs_sum/hot` median ratio `0.9735`, ratios
+      `1.1636, 0.9735, 0.6955`, JIT jitter `1.2134`, `-joff` jitter `1.3789`
+    - `pairs_array_sum/hot` median ratio `0.9328`, ratios
+      `1.0263, 0.9328, 0.9281`
+  - promoted FFI-facing rows are strong:
+    - `mixed_ffi/mixed_ffi_loop/hot` median ratio `0.0671`
+    - `ffi_calls/direct_abs/hot` median ratio `0.0274`
+    - `ffi_calls/stored_abs/hot` median ratio `0.0402`
+  - neutral/control rows:
+    - `ffi_cdata/pair_loop/hot` median ratio `1.0012`
+    - `ffi_cdata/mixed_width_loop/hot` median ratio `1.0039`
+    - `be_helpers/number_helper_loop/hot` median ratio `0.9493`
+    - `be_helpers/be_pack_loop/hot` median ratio `1.0074`
+- Known inherited statuses on current WIP:
+  - `tests/s390x/perf/vararg_paths.lua -> rc=139`
+    with `timeout: the monitored command dumped core`
+  - `tests/s390x/perf/mixed_noffi.lua -> rc=1`
+    with `mixed_loop/hot` result mismatch
+  - `tests/s390x/jit_loops/pairs_loop.lua -> rc=124`
+    under a 10-second timeout
+- Read:
+  the current promotion did not introduce a broad clean-family perf collapse.
+  The next honest work is not another small clean-row perf tweak; it is to
+  isolate the inherited guardrails, starting with the `vararg_paths` segfault,
+  then the `mixed_noffi` mismatch, then the `pairs_loop.lua` timeout. After
+  that, rerun the full retained-env matrix before opening a new performance
+  lane.
