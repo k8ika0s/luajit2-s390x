@@ -282,7 +282,7 @@
 |  llill TMPR1, HOTCOUNT_PCMASK
 |  ngr reg, TMPR1
 |  lay reg, GG_DISP2HOT(reg, DISPATCH)
-|  lgh TMPR1, 0(reg)
+|  llgh TMPR1, 0(reg)
 |  aghi TMPR1, -delta
 |  sth TMPR1, 0(reg)
 |  jl target

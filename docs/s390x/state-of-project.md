@@ -42,15 +42,20 @@ It is intentionally current-state only. Historical experiment detail lives in
     - `sum_loop/hot 0.005042` vs `-joff 0.004885`
     - `retlast_loop/hot 0.002420` vs `-joff 0.002243`
     - `retconst_loop/hot 0.000652` vs `-joff 0.000638`
-- `iterator_table` now carries one small low-level VM win on top of the full
+- `iterator_table` now carries two low-level VM wins on top of the full
   retained env floor:
   [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
   stores the array-side `BC_ITERN` returned value directly from `TMPR0`
-  instead of copying through `RB` first. Trusted `kdz` same-window A/B:
-  candidate `pairs_sum/hot 0.004476`, `pairs_array_sum/hot 0.003938`;
-  immediate retained control `0.004488`, `0.004017`. `zkd0` exactness stayed
-  clean and the candidate was accepted as not materially worse on the noisy
-  host.
+  instead of copying through `RB` first, and the shared s390x `hotcheck` macro
+  now loads the 16-bit hotcount with `llgh` so the exact iterator
+  `BC_ITERN` no-JIT hotcount parks in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  can use `0xffff` instead of `0x7fff`. Trusted `kdz` same-window A/B for the
+  latest park-width cut: candidate rerun `pairs_sum/hot 0.004458`,
+  `pairs_array_sum/hot 0.003896`; immediate retained control `0.004604`,
+  `0.004108`. Mechanism logs show both hash and array no-JIT hotcount park
+  events dropped from `228` to `114`. `zkd0` exactness stayed clean; the rerun
+  improved hash materially and left array within small noise on the noisy host.
 - `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity on the
   carried floor; `mixed_noffi` still has noisy reads and should not be
   reopened without a fresh exact attribution.
