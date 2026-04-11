@@ -2097,6 +2097,8 @@ static void asm_add(ASMState *as, IRIns *ir)
   Reg dest = ra_dest_nobase(as, ir, asm_s390x_dest_gprset(ir->t), -260);
   Reg left, right;
   int bnorm = irt_isinteger(ir->t) || irt_isu32(ir->t);
+  int minmax_left = !irref_isk(ir->op1) &&
+		    (IR(ir->op1)->o == IR_MIN || IR(ir->op1)->o == IR_MAX);
   if (!irt_isinteger(ir->t) && !irt_is64(ir->t) && !irt_isaddr(ir->t)) {
     asm_s390x_nyi_ir(as, ir);
     return;
@@ -2180,6 +2182,8 @@ static void asm_add(ASMState *as, IRIns *ir)
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
       emit_u32(as, S390X_INS_RXE(S390XI_AGR, res, right));
+      if (minmax_left && dest != right)
+	emit_movrr(as, ir, dest, right);
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
     } else {
       Reg tmp = ra_scratch(as, allow);

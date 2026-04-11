@@ -1,11 +1,12 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 13:45 PDT
+Last updated: 2026-04-11 14:14 PDT
 
 ## Regroup Checkpoint
 
 - Current retained source point: `0ac1e7eb Fix s390x loop ADDOV overflow
-  guards`.
+  guards` plus the narrow opt-in `INT_MINMAX` overflow-snapshot follow-up in
+  [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h).
 - The branch is back in a stabilization/restamp posture, not a new
   performance mutation lane. Recent full-retained-env `kdz` reads put the
   stable matrix at near parity; do not reopen iterator, vararg, mixed, or
@@ -49,10 +50,11 @@ Last updated: 2026-04-11 13:45 PDT
   validation or trace-count failures under the full retained env even when the
   official `vararg_paths` hot rows complete at parity. Treat those reduced
   probes as mechanism notes unless they reproduce on the official row.
-- Remaining correctness follow-up:
-  `tests/s390x/perf/numeric_ops.lua` still fails only when
-  `LUAJIT_S390X_INT_MINMAX=1` is enabled. Keep that scoped to the separate
-  `asm_intmin_max()` lane; it is not a retained performance frontier.
+- Correctness follow-up closed:
+  `LUAJIT_S390X_INT_MINMAX=1 tests/s390x/perf/numeric_ops.lua` now completes
+  on `kdz` after the narrow loop-body `IR_MIN` / `IR_MAX` producer snapshot
+  fix. `zkd0` also passes the focused opt-in `MAX 64000 3072032000` repro.
+  This remains a correctness closure, not a retained performance frontier.
 
 ## Canonical Perf Suite
 

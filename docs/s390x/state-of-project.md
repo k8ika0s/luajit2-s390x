@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 13:45 PDT
+Last updated: 2026-04-11 14:14 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -10,14 +10,16 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 - The branch is in a post-correctness stabilization/restamp pass, not a new
   frontier attack. The current retained source point is
-  `0ac1e7eb Fix s390x loop ADDOV overflow guards`.
+  `0ac1e7eb Fix s390x loop ADDOV overflow guards` plus the narrow opt-in
+  `INT_MINMAX` overflow-snapshot follow-up in
+  [src/lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h).
 - The retained loop-body guarded `ADDOV` / `SUBOV` overflow fix is carried and
   pushed. It fixes the plain traced accumulator boundary on both hosts without
   reopening the default-path exactness gates.
-- The current map is: clean tooling/env restamp first, separate opt-in
-  `LUAJIT_S390X_INT_MINMAX=1` correctness lane second, and performance work
-  only after repeated full-retained-env same-host A/B names a stable official
-  payer.
+- The opt-in `LUAJIT_S390X_INT_MINMAX=1` correctness lane is now closed for
+  the carried `max_loop(64000)` symptom on both hosts. Performance work still
+  only resumes after repeated full-retained-env same-host A/B names a stable
+  official payer.
 - Latest direct `kdz` retained-env matrix sweep:
   `/tmp/kdz-full-retained-matrix-20260411131732`. The one-pass iterator and
   `ffi_cdata` red residuals did not repeat under the immediate 31-sample
