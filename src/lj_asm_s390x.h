@@ -1026,6 +1026,21 @@ static void asm_s390x_ir_log_addk(ASMState *as, IRIns *ir, IRRef lref,
 	  (int)dest, (int)left, (int)k, (int)irt_type(ir->t));
 }
 
+static IRRef asm_s390x_guarded_ov_preserve_ref(ASMState *as, IRIns *ir)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->o == IR_PHI && use->op2 == ref) {
+      if (use->op1 == ir->op1 || use->op1 == ir->op2)
+	return use->op1;
+    }
+  }
+
+  return ir->op1;
+}
+
 static void asm_s390x_guard_log(ASMState *as, const char *kind, IRIns *ir,
 				int cc, int32_t ofs, int extra)
 {
@@ -2100,8 +2115,6 @@ static void asm_add(ASMState *as, IRIns *ir)
   Reg dest = ra_dest_nobase(as, ir, asm_s390x_dest_gprset(ir->t), -260);
   Reg left, right;
   int bnorm = irt_isinteger(ir->t) || irt_isu32(ir->t);
-  int minmax_left = !irref_isk(ir->op1) &&
-		    (IR(ir->op1)->o == IR_MIN || IR(ir->op1)->o == IR_MAX);
   if (!irt_isinteger(ir->t) && !irt_is64(ir->t) && !irt_isaddr(ir->t)) {
     asm_s390x_nyi_ir(as, ir);
     return;
@@ -2177,16 +2190,18 @@ static void asm_add(ASMState *as, IRIns *ir)
       RegSet sallow = allow & ~RID2RSET(left);
       Reg res = ra_scratch(as, sallow);
       Reg tmp = ra_scratch(as, sallow & ~RID2RSET(res));
+      IRRef pref = asm_s390x_guarded_ov_preserve_ref(as, ir);
+      Reg preserve = (pref == ir->op2) ? right : left;
       asm_s390x_add_log(as, "addov_rr_int_eq", ir, dest, left, right, tmp);
       asm_s390x_guard_log(as, "addov_rr_int_eq", ir, CC_NE, 0,
 			  (int)(ir->op2 - REF_BIAS));
       emit_movrr(as, ir, dest, res);
       asm_guardcc(as, CC_NE);
+      if (dest != preserve)
+	emit_movrr(as, ir, dest, preserve);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
       emit_u32(as, S390X_INS_RXE(S390XI_AGR, res, right));
-      if (minmax_left && dest != right)
-	emit_movrr(as, ir, dest, right);
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
     } else {
       Reg tmp = ra_scratch(as, allow);
@@ -2542,11 +2557,15 @@ static void asm_sub(ASMState *as, IRIns *ir)
       RegSet sallow = allow & ~RID2RSET(left);
       Reg res = ra_scratch(as, sallow);
       Reg tmp = ra_scratch(as, sallow & ~RID2RSET(res));
+      IRRef pref = asm_s390x_guarded_ov_preserve_ref(as, ir);
+      Reg preserve = (pref == ir->op2) ? right : left;
       asm_s390x_add_log(as, "subov_rr_int_eq", ir, dest, left, right, tmp);
       asm_s390x_guard_log(as, "subov_rr_int_eq", ir, CC_NE, 0,
 			  (int)(ir->op2 - REF_BIAS));
       emit_movrr(as, ir, dest, res);
       asm_guardcc(as, CC_NE);
+      if (dest != preserve)
+	emit_movrr(as, ir, dest, preserve);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
       emit_u32(as, S390X_INS_RXE(S390XI_SGR, res, right));
