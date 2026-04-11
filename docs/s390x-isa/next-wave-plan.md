@@ -526,6 +526,18 @@ Current status:
     geomean about `-1.66%` and `be_helpers` about `-0.34%`, but regressed
     `mixed_noffi` by about `+12.35%` and iterator hot rows by up to
     `+8.97%`. Keep the narrower fused-AREF allocation policy.
+    A later correctness reducer showed the saved-register-only policy is too
+    narrow for fused dynamic `ASTORE`: `keep[i] = item; total += item.value`
+    corrupts the accumulator, while the old all-GPR mode fixes the result. The
+    current lab cut applies the all-GPR base choice only to fused dynamic
+    `AHUSTORE` and leaves the broader rejected `LUAJIT_S390X_AREF_BASE_ALLGPR`
+    mode opt-in.
+    Validation on the rebuilt `kdz1` retained repo passed
+    `tests/s390x/jit_be/aref_dynamic_store.lua`, the full `jit_be/*.lua` sweep,
+    and `soak/*.lua`. A `mixed_noffi.lua` validation failure with a `+418`
+    total delta reproduces in the older pre-patch retained repo too, so keep
+    that as a separate pre-existing lane rather than attributing it to this
+    store-only fix.
     The default-on signed GC64 integer SLOAD and FORL current-compare guards
     were initially favorable in one scratch switch read:
     `/tmp/isa-sload-guard-switch-ab-20260410201810`

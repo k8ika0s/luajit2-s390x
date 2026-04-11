@@ -2791,7 +2791,8 @@ typedef struct S390XFusedRef {
 } S390XFusedRef;
 
 /* Fuse array/hash/upvalue reference into register+offset operand. */
-static S390XFusedRef asm_fuseahuref(ASMState *as, IRRef ref, RegSet allow)
+static S390XFusedRef asm_fuseahuref_(ASMState *as, IRRef ref, RegSet allow,
+				     int dynamic_aref_allgpr)
 {
   IRIns *ir = IR(ref);
   S390XFusedRef fr;
@@ -2814,7 +2815,8 @@ static S390XFusedRef asm_fuseahuref(ASMState *as, IRRef ref, RegSet allow)
 	  }
 	} else {
 	  RegSet baseallow = asm_s390x_dest_gprset(IR(ir->op1)->t) & allow;
-	  if (lj_asm_s390x_aref_base_allgpr_enabled())
+	  if (dynamic_aref_allgpr ||
+	      lj_asm_s390x_aref_base_allgpr_enabled())
 	    baseallow = allow;
 	  if (baseallow == RSET_EMPTY)
 	    baseallow = allow;
@@ -2853,6 +2855,11 @@ static S390XFusedRef asm_fuseahuref(ASMState *as, IRRef ref, RegSet allow)
   }
   fr.reg = ra_alloc1_nobase(as, ref, allow, -255);
   return fr;
+}
+
+static S390XFusedRef asm_fuseahuref(ASMState *as, IRRef ref, RegSet allow)
+{
+  return asm_fuseahuref_(as, ref, allow, 0);
 }
 
 static void asm_emitfuseahuref(ASMState *as, IRIns *ir,
@@ -3412,7 +3419,7 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
     asm_s390x_nyi_ir(as, ir);
     return;
   }
-  fr = asm_fuseahuref(as, ir->op1, RSET_GPR_NOB);
+  fr = asm_fuseahuref_(as, ir->op1, RSET_GPR_NOB, 1);
   if (asm_s390x_ir_log_enabled()) {
     fprintf(stderr,
 	    "S390X_IR kind=ahustore curins=%d ir=%d xref=%d fused=%d fbase=%d fidx=%d ofs=%d vref=%d type=%d\n",
