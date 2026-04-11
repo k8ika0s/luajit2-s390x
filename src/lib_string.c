@@ -326,7 +326,12 @@ static const char *s390x_pattern_prefilter(MatchState *ms, const char *s,
   case '-':
     return s;
   default: {
-    MSize off = lj_s390x_text_pattern_seek(s, ms->src_end, uchar(*(p+1)));
+    int cl = uchar(*(p+1));
+    if (s < ms->src_end &&
+	((cl == 'p' && lj_char_ispunct(uchar(*s))) ||
+	 (cl == 'P' && !lj_char_ispunct(uchar(*s)))))
+      return s;
+    MSize off = lj_s390x_text_pattern_seek(s, ms->src_end, cl);
     return off != ~(MSize)0 ? s + off : s;
     }
   }

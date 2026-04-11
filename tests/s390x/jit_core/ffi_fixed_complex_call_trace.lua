@@ -7,6 +7,10 @@ local libpath = arg[1] or "tests/s390x/ffi_abi/build/liboracle.so"
 ffi.cdef[[
 double take_complex_sum(complex double value);
 double take_complex_pair(double seed, complex double a, complex double b);
+double take7_complex_sum(double seed, complex double a, complex double b,
+                         complex double c, complex double d,
+                         complex double e, complex double f,
+                         complex double g);
 double mutate_complex_arg(complex double value);
 ]]
 
@@ -14,6 +18,11 @@ local lib = ffi.load(libpath)
 
 local z1 = ffi.new("complex double", { 1.5, 2.25 })
 local z2 = ffi.new("complex double", { -3.0, 4.5 })
+local z3 = ffi.new("complex double", { 1.0, 2.0 })
+local z4 = ffi.new("complex double", { 3.0, 4.0 })
+local z5 = ffi.new("complex double", { 5.0, 6.0 })
+local z6 = ffi.new("complex double", { 7.0, 8.0 })
+local z7 = ffi.new("complex double", { 9.0, 10.0 })
 
 local function run_read(n)
   local total = 0
@@ -32,6 +41,14 @@ local function run_mut(n, z)
   return total
 end
 
+local function run_pressure(n)
+  local total = 0
+  for i = 1, n do
+    total = total + lib.take7_complex_sum(i, z1, z2, z3, z4, z5, z6, z7)
+  end
+  return total
+end
+
 jit.off(run_read, true)
 local expected_read = run_read(200)
 jit.on(run_read, true)
@@ -46,6 +63,19 @@ read_capture.stop()
 t.approx(actual_read, expected_read, 1e-9, "ffi fixed complex call total")
 t.truthy(t.find_trace_event(read_capture.events, "stop"),
          "ffi fixed complex call traced")
+
+jit.off(run_pressure, true)
+local expected_pressure = run_pressure(200)
+jit.on(run_pressure, true)
+
+local pressure_capture = t.trace_capture()
+local actual_pressure = run_pressure(200)
+pressure_capture.stop()
+
+t.approx(actual_pressure, expected_pressure, 1e-9,
+         "ffi fixed complex pressure total")
+t.truthy(t.find_trace_event(pressure_capture.events, "stop"),
+         "ffi fixed complex pressure traced")
 
 local zmut = ffi.new("complex double", { 3.0, 4.0 })
 jit.off(run_mut, true)

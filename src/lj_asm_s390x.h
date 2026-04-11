@@ -861,6 +861,17 @@ static int asm_s390x_narrow_xstore_enabled(void)
   return enabled;
 }
 
+static int asm_s390x_modk_dsgr_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *opt_in = getenv("LUAJIT_S390X_MODK_DSGR");
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MODK_DSGR");
+    enabled = (opt_out == NULL) || opt_in != NULL;
+  }
+  return enabled;
+}
+
 static int asm_s390x_varg_bias_override(void)
 {
   static int bias = -1000;
@@ -1132,14 +1143,32 @@ static void asm_s390x_call_preserve_log(ASMState *as, const char *kind,
 static void asm_s390x_call_arg_log(ASMState *as, const char *kind, int slot,
 				   IRRef ref, Reg src, Reg target)
 {
+  IRIns *ir;
   if (!asm_s390x_call_log_enabled())
     return;
+  ir = irref_isk(ref) ? NULL : IR(ref);
   fprintf(stderr,
 	  "S390X_CALL_ARG kind=%s curins=%d slot=%d ref=%d src=%d target=%d"
-	  " hasreg=%d src_eq_target=%d\n",
+	  " hasreg=%d src_eq_target=%d op=%d type=%d\n",
 	  kind, (int)(as->curins - REF_BIAS), slot, (int)(ref - REF_BIAS),
 	  (int)src, target == RID_NONE ? -1 : (int)target, ra_hasreg(src),
-	  target != RID_NONE && src == target);
+	  target != RID_NONE && src == target,
+	  ir ? (int)ir->o : -1, ir ? (int)irt_type(ir->t) : -1);
+}
+
+static void asm_s390x_call_stack_log(ASMState *as, const char *kind, int slot,
+				     IRRef ref, Reg src, int32_t ofs)
+{
+  IRIns *ir;
+  if (!asm_s390x_call_log_enabled())
+    return;
+  ir = irref_isk(ref) ? NULL : IR(ref);
+  fprintf(stderr,
+	  "S390X_CALL_STACK kind=%s curins=%d slot=%d ref=%d src=%d"
+	  " hasreg=%d ofs=%d op=%d type=%d\n",
+	  kind, (int)(as->curins - REF_BIAS), slot, (int)(ref - REF_BIAS),
+	  (int)src, ra_hasreg(src), (int)ofs,
+	  ir ? (int)ir->o : -1, ir ? (int)irt_type(ir->t) : -1);
 }
 
 static void asm_gencall_preserve(ASMState *as, IRRef ref, Reg gpr,
@@ -1212,11 +1241,12 @@ static Reg asm_gencall_stack_alloc_gpr(ASMState *as, IRRef ref, RegSet allow)
   return ra_allock(as, asm_kintptr(as, ref), allow);
 }
 
-static void asm_gencall_stack_gpr(ASMState *as, IRRef ref, int32_t ofs)
+static void asm_gencall_stack_gpr(ASMState *as, IRRef ref, int32_t ofs, int slot)
 {
   IRIns *ir = IR(ref);
   RegSet allow = RSET_GPR_CALL_NOB;
   Reg src = asm_gencall_stack_alloc_gpr(as, ref, allow);
+  asm_s390x_call_stack_log(as, "gpr", slot, ref, src, ofs);
 
   if (irt_isint(ir->t) || irt_isu32(ir->t)) {
     Reg tmp;
@@ -1232,10 +1262,11 @@ static void asm_gencall_stack_gpr(ASMState *as, IRRef ref, int32_t ofs)
   }
 }
 
-static void asm_gencall_stack_fpr(ASMState *as, IRRef ref, int32_t ofs)
+static void asm_gencall_stack_fpr(ASMState *as, IRRef ref, int32_t ofs, int slot)
 {
   IRIns *ir = IR(ref);
   Reg src = ra_alloc1(as, ref, RSET_FPR_CALL);
+  asm_s390x_call_stack_log(as, "fpr", slot, ref, src, ofs);
   if (irt_isfloat(ir->t))
     emit_u48_pad8(as, S390X_INS_RXY(S390XI_STEY, src, 0, RID_SP,
 				    ofs + (LJ_BE ? 4 : 0)));
@@ -1714,7 +1745,7 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 	ra_leftov(as, fpr, ref);
 	fpr += 2;
       } else {
-	asm_gencall_stack_fpr(as, ref, spofs);
+	asm_gencall_stack_fpr(as, ref, spofs, (int)n);
 	spofs += 8;
       }
       continue;
@@ -1737,7 +1768,7 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
     nextgpr:
       gpr++;
     } else {
-      asm_gencall_stack_gpr(as, ref, spofs);
+      asm_gencall_stack_gpr(as, ref, spofs, (int)n);
       spofs += 8;
     }
   }
@@ -2573,7 +2604,8 @@ static int asm_modk_int(ASMState *as, IRIns *ir)
   const Reg rem = RID_R4;
   const Reg quot = RID_R5;
 
-  if (!irt_isint(ir->t) || !irref_isk(ir->op2) || k->o != IR_KINT || k->i <= 0)
+  if (!asm_s390x_modk_dsgr_enabled() ||
+      !irt_isint(ir->t) || !irref_isk(ir->op2) || k->o != IR_KINT || k->i <= 0)
     return 0;
 
   /* First fast path: signed integer modulo by a positive constant divisor.

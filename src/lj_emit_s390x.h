@@ -140,6 +140,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_LLGH	0xe30000000091ull
 #define S390XI_LGB	0xe30000000077ull
 #define S390XI_LD	0x68000000u
+#define S390XI_LDY	0xed0000000065ull
 #define S390XI_LEY	0xed0000000064ull
 #define S390XI_STG	0xe30000000024ull
 #define S390XI_STD	0x60000000u
@@ -314,9 +315,11 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
       lj_assertA(checki20(ofs), "s390x FPR float load offset out of range");
       emit_u48_pad8(as, S390X_INS_RXY(S390XI_LEY, r, 0, base, ofs));
     } else {
-      lj_assertA(ofs >= 0 && ofs <= 4095,
-		 "s390x FPR spill load offset out of range");
-      emit_u32(as, S390X_INS_RX(S390XI_LD, r, 0, base, ofs));
+      lj_assertA(checki20(ofs), "s390x FPR spill load offset out of range");
+      if (ofs >= 0 && ofs <= 4095)
+	emit_u32(as, S390X_INS_RX(S390XI_LD, r, 0, base, ofs));
+      else
+	emit_u48_pad8(as, S390X_INS_RXY(S390XI_LDY, r, 0, base, ofs));
     }
     return;
   }
@@ -340,9 +343,11 @@ static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
       lj_assertA(checki20(ofs), "s390x FPR float store offset out of range");
       emit_u48_pad8(as, S390X_INS_RXY(S390XI_STEY, r, 0, base, ofs));
     } else {
-      lj_assertA(ofs >= 0 && ofs <= 4095,
-		 "s390x FPR spill store offset out of range");
-      emit_u32(as, S390X_INS_RX(S390XI_STD, r, 0, base, ofs));
+      lj_assertA(checki20(ofs), "s390x FPR spill store offset out of range");
+      if (ofs >= 0 && ofs <= 4095)
+	emit_u32(as, S390X_INS_RX(S390XI_STD, r, 0, base, ofs));
+      else
+	emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, r, 0, base, ofs));
     }
     return;
   }

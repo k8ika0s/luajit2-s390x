@@ -37,6 +37,10 @@ complex double add_complex(complex double a, complex double b);
 complex double mul_complex(complex double a, complex double b);
 double take_complex_sum(complex double value);
 double take_complex_pair(double seed, complex double a, complex double b);
+double take7_complex_sum(double seed, complex double a, complex double b,
+                         complex double c, complex double d,
+                         complex double e, complex double f,
+                         complex double g);
 double mutate_complex_arg(complex double value);
 
 small_u8 echo_small_u8(small_u8 value);
@@ -122,6 +126,13 @@ t.approx(zmul.im, 2.25, 1e-12, "mul_complex.im")
 t.approx(lib.take_complex_sum(z1), -21.0, 1e-12, "take_complex_sum")
 t.approx(lib.take_complex_pair(2.0, z1, z2), -0.5, 1e-12,
          "take_complex_pair")
+local z3 = ffi.new("complex double", { 1.0, 2.0 })
+local z4 = ffi.new("complex double", { 3.0, 4.0 })
+local z5 = ffi.new("complex double", { 5.0, 6.0 })
+local z6 = ffi.new("complex double", { 7.0, 8.0 })
+local z7 = ffi.new("complex double", { 9.0, 10.0 })
+t.approx(lib.take7_complex_sum(10.0, z1, z2, z3, z4, z5, z6, z7),
+         64.5, 1e-12, "take7_complex_sum")
 local zmut = ffi.new("complex double", { 3.0, 4.0 })
 t.approx(lib.mutate_complex_arg(zmut), 38.0, 1e-12, "mutate_complex_arg")
 t.approx(zmut.re, 3.0, 1e-12, "mutate_complex_arg.re")

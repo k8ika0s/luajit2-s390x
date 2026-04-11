@@ -70,6 +70,17 @@ double take_complex_pair(double seed, double complex a, double complex b)
 	 5.0 * creal(b) + 7.0 * cimag(b);
 }
 
+double take7_complex_sum(double seed, double complex a, double complex b,
+			 double complex c, double complex d,
+			 double complex e, double complex f,
+			 double complex g)
+{
+  return seed + creal(a) + cimag(a) + creal(b) + cimag(b) +
+	 creal(c) + cimag(c) + creal(d) + cimag(d) +
+	 creal(e) + cimag(e) + creal(f) + cimag(f) +
+	 creal(g) + cimag(g);
+}
+
 double mutate_complex_arg(double complex value)
 {
   volatile double complex *p = &value;

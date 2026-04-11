@@ -237,6 +237,9 @@ static LJ_AINLINE int s390x_text_match_class_ascii(uint8_t c, int cl)
   case 'l':
     match = (c >= 'a' && c <= 'z');
     break;
+  case 'p':
+    match = lj_char_ispunct(c);
+    break;
   case 's':
     match = lj_char_isspace(c);
     break;
@@ -259,7 +262,12 @@ static LJ_AINLINE int s390x_text_match_class_ascii(uint8_t c, int cl)
   return lower ? match : !match;
 }
 
-static LJ_AINLINE int s390x_text_class_supported(int cl)
+static LJ_AINLINE int s390x_text_span_class_supported(int cl)
+{
+  return s390x_text_match_class_ascii((uint8_t)'A', cl) >= 0;
+}
+
+static LJ_AINLINE int s390x_text_seek_class_supported(int cl)
 {
   return s390x_text_match_class_ascii((uint8_t)'A', cl) >= 0;
 }
@@ -272,7 +280,7 @@ MSize lj_s390x_text_pattern_span(const char *s, const char *end, int cl)
   const char *p = s;
   if (mode != S390X_TEXT_SPAN8)
     return ~(MSize)0;
-  if (!s390x_text_class_supported(cl))
+  if (!s390x_text_span_class_supported(cl))
     return ~(MSize)0;
   while ((end - p) >= 8) {
     if (!s390x_text_match_class_ascii((uint8_t)p[0], cl) ||
@@ -299,8 +307,10 @@ MSize lj_s390x_text_pattern_seek(const char *s, const char *end, int cl)
   const char *p = s;
   if (mode != S390X_TEXT_SPAN8)
     return ~(MSize)0;
-  if (!s390x_text_class_supported(cl))
+  if (!s390x_text_seek_class_supported(cl))
     return ~(MSize)0;
+  if (p < end && s390x_text_match_class_ascii((uint8_t)*p, cl))
+    return 0;
   while ((end - p) >= 8) {
     if (s390x_text_match_class_ascii((uint8_t)p[0], cl) ||
 	s390x_text_match_class_ascii((uint8_t)p[1], cl) ||

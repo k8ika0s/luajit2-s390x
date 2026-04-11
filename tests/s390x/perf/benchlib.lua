@@ -238,6 +238,7 @@ function M.scale_order(scales)
 end
 
 M.eq = testlib.eq
+M.approx = testlib.approx
 M.truthy = testlib.truthy
 
 return M

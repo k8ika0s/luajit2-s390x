@@ -59,6 +59,7 @@ JIT_CORE_LUA_FILES = [
     "tests/s390x/jit_core/mod_trace.lua",
     "tests/s390x/jit_core/numeric_helpers.lua",
     "tests/s390x/jit_core/profile_loop.lua",
+    "tests/s390x/jit_core/profile_toggle.lua",
     "tests/s390x/jit_core/trace_event_postloop.lua",
 ]
 
@@ -112,16 +113,23 @@ SOAK_FFI_LUA_FILES = {
     "tests/s390x/soak/mixed_stress.lua",
 }
 
+SOAK_JIT_LUA_FILES = {
+    "tests/s390x/soak/mixed_stress.lua",
+    "tests/s390x/soak/trace_gc_churn.lua",
+}
+
 PERF_FFI_LUA_FILES = {
     "tests/s390x/perf/ffi_calls.lua",
     "tests/s390x/perf/ffi_cdata.lua",
     "tests/s390x/perf/ffi_fixed_call_pressure.lua",
+    "tests/s390x/perf/ffi_fixed_complex_calls.lua",
     "tests/s390x/perf/ffi_fixed_struct_calls.lua",
     "tests/s390x/perf/mixed_ffi.lua",
 }
 
 PERF_ORACLE_LUA_FILES = {
     "tests/s390x/perf/ffi_fixed_call_pressure.lua",
+    "tests/s390x/perf/ffi_fixed_complex_calls.lua",
     "tests/s390x/perf/ffi_fixed_struct_calls.lua",
 }
 
@@ -184,96 +192,117 @@ PERF_FAMILY_METADATA = {
         "priority": "isa-lab-active",
         "notes": "Fixed-call argument pressure probe for s390x call-lowering experiments.",
     },
-    "be_helpers": {
+    "ffi_fixed_complex_calls": {
         "default_gate": False,
         "promotion_order": 8,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Fixed complex FFI call-lowering probe for s390x.",
+    },
+    "be_helpers": {
+        "default_gate": False,
+        "promotion_order": 9,
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Big-endian helper and pack/unpack probe.",
     },
     "mixed_noffi": {
         "default_gate": False,
-        "promotion_order": 9,
+        "promotion_order": 10,
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Mixed JIT-heavy workload without FFI.",
     },
     "mixed_ffi": {
         "default_gate": False,
-        "promotion_order": 10,
+        "promotion_order": 11,
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Mixed Lua + FFI workload.",
     },
     "string_kernels": {
         "default_gate": False,
-        "promotion_order": 11,
+        "promotion_order": 12,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Fixed-string search/compare and ASCII transform probe for s390x text helper experiments.",
     },
     "string_hash": {
         "default_gate": False,
-        "promotion_order": 12,
+        "promotion_order": 13,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "String interning/hash probe for s390x sparse-hash experiments.",
     },
     "text_casefold": {
         "default_gate": False,
-        "promotion_order": 13,
+        "promotion_order": 14,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "ASCII lower/upper transform probe for s390x text helper experiments.",
     },
     "text_patterns": {
         "default_gate": False,
-        "promotion_order": 14,
+        "promotion_order": 15,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Pattern-class span probe for s390x string.match/string.gmatch experiments.",
     },
     "text_mixed": {
         "default_gate": False,
-        "promotion_order": 15,
+        "promotion_order": 16,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Mixed text/tokenization family used to qualify s390x pattern acceleration outside isolated microbenches.",
     },
     "text_combo": {
         "default_gate": False,
-        "promotion_order": 16,
+        "promotion_order": 17,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Combined pattern and ASCII casefold family used to qualify span8+ascii8 together on s390x.",
     },
     "large_immediates": {
         "default_gate": False,
-        "promotion_order": 17,
+        "promotion_order": 18,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Backend immediate-form qualification for large constant adds and constant-index array references on s390x.",
     },
+    "int_mod": {
+        "default_gate": False,
+        "promotion_order": 19,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Backend signed integer modulo-by-constant probe for the s390x DSGR fast path.",
+    },
     "numeric_ops": {
         "default_gate": False,
-        "promotion_order": 18,
+        "promotion_order": 20,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Backend floating-point abs/div qualification for s390x numeric lowering.",
     },
     "decimal_arith": {
         "default_gate": False,
-        "promotion_order": 19,
+        "promotion_order": 21,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Opt-in decimal module arithmetic probe for s390x.experimental.decimal.",
     },
     "decimal_convert": {
         "default_gate": False,
-        "promotion_order": 20,
+        "promotion_order": 22,
         "status": "probe-only",
         "priority": "isa-lab-active",
         "notes": "Opt-in decimal module conversion probe for string, packed, and zoned decimal paths.",
+    },
+    "profile_stress": {
+        "default_gate": False,
+        "promotion_order": 23,
+        "status": "probe-only",
+        "priority": "isa-lab-active",
+        "notes": "Async profiler overhead and start/stop churn probe for the SIGPROF runtime path.",
     },
 }
 
@@ -1309,7 +1338,12 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             """
         ).strip()
     if suite == "soak":
-        skip_soak = shell_skip_condition(SOAK_FFI_LUA_FILES if variant.ffi == "off" else [])
+        skip_soak_files = set()
+        if variant.ffi == "off":
+            skip_soak_files.update(SOAK_FFI_LUA_FILES)
+        if variant.jit == "off":
+            skip_soak_files.update(SOAK_JIT_LUA_FILES)
+        skip_soak = shell_skip_condition(skip_soak_files)
         return textwrap.dedent(
             f"""
             set -euo pipefail
