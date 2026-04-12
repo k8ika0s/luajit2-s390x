@@ -819,6 +819,10 @@ interpretation.
   `retconst_loop` to near/parity
 - the retained floor still includes both the root-2 hash-bridge path and the
   `lj_vm_next` KEYINDEX base-reuse cut
+- after `994ce16f`, a high-sample `ffi_cdata` stress run exposed a generated
+  mcode crash in constant unguarded `UREFO`; [lj_asm_s390x.h](../../src/lj_asm_s390x.h)
+  now emits the upvalue-address load after the dereference emission in source
+  order, so execution loads the address before `lg dest,0(dest)`
 
 ### After The Near-Parity Rerank
 
@@ -826,7 +830,10 @@ interpretation.
   the exact `BC_ITERN` proto-NOJIT route at parity while preserving the broad
   iterator blacklist as the fallback for non-exact shapes.
 - Keep `mixed_noffi`, `mixed_ffi`, `ffi_cdata`, `be_helpers`, and `ffi_calls`
-  parked unless a fresh official-row attribution names a stable subsystem.
+  parked unless a fresh official-row attribution names a stable subsystem. The
+  `ffi_cdata` UREFO fix is a correctness/stability closure; the remaining
+  `buffer_fref_loop` residual is still too small/noisy to drive a new code
+  target on its own.
 - The next mutation should start from a fresh matrix/proof pass under the full
   retained env, not from a reduced-probe or trace-meta-only ladder.
 
