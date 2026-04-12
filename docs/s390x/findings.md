@@ -28594,3 +28594,93 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the remaining compiled-body residual. If that truth pack does not name a
   concrete payer, park `mixed_noffi` again and require a repeated same-host
   `kdz` A/B signal before opening any smaller row.
+
+## 2026-04-11: closed mixed_noffi BC_ITERN hotcount width follow-up
+
+- Starting point:
+  `fa1d75e5` / `703377c7` retained floor after the exact mixed `BC_ITERL`
+  ordering fix.
+- Official-row truth-pack:
+  `/tmp/20260411-kdz-mixed_noffi-retained_baseline-truth-pack`.
+  The current official row remains compiled-body dominated, not exit churn:
+  `TRACE_START 8`, `TRACE_STOP 1`, `TRACE_ABORT 7`, `TEXIT_COUNT 0`.
+  The benchmark read was effectively near parity:
+  `mixed_loop/hot 0.003873` vs `-joff 0.003828`, while the focused runtime
+  read was `0.004036` vs `0.003856`.
+- Lower-level dump:
+  `/tmp/kdz-mixed-official-dump-20260411185215`.
+  Official `mixed_noffi.lua` still saves one root trace at line 18
+  (`BC_ITERL`, `mcloop=360`) for the `ipairs(numbers)` body:
+  `SLOAD total`, `SLOAD value`, `ADDOV`, `ALOAD`, `ADDOV`, `PHI` loop body.
+  With trace meta logging, the exact mixed `BC_ITERN` proto-NOJIT park still
+  recurred at `0x7fff` (`S390X_MIXED_NOFFI_ITERN_NOJIT_HOTCOUNT_PARK 26`).
+- Candidate:
+  change only the exact mixed-noffi `BC_ITERN` proto-NOJIT hotcount park in
+  [lj_trace.c](../../src/lj_trace.c) from `0x7fff` to `0xffff`, mirroring the
+  later retained iterator-table unsigned hotcount park width. No matcher,
+  iterator fallback, recorder, VM, or backend lowering was changed.
+- Mechanism:
+  `/tmp/kdz-mixed-noffi-ffff-mechanism-20260411185551`.
+  The candidate worked mechanically:
+  `val=65535` and the park count dropped to `13`.
+- `kdz` A/B:
+  - first candidate:
+    `/tmp/kdz-mixed-noffi-ffff-candidate-20260411185404`
+    - `mixed_loop/hot` median ratio `1.0204x`, median delta `+0.000078`,
+      median JIT `0.003894`
+  - immediate reverted control:
+    `/tmp/kdz-mixed-noffi-ffff-control-20260411185621`
+    - `mixed_loop/hot` median ratio `1.0218x`, median delta `+0.000084`,
+      median JIT `0.003933`
+  - dense candidate:
+    `/tmp/kdz-mixed-noffi-ffff-candidate-dense-20260411185820`
+    - median ratio `1.0213x`, median delta `+0.000081`,
+      median JIT `0.003900`
+  - dense reverted control:
+    `/tmp/kdz-mixed-noffi-ffff-control-dense-20260411190039`
+    - median ratio `1.0270x`, median delta `+0.000103`,
+      median JIT `0.003915`
+- Classification:
+  do not retain. The candidate is mechanism-valid and maybe slightly positive,
+  but the same-window effect is about `15us` median JIT movement and does not
+  close the row. The source was reverted to the retained `0x7fff` mixed park.
+  Close this exact mixed hotcount-width follow-up unless a future, larger
+  official-row attribution reopens the same mechanism with a material payer.
+
+## 2026-04-11: closed next small residual truth-pack checks
+
+- Purpose:
+  after the post-mixed-ordering rerank and the rejected mixed `0xffff`
+  hotcount-width follow-up, check the remaining small/noisy residuals before
+  opening another code lane.
+- `be_helpers` truth-pack:
+  `/tmp/20260411-kdz-be_helpers-retained_baseline-truth-pack`.
+  Official rows were green:
+  - `number_helper_loop/hot 0.002258` vs `-joff 0.002366`
+  - `be_pack_loop/hot 0.018846` vs `-joff 0.020416`
+  - `strto_loop/hot 0.003344` vs `-joff 0.008695`
+  The focused reduced `number_helper_loop` remains exit-dominated, but it
+  does not override the official green row.
+- `vararg_paths` truth-pack:
+  `/tmp/20260411-kdz-vararg_paths-retained_baseline-truth-pack`.
+  Official rows were near parity:
+  - `sum_loop/hot 0.004363` vs `-joff 0.004338`
+  - `retlast_loop/hot 0.002011` vs `-joff 0.001984`
+  - `retconst_loop/hot 0.000557` vs `-joff 0.000616`
+  Focused reduced reads still show `retlast_loop` as exit-dominated, but the
+  official row does not justify reopening stale vararg recorder or handoff
+  theories.
+- Manual `numeric_ops` retained-env read:
+  `/tmp/kdz-numeric-ops-retained-rerank-20260411190856`.
+  Hot rows were green, including the VM modulo coverage row:
+  - `max_loop/hot 0.001755` vs `-joff 0.002579`
+  - `abs_loop/hot 0.000904` vs `-joff 0.003920`
+  - `fp_mod_loop/hot 0.000540` vs `-joff 0.004580`
+  - `div_loop/hot 0.000187` vs `-joff 0.002276`
+  - `sqrt_loop/hot 0.000231` vs `-joff 0.003454`
+  - `min_loop/hot 0.000154` vs `-joff 0.002436`
+- Rerank decision:
+  no stable material official-row performance payer is currently named on
+  `kdz` from this pass. Keep the current retained source unchanged. The next
+  code work should require either a fresh repeated A/B signal or a deliberate
+  parity-backlog target, not another near-parity trace-control guess.
