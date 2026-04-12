@@ -1,13 +1,14 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 08:58 PDT
+Last updated: 2026-04-12 10:50 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  the `d3430611 Fix s390x numeric SLOAD integer reentry` floor plus the
-  route-around reducer, static-stop be-pack, and localized be-pack
-  promotion-core guard splits recorded below. The retained
+  `bd0dbb89 Fix s390x guarded MULOV exit state`, including the retained
+  route-around reducer, static-stop be-pack, localized be-pack
+  promotion-core guard splits, iterator/vararg guardrails, remote oracle
+  matrix coverage, and the loop-body guarded `MULOV` exit-state fix. The retained
   env omits the obsolete `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` guard,
   keeps the broad promotion-core guard for the retained route-around families,
   excludes the exact `be_helpers.lua` `be_pack_loop` root, the exact
@@ -15,6 +16,17 @@ Last updated: 2026-04-12 08:58 PDT
   `promotion_core_static_stop.lua` be-pack literal root, and now excludes the
   exact `be_helpers_localized.lua` `be_pack_loop_local_ops_real` root so
   those shapes can compile.
+- Post-`MULOV` retained-env rerank:
+  `/tmp/kdz-retained-jitter-20260412104303` ran the full retained matrix on
+  `kdz` (`samples=5`, `warmup=2`, three alternating passes). Focused
+  confirmation `/tmp/kdz-bd0dbb89-focused-rerank-202604121047` reran the only
+  suspicious rows at `samples=9`, `warmup=2`, seven alternating passes.
+  Result: no stable material red official row. `gpr_pressure/hot` confirmed
+  green/parity (`0.9977x`, `0/7` red), iterator spikes collapsed under
+  focused rerun (`pairs_sum/hot` median `0.9726x`), and localized `tobit`
+  is a tiny/noisy residual after the correctness fix (`1.0007x` median,
+  high run-order jitter). Current queue remains attribution-only until a
+  repeated official-row mechanism appears with material absolute time.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
