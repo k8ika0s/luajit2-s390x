@@ -499,6 +499,49 @@ static int lj_record_s390x_vararg_sum_proto_match(GCproto *pt)
          memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
 }
 
+static int lj_record_s390x_numeric_max_exit0_body_allow_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *opt_out =
+      getenv("LUAJIT_S390X_DISABLE_NUMERIC_MAX_EXIT0_BODY_ALLOW");
+    enabled = (LJ_TARGET_S390X && opt_out == NULL);
+  }
+  return enabled;
+}
+
+static int lj_record_s390x_numeric_max_proto_match(GCproto *pt)
+{
+  static const char chunkname[] = "@numeric_ops_max";
+  GCstr *chunk;
+  if (pt == NULL)
+    return 0;
+  chunk = proto_chunkname(pt);
+  return chunk != NULL &&
+         chunk->len == (MSize)(sizeof(chunkname) - 1) &&
+         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
+}
+
+static int lj_record_s390x_numeric_max_exit0_body_allow(jit_State *J,
+							GCtrace *parentT)
+{
+  return lj_record_s390x_numeric_max_exit0_body_allow_enabled() &&
+         lj_record_s390x_numeric_max_proto_match(J->pt) &&
+         J->parent == J->cur.root &&
+         J->exitno == 0 &&
+         J->framedepth + J->retdepth == 0 &&
+         bc_op(J->cur.startins) == BC_JMP &&
+         J->pc == J->startpc &&
+         J->pc > proto_bc(J->pt) &&
+         bc_op(*J->pc) == BC_GGET &&
+         bc_op(J->pc[-1]) == BC_JFORI &&
+         bc_d(J->pc[bc_j(J->pc[-1])-1]) == J->cur.root &&
+         parentT != NULL &&
+         bc_op(parentT->startins) == BC_FORL &&
+         parentT->linktype == LJ_TRLINK_LOOP &&
+         parentT->link == J->parent;
+}
+
 static int lj_record_s390x_vararg_record_guard_enabled(void)
 {
   static int enabled = -1;
@@ -1614,9 +1657,21 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
       if (J->exitno < parentT->nsnap &&
 	  (J->parent == J->cur.root || parentT->root == J->cur.root) &&
 	  parentT->snap[J->exitno].nent == 0) {
-	parentT->snap[J->exitno].count = SNAPCOUNT_DONE;
-	lj_record_s390x_lleave_log(J, "rec_loop_jit_exit0_dup_loop_descendant");
-	lj_trace_err(J, LJ_TRERR_LLEAVE);
+	if (lj_record_s390x_numeric_max_exit0_body_allow(J, parentT)) {
+	  if (lj_record_s390x_stop_log_enabled()) {
+	    fprintf(stderr,
+		    "S390X_NUMERIC_MAX_EXIT0_BODY_ALLOW trace=%u parent=%u exit=%u root=%u pc=%p startop=%u parent_mcloop=%u\n",
+		    (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+		    (unsigned int)J->exitno, (unsigned int)J->cur.root,
+		    (const void *)J->pc,
+		    (unsigned int)bc_op(J->cur.startins),
+		    (unsigned int)parentT->mcloop);
+	  }
+	} else {
+	  parentT->snap[J->exitno].count = SNAPCOUNT_DONE;
+	  lj_record_s390x_lleave_log(J, "rec_loop_jit_exit0_dup_loop_descendant");
+	  lj_trace_err(J, LJ_TRERR_LLEAVE);
+	}
       }
     }
     if (lj_record_s390x_recloop_focus_enabled() &&
