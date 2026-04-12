@@ -3283,7 +3283,7 @@ static void asm_fload(ASMState *as, IRIns *ir)
   IRType1 t = ir->t;
   Reg dest, base;
 
-  if (!(irt_isint(t) || irt_isu32(t) || irt_isaddr(t) ||
+  if (!(irt_isint(t) || irt_isu32(t) || irt_isint64(t) || irt_isaddr(t) ||
 	irt_isu8(t) || irt_isu16(t) || irt_isi8(t) || irt_isi16(t) ||
 	irt_isgcv(t))) {
     asm_s390x_nyi_ir(as, ir);
@@ -3323,7 +3323,7 @@ static void asm_fload(ASMState *as, IRIns *ir)
     }
   }
 
-  if (irt_isaddr(t) || irt_isgcv(t)) {
+  if (irt_isint64(t) || irt_isaddr(t) || irt_isgcv(t)) {
     emit_load64ofs(as, dest, base, ofs);
   } else if (irt_isu8(t)) {
     emit_shiftimm(as, S390XI_SRLG, dest, dest, 56);
