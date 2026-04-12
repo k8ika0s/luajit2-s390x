@@ -29540,3 +29540,34 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   (`number_helper_loop/hot 1.0634x`,
   `number_helper_loop_local_tobit/hot 1.0119x`), so they remain follow-up
   attribution candidates rather than primary matrix changes.
+
+## 2026-04-12: post-`MULOV` retained-env rerank names no material payer
+
+- Source point:
+  `bd0dbb89 Fix s390x guarded MULOV exit state`.
+- Full retained-env rerank:
+  `/tmp/kdz-retained-jitter-20260412104303` ran the full retained matrix on
+  `kdz` with oracle-backed rows included (`samples=5`, `warmup=2`, three
+  alternating passes). It did not name a stable material regression queue.
+- Apparent top rows:
+  `be_helpers_localized/number_helper_loop_local_tobit/hot` had median ratio
+  `1.0413x`, but the absolute median delta was only `+55us` and the helper
+  family is known to be noisy at this scale. `iterator_table/pairs_sum/hot`
+  showed a one-pass spike (`1.3570x`) but also a later green pass (`0.8866x`).
+  `ffi_fixed_call_pressure/gpr_pressure/hot` stayed under the red threshold at
+  median `1.0073x`.
+- Focused confirmation:
+  `/tmp/kdz-bd0dbb89-focused-rerank-202604121047` reran
+  `be_helpers_localized`, `iterator_table`, and `ffi_fixed_call_pressure` with
+  `samples=9`, `warmup=2`, seven alternating passes. Results:
+  `gpr_pressure/hot` median `0.9977x` with `0/7` red passes,
+  `pairs_array_sum/hot` median `0.9986x` with `0/7` red passes,
+  `pairs_sum/hot` median `0.9726x` despite high comparator jitter, and
+  `number_helper_loop_local_tobit/hot` median `1.0007x` with `3/7` red passes
+  and high run-order jitter (`0.6938x..1.4907x`).
+- Read:
+  after the `MULOV` correctness fix, the branch is back to the near-parity /
+  faster retained floor. The regression queue is empty. The next performance
+  target should not be a guard toggle or a tiny residual row; either rerun a
+  higher-sample full matrix when needed, or open a new acceleration lane only
+  when a repeated official-row mechanism appears with material absolute time.

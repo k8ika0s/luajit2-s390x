@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 08:58 PDT
+Last updated: 2026-04-12 10:50 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,13 +8,18 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The current runtime/code source point is the
-  `d3430611 Fix s390x numeric SLOAD integer reentry` floor plus the
-  route-around reducer, static-stop be-pack, and localized be-pack
-  promotion-core guard splits, on top of `411961f6 Split s390x be pack promotion guard`,
-  `52d50a22 Retire obsolete ffi cdata FORL guard`, the iterator guard
-  ordering promotion, and the guardrail promotion from WIP
-  `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
+- The current runtime/code source point is
+  `bd0dbb89 Fix s390x guarded MULOV exit state`. It includes the retained
+  ADDOV/SUBOV overflow work, remote oracle matrix coverage, route-around
+  reducer splits, static-stop and localized be-pack promotion-core guard
+  splits, iterator guard ordering, guardrail promotion, and the latest
+  guarded loop-body `MULOV` exit-state fix.
+- The latest post-`MULOV` rerank on `kdz` is
+  `/tmp/kdz-retained-jitter-20260412104303`, with focused confirmation in
+  `/tmp/kdz-bd0dbb89-focused-rerank-202604121047`. It does not name a stable
+  material official-row payer: `gpr_pressure/hot` confirmed green/parity,
+  iterator rows were jitter/noise, and localized `tobit` had only a tiny
+  median residual after the correctness fix.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
   WIP mirror and are no longer treated as inherited blocking failures.
