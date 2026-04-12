@@ -1,12 +1,13 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 15:20 PDT
+Last updated: 2026-04-12 16:02 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  `b744ec36 Record s390x iterator safety acceleration closure` plus the
-  retained safe constant-bounded `bit.tobit` `MULOV` narrowing candidate,
+  `34a342fe Retain s390x low-level acceleration closures` plus the
+  allocator-safe `asm_prof` closure and retained safe constant-bounded
+  `bit.tobit` `MULOV` narrowing candidate,
   including the retained cdata mixed-width backend closure, the retained
   route-around reducer, static-stop be-pack, localized be-pack
   promotion-core guard splits, iterator/vararg guardrails, remote oracle
@@ -111,6 +112,18 @@ Last updated: 2026-04-12 15:20 PDT
   mixed paths; the fast high-time rows remain clearly accelerated
   (`be_helpers/strto_loop/hot 0.4263x`,
   `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.1577x`).
+- X86-parity closure read:
+  `/tmp/s390x-x86-parity-coverage-asm-prof-20260412d/report.md`,
+  `/tmp/kdz-s390x-parity-coverage-asm-prof-20260412b/report.md`, and
+  `/tmp/zkd0-s390x-parity-coverage-asm-prof-20260412/report.md` now show zero
+  explicit s390x ASM stubs and zero stubbed IR ops after the `asm_prof`
+  hookmask guard implementation. The implemented FP `vm_mod` fast path is now
+  classified as implemented in the inventory instead of stale backlog; only
+  generic `IR_MOD -> IRCALL_lj_vm_modi` fallback remains tracked for
+  non-fast-path integer modulo shapes. The only active VM NYI left in the
+  inventory is compiled vararg `BC_JFUNCV`, which stays parked because the
+  peer backends also leave compiled vararg functions NYI and the recorder
+  asserts this path cannot become hot.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.

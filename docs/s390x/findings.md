@@ -30187,3 +30187,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   regression threshold and the high-time finder only points back at lanes whose
   current-source truth packs already classify as compact compiled-body or
   guard-retained without a named safe lowering mechanism.
+
+## 2026-04-12: `asm_prof` stub closure and final x86-parity NYI read
+
+- Static parity inventory:
+  `/tmp/s390x-x86-parity-coverage-asm-prof-20260412d/report.md`, the remote
+  `kdz` report `/tmp/kdz-s390x-parity-coverage-asm-prof-20260412b/report.md`,
+  and the remote `zkd0` report
+  `/tmp/zkd0-s390x-parity-coverage-asm-prof-20260412/report.md` now show zero
+  explicit s390x ASM stubs and zero stubbed IR ops. The tool also now
+  classifies the implemented s390x FP `vm_mod` fast path as implemented
+  instead of stale tracked backlog, while still keeping generic
+  `IR_MOD -> IRCALL_lj_vm_modi` fallback visible for non-fast-path integer
+  modulo shapes.
+- `asm_prof` fix:
+  [lj_asm_s390x.h](../../src/lj_asm_s390x.h) now lowers `IR_PROF` as a
+  register-allocator-safe hookmask guard: allocate a scratch GPR, materialize
+  `global_State` from `DISPATCH + GG_DISP2G`, test `hookmask` with `TM
+  HOOK_PROFILE`, and guard on `CC_NE`. The first fixed-`RID_TMP` attempt
+  crashed a profiling trace, so it was rejected before retention.
+- Validation:
+  `kdz` synced `src/lj_asm_s390x.h` hash
+  `a48a6f6699856a81d750bfc3bb3a4fe299e09b547f9ea5a7a4f8748eb3fb14db`,
+  rebuilt the canonical mirror, and passed
+  `tests/s390x/jit_core/profile_loop.lua`,
+  `tests/s390x/jit_loops/compiled_vararg.lua`, and a focused profiling trace
+  probe at `/tmp/profile_ir_probe.lua`. The debug `-jdump=ir` probe recorded
+  `IR_PROF` before the unsafe fixed-scratch form crashed; the retained
+  allocator-safe form passes the normal probe. `zkd0` synced the same
+  `src/lj_asm_s390x.h` hash plus `tools/s390x/coverage_inventory.py` hash
+  `e40357584cd2e40406b91295a4fe0e298077dd60cf9f2e741833e6346542f9a3`,
+  rebuilt, and passed the same `profile_loop.lua`, `compiled_vararg.lua`, and
+  `/tmp/profile_ir_probe.lua` focused checks.
+- Remaining NYI:
+  compiled vararg `BC_JFUNCV` is still the only active VM NYI in the closure
+  inventory. It remains parked because x86/x64/arm64 also mark compiled
+  vararg functions NYI, and [lj_record.c](../../src/lj_record.c) asserts that
+  `BC_JFUNCV` cannot happen because there is no hotcall counting for vararg
+  functions. Do not remove the s390x `BC_JFUNCV` trap by simply falling
+  through into `IFUNCV` without a cross-arch semantic plan.
