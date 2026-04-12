@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 18:44 PDT
+Last updated: 2026-04-11 20:12 PDT
 
 ## Post-Guardrail Iterator Checkpoint
 
@@ -69,6 +69,16 @@ Last updated: 2026-04-11 18:44 PDT
   `/tmp/kdz-numeric-ops-retained-rerank-20260411190856` was green including
   `fp_mod_loop/hot 0.000540` vs `-joff 0.004580`. Current state: no stable
   material official-row perf target is named from this rerank.
+- Guardrail-debt sweep reopened one real retained-route-around debt item:
+  `/tmp/kdz-guardrail-debt-20260411195609` and split pass
+  `/tmp/kdz-guardrail-split-20260411200231` showed the retained
+  `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1` guard had become obsolete.
+  Dropping only that env guard keeps the source matcher available for
+  diagnostics, but removes it from the canonical retained env. Host-pair A/B:
+  `kdz` `/tmp/kdz-ffi-cdata-forl-blacklist-ab-20260411200610`
+  moved `pair_loop/hot 0.017311 -> 0.000059` in `5/5` passes; `zkd0`
+  `/tmp/zkd0-ffi-cdata-forl-blacklist-ab-20260411201025`
+  moved `0.025598 -> 0.000072` in `3/3` passes.
 
 ## Canonical Perf Suite
 
@@ -95,7 +105,7 @@ enough for retained policy rows.
 | [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua) | `logical_chain_tail_add` | `chain_tail_add` | recurring logic-chain sibling |
 | [tests/s390x/perf/logical_chain_tail_store.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_store.lua) | `logical_chain_tail_store` | `chain_tail_store` | recurring logic-chain sibling |
 | [tests/s390x/perf/dispatch_trace.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/dispatch_trace.lua) | `dispatch_trace` | `numeric_loop`, `side_exit_loop`, `hotexit_loop` | dispatch-side mechanism suite; repaired after the post-promotion collapse with an exact root-`BC_FORL` proto-NOJIT route-around |
-| [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua) | `ffi_cdata` | `pair_loop`, `mixed_width_loop` | retained pair-loop save-time win plus exact root-FORL blacklist; now near parity and a regression screen |
+| [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua) | `ffi_cdata` | `pair_loop`, `mixed_width_loop`, `buffer_fref_loop` | retained pair-loop save-time win; the older exact root-FORL blacklist is now retired from the retained env after host-pair guardrail-debt proof |
 | [tests/s390x/perf/vararg_paths.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/vararg_paths.lua) | `vararg_paths` | `sum_loop`, `retlast_loop`, `retconst_loop` | vararg regression suite; post-promotion sibling matcher restamp restored the carried near/parity floor |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | `const_same_callsite`, `lua_abs_same_callsite` | callsite/lower-frame regression suite |
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | `number_helper_literal_stop_real`, `number_helper_literal_stop_real_local_tobit`, `be_pack_literal_stop_real` | static-stop mechanism suite |
@@ -141,8 +151,9 @@ latest retained host-backed rows until the next full retained-env rerank.
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; host-pair clean and slightly faster than `-joff` on kdz |
 | `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; restored the promoted carried floor to near/parity |
-| `pair_loop/hot` | `ffi_cdata` | `0.017076` | `0.017281` | `-0.000205`, `0.99x` | `kdz` | `2026-04-10 16:43 PDT` | post-promotion exact root-`BC_FORL` blacklist restamp for `mcloop=316`; host-pair clean |
-| `mixed_width_loop/hot` | `ffi_cdata` | `0.028024` | `0.028030` | `-0.000006`, `1.00x` | `kdz` | `2026-04-10 16:43 PDT` | sibling under the retained pair-loop restamp; noisy but host-pair clean |
+| `pair_loop/hot` | `ffi_cdata` | `0.000059` | `0.017281` | `-0.017222`, `0.003x` | `kdz` | `2026-04-11 20:06 PDT` | retired obsolete retained root-`BC_FORL` blacklist from the canonical env; host-pair A/B clean, zkd0 `0.025598 -> 0.000072` |
+| `mixed_width_loop/hot` | `ffi_cdata` | `0.028126` | `0.028030` | `+0.000096`, `1.00x` | `kdz` | `2026-04-11 20:06 PDT` | sibling under the retired pair-loop blacklist; kdz near parity and zkd0 improved in the confirmation pass |
+| `buffer_fref_loop/hot` | `ffi_cdata` | `0.004945` | `0.005004` | `-0.000059`, `0.99x` | `kdz` | `2026-04-11 20:06 PDT` | FREF/STRTO/modulo coverage row; kdz near parity and zkd0 improved in the confirmation pass |
 | `sum_loop/hot` | `vararg_paths` | `0.004437` | `0.004789` | `-0.000352`, `0.93x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion rerun after the sibling restamp; root-FORL blacklist floor is preserved |
 | `retlast_loop/hot` | `vararg_paths` | `0.001997` | `0.001991` | `+0.000006`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; near parity on trusted kdz and confirmed on zkd0 |
 | `retconst_loop/hot` | `vararg_paths` | `0.000598` | `0.000598` | `+0.000000`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; parity on trusted kdz and confirmed on zkd0 |

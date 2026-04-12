@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 18:44 PDT
+Last updated: 2026-04-11 20:12 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -83,6 +83,22 @@ It is intentionally current-state only. Historical experiment detail lives in
   `fp_mod_loop/hot`. Current policy state: no active material perf seam is
   named; the next code attempt should wait for a fresh repeated same-host A/B
   signal or a new parity backlog item with direct correctness/coverage value.
+- Guardrail-debt mapping then found one retained env guard that is no longer
+  needed: `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1`. The source matcher
+  remains available for explicit diagnostics, but it is removed from the
+  canonical retained env in
+  [restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py).
+  Artifacts:
+  `/tmp/kdz-guardrail-debt-20260411195609`,
+  `/tmp/kdz-guardrail-split-20260411200231`,
+  `/tmp/kdz-ffi-cdata-forl-blacklist-ab-20260411200610`,
+  `/tmp/kdz-ffi-cdata-forl-blacklist-regression-20260411200855`, and
+  `/tmp/zkd0-ffi-cdata-forl-blacklist-ab-20260411201025`. Host-pair result:
+  `ffi_cdata/pair_loop/hot` moved from `0.017311` to `0.000059` on `kdz`
+  (`5/5` passes) and from `0.025598` to `0.000072` on `zkd0` (`3/3` passes).
+  The broader `kdz` candidate guardrail set passed `addsub_overflow_guard`,
+  `numeric_ops`, `pairs_loop`, compiled vararg, `vararg_paths`,
+  `mixed_noffi`, `iterator_table`, and the mixed exact probes.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
@@ -135,7 +151,9 @@ It is intentionally current-state only. Historical experiment detail lives in
   matcher was moved ahead of the broad iterator root fallback:
   trusted `kdz` A/B rows are `0.003846`, `0.003949`, `0.003946` against
   `-joff 0.003861`, `0.003772`, `0.003827`. `mixed_ffi` and `ffi_cdata`
-  remain parked near parity on the carried floor.
+  were near parity before the guardrail-debt sweep; `ffi_cdata/pair_loop` now
+  has a retained host-pair JIT win after dropping the obsolete root-FORL
+  blacklist from the retained env.
 - The follow-up retained-env rerank keeps `mixed_noffi` as the only repeated
   residual, but much smaller than the pre-fix row: combined `kdz` median
   `0.003865` vs `-joff 0.003791`, ratio `1.0219x`. This is an attribution
