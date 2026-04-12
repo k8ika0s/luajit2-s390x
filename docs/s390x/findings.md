@@ -29074,3 +29074,66 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   open another performance code mutation from these numbers alone; the next
   useful work is either higher-sample confirmation of a newly red official row
   or a mechanism-specific truth pack for a named guardrail debt item.
+
+## 2026-04-11: fixed `num SLOAD` integer re-entry for FPR accumulator traces
+
+- Trigger:
+  the extra performance coverage for `ffi_fixed_call_pressure` exposed a
+  correctness failure in `fpr_pressure/hot`: the expected value was
+  `1200240000`, but the traced row returned `0`.
+- Reduced repro:
+  a pure Lua fractional accumulator with an integer initial total reproduced
+  the same failure class:
+  `total = 0; for i = 1, n do total = total + (i + 0.25) end`.
+  After the root trace compiled, repeated calls returned `0` instead of
+  `200015000`.
+- Root cause:
+  [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h) `asm_sload()` treated an
+  integer-tagged TValue as acceptable for a used `num SLOAD` by testing the
+  top tag with a logical shift and `CC_HI` guard. The generated code then
+  loaded the raw integer TValue bits into the FPR destination, so the loop PHI
+  re-entry started from garbage rather than from numeric `0.0`.
+- Failed narrow variant:
+  forcing an exit on the integer tag fixed the pure Lua repro, but it made the
+  FFI pressure row drop the first iteration term. That proved the live path
+  needs the initial integer slot converted to a double for the used
+  `num SLOAD`, not just rejected.
+- Fix:
+  keep the regular double fast path, but change the used `num SLOAD` typecheck
+  to:
+  - arithmetic-tag extract against sign-extended `LJ_TISNUM`
+  - guard only tags above `LJ_TISNUM`
+  - branch over conversion when the tag is an actual double
+  - for the integer tag, load the 32-bit integer payload, sign-extend it with
+    `LGFR`, and convert it into the FPR destination with `CDFBR`
+  Unused typecheck-only `num SLOAD` still exits on integer tags.
+- Regression test:
+  added [tests/s390x/jit_be/num_sload_int_accumulator.lua](../../tests/s390x/jit_be/num_sload_int_accumulator.lua)
+  to assert the traced fractional accumulator returns the same value across
+  repeated calls and records a trace stop.
+- Validation:
+  - `kdz` delivered hashes:
+    `src/lj_asm_s390x.h a973c4d2d7d0e2049b14a7121966b11ae498d5199a2102d20702925ad10cb994`,
+    `tests/s390x/jit_be/num_sload_int_accumulator.lua 98abe6e2a79765f548a339e175e10844dc47c28f879dc557d6159e4d9f2af312`
+  - `kdz` passed the new test, all `tests/s390x/jit_be/*.lua`,
+    `pairs_loop.lua`, `compiled_vararg.lua`, and `tests/s390x/ffi_abi/run.lua`
+  - `kdz` retained-env `ffi_fixed_call_pressure.lua` passed with
+    `fpr_pressure/hot median=0.000267`
+  - `kdz` retained-env `numeric_ops.lua` passed, including
+    `min_loop/hot median=0.000154` and `max_loop/hot median=0.000177`
+  - `kdz` retained-env smoke matrix:
+    `/tmp/kdz-retained-jitter-20260411224707`; it did not name a stable new
+    red payer. `iterator_table/pairs_sum/hot` flipped from `0.7089x` to
+    `1.3955x` across two passes, so it is measurement jitter, not a code
+    target.
+  - `zkd0` passed the new test, all `tests/s390x/jit_be/*.lua`,
+    `ffi_fixed_call_pressure.lua`, and `numeric_ops.lua`
+  - `zkd0` retained-env smoke artifacts:
+    `/tmp/zkd0-retained-jitter-20260411224915` and
+    `/tmp/zkd0-retained-jitter-20260411224940`; these were too noisy for
+    reranking and are recorded as confirmation-only.
+- Read:
+  this closes a real low-level backend hole: used `num SLOAD` re-entry from an
+  integer TValue must convert the integer payload into the FPR destination.
+  The broader performance queue is unchanged until a repeated full-env `kdz`
+  pass names a stable official-row payer.

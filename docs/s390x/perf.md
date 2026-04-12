@@ -4597,3 +4597,32 @@ localized-helper carried-`total` lane
   a material official-row payer. If the team wants to keep pushing for
   above-parity wins, the next work should be mechanism truth packs against a
   named guardrail debt seam, not another broad trace-control edit.
+
+## 2026-04-11 22:50 PDT
+
+- Numeric `SLOAD` FPR accumulator fix:
+  - `ffi_fixed_call_pressure/fpr_pressure/hot` had been failing with a zero
+    result when a traced `num SLOAD` re-entered from an integer initial total.
+  - [lj_asm_s390x.h](../../src/lj_asm_s390x.h) now converts the integer payload
+    into the FPR destination for used `num SLOAD` instead of loading raw integer
+    TValue bits as a double.
+- Focused retained-env `kdz` reads:
+  - `ffi_fixed_call_pressure/fpr_pressure/hot median=0.000267`
+  - `numeric_ops/min_loop/hot median=0.000154`
+  - `numeric_ops/max_loop/hot median=0.000177`
+- Broad retained-env `kdz` smoke:
+  `/tmp/kdz-retained-jitter-20260411224707`.
+  The run stayed near the recovered floor and did not name a stable new red
+  payer. The largest apparent row, `iterator_table/pairs_sum/hot`, flipped from
+  `0.7089x` to `1.3955x` across two alternating passes and is not a retained
+  signal.
+- `zkd0`:
+  passed the new regression test, all `jit_be` tests, `ffi_fixed_call_pressure`,
+  and `numeric_ops`. The retained-env smoke artifacts
+  `/tmp/zkd0-retained-jitter-20260411224915` and
+  `/tmp/zkd0-retained-jitter-20260411224940` were noisy confirmation reads, not
+  queue-ranking evidence.
+- Current queue:
+  unchanged. Keep performance code edits parked until a repeated full-env
+  `kdz` pass names a material official-row payer; use mechanism truth packs if
+  continuing above-parity exploration.
