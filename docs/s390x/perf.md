@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 17:08 PDT
+Last updated: 2026-04-11 17:51 PDT
 
 ## Post-Guardrail Iterator Checkpoint
 
@@ -41,10 +41,10 @@ Last updated: 2026-04-11 17:08 PDT
   `pairs_sum/hot 0.009195` vs opt-out `0.021250`, and
   `pairs_array_sum/hot 0.006530` vs opt-out `0.017199`.
 - Current performance read:
-  the official iterator payer is closed on the trusted `kdz` policy signal.
-  After this promotion lands in WIP, the next step is a fresh full retained-env
-  rerank. Do not open another iterator trace-control edit unless a new
-  repeated official-row payer is named.
+  after the iterator guard promotion, the fresh retained-env rerank named
+  `mixed_noffi` as the only repeated material residual. The follow-up ordering
+  fix restores the exact mixed `BC_ITERL` path ahead of the broad iterator
+  fallback and moves `mixed_loop/hot` back to near parity on `kdz`.
 
 ## Canonical Perf Suite
 
@@ -105,7 +105,7 @@ latest retained host-backed rows until the next full retained-env rerank.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `pairs_sum/hot` | `iterator_table` | `0.004472` | `0.004675` | `-0.000203`, `0.96x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.010467`; zkd0 default `0.009195` vs opt-out `0.021250` |
 | `pairs_array_sum/hot` | `iterator_table` | `0.003716` | `0.004274` | `-0.000558`, `0.87x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.008237`; zkd0 default `0.006530` vs opt-out `0.017199` |
-| `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
+| `mixed_loop/hot` | `mixed_noffi` | `0.003946` | `0.003827` | `+0.000119`, `1.03x` | `kdz` | `2026-04-11 17:44 PDT` | exact mixed `BC_ITERL` blacklist now runs before the broad iterator root fallback; mechanism marker `S390X_MIXED_NOFFI_ITERL_BLACKLIST` re-engages at trace 1 |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
 | `number_helper_loop/hot` | `be_helpers` | `0.002378` | `0.002280` | `+0.000098`, `1.04x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
 | `be_pack_loop/hot` | `be_helpers` | `0.018912` | `0.018973` | `-0.000061`, `1.00x` | `kdz` | `2026-04-10 16:10 PDT` | exact helper route-around; host-pair clean and at parity on kdz |
@@ -137,7 +137,7 @@ shrink.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `pairs_sum/hot` | `iterator_table` | `0.004472` | `0.004675` | `-0.000203`, `0.96x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.010467`; zkd0 default `0.009195` vs opt-out `0.021250` |
 | `pairs_array_sum/hot` | `iterator_table` | `0.003716` | `0.004274` | `-0.000558`, `0.87x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.008237`; zkd0 default `0.006530` vs opt-out `0.017199` |
-| `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
+| `mixed_loop/hot` | `mixed_noffi` | `0.003946` | `0.003827` | `+0.000119`, `1.03x` | `kdz` | `2026-04-11 17:44 PDT` | exact mixed `BC_ITERL` blacklist now runs before the broad iterator root fallback; mechanism marker `S390X_MIXED_NOFFI_ITERL_BLACKLIST` re-engages at trace 1 |
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; zkd0 confirmation `0.002530` vs `-joff 0.003831` |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.005002` vs `-joff 0.007007` |
 | `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.006005` vs `-joff 0.009427` |

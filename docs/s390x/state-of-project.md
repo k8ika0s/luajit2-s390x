@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 17:08 PDT
+Last updated: 2026-04-11 17:51 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -47,10 +47,13 @@ It is intentionally current-state only. Historical experiment detail lives in
   `pairs_array_sum/hot 0.006530` vs opt-out `0.017199`.
 - Current performance read:
   iterator is no longer the active top payer on the trusted `kdz` policy
-  signal. After the promotion lands in WIP, rerun the full retained-env matrix
-  before opening another performance patch; the likely next residual is
-  `mixed_noffi` only if repeated same-host A/B confirms it on the promoted
-  branch.
+  signal. The next retained-env rerank named `mixed_noffi` as the only repeated
+  material residual, and the follow-up exact ordering fix restores the mixed
+  `BC_ITERL` blacklist before the broad iterator root fallback. Trusted `kdz`
+  A/B now has `mixed_loop/hot 0.003946` vs `-joff 0.003827`, with the
+  official mechanism marker `S390X_MIXED_NOFFI_ITERL_BLACKLIST` re-engaged at
+  trace 1. `zkd0` remains too noisy for a ratio decision, but confirms the
+  same marker ordering and keeps `pairs_loop` passing.
 - The retained env contract is canonicalized in
   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   and imported by the iterator, dispatch, and broader-throughput truth-pack
@@ -108,9 +111,11 @@ It is intentionally current-state only. Historical experiment detail lives in
   default is materially better than opt-out:
   `pairs_sum/hot 0.009195` vs `0.021250`, and
   `pairs_array_sum/hot 0.006530` vs `0.017199`.
-- `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity on the
-  carried floor; `mixed_noffi` still has noisy reads and should not be
-  reopened without a fresh exact attribution.
+- `mixed_noffi` is restored to near parity after the exact mixed `BC_ITERL`
+  matcher was moved ahead of the broad iterator root fallback:
+  trusted `kdz` A/B rows are `0.003846`, `0.003949`, `0.003946` against
+  `-joff 0.003861`, `0.003772`, `0.003827`. `mixed_ffi` and `ffi_cdata`
+  remain parked near parity on the carried floor.
 - `dispatch_trace` reopened after the ISA promotion, but is now stabilized
   again with an exact root-`BC_FORL` proto-NOJIT route-around in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
