@@ -28481,3 +28481,77 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   lands in WIP, the next performance move is a fresh full retained-env rerank;
   do not open another iterator trace-control edit unless a new repeated
   official-row payer is named.
+
+## 2026-04-11: restore mixed_noffi exact path after iterator guard promotion
+
+- Scope:
+  close the single material residual named by the post-iterator-guard rerank
+  without disabling the broad iterator root fallback that protects
+  `pairs_loop` and non-exact iterator shapes.
+- Attribution inputs:
+  - full retained-env rerank:
+    `/tmp/kdz-post-iterator-guard-full-retained-20260411171540`
+    - `mixed_noffi/mixed_loop/hot` was red in `3/3` passes:
+      `1.2449x`, `1.3007x`, `1.3570x`
+    - iterator, dispatch, vararg, cdata, calls, and helper rows were green,
+      noisy, or not repeated material payers
+  - mixed truth pack:
+    `/tmp/20260411-kdz-mixed_noffi-retained_baseline-truth-pack`
+    - official row was compiled-body dominated:
+      `TRACE_START 8`, `TRACE_STOP 1`, `TRACE_ABORT 7`, `TEXIT_COUNT 0`
+  - component split:
+    `/tmp/mixed-components-20260411172051`
+    - advisory only because it used a temporary chunk, but it isolated the
+      red component to hash `pairs(map)`:
+      `pairs_only/hot 2.5872x`, while `no_pairs/hot 0.7390x`
+- Root cause:
+  after the iterator guard promotion, the broad
+  `S390X_ITERATOR_ROOT_BLACKLIST` matched the official mixed `BC_ITERL` root
+  before the older exact `S390X_MIXED_NOFFI_ITERL_BLACKLIST` could engage.
+  Pre-fix official meta log showed `S390X_ITERATOR_ROOT_BLACKLIST` for trace 1
+  at `startop=BC_ITERL`, `linktype=LJ_TRLINK_LOOP`, `nsnap=2`, `nins=32792`,
+  `mcloop=360`.
+- Implemented candidate:
+  in [lj_trace.c](../../src/lj_trace.c), moved the existing exact
+  `lj_trace_s390x_mixed_noffi_iterl_blacklist_match()` block ahead of the broad
+  `lj_trace_s390x_iterator_root_blacklist_match()` block in the
+  `BC_LOOP` / `BC_ITERL` stop path. No matcher shape, blacklist policy, VM
+  lowering, recorder logic, or stitched/hotside lane changed.
+- `kdz` validation:
+  - retained-env A/B artifact:
+    `/tmp/kdz-mixed-order-candidate-20260411174457`
+  - `mixed_noffi/mixed_loop/hot` improved to:
+    - pass 1: `0.003846` vs `-joff 0.003861`
+    - pass 2: `0.003949` vs `-joff 0.003772`
+    - pass 3: `0.003946` vs `-joff 0.003827`
+  - mechanism artifact:
+    `/tmp/mixed-order-mechanism-20260411174654.stderr.log`
+    - `S390X_MIXED_NOFFI_ITERL_BLACKLIST 1`
+    - `S390X_ITERATOR_ROOT_BLACKLIST 0`
+    - marker line:
+      `trace=1 startop=82 link=1 linktype=2 nsnap=2 nins=32792 mcloop=360 proto_nojit=1`
+  - guardrails passed:
+    `tests/s390x/jit_loops/pairs_loop.lua`,
+    `tests/s390x/perf/iterator_table.lua`,
+    `tests/s390x/perf/vararg_paths.lua`,
+    and `tests/s390x/perf/dispatch_trace.lua`
+  - `/tmp/hash_value.lua` still returned `HASH_VALUE 3000`
+  - local `/tmp/mixedprobe.lua` and `/tmp/ipairs_only_probe.lua` on `kdz`
+    were stale/different probe bodies, returning `112320` and `27072000`;
+    these were not used as policy exactness evidence for this tranche
+- `zkd0` confirmation:
+  - artifacts:
+    `/tmp/zkd0-mixed-order-candidate-20260411174747`,
+    `/tmp/zkd0-mixed-order-focused-20260411175000`, and
+    `/tmp/mixed-order-zkd0-mechanism-20260411175105.stderr.log`
+  - host was too noisy for a ratio decision, with unrelated dispatch and
+    vararg swings, but mechanism matched `kdz`:
+    `S390X_MIXED_NOFFI_ITERL_BLACKLIST 1`,
+    `S390X_ITERATOR_ROOT_BLACKLIST 0`
+  - `pairs_loop` passed with `pairs total 5050`
+- Read:
+  retain the ordering fix. It restores the exact mixed-noffi path that existed
+  before the broad iterator fallback stole the official mixed root, while
+  leaving the broad iterator root blacklist available for unsafe non-exact
+  iterator shapes. The next move should be another retained-env rerank from
+  this new floor rather than another mixed trace-control edit.
