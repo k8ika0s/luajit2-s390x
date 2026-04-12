@@ -28684,3 +28684,91 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `kdz` from this pass. Keep the current retained source unchanged. The next
   code work should require either a fresh repeated A/B signal or a deliberate
   parity-backlog target, not another near-parity trace-control guess.
+
+## 2026-04-11: retired obsolete ffi_cdata root-FORL guard from retained env
+
+- Starting point:
+  `6db97d3c Document retained rerank closure`, tracked-file synced and rebuilt
+  on canonical `kdz` / `zkd0` mirrors.
+- Guardrail debt sweep:
+  `/tmp/kdz-guardrail-debt-20260411195609`.
+  This ran the full retained env, then removed or disabled one guardrail group
+  at a time on official hot rows only. Most opt-outs were neutral, unsafe, or
+  slower:
+  - iterator exact proto-NOJIT opt-out regressed `iterator_table` back toward
+    the slow fallback while staying correct.
+  - broad iterator root blacklist opt-out was neutral for official iterator
+    rows but timed out `pairs_loop.lua` (`124`), so it stays retained.
+  - mixed-noffi exact guard removal slowed `mixed_loop/hot`.
+  - full vararg guard removal segfaulted (`139`); the individual root
+    blacklist / record guard opt-outs were tiny/noisy.
+  - `gc64_signed_int_sload` opt-out was correctness-clean but catastrophically
+    slower on numeric and mixed rows, so the signed integer SLOAD fix stays
+    retained.
+- Split sweep:
+  `/tmp/kdz-guardrail-split-20260411200231`.
+  This isolated the material `ffi_cdata` signal to one retained env guard:
+  removing `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST=1` moved
+  `ffi_cdata/pair_loop/hot` from `0.018252` to `0.000056` while
+  `ffi_cdata.lua`, `mixed_ffi.lua`, and `ffi_calls.lua` stayed correct.
+  Removing `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1` alone only moved
+  `pair_loop/hot` to `0.017172`, so the root-FORL blacklist was the real debt.
+- Mechanism:
+  `/tmp/kdz-ffi-cdata-forl-blacklist-mechanism-20260411200805`.
+  The retained control fired exactly one
+  `S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` at the official root:
+  `trace=1`, `startop=BC_FORL`, `linktype=LOOP`, `nsnap=7`, `nins=32798`,
+  `mcloop=316`. The candidate fired zero such markers and kept the same six
+  trace-meta stops, so this is a retained-env route-around removal, not a new
+  trace-control mutation.
+- `kdz` focused A/B:
+  `/tmp/kdz-ffi-cdata-forl-blacklist-ab-20260411200610`.
+  With only `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` removed from the
+  retained env:
+  - `pair_loop/hot`: `0.017311 -> 0.000059`, win in `5/5` passes
+  - `buffer_fref_loop/hot`: `0.004860 -> 0.004945`
+  - `mixed_width_loop/hot`: `0.027921 -> 0.028126`
+  The sibling movement is small on `kdz` and was not seen as a regression on
+  `zkd0`.
+- `kdz` candidate guardrail screen:
+  `/tmp/kdz-ffi-cdata-forl-blacklist-regression-20260411200855`.
+  Clean:
+  - `tests/s390x/jit_be/addsub_overflow_guard.lua`
+  - `tests/s390x/jit_be/numeric_ops.lua`
+  - `tests/s390x/jit_loops/pairs_loop.lua`
+  - `tests/s390x/jit_loops/compiled_vararg.lua`
+  - `tests/s390x/perf/vararg_paths.lua`
+  - `tests/s390x/perf/mixed_noffi.lua`
+  - `tests/s390x/perf/iterator_table.lua`
+  - `/tmp/mixedprobe.lua`, `/tmp/hash_value.lua`, `/tmp/ipairs_only_probe.lua`
+  Focused hot rows under the candidate env included
+  `ffi_cdata/pair_loop/hot 0.000060`, `iterator_table/pairs_sum/hot 0.004202`,
+  `mixed_noffi/mixed_loop/hot 0.004033`, and green `numeric_ops` rows including
+  `fp_mod_loop/hot 0.000540`.
+- `zkd0` host confirmation:
+  `/tmp/zkd0-ffi-cdata-forl-blacklist-ab-20260411201025`.
+  With the same single env guard removed:
+  - `pair_loop/hot`: `0.025598 -> 0.000072`, win in `3/3` passes
+  - `mixed_width_loop/hot`: `0.052304 -> 0.046427`
+  - `buffer_fref_loop/hot`: `0.008366 -> 0.007153`
+- Retained change:
+  remove `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` from the canonical
+  `RETAINED_BASELINE_ENV` in
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py).
+  The source matcher remains available as an explicit diagnostic/opt-in path,
+  but it is no longer part of the retained policy env.
+- Post-edit retained-env verification:
+  `/tmp/kdz-post-retained-env-ffi-cdata-20260411201412`.
+  The updated helper now reaches the fast path without a manual opt-out:
+  `pair_loop/hot` reads `0.000059`, `0.000060`, `0.000059` across the three
+  retained-env passes; `mixed_width_loop/hot` stays near parity and
+  `buffer_fref_loop/hot` is a small/noisy sibling row.
+- Next map:
+  the same guardrail sweep also showed a larger but unsafe-looking
+  `be_helpers` debt: removing `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT`
+  makes `be_pack_loop/hot` extremely fast (`0.020834 -> 0.000327`) but regresses
+  `number_helper_loop/hot` (`0.002203 -> 0.004294`). Do not drop that guard
+  broadly. If the next frontier targets this debt, split the promotion-core
+  route-around by exact helper family or fix the underlying backend/runtime
+  mechanism that lets `be_pack_loop` compile without reopening the
+  `number_helper_loop` regression.
