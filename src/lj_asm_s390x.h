@@ -856,8 +856,11 @@ static int asm_s390x_int_minmax_enabled(void)
 static int asm_s390x_narrow_xstore_enabled(void)
 {
   static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_NARROW_XSTORE") != NULL);
+  if (enabled == -1) {
+    const char *opt_in = getenv("LUAJIT_S390X_NARROW_XSTORE");
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_NARROW_XSTORE");
+    enabled = (opt_out == NULL) || opt_in != NULL;
+  }
   return enabled;
 }
 
@@ -2664,7 +2667,7 @@ static void asm_mul(ASMState *as, IRIns *ir)
 static int asm_modk_int(ASMState *as, IRIns *ir)
 {
   IRIns *k = IR(ir->op2);
-  Reg left, divr;
+  Reg dest, left, divr;
   RegSet allow;
   MCode *l_done;
   const Reg rem = RID_R4;
@@ -2677,17 +2680,25 @@ static int asm_modk_int(ASMState *as, IRIns *ir)
   ** Use DSGR to avoid the generic lj_vm_modi helper on the common traced
   ** loop-index path. Keep all other cases on the existing helper fallback.
   */
-  ra_destreg(as, ir, rem);
-  ra_evictset(as, RID2RSET(quot));
+  allow = RSET_GPR_NOB;
+  rset_clear(allow, rem);
+  rset_clear(allow, quot);
+  dest = ra_dest_nobase(as, ir, allow, -278);
+  ra_evictset(as, RID2RSET(rem)|RID2RSET(quot));
+  ra_modified(as, rem);
   ra_modified(as, quot);
   allow = RSET_GPR_NOB;
   rset_clear(allow, rem);
   rset_clear(allow, quot);
-  left = ra_alloc1_nobase(as, ir->op1, allow, -278);
+  rset_clear(allow, dest);
+  left = ra_alloc1_nobase(as, ir->op1, allow, -279);
   allow = rset_exclude(RSET_GPR_NOB, left);
   rset_clear(allow, rem);
   rset_clear(allow, quot);
+  rset_clear(allow, dest);
   divr = ra_allock(as, k->i, allow);
+  if (dest != rem)
+    emit_movrr(as, ir, dest, rem);
   l_done = as->mcp;
   emit_u32(as, S390X_INS_RXE(S390XI_AGR, rem, divr));
   emit_condbranch(as, CC_GE, l_done);

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 10:50 PDT
+Last updated: 2026-04-12 11:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,18 +8,22 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The current runtime/code source point is
-  `bd0dbb89 Fix s390x guarded MULOV exit state`. It includes the retained
-  ADDOV/SUBOV overflow work, remote oracle matrix coverage, route-around
-  reducer splits, static-stop and localized be-pack promotion-core guard
-  splits, iterator guard ordering, guardrail promotion, and the latest
-  guarded loop-body `MULOV` exit-state fix.
-- The latest post-`MULOV` rerank on `kdz` is
+- The current runtime/code source point is `f2b0707c Fix s390x 64-bit integer
+  FLOAD` plus the retained cdata mixed-width backend closure. It includes the
+  retained ADDOV/SUBOV and MULOV overflow work, remote oracle matrix coverage,
+  route-around reducer splits, static-stop and localized be-pack promotion-core
+  guard splits, iterator guard ordering, guardrail promotion, the FFI GPR
+  `IR_FLOAD` closure, and the cdata mixed-width `MOD` / narrow-`XSTORE`
+  closure.
+- The latest full-matrix rerank remains the post-`MULOV` read on `kdz`:
   `/tmp/kdz-retained-jitter-20260412104303`, with focused confirmation in
   `/tmp/kdz-bd0dbb89-focused-rerank-202604121047`. It does not name a stable
   material official-row payer: `gpr_pressure/hot` confirmed green/parity,
   iterator rows were jitter/noise, and localized `tobit` had only a tiny
-  median residual after the correctness fix.
+  median residual after the correctness fix. Since that rerank, the
+  low-level acceleration truth packs retained two large wins without changing
+  the guardrail policy: FFI GPR `gpr_pressure/hot` and
+  `ffi_cdata/mixed_width_loop/hot`.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
   WIP mirror and are no longer treated as inherited blocking failures.
@@ -944,13 +948,20 @@ interpretation.
   signal.
 - Treat the earlier `mixed_width_loop` no-code read as advisory only; reopen it
   for fresh attribution after the localized `bit.tobit` lane if no larger
-  low-level payer lands first. `gpr_pressure` has moved from no-code closure to
-  retained backend closure: `asm_fload()` now supports 64-bit integer cdata
-  field loads, which eliminates the official `IR_FLOAD` abort chain and moves
-  the row into the compiled fast band on both hosts.
-- Next acceleration queue after the FFI GPR closure:
-  localized `bit.tobit` overflow-chain attribution first, cdata mixed-width
-  second, iterator safety debt third. Keep broad guardrail removal out of
+  low-level payer lands first. That fresh attribution has now landed as a
+  retained backend closure: `asm_modk_int()` no longer pins every modulo result
+  to fixed `R4`, and the now-correct narrow `XSTORE` slice is default-on with
+  `LUAJIT_S390X_DISABLE_NARROW_XSTORE=1` as the diagnostic opt-out.
+  `ffi_cdata/mixed_width_loop/hot` is now in the compiled fast band on both
+  hosts (`kdz 0.000271` vs `0.028213 -joff`; `zkd0 0.000346` vs
+  `0.037485 -joff`).
+- `gpr_pressure` also moved from no-code closure to retained backend closure:
+  `asm_fload()` now supports 64-bit integer cdata field loads, which
+  eliminates the official `IR_FLOAD` abort chain and moves the row into the
+  compiled fast band on both hosts.
+- Next acceleration queue after the FFI GPR and cdata mixed-width closures:
+  iterator safety-debt attribution, unless a fresh full retained-env matrix
+  names a larger official-row payer first. Keep broad guardrail removal out of
   scope unless a truth pack proves a correctness-safe replacement mechanism.
 
 ## Where To Look Next
