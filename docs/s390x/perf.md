@@ -1,19 +1,20 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 07:56 PDT
+Last updated: 2026-04-12 08:45 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
   the `d3430611 Fix s390x numeric SLOAD integer reentry` floor plus the
-  route-around reducer and static-stop be-pack promotion-core guard splits
-  recorded below. The retained
+  route-around reducer, static-stop be-pack, and localized be-pack
+  promotion-core guard splits recorded below. The retained
   env omits the obsolete `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` guard,
   keeps the broad promotion-core guard for the retained route-around families,
   excludes the exact `be_helpers.lua` `be_pack_loop` root, the exact
   `route_around_reducers.lua` be-pack reducer family, and the exact
-  `promotion_core_static_stop.lua` be-pack literal root so those shapes can
-  compile.
+  `promotion_core_static_stop.lua` be-pack literal root, and now excludes the
+  exact `be_helpers_localized.lua` `be_pack_loop_local_ops_real` root so
+  those shapes can compile.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
@@ -181,6 +182,21 @@ Last updated: 2026-04-12 07:56 PDT
   current queue should therefore stay in attribution mode: do not open another
   performance code lane until a fresh same-host A/B or truth pack names a
   larger repeated payer.
+- Localized be-pack split:
+  focused proof `/tmp/kdz-retained-jitter-20260412082931` plus truth pack
+  [20260412-kdz-be_helpers_localized-retained_baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260412-kdz-be_helpers_localized-retained_baseline-truth-pack/summary.md)
+  showed `be_helpers_localized/be_pack_loop_local_ops_real/hot` was still
+  over-parked by `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` in the
+  official benchmark. Broadly removing the guard moved the be-pack root to
+  `0.000256` but regressed the localized number-helper sibling, so the
+  retained fix excludes only the exact localized be-pack root
+  (`firstline=19`, `numline=14`, `nsnap=4`, `nins=32821`, `mcloop=656`).
+  `kdz` `/tmp/kdz-retained-jitter-20260412083613` moved
+  `be_pack_loop_local_ops_real/hot` to median ratio `0.0307x`; broader screen
+  `/tmp/kdz-retained-jitter-20260412083948` kept stable retained families in
+  band. `zkd0` `/tmp/zkd0-retained-jitter-20260412084217` confirmed the
+  target row in the fast band (`0.0236x..0.0296x`) while keeping adjacent
+  be-pack/static/route rows fast.
 
 ## Canonical Perf Suite
 
@@ -213,7 +229,7 @@ enough for retained policy rows.
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | `const_same_callsite`, `lua_abs_same_callsite` | callsite/lower-frame regression suite |
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | `number_helper_literal_stop_real`, `number_helper_literal_stop_real_local_tobit`, `be_pack_literal_stop_real` | static-stop mechanism suite; exact be-pack literal root is now excluded from the broad promotion-core proto-NOJIT guard and allowed to compile |
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | `direct_abs_literal_stop_real`, `stored_abs_literal_stop_real` | static-stop FFI regression suite |
-| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | `number_helper_loop_local_tobit`, `be_pack_loop_local_ops_real` | localized helper experiments |
+| [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | `number_helper_loop_local_tobit`, `be_pack_loop_local_ops_real` | localized helper experiments; exact be-pack root is now excluded from the broad promotion-core proto-NOJIT guard while the number-helper root remains guarded |
 | [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | `be_pack_literal_stop`, `be_pack_literal_stop_local_ops`, `be_pack_loop_local_ops` | reducer route-around experiments; exact be-pack reducer family is now excluded from the broad promotion-core proto-NOJIT guard and allowed to compile |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | `add_phi_only` | narrow integer-phi experiment |
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | `logic_add_phi_noboundary` | narrow logic-phi experiment |

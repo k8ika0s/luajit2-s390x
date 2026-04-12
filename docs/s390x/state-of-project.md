@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 07:56 PDT
+Last updated: 2026-04-12 08:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -10,8 +10,8 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 - The current runtime/code source point is the
   `d3430611 Fix s390x numeric SLOAD integer reentry` floor plus the
-  route-around reducer and static-stop be-pack promotion-core guard splits, on top of
-  `411961f6 Split s390x be pack promotion guard`,
+  route-around reducer, static-stop be-pack, and localized be-pack
+  promotion-core guard splits, on top of `411961f6 Split s390x be pack promotion guard`,
   `52d50a22 Retire obsolete ffi cdata FORL guard`, the iterator guard
   ordering promotion, and the guardrail promotion from WIP
   `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
@@ -185,6 +185,19 @@ It is intentionally current-state only. Historical experiment detail lives in
   `logic_add_phi_noboundary` residuals collapsed in focused confirmation
   `/tmp/kdz-retained-jitter-20260412081718`; the former was median `0.9964x`
   and the latter was only `1.0096x` with a tiny absolute delta.
+- Follow-up guardrail-debt proof found one more exact promotion-core split:
+  `be_helpers_localized/be_pack_loop_local_ops_real/hot`. Retained-env meta
+  showed the official localized be-pack root was still parked by
+  `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`, while broad removal made
+  the be-pack root fast but regressed the localized number-helper sibling.
+  The retained fix excludes only the official localized be-pack root
+  (`firstline=19`, `numline=14`, `nsnap=4`, `nins=32821`, `mcloop=656`) from
+  the guard. `kdz` `/tmp/kdz-retained-jitter-20260412083613` moved
+  `be_pack_loop_local_ops_real/hot` to median ratio `0.0307x`; broader `kdz`
+  screen `/tmp/kdz-retained-jitter-20260412083948` kept the stable retained
+  families in band. `zkd0` `/tmp/zkd0-retained-jitter-20260412084217`
+  confirmed the target at `0.0236x..0.0296x`, with guardrail smokes and exact
+  mixed probes clean.
 - Current forward map:
   rerun the retained-env rerank after each guardrail-debt closure before
   opening another code lane. Do not reopen the latest noisy iterator, vararg,

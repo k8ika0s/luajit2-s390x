@@ -29297,3 +29297,81 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   again near parity or faster, with no stable material official-row payer.
   The next code lane should come from a fresh guardrail-debt or truth-pack
   signal, not from the small post-split residuals above.
+
+## 2026-04-12: unparked the localized be-pack root
+
+- Starting point:
+  `41a1560d Record s390x post static split rerank`.
+- Focused `kdz` proof sweep:
+  `/tmp/kdz-retained-jitter-20260412082931`.
+  The only repeated red-ish row was
+  `be_helpers_localized/be_pack_loop_local_ops_real/hot`, median ratio
+  `1.0782x`, while the already split `be_helpers/be_pack_loop`,
+  `promotion_core_static_stop/be_pack_literal_stop_real`, and
+  `route_around_reducers` be-pack rows stayed in the fast band.
+- Truth pack:
+  [20260412-kdz-be_helpers_localized-retained_baseline-truth-pack](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260412-kdz-be_helpers_localized-retained_baseline-truth-pack/summary.md).
+  The official benchmark showed `be_pack_loop_local_ops_real/hot` at
+  `0.007968` vs `-joff 0.007595` (`1.05x`), but the focused reducer did not
+  reproduce the official shape: reduced `be_pack_loop_local_ops_real` ran at
+  `0.000247` with `TEXIT_COUNT 1`, while reduced
+  `number_helper_loop_local_tobit` was exit-dominated with
+  `TEXIT_COUNT 31233`. This made official-row trace meta mandatory before
+  patching.
+- Official meta:
+  `/tmp/kdz-be-helpers-localized-meta-202604120836.log` showed both roots
+  still hit `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT`:
+  - number-helper root: `firstline=10`, `nsnap=4`, `nins=32788`,
+    `mcloop=296`
+  - be-pack root: `firstline=19`, `nsnap=4`, `nins=32821`, `mcloop=656`
+- Causality:
+  `/tmp/kdz-be-helpers-localized-nopromo-202604120838.log` removed the broad
+  promotion-core guard from the official row. That moved
+  `be_pack_loop_local_ops_real/hot` to `0.000256`, but regressed
+  `number_helper_loop_local_tobit/hot` to `0.002512`. This ruled out dropping
+  the broad guard and named an exact be-pack-only exclusion.
+- Fix:
+  add an exact exclusion in
+  [src/lj_trace.c](../../src/lj_trace.c)
+  `lj_trace_s390x_promotion_core_forl_proto_nojit_match()` for the official
+  `@tests/s390x/perf/be_helpers_localized.lua` be-pack root:
+  `firstline=19`, `numline=14`, `nsnap=4`, `nins=32821`, `mcloop=656`.
+  The localized number-helper root remains parked by the broad guard.
+- Mechanism validation:
+  `/tmp/kdz-be-helpers-localized-candidate-meta-202604120843.log` showed
+  `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` only for the number-helper root.
+  The be-pack root stopped as a compiled root with the same
+  `firstline=19`, `nsnap=4`, `nins=32821`, `mcloop=656` shape and no guard
+  marker.
+- `kdz` focused A/B:
+  `/tmp/kdz-retained-jitter-20260412083613`.
+  `be_helpers_localized/be_pack_loop_local_ops_real/hot` moved to
+  `0.0299x`, `0.0299x`, `0.0307x`, `0.0308x`, and `0.0321x` of `-joff`
+  across five passes. Adjacent `be_helpers`, `promotion_core_static_stop`,
+  and `route_around_reducers` be-pack rows stayed fast. The localized
+  number-helper sibling showed only tiny absolute jitter (`+7us..+102us`).
+- Broader `kdz` screen:
+  `/tmp/kdz-retained-jitter-20260412083948`.
+  Stable retained families remained in band; the broad helper failed only
+  when run with all default families because the remote mirror lacks
+  `tests/s390x/ffi_abi/build/liboracle.so` for
+  `ffi_fixed_call_pressure.lua`, so the regression screen explicitly used the
+  stable family subset.
+- Guardrails:
+  `/tmp/kdz-guardrails-localized-bepack-202604120844.log` returned cleanly for
+  `addsub_overflow_guard.lua`, `numeric_ops.lua`, `pairs_loop.lua`, retained
+  `iterator_table.lua`, `vararg_paths.lua`, `mixed_noffi.lua`, and
+  `dispatch_trace.lua`.
+- `zkd0` confirmation:
+  `/tmp/zkd0-retained-jitter-20260412084217` kept the target row fast
+  (`0.0287x`, `0.0236x`, `0.0296x`). `zkd0` number-helper/static rows remain
+  noisy confirmation-only, but exact probes and guardrails passed in
+  `/tmp/zkd0-guardrails-localized-bepack-202604120845.log`:
+  `mixedprobe 553416`, `hash_value 3000`, `ipairs_only 576000`,
+  `pairs_loop.lua`, retained `iterator_table.lua`, `vararg_paths.lua`,
+  `mixed_noffi.lua`, and `dispatch_trace.lua`.
+- Read:
+  this is a third exact promotion-core route-around debt split. It does not
+  change the broad guard policy: only the proven safe localized be-pack root
+  is allowed to compile, while the localized number-helper and other retained
+  unsafe promotion-core roots remain parked.
