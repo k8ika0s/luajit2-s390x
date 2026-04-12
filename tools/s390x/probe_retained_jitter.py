@@ -40,6 +40,10 @@ BENCH_FILES: dict[str, str] = {
     "route_around_reducers": "tests/s390x/perf/route_around_reducers.lua",
     "vararg_paths": "tests/s390x/perf/vararg_paths.lua",
 }
+ORACLE_BENCH_FAMILIES = {
+    "ffi_fixed_call_pressure",
+    "ffi_fixed_struct_calls",
+}
 
 
 def write_text(path: pathlib.Path, text: str) -> None:
@@ -79,6 +83,19 @@ def parse_env_overrides(items: list[str]) -> dict[str, str]:
             raise SystemExit(f"invalid --env entry {item!r}; missing KEY")
         overrides[key] = value
     return overrides
+
+
+def build_remote_oracles(host: str, repo: str, raw_dir: pathlib.Path) -> None:
+    script = f"""
+set -euo pipefail
+cd {shlex.quote(repo)}
+CC=gcc sh tests/s390x/build_oracles.sh
+test -s tests/s390x/ffi_abi/build/liboracle.so
+"""
+    proc = restamp.run_ssh_script(host, script)
+    write_text(raw_dir / "oracle-build.stdout.log", proc.stdout)
+    write_text(raw_dir / "oracle-build.stderr.log", proc.stderr)
+    restamp.require_ok(proc, f"{host} oracle build")
 
 
 def build_luajit_line(
@@ -317,6 +334,8 @@ def main() -> int:
         restamp.sync_tracked_files(host, repo)
     if not args.skip_build:
         restamp.build_remote_repo(host, repo, raw_dir)
+    if any(family in ORACLE_BENCH_FAMILIES for family in families):
+        build_remote_oracles(host, repo, raw_dir)
     proc = restamp.run_ssh_script(host, f"mkdir -p {shlex.quote(remote_tmp)}")
     restamp.require_ok(proc, f"{host} retained jitter remote tmp")
 

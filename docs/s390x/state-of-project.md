@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 08:45 PDT
+Last updated: 2026-04-12 08:58 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -198,11 +198,21 @@ It is intentionally current-state only. Historical experiment detail lives in
   families in band. `zkd0` `/tmp/zkd0-retained-jitter-20260412084217`
   confirmed the target at `0.0236x..0.0296x`, with guardrail smokes and exact
   mixed probes clean.
+- The retained-env jitter helper now builds remote FFI ABI oracle artifacts
+  before running oracle-backed perf rows. Local `liboracle.so` is intentionally
+  not copied because it is a build artifact and may be host-architecture
+  output; the s390x mirror builds it with `tests/s390x/build_oracles.sh`.
+  Full `kdz` matrix artifact `/tmp/kdz-retained-jitter-20260412085621` now
+  includes `ffi_fixed_call_pressure` and `ffi_fixed_struct_calls`. The matrix
+  remains near parity or faster; the top residuals are small/noisy
+  `be_helpers/number_helper_loop 1.0181x`, `mixed_noffi/mixed_loop 1.0171x`,
+  and `vararg_paths/retlast_loop 1.0169x`, none large enough to justify a
+  new code lane without focused attribution.
 - Current forward map:
-  rerun the retained-env rerank after each guardrail-debt closure before
-  opening another code lane. Do not reopen the latest noisy iterator, vararg,
-  mixed, or FFI guard opt-outs unless the new matrix names a fresh repeated
-  payer.
+  the primary matrix is now restamped from the full retained-env artifact,
+  including oracle-backed FFI rows. Do not reopen the latest noisy iterator,
+  vararg, mixed, helper, or FFI residuals unless a focused same-host A/B or
+  truth pack names a fresh repeated payer.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
