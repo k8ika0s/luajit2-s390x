@@ -2632,12 +2632,25 @@ static void asm_mul(ASMState *as, IRIns *ir)
 
   if (irt_isguard(ir->t)) {
     RegSet allow = RSET_GPR_NOB & ~RID2RSET(dest) & ~RID2RSET(right);
-    Reg tmp = ra_scratch(as, allow);
-    asm_guardcc(as, CC_NE);
-    emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
-    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
-    emit_u32(as, S390X_INS_RXE(S390XI_MSGFR, dest, right));
-    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+    if (as->loopref && as->curins > as->loopref) {
+      RegSet sallow = allow & ~RID2RSET(left);
+      Reg res = ra_scratch(as, sallow);
+      Reg tmp = ra_scratch(as, sallow & ~RID2RSET(res));
+      emit_movrr(as, ir, dest, res);
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
+      emit_u32(as, S390X_INS_RXE(S390XI_MSGFR, res, right));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+      return;
+    } else {
+      Reg tmp = ra_scratch(as, allow);
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
+      emit_u32(as, S390X_INS_RXE(S390XI_MSGFR, dest, right));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+    }
   } else {
     emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
     emit_u32(as, S390X_INS_RXE(S390XI_MSGFR, dest, right));
