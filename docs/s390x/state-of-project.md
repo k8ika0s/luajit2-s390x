@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 20:12 PDT
+Last updated: 2026-04-11 20:24 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -99,6 +99,18 @@ It is intentionally current-state only. Historical experiment detail lives in
   The broader `kdz` candidate guardrail set passed `addsub_overflow_guard`,
   `numeric_ops`, `pairs_loop`, compiled vararg, `vararg_paths`,
   `mixed_noffi`, `iterator_table`, and the mixed exact probes.
+- The same guardrail-debt map also exposed a promotion-core route-around that
+  could be split safely. The broad
+  `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` guard remains active for
+  the exact `be_helpers.lua` `number_helper_loop` root, but the exact
+  `be_pack_loop` root (`BC_FORL`, `nsnap=4`, `nins=32840`, `mcloop=1032`) is
+  now excluded and allowed to compile. Artifacts:
+  `/tmp/kdz-be-pack-split-candidate-20260411201916`,
+  `/tmp/zkd0-be-pack-split-candidate-20260411202048`,
+  `/tmp/kdz-be-pack-split-regression-20260411202226`, and
+  `/tmp/zkd0-be-pack-split-retained-rerun-20260411202323`. Result:
+  `be_pack_loop/hot` moved from `0.019222` to `0.000246` on `kdz`, and from
+  `0.040121` to `0.000309` on `zkd0`; the `kdz` guardrail screen stayed clean.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
@@ -154,6 +166,10 @@ It is intentionally current-state only. Historical experiment detail lives in
   were near parity before the guardrail-debt sweep; `ffi_cdata/pair_loop` now
   has a retained host-pair JIT win after dropping the obsolete root-FORL
   blacklist from the retained env.
+- `be_helpers/be_pack_loop` is now also a retained host-pair JIT win after
+  splitting the promotion-core root-FORL guard; `number_helper_loop` remains on
+  the guarded route-around because broad guard removal still regresses that
+  sibling.
 - The follow-up retained-env rerank keeps `mixed_noffi` as the only repeated
   residual, but much smaller than the pre-fix row: combined `kdz` median
   `0.003865` vs `-joff 0.003791`, ratio `1.0219x`. This is an attribution

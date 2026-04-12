@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 20:12 PDT
+Last updated: 2026-04-11 20:24 PDT
 
 ## Post-Guardrail Iterator Checkpoint
 
@@ -79,6 +79,18 @@ Last updated: 2026-04-11 20:12 PDT
   moved `pair_loop/hot 0.017311 -> 0.000059` in `5/5` passes; `zkd0`
   `/tmp/zkd0-ffi-cdata-forl-blacklist-ab-20260411201025`
   moved `0.025598 -> 0.000072` in `3/3` passes.
+- The same guardrail-debt pass named one high-upside promotion-core debt item.
+  The retained `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` guard stays
+  for the exact `number_helper_loop` shape, but the exact
+  `be_helpers.lua` / `be_pack_loop` root is now allowed to compile. `kdz`
+  `/tmp/kdz-be-pack-split-candidate-20260411201916` moved
+  `be_pack_loop/hot 0.019222 -> 0.000246`, and
+  `/tmp/kdz-be-pack-split-regression-20260411202226` kept the main
+  correctness/perf guardrails clean. `zkd0`
+  `/tmp/zkd0-be-pack-split-candidate-20260411202048` moved
+  `0.040121 -> 0.000309`; a retained-env rerun
+  `/tmp/zkd0-be-pack-split-retained-rerun-20260411202323` kept
+  `number_helper_loop` around or faster than `-joff`.
 
 ## Canonical Perf Suite
 
@@ -99,7 +111,7 @@ enough for retained policy rows.
 | [tests/s390x/perf/iterator_table.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/iterator_table.lua) | `iterator_table` | `pairs_sum`, `pairs_array_sum` | retained exact root-ITERN / root-ITERL blacklist wins plus root-ITERN proto-NOJIT fast fallback, hash/array-side hotcount parks, direct `BC_ITERN` array-slot store cut, and delayed post-proto `BC_ITERN` no-hot dispatch; at parity |
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | retained exact root `BC_ITERL` / `BC_ITERN` / stitched `BC_FORL` blacklists, exact post-root `BC_ITERL` abort blacklist, and exact early proto-NOJIT / `BC_ITERN` hotcount park; now near parity |
 | [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win plus exact root-FORL proto-NOJIT fallback; now near parity and a regression screen |
-| [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop` | helper-heavy carried-floor controls; stabilized after post-promotion drift with an exact root-`BC_FORL` proto-NOJIT route-around |
+| [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop`, `strto_loop` | helper-heavy carried-floor controls; exact number-helper root remains guarded, while the exact `be_pack_loop` root is now allowed to compile after guardrail-debt proof |
 | [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua) | `ffi_calls` | `direct_abs`, `stored_abs` | call-heavy carried-floor controls; stabilized after post-promotion drift with the same exact root-`BC_FORL` proto-NOJIT route-around |
 | [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua) | `bitops_mix` | `mix_bits` | helper-light logic/bitops control |
 | [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua) | `logical_chain_tail_add` | `chain_tail_add` | recurring logic-chain sibling |
@@ -141,8 +153,9 @@ latest retained host-backed rows until the next full retained-env rerank.
 | `pairs_array_sum/hot` | `iterator_table` | `0.003716` | `0.004274` | `-0.000558`, `0.87x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.008237`; zkd0 default `0.006530` vs opt-out `0.017199` |
 | `mixed_loop/hot` | `mixed_noffi` | `0.003865` | `0.003791` | `+0.000083`, `1.02x` | `kdz` | `2026-04-11 18:44 PDT` | post-ordering-fix combined rerank median; exact mixed `BC_ITERL` blacklist still runs before the broad iterator root fallback, and remaining residual needs fresh compiled-body attribution before any code |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
-| `number_helper_loop/hot` | `be_helpers` | `0.002378` | `0.002280` | `+0.000098`, `1.04x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
-| `be_pack_loop/hot` | `be_helpers` | `0.018912` | `0.018973` | `-0.000061`, `1.00x` | `kdz` | `2026-04-10 16:10 PDT` | exact helper route-around; host-pair clean and at parity on kdz |
+| `number_helper_loop/hot` | `be_helpers` | `0.002244` | `0.002280` | `-0.000036`, `0.98x` | `kdz` | `2026-04-11 20:22 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around retained for this shape; zkd0 rerun stays around or faster than `-joff` |
+| `be_pack_loop/hot` | `be_helpers` | `0.000246` | `0.018973` | `-0.018727`, `0.013x` | `kdz` | `2026-04-11 20:22 PDT` | exact `be_pack_loop` root excluded from the broad promotion-core proto-NOJIT guard; host-pair A/B clean, zkd0 `0.040121 -> 0.000309` |
+| `strto_loop/hot` | `be_helpers` | `0.003466` | `0.008154` | `-0.004688`, `0.43x` | `kdz` | `2026-04-11 20:22 PDT` | STRTO coverage row; unaffected by the be-pack split and still green |
 | `direct_abs/hot` | `ffi_calls` | `0.010257` | `0.010148` | `+0.000109`, `1.01x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
 | `stored_abs/hot` | `ffi_calls` | `0.007338` | `0.006981` | `+0.000357`, `1.05x` | `kdz` | `2026-04-10 16:10 PDT` | exact call route-around; host-pair clean |
 | `mix_bits/hot` | `bitops_mix` | `0.001882` | `0.001854` | `+0.000028`, `1.02x` | `kdz` | `2026-04-11 00:00 PDT` | exact promotion-core root-`BC_FORL` proto-NOJIT route-around for the current retained bitops shape; host-pair clean |
