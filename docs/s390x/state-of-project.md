@@ -829,6 +829,15 @@ interpretation.
 - the first guardrail debt sweep did not expose a safe high-upside opt-out:
   exact iterator removal, mixed-noffi guard removal, vararg exact removal, and
   promotion-core/localized removal all slowed the official rows they protect
+- after the numeric `SLOAD` FPR accumulator fix, the extra
+  `ffi_fixed_call_pressure` row is correct again:
+  `kdz fpr_pressure/hot median=0.000267`; the fix converts integer-tagged
+  used `num SLOAD` values into the FPR destination instead of loading raw
+  integer TValue bits
+- the post-fix `kdz` retained-env smoke
+  `/tmp/kdz-retained-jitter-20260411224707` still did not name a stable
+  material payer; `zkd0` passed focused correctness/perf guardrails but remained
+  too noisy for queue ranking
 
 ### After The Near-Parity Rerank
 
@@ -846,6 +855,10 @@ interpretation.
   mechanism truth-pack exercise against one named guardrail debt seam at a
   time. Do not weaken the retained guardrails just to expose JIT work; the
   current debt sweep says they are either neutral or still paying for safety.
+- Treat the numeric `SLOAD` fix as retained backend correctness debt closure,
+  not as a rerank event. It expands safe numeric/FPR trace coverage, but the
+  next performance target still requires a fresh repeated `kdz` official-row
+  signal.
 
 ## Where To Look Next
 
