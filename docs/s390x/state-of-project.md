@@ -902,6 +902,20 @@ interpretation.
   `/tmp/kdz-retained-jitter-20260411224707` still did not name a stable
   material payer; `zkd0` passed focused correctness/perf guardrails but remained
   too noisy for queue ranking
+- after `1cdc14e2`, the full retained-env matrix
+  `/tmp/kdz-retained-jitter-20260412085621` restored remote oracle-backed rows
+  and still did not name a material red official-row blocker
+- the first acceleration pass closed the two largest near-parity absolute-time
+  targets as no-code:
+  `ffi_cdata/mixed_width_loop/hot` in
+  `/tmp/kdz-retained-jitter-20260412092847` and
+  `ffi_fixed_call_pressure/gpr_pressure/hot` in
+  `/tmp/kdz-retained-jitter-20260412093220`
+- the second guardrail-debt sweep
+  `/tmp/kdz-accel-guard-sweep-20260412093737` did not expose a safe
+  high-upside retained-guard opt-out; the focused broad iterator root opt-out
+  check `/tmp/kdz-iterator-root-blacklist-focus-20260412094054` was too small,
+  regressed `mixed_noffi`, and timed out `pairs_loop.lua` under opt-out
 
 ### After The Near-Parity Rerank
 
@@ -923,6 +937,10 @@ interpretation.
   not as a rerank event. It expands safe numeric/FPR trace coverage, but the
   next performance target still requires a fresh repeated `kdz` official-row
   signal.
+- Treat `mixed_width_loop` and `gpr_pressure` as closed acceleration targets
+  unless a future full retained-env matrix shows them as repeated material
+  payers. They are useful coverage rows, but the latest focused reads do not
+  justify a backend or trace-control patch.
 
 ## Where To Look Next
 
