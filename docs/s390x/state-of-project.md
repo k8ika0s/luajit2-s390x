@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 15:04 PDT
+Last updated: 2026-04-11 17:08 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,36 +8,49 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The branch is now at
-  `f3baca74 Fix s390x guarded overflow PHI restore`, with the staged
-  `origin/k8ika0s/s390x-current-lab-promote` tranche integrated and pushed.
-  The promoted PHI-based guarded-overflow restore supersedes the narrower
-  local `INT_MINMAX` snapshot fix.
-- Core post-merge gates are clean. On `kdz`, the rebuilt canonical mirror
-  passed `addsub_overflow_guard`, `numeric_ops`, all
-  `tests/s390x/jit_be/*.lua`, retained-env `dispatch_trace`, and the dispatch
-  opt-out causality check. A focused `zkd0` confirmation passed the same
-  overflow/numeric/dispatch opt-out surfaces.
-- Current clean-family retained-env perf artifact:
-  `/tmp/kdz-post-merge-perf-clean-20260411150101`.
-  The clean rows do not show a broad post-promotion regression:
-  - `dispatch_trace`: `numeric_loop 1.0005x`, `side_exit_loop 0.9891x`,
-    `hotexit_loop 0.9940x`
-  - `iterator_table`: `pairs_sum 0.9735x` but jitter-dominated
-    (`0.6955..1.1636`), `pairs_array_sum 0.9328x`
-  - `mixed_ffi`: `mixed_ffi_loop 0.0671x`
-  - `ffi_calls`: `direct_abs 0.0274x`, `stored_abs 0.0402x`
-  - `ffi_cdata`: `pair_loop 1.0012x`, `mixed_width_loop 1.0039x`
-  - `be_helpers`: `number_helper_loop 0.9493x`, `be_pack_loop 1.0074x`
-- `numeric_ops` is correct and faster than `-joff` after the PHI restore:
-  `max_loop/hot` returns `3072032000`, with hot ratios
-  `abs 0.242x`, `div 0.082x`, `sqrt 0.065x`, `min 0.061x`, and
-  `max 0.693x`.
-- Current known inherited guardrails:
-  - `tests/s390x/perf/vararg_paths.lua` segfaults with `rc=139`
-  - `tests/s390x/perf/mixed_noffi.lua` fails the known result-mismatch class
-    with `rc=1`
-  - `tests/s390x/jit_loops/pairs_loop.lua` times out with `rc=124`
+- The current runtime/code source point is the iterator guard promotion:
+  `547f5917 Refine s390x iterator guard ordering`, cherry-picked from the
+  narrow `k8ika0s/s390x-iterator-guard-refine` branch on top of WIP
+  `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
+- The guardrail promotion has cleared the inherited runnable-row blockers:
+  `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
+  WIP mirror and are no longer treated as inherited blocking failures.
+- The post-guardrail full retained-env rerank on `kdz` before the iterator
+  guard refinement named `iterator_table` as the top stable payer:
+  `/tmp/post-guardrail-full-retained-20260411170050`.
+  It showed `iterator_table/pairs_sum 2.6463x`,
+  `iterator_table/pairs_array_sum 2.2158x`, and
+  `mixed_noffi/mixed_loop 1.3052x`, while the other stable families were near
+  parity or green under the same retained env.
+- The iterator guard refinement makes the exact `iterator_table` root
+  `BC_ITERN` proto-NOJIT path default-on before the broad iterator root
+  blacklist, while preserving the broad blacklist fallback for unsafe
+  non-exact iterator shapes.
+- `kdz` validation artifact:
+  `/tmp/iterator-guard-promote-validation-20260411170533`. It passed
+  `iterator_table`, `mixed_noffi`, `pairs_loop`, all `jit_be`, all
+  `jit_loops`, `vararg_paths`, `numeric_ops`, retained-env `dispatch_trace`,
+  `ffi_calls`, `ffi_cdata`, `mixed_ffi`, and the iterator exact-path opt-out
+  causality check.
+- Clean pinned `kdz` iterator A/B artifact:
+  `/tmp/iterator-guard-kdz-pinned-20260411170826`.
+  The trusted policy read is now faster than same-binary `-joff` and much
+  faster than the opt-out fallback:
+  `pairs_sum/hot 0.004472` vs `-joff 0.004675` vs opt-out `0.010467`, and
+  `pairs_array_sum/hot 0.003716` vs `-joff 0.004274` vs opt-out `0.008237`.
+- `zkd0` confirmation artifacts:
+  `/tmp/iterator-guard-promote-zkd0-20260412120719` and
+  `/tmp/iterator-guard-zkd0-pinned-20260412120738`. `zkd0` is noisy and still
+  above `-joff` on the pinned read, but default is materially better than the
+  exact-path opt-out fallback:
+  `pairs_sum/hot 0.009195` vs opt-out `0.021250`, and
+  `pairs_array_sum/hot 0.006530` vs opt-out `0.017199`.
+- Current performance read:
+  iterator is no longer the active top payer on the trusted `kdz` policy
+  signal. After the promotion lands in WIP, rerun the full retained-env matrix
+  before opening another performance patch; the likely next residual is
+  `mixed_noffi` only if repeated same-host A/B confirms it on the promoted
+  branch.
 - The retained env contract is canonicalized in
   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   and imported by the iterator, dispatch, and broader-throughput truth-pack
@@ -64,7 +77,7 @@ It is intentionally current-state only. Historical experiment detail lives in
 - The delivered
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
   hash is now identical on local, `kdz`, and `zkd0`:
-  `29d6bcdd6375d9b3ff4c7e36dbbecabf219daaf57319ecffdb15b2641257397f`.
+  `e459dc21cfe41881e0845d27eab59bbf03b4aafae6688202cd9aa874b3048baf`.
 - Current retained `vararg_paths` rows after the sibling restamp:
   - trusted `kdz` rerun:
     - `sum_loop/hot 0.004437` vs `-joff 0.004789`
@@ -74,7 +87,7 @@ It is intentionally current-state only. Historical experiment detail lives in
     - `sum_loop/hot 0.005042` vs `-joff 0.004885`
     - `retlast_loop/hot 0.002420` vs `-joff 0.002243`
     - `retconst_loop/hot 0.000652` vs `-joff 0.000638`
-- `iterator_table` now carries three low-level VM/control wins on top of the
+- `iterator_table` now carries the low-level VM/control wins on top of the
   full retained env floor:
   [src/vm_s390x.dasc](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/vm_s390x.dasc)
   stores the array-side `BC_ITERN` returned value directly from `TMPR0`
@@ -85,12 +98,16 @@ It is intentionally current-state only. Historical experiment detail lives in
   can use `0xffff` instead of `0x7fff`. The latest retained cut adds
   `LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT=1`: after the exact iterator
   root `BC_ITERN` proto-NOJIT save fires, `BC_ITERN` dispatch switches to
-  `lj_vm_IITERN` for the rest of the process. Trusted `kdz` same-binary A/B:
-  candidate `pairs_sum/hot 0.004292`,
-  `pairs_array_sum/hot 0.003588`; immediate retained control `0.004501`,
-  `0.003917`. Trusted `zkd0` screen: candidate `0.006538`, `0.005348`;
-  retained control `0.007506`, `0.007088`. Mechanism logs show the remaining
-  hash/array no-JIT hotcount park events drop to zero after the delayed switch.
+  `lj_vm_IITERN` for the rest of the process. The latest promoted refinement
+  makes the exact root `BC_ITERN` proto-NOJIT path default-on before the broad
+  iterator blacklist, preserving the broad fallback for unsafe non-exact
+  iterator shapes. Trusted pinned `kdz` same-binary A/B:
+  default `pairs_sum/hot 0.004472`,
+  `pairs_array_sum/hot 0.003716`; `-joff 0.004675`, `0.004274`; exact-path
+  opt-out fallback `0.010467`, `0.008237`. `zkd0` is noisy, but confirms the
+  default is materially better than opt-out:
+  `pairs_sum/hot 0.009195` vs `0.021250`, and
+  `pairs_array_sum/hot 0.006530` vs `0.017199`.
 - `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity on the
   carried floor; `mixed_noffi` still has noisy reads and should not be
   reopened without a fresh exact attribution.

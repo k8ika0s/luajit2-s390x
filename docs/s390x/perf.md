@@ -1,52 +1,50 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 15:04 PDT
+Last updated: 2026-04-11 17:08 PDT
 
-## Regroup Checkpoint
+## Post-Guardrail Iterator Checkpoint
 
-- Current retained source point:
-  `f3baca74 Fix s390x guarded overflow PHI restore`, after integrating the
-  staged `origin/k8ika0s/s390x-current-lab-promote` tranche. The promoted
-  PHI-based guarded-overflow restore supersedes the narrower local
-  `INT_MINMAX` restore.
-- Core post-merge correctness gate is green on the rebuilt `kdz` canonical
-  mirror:
-  `addsub_overflow_guard`, `numeric_ops`, all `tests/s390x/jit_be/*.lua`,
-  retained-env `dispatch_trace`, and the dispatch opt-out causality check.
-  A focused `zkd0` confirmation also passed `addsub_overflow_guard`,
-  `numeric_ops`, retained-env `dispatch_trace`, and the dispatch opt-out
+- Current runtime/code source point for this checkpoint:
+  `547f5917 Refine s390x iterator guard ordering`, cherry-picked from the
+  narrow `k8ika0s/s390x-iterator-guard-refine` promotion branch on top of
+  WIP `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
+- The post-guardrail full retained-env rerank on `kdz` before the iterator
+  guard refinement named `iterator_table` as the top stable payer:
+  `/tmp/post-guardrail-full-retained-20260411170050`.
+  Median hot-row ratios were `iterator_table/pairs_sum 2.6463x`,
+  `iterator_table/pairs_array_sum 2.2158x`, and
+  `mixed_noffi/mixed_loop 1.3052x`; `vararg_paths`, `dispatch_trace`,
+  `mixed_ffi`, `ffi_calls`, `numeric_ops`, and `ffi_cdata` were near parity or
+  green under the same retained env.
+- The iterator guard promotion makes the exact `iterator_table` root
+  `BC_ITERN` proto-NOJIT path default-on before the broad iterator root
+  blacklist, while keeping the broad fallback for unsafe non-exact iterator
+  shapes.
+- `kdz` promotion validation artifact:
+  `/tmp/iterator-guard-promote-validation-20260411170533`. It passed
+  `iterator_table`, `mixed_noffi`, `pairs_loop`, all `jit_be`, all
+  `jit_loops`, `vararg_paths`, `numeric_ops`, retained-env `dispatch_trace`,
+  `ffi_calls`, `ffi_cdata`, `mixed_ffi`, and the iterator exact-path opt-out
   causality check.
-- Current post-merge clean-family perf artifact:
-  `/tmp/kdz-post-merge-perf-clean-20260411150101`.
-  It uses the full retained env, 3 samples, 2 warmups, and 3 alternating
-  JIT-on / `-joff` passes.
-- Clean-family hot-row read:
-  - `dispatch_trace/numeric_loop/hot`: median ratio `1.0005`
-  - `dispatch_trace/side_exit_loop/hot`: median ratio `0.9891`
-  - `dispatch_trace/hotexit_loop/hot`: median ratio `0.9940`
-  - `iterator_table/pairs_sum/hot`: median ratio `0.9735`, but with a wide
-    `0.6955..1.1636` ratio range and matching `-joff` jitter
-  - `iterator_table/pairs_array_sum/hot`: median ratio `0.9328`
-  - `mixed_ffi/mixed_ffi_loop/hot`: median ratio `0.0671`
-  - `ffi_calls/direct_abs/hot`: median ratio `0.0274`
-  - `ffi_calls/stored_abs/hot`: median ratio `0.0402`
-  - `ffi_cdata/pair_loop/hot`: median ratio `1.0012`
-  - `ffi_cdata/mixed_width_loop/hot`: median ratio `1.0039`
-  - `be_helpers/number_helper_loop/hot`: median ratio `0.9493`
-  - `be_helpers/be_pack_loop/hot`: median ratio `1.0074`
-- Numeric ops correctness/perf stays clean after the PHI restore:
-  `numeric_ops/max_loop/hot` returns `3072032000`; hot JIT / `-joff` ratios
-  are `abs 0.242x`, `div 0.082x`, `sqrt 0.065x`, `min 0.061x`, and
-  `max 0.693x`.
-- Known inherited guardrails under the current WIP head:
-  - `tests/s390x/perf/vararg_paths.lua` segfaults with `rc=139`
-  - `tests/s390x/perf/mixed_noffi.lua` fails with the known result-mismatch
-    class and `rc=1`
-  - `tests/s390x/jit_loops/pairs_loop.lua` times out with `rc=124`
+- Clean pinned `kdz` iterator A/B artifact:
+  `/tmp/iterator-guard-kdz-pinned-20260411170826`.
+  Default now beats the same-binary `-joff` comparator and is much faster than
+  the exact-path opt-out fallback:
+  - `pairs_sum/hot`: default `0.004472`, `-joff 0.004675`, opt-out `0.010467`
+  - `pairs_array_sum/hot`: default `0.003716`, `-joff 0.004274`, opt-out
+    `0.008237`
+- `zkd0` confirmation artifacts:
+  `/tmp/iterator-guard-promote-zkd0-20260412120719` and
+  `/tmp/iterator-guard-zkd0-pinned-20260412120738`. `zkd0` is noisy and still
+  above `-joff` on the pinned read, but default is materially better than the
+  opt-out fallback:
+  `pairs_sum/hot 0.009195` vs opt-out `0.021250`, and
+  `pairs_array_sum/hot 0.006530` vs opt-out `0.017199`.
 - Current performance read:
-  the clean families do not show a broad regression after the promotion.
-  The next engineering work should clear or re-attribute the inherited
-  guardrails before chasing small clean-family perf residuals.
+  the official iterator payer is closed on the trusted `kdz` policy signal.
+  After this promotion lands in WIP, the next step is a fresh full retained-env
+  rerank. Do not open another iterator trace-control edit unless a new
+  repeated official-row payer is named.
 
 ## Canonical Perf Suite
 
@@ -98,16 +96,15 @@ This is the current retained matrix for the stable carried workloads. If a
 workload belongs to the carried suite, it should have one row here even if the
 number is ugly.
 
-Post-merge note: the snapshot in the regroup section is the authoritative
-current read for clean families at `f3baca74`. `vararg_paths` and
-`mixed_noffi` currently hit known inherited guardrails before they can produce
-trusted retained-env performance rows, so their older matrix values below are
-historical carried-floor context until those guardrails are repaired.
+Post-guardrail note: `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` are
+now runnable after the guardrail promotion. The current iterator rows below
+come from the pinned iterator guard promotion A/B; other rows remain the
+latest retained host-backed rows until the next full retained-env rerank.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004292` | `0.004276` | `+0.000016`, `1.00x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch after exact iterator proto-NOJIT root; host-pair clean |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003588` | `0.003676` | `-0.000088`, `0.98x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch after exact iterator proto-NOJIT root; host-pair clean |
+| `pairs_sum/hot` | `iterator_table` | `0.004472` | `0.004675` | `-0.000203`, `0.96x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.010467`; zkd0 default `0.009195` vs opt-out `0.021250` |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003716` | `0.004274` | `-0.000558`, `0.87x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.008237`; zkd0 default `0.006530` vs opt-out `0.017199` |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
 | `number_helper_loop/hot` | `be_helpers` | `0.002378` | `0.002280` | `+0.000098`, `1.04x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
@@ -138,8 +135,8 @@ shrink.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004292` | `0.004276` | `+0.000016`, `1.00x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch; zkd0 confirmation `0.006538` vs retained control `0.007506` |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003588` | `0.003676` | `-0.000088`, `0.98x` | `kdz` | `2026-04-10 23:09 PDT` | retained delayed post-proto `BC_ITERN` no-hot dispatch; zkd0 confirmation `0.005348` vs retained control `0.007088` |
+| `pairs_sum/hot` | `iterator_table` | `0.004472` | `0.004675` | `-0.000203`, `0.96x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.010467`; zkd0 default `0.009195` vs opt-out `0.021250` |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003716` | `0.004274` | `-0.000558`, `0.87x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.008237`; zkd0 default `0.006530` vs opt-out `0.017199` |
 | `mixed_loop/hot` | `mixed_noffi` | `0.004041` | `0.003734` | `+0.000307`, `1.08x` | `kdz` | `2026-04-10 08:26 PDT` | retained exact early proto-NOJIT plus `BC_ITERN` hotcount park after the tri-root and post-root abort blacklist floor; host-pair clean, near parity |
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; zkd0 confirmation `0.002530` vs `-joff 0.003831` |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.005002` vs `-joff 0.007007` |
@@ -302,8 +299,8 @@ Current frontier after the post-promotion stabilization pass:
   `retconst_loop/hot 0.000598`, with `zkd0` confirmation at
   `0.005042`, `0.002420`, and `0.000652`
 - `iterator_table` is at parity on the full carried env floor after the
-  delayed post-proto `BC_ITERN` no-hot dispatch cut and stays a regression
-  screen, not the first reopened blocker
+  iterator guard ordering refinement made the exact root `BC_ITERN`
+  proto-NOJIT path default-on before the broad iterator blacklist
 - `mixed_noffi`, `mixed_ffi`, and `ffi_cdata` remain parked near parity under
   the carried floor
 - `dispatch_trace` has been stabilized after its post-promotion collapse with
@@ -321,19 +318,23 @@ Current frontier after the post-promotion stabilization pass:
   - trusted `zkd0`: `number_helper_loop/hot 0.002554`,
     `be_pack_loop/hot 0.020728`, `direct_abs/hot 0.012293`,
     `stored_abs/hot 0.008434`
-- the latest retained iterator cut is delayed post-proto `BC_ITERN` no-hot
-  dispatch:
+- the latest retained iterator cut is the iterator guard ordering refinement
+  on top of delayed post-proto `BC_ITERN` no-hot dispatch:
   after the exact retained iterator root `BC_ITERN` proto-NOJIT save fires in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
   [src/lj_dispatch.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_dispatch.c)
   switches process-local `BC_ITERN` dispatch to `lj_vm_IITERN`. This preserves
   the hash-side root formation that the earlier global no-hot candidate broke,
   then removes the remaining hotcount/proto retry cost for the official row.
-  Trusted `kdz` same-binary A/B:
-  candidate `pairs_sum/hot 0.004292`, `pairs_array_sum/hot 0.003588`;
-  immediate retained-source control `0.004501`, `0.003917`. Trusted `zkd0`
-  screen: candidate `0.006538`, `0.005348`; immediate retained-source control
-  `0.007506`, `0.007088`.
+  The promoted refinement checks the exact `iterator_table` root `BC_ITERN`
+  proto-NOJIT shape before the broad iterator root blacklist, while preserving
+  the broad fallback for unsafe non-exact iterator shapes. Trusted pinned
+  `kdz` same-binary A/B: default `pairs_sum/hot 0.004472`,
+  `pairs_array_sum/hot 0.003716`; `-joff 0.004675`, `0.004274`;
+  exact-path opt-out fallback `0.010467`, `0.008237`. `zkd0` is noisy, but
+  confirms default is materially better than opt-out:
+  `pairs_sum/hot 0.009195` vs `0.021250`, and
+  `pairs_array_sum/hot 0.006530` vs `0.017199`.
   - exact env:
     - `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1`
     - `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`
