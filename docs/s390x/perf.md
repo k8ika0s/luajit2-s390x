@@ -1,17 +1,17 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 21:10 PDT
+Last updated: 2026-04-12 07:56 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  the `411961f6 Split s390x be pack promotion guard` floor, plus the retained
-  `numeric_ops/max_loop` exit-0 body side-trace allow, on top of
-  `52d50a22 Retire obsolete ffi cdata FORL guard` and the iterator guard
-  ordering promotion. The retained env now omits the obsolete
-  `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` guard, keeps the broad
-  promotion-core guard for `number_helper_loop`, and excludes only the exact
-  `be_helpers.lua` `be_pack_loop` root so that path can compile.
+  the `d3430611 Fix s390x numeric SLOAD integer reentry` floor plus the
+  route-around reducer promotion-core guard split recorded below. The retained
+  env omits the obsolete `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` guard,
+  keeps the broad promotion-core guard for the retained route-around families,
+  excludes the exact `be_helpers.lua` `be_pack_loop` root, and now also
+  excludes the exact `route_around_reducers.lua` be-pack reducer family so it
+  can compile.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
@@ -132,6 +132,27 @@ Last updated: 2026-04-11 21:10 PDT
   performance work should rerun the retained-env rerank and choose a fresh
   named payer rather than reopening the latest noisy iterator, vararg, mixed,
   or FFI guard opt-outs.
+- Post-`d3430611` rerank and route-around reducer split:
+  `/tmp/kdz-retained-jitter-20260412073653` kept the stable main matrix near
+  parity or faster, but the expanded extra-family sweep
+  `/tmp/kdz-retained-jitter-20260412074304` named
+  `route_around_reducers_truth_pack/be_pack_literal_stop/hot` as a retained
+  route-around debt item. Focused truth pack
+  `/tmp/d3430611-route-around-truth/20260412-kdz-route_around_reducers-retained_baseline-truth-pack`
+  showed the official reducer chunk was still caught by
+  `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`, while the equivalent
+  temporary reducer body compiled at roughly `0.02x..0.03x` of `-joff`.
+  Removing only `route_around_reducers.lua` from the promotion-core matcher
+  moved the official hot rows to the compiled fast band:
+  `kdz` `/tmp/kdz-retained-jitter-20260412074938` recorded
+  `be_pack_literal_stop/hot 0.015x`,
+  `be_pack_literal_stop_local_ops/hot 0.034x`, and
+  `be_pack_loop_local_ops/hot 0.034x`; `zkd0`
+  `/tmp/zkd0-retained-jitter-20260412075528` confirmed about `0.015x`,
+  `0.036x`, and `0.035x`. Broader `kdz` screen
+  `/tmp/kdz-retained-jitter-20260412075243` kept dispatch, iterator, vararg,
+  mixed, FFI, helper, fixed-call-pressure, and numeric families in the
+  retained near-parity/faster band.
 
 ## Canonical Perf Suite
 
@@ -165,7 +186,7 @@ enough for retained policy rows.
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | `number_helper_literal_stop_real`, `number_helper_literal_stop_real_local_tobit`, `be_pack_literal_stop_real` | static-stop mechanism suite |
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | `direct_abs_literal_stop_real`, `stored_abs_literal_stop_real` | static-stop FFI regression suite |
 | [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | `number_helper_loop_local_tobit`, `be_pack_loop_local_ops_real` | localized helper experiments |
-| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | `be_pack_literal_stop`, `be_pack_literal_stop_local_ops`, `be_pack_loop_local_ops` | reducer route-around experiments |
+| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | `be_pack_literal_stop`, `be_pack_literal_stop_local_ops`, `be_pack_loop_local_ops` | reducer route-around experiments; exact be-pack reducer family is now excluded from the broad promotion-core proto-NOJIT guard and allowed to compile |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | `add_phi_only` | narrow integer-phi experiment |
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | `logic_add_phi_noboundary` | narrow logic-phi experiment |
 
@@ -268,7 +289,7 @@ experiment evidence, not top-level progress rows.
 | [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | localized helper experiments; now covered by the env-gated localized hotside carry and exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | static-stop mechanism suite; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | static-stop FFI mechanism suite; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
-| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
+| [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | route-around experiment family; exact be-pack reducer family is no longer covered by the promotion-core proto-NOJIT extension, but still remains outside the stable matrix |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | narrow experiment-only control |
 | [tests/s390x/perf/logic_add_phi_noboundary.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logic_add_phi_noboundary.lua) | `logic_add_phi_noboundary` | narrow experiment-only control; now covered by the exact promotion-core proto-NOJIT extension, but still not a stable matrix row |
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | lower-frame regression suite; now covered by the env-gated localized hotside carry, but still not a stable matrix row |
@@ -313,14 +334,16 @@ Current localized / route-around mechanism carries:
     `0.058875 -> 0.020010` with the exact proto-NOJIT follow-up on the same
     rebuilt mirror; after the `mcloop=284` restamp, `zkd0` reads
     `0.047349 -> 0.019229` and `0.048731 -> 0.020043`
-- current promotion-core proto-NOJIT reducer extension:
+- historical promotion-core proto-NOJIT reducer extension before the
+  post-`d3430611` route-around reducer split:
   - same env knob as the stable promotion-core route-around:
     `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`
   - exact chunks:
     [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua),
-    [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua),
-    and
-    [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua);
+    [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua);
+    [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua)
+    was later removed from this matcher because the reducer be-pack family now
+    compiles cleanly;
     the same exact class now also covers
     [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
     and

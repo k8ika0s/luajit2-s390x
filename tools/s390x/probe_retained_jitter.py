@@ -17,14 +17,28 @@ import restamp_iterator_perf as restamp
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = pathlib.Path("/tmp")
 BENCH_FILES: dict[str, str] = {
-    "dispatch_trace": "tests/s390x/perf/dispatch_trace.lua",
-    "iterator_table": "tests/s390x/perf/iterator_table.lua",
-    "vararg_paths": "tests/s390x/perf/vararg_paths.lua",
-    "mixed_noffi": "tests/s390x/perf/mixed_noffi.lua",
-    "mixed_ffi": "tests/s390x/perf/mixed_ffi.lua",
-    "ffi_cdata": "tests/s390x/perf/ffi_cdata.lua",
-    "ffi_calls": "tests/s390x/perf/ffi_calls.lua",
     "be_helpers": "tests/s390x/perf/be_helpers.lua",
+    "be_helpers_localized": "tests/s390x/perf/be_helpers_localized.lua",
+    "bitops_mix": "tests/s390x/perf/bitops_mix.lua",
+    "dispatch_trace": "tests/s390x/perf/dispatch_trace.lua",
+    "ffi_calls": "tests/s390x/perf/ffi_calls.lua",
+    "ffi_calls_static_stop": "tests/s390x/perf/ffi_calls_static_stop.lua",
+    "ffi_cdata": "tests/s390x/perf/ffi_cdata.lua",
+    "ffi_fixed_call_pressure": "tests/s390x/perf/ffi_fixed_call_pressure.lua",
+    "ffi_fixed_struct_calls": "tests/s390x/perf/ffi_fixed_struct_calls.lua",
+    "int_add_phi_only": "tests/s390x/perf/int_add_phi_only.lua",
+    "iterator_table": "tests/s390x/perf/iterator_table.lua",
+    "large_immediates": "tests/s390x/perf/large_immediates.lua",
+    "logic_add_phi_noboundary": "tests/s390x/perf/logic_add_phi_noboundary.lua",
+    "logical_chain_tail_add": "tests/s390x/perf/logical_chain_tail_add.lua",
+    "logical_chain_tail_store": "tests/s390x/perf/logical_chain_tail_store.lua",
+    "lower_frame_same_callsite": "tests/s390x/perf/lower_frame_same_callsite.lua",
+    "mixed_ffi": "tests/s390x/perf/mixed_ffi.lua",
+    "mixed_noffi": "tests/s390x/perf/mixed_noffi.lua",
+    "numeric_ops": "tests/s390x/perf/numeric_ops.lua",
+    "promotion_core_static_stop": "tests/s390x/perf/promotion_core_static_stop.lua",
+    "route_around_reducers": "tests/s390x/perf/route_around_reducers.lua",
+    "vararg_paths": "tests/s390x/perf/vararg_paths.lua",
 }
 
 
@@ -176,6 +190,10 @@ def row_jitter(values: list[float]) -> float:
     return hi / lo if lo else 0.0
 
 
+def format_ratio(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.4f}"
+
+
 def summarize_all(rows: list[dict[str, Any]], *, threshold: float) -> list[dict[str, Any]]:
     by_row: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
@@ -251,7 +269,7 @@ def write_summary(
         lines.append(
             f"| `{row['pass']}` | `{row['order']}` | `{row['row']}` | "
             f"`{row['jit']:.6f}` | `{row['joff']:.6f}` | "
-            f"`{row['ratio']:.4f}` | `{row['delta']:+.6f}` |"
+            f"`{format_ratio(row['ratio'])}` | `{row['delta']:+.6f}` |"
         )
     write_text(output_dir / "summary.md", "\n".join(lines) + "\n")
     write_text(output_dir / "aggregate.json", json.dumps(aggregate, indent=2, sort_keys=True) + "\n")
@@ -377,7 +395,7 @@ def main() -> int:
             for row in rows:
                 print(
                     f"  {row['row']} jit={row['jit']:.6f} "
-                    f"joff={row['joff']:.6f} ratio={row['ratio']:.4f} "
+                    f"joff={row['joff']:.6f} ratio={format_ratio(row['ratio'])} "
                     f"delta={row['delta']:+.6f}"
                 )
     finally:
