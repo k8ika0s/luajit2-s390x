@@ -28772,3 +28772,61 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   route-around by exact helper family or fix the underlying backend/runtime
   mechanism that lets `be_pack_loop` compile without reopening the
   `number_helper_loop` regression.
+
+## 2026-04-11: split promotion-core guard to retain be_pack_loop JIT win
+
+- Starting point:
+  `52d50a22 Retire obsolete ffi cdata FORL guard` retained env, with
+  `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` already removed.
+- Candidate:
+  in [lj_trace.c](../../src/lj_trace.c), keep
+  `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` for the exact promotion-core
+  route-around family, but exclude only the official `be_helpers.lua`
+  `be_pack_loop` root from that guard:
+  `firstline=18`, `numline=10`, `startop=BC_FORL`, `linktype=LOOP`,
+  `nsnap=4`, `nins=32840`, `mcloop=1032`.
+  This leaves the `number_helper_loop` guarded shape intact.
+- `kdz` immediate control/candidate:
+  `/tmp/kdz-be-pack-split-candidate-20260411201916`.
+  The control used the pre-candidate remote binary, then the tracked candidate
+  source was synced and rebuilt:
+  - `number_helper_loop/hot`: `0.002352 -> 0.002247`
+  - `be_pack_loop/hot`: `0.019222 -> 0.000246`
+  - `strto_loop/hot`: `0.003470 -> 0.003460`
+  Candidate meta still had one `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` marker,
+  proving the broad guard was not removed globally.
+- `zkd0` immediate control/candidate:
+  `/tmp/zkd0-be-pack-split-candidate-20260411202048`.
+  - `be_pack_loop/hot`: `0.040121 -> 0.000309`
+  - `strto_loop/hot`: `0.009947 -> 0.005755`
+  - `number_helper_loop/hot`: `0.003554 -> 0.003787` in the single
+    control/candidate window, which was rechecked because the candidate should
+    not open the number-helper root.
+- `kdz` candidate guardrail screen:
+  `/tmp/kdz-be-pack-split-regression-20260411202226`.
+  Clean:
+  - `tests/s390x/jit_be/addsub_overflow_guard.lua`
+  - `tests/s390x/jit_be/numeric_ops.lua`
+  - `tests/s390x/jit_loops/pairs_loop.lua`
+  - `tests/s390x/jit_loops/compiled_vararg.lua`
+  - `tests/s390x/perf/vararg_paths.lua`
+  - `tests/s390x/perf/mixed_noffi.lua`
+  - `tests/s390x/perf/iterator_table.lua`
+  - `tests/s390x/perf/be_helpers.lua`
+  Focused hot rows included:
+  `be_pack_loop/hot 0.000246`, `number_helper_loop/hot 0.002244`,
+  `ffi_cdata/pair_loop/hot 0.000057`, `iterator_table/pairs_sum/hot 0.004140`,
+  `mixed_noffi/mixed_loop/hot 0.003835`, and green `numeric_ops` rows.
+- `zkd0` retained-env rerun:
+  `/tmp/zkd0-be-pack-split-retained-rerun-20260411202323`.
+  This reduced the single-window concern for `number_helper_loop`:
+  - `number_helper_loop/hot`: `0.002913`, `0.003274`, `0.002704` vs `-joff`
+    `0.003770`, `0.003646`, `0.002683`
+  - `be_pack_loop/hot`: `0.000379`, `0.000291`, `0.000255` vs `-joff`
+    `0.031945`, `0.032799`, `0.025174`
+  - `strto_loop/hot`: `0.006846`, `0.006639`, `0.004598` vs `-joff`
+    `0.015104`, `0.015953`, `0.012013`
+- Retained read:
+  retain the exact split. It converts `be_pack_loop` from a guarded parity row
+  into a host-pair JIT win without removing the number-helper route-around or
+  weakening the broader promotion-core guard.
