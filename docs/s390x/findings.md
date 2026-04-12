@@ -29417,3 +29417,49 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `be_helpers_localized/number_helper_loop_local_tobit/hot 1.0127x`.
   Current policy remains attribution-only until a focused same-host A/B or
   truth pack names a larger repeated mechanism.
+
+## 2026-04-12: first acceleration-target sweep closed as no-code
+
+- Goal:
+  after the retained matrix reached near parity, switch from small residual
+  burn-down to acceleration ranking by absolute JIT-on runtime.
+- Target 1, `ffi_cdata/mixed_width_loop/hot`:
+  `/tmp/kdz-retained-jitter-20260412092847` ran a focused higher-sample
+  `kdz` A/B (`samples=9`, `warmup=2`, seven alternating passes) for
+  `ffi_cdata`.
+  `mixed_width_loop/hot` was parity/noise: median ratio `0.9966x`, average
+  `1.0017x`, range `0.9920x..1.0338x`, red in `1/7`. Siblings stayed in their
+  expected bands: `pair_loop/hot` remained the compiled fast path and
+  `buffer_fref_loop/hot` was small/noisy (`1.0057x`, red `3/7`).
+- Target 2, `ffi_fixed_call_pressure/gpr_pressure/hot`:
+  `/tmp/kdz-retained-jitter-20260412093220` ran the oracle-backed focused A/B.
+  `gpr_pressure/hot` was also parity/noise: median ratio `1.0030x`, average
+  `0.9968x`, range `0.9720x..1.0129x`, red in `2/7`. `fpr_pressure/hot`
+  remained strongly compiled (`0.0228x`).
+- Guardrail debt sweep:
+  `/tmp/kdz-accel-guard-sweep-20260412093737` disabled retained guard groups
+  one at a time under the full retained env. It did not name a safe
+  high-upside opt-out:
+  exact iterator proto-NOJIT opt-out was much worse
+  (`pairs_array_sum/hot 2.2559x`, `pairs_sum/hot 2.3449x`); mixed-noffi guard
+  removal was worse (`mixed_loop/hot 1.0633x`); vararg guard removal was worse
+  on `retlast_loop/hot` (`1.4469x`); mixed-FFI guard removal was worse
+  (`mixed_ffi_loop/hot 1.0774x`); and promotion-core guard removal regressed
+  the protected number-helper rows while only improving an unrelated
+  already-fast static reducer.
+- FFI/cdata guard opt-outs:
+  dropping `AREF_BASE_ALLGPR` or `FFI_CDATA_PAIR_SAVE_DONE` showed only tiny
+  `mixed_width_loop`/`buffer_fref_loop` movement and regressed the protected
+  `pair_loop` fast row. That is not a retainable acceleration lever.
+- Broad iterator root fallback check:
+  `/tmp/kdz-iterator-root-blacklist-focus-20260412094054` focused the only
+  suspicious sweep result. Disabling only
+  `LUAJIT_S390X_ITERATOR_ROOT_BLACKLIST` moved `pairs_sum/hot` by only
+  `0.9864x`, left `pairs_array_sum/hot` neutral (`0.9986x`), and regressed
+  `mixed_noffi/mixed_loop/hot` (`1.0210x`). The safety check kept the default
+  `pairs_loop.lua` passing and made the opt-out timeout with status `124`.
+- Read:
+  the first two absolute-runtime acceleration candidates are closed as
+  no-code. The retained guardrails still protect real unsafe paths or only
+  expose noise-scale movement. The primary matrix is unchanged; do not update
+  retained rows from these exploratory opt-out reads.

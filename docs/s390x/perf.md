@@ -4718,3 +4718,31 @@ localized-helper carried-`total` lane
   unchanged. Keep performance code edits parked until a repeated full-env
   `kdz` pass names a material official-row payer; use mechanism truth packs if
   continuing above-parity exploration.
+
+## 2026-04-12 09:45 PDT
+
+- Post-oracle retained matrix:
+  `/tmp/kdz-retained-jitter-20260412085621` is still the current primary
+  matrix. It includes remote-built `liboracle.so` rows and does not name a
+  material red official-row blocker.
+- Acceleration target 1:
+  `/tmp/kdz-retained-jitter-20260412092847` rechecked
+  `ffi_cdata/mixed_width_loop/hot` with higher samples. The target closed as
+  parity/noise (`0.9966x` median, red `1/7`), with `pair_loop/hot` still in
+  the fast band and `buffer_fref_loop/hot` only small/noisy.
+- Acceleration target 2:
+  `/tmp/kdz-retained-jitter-20260412093220` rechecked
+  `ffi_fixed_call_pressure/gpr_pressure/hot`. It also closed as parity/noise
+  (`1.0030x` median, red `2/7`), while `fpr_pressure/hot` stayed strongly
+  compiled (`0.0228x`).
+- Guardrail debt read:
+  `/tmp/kdz-accel-guard-sweep-20260412093737` found no safe high-upside
+  opt-out. The only tempting broad-iterator-root movement was rechecked in
+  `/tmp/kdz-iterator-root-blacklist-focus-20260412094054`; it was too small
+  (`pairs_sum/hot 0.9864x`, `pairs_array_sum/hot 0.9986x`), regressed
+  `mixed_noffi/mixed_loop/hot` (`1.0210x`), and caused `pairs_loop.lua` to
+  timeout when the broad fallback was disabled.
+- Matrix policy:
+  do not change retained matrix rows from these attribution reads. The next
+  source mutation still requires a repeated official-row payer, not a noisy
+  near-parity row or an unsafe guard opt-out.
