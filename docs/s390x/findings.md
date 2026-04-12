@@ -29269,3 +29269,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   policy. The promotion-core proto-NOJIT guard remains retained for the
   number-helper and other unsafe promotion-core shapes; only the exact
   static-stop be-pack literal root is allowed to compile.
+
+## 2026-04-12: post-static-split rerank did not name another material payer
+
+- Source point:
+  `ff912c7d Split s390x static be-pack promotion guard`.
+- Corrected full retained-env `kdz` rerank:
+  `/tmp/kdz-retained-jitter-20260412081545`.
+  The retained route-around wins stayed in the fast band:
+  - `promotion_core_static_stop/be_pack_literal_stop_real/hot`: `0.0130x`
+  - `route_around_reducers_truth_pack/be_pack_literal_stop/hot`: `0.0158x`
+  - `be_helpers/be_pack_loop/hot`: `0.0130x`
+  - `ffi_cdata/pair_loop/hot`: `0.0032x`
+- Apparent next red rows were small/noisy rather than material:
+  - `be_helpers/number_helper_loop/hot`: median `1.0434x`, but jittered from
+    `0.9752x` to `1.0932x`
+  - `logic_add_phi_noboundary/hot`: median `1.0372x`, but only
+    `+0.000079s` median-ish absolute delta and high pass jitter
+- Focused confirmation:
+  `/tmp/kdz-retained-jitter-20260412081718`.
+  `be_helpers/number_helper_loop/hot` collapsed to median `0.9964x`, and
+  `logic_add_phi_noboundary/hot` collapsed below the red threshold at median
+  `1.0096x` with a `+0.000020s` median delta. The static be-pack literal win
+  remained stable at `0.0130x`.
+- Read:
+  after the two promotion-core be-pack splits, the current retained matrix is
+  again near parity or faster, with no stable material official-row payer.
+  The next code lane should come from a fresh guardrail-debt or truth-pack
+  signal, not from the small post-split residuals above.

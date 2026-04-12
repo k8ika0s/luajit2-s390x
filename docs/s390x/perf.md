@@ -171,6 +171,16 @@ Last updated: 2026-04-12 07:56 PDT
   retained families clean. `zkd0` `/tmp/zkd0-retained-jitter-20260412081200`
   confirmed the target row in the fast band, but remains noisy enough that
   `kdz` stays the policy signal.
+- Post-static-split rerank:
+  corrected full retained-env `kdz` rerank
+  `/tmp/kdz-retained-jitter-20260412081545` did not name another material
+  payer. The largest apparent red rows were `be_helpers/number_helper_loop`
+  and `logic_add_phi_noboundary`, but focused confirmation
+  `/tmp/kdz-retained-jitter-20260412081718` collapsed them to median
+  `0.9964x` and `1.0096x` respectively, with only tiny absolute deltas. The
+  current queue should therefore stay in attribution mode: do not open another
+  performance code lane until a fresh same-host A/B or truth pack names a
+  larger repeated payer.
 
 ## Canonical Perf Suite
 

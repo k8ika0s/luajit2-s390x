@@ -179,6 +179,12 @@ It is intentionally current-state only. Historical experiment detail lives in
   `/tmp/zkd0-retained-jitter-20260412081200`. `kdz` moved the target row to
   about `0.013x` of `-joff` in `3/3` focused passes; `zkd0` confirms the row
   is fast but remains too noisy for broader ratio decisions.
+- Post-static-split `kdz` rerank
+  `/tmp/kdz-retained-jitter-20260412081545` did not name another material
+  payer. The apparent `be_helpers/number_helper_loop` and
+  `logic_add_phi_noboundary` residuals collapsed in focused confirmation
+  `/tmp/kdz-retained-jitter-20260412081718`; the former was median `0.9964x`
+  and the latter was only `1.0096x` with a tiny absolute delta.
 - Current forward map:
   rerun the retained-env rerank after each guardrail-debt closure before
   opening another code lane. Do not reopen the latest noisy iterator, vararg,
