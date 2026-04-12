@@ -29617,3 +29617,89 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   low-level lanes remain ordered as localized `bit.tobit` overflow-chain
   attribution, cdata mixed-width attribution, then iterator safety-debt
   attribution, with one source candidate active at a time.
+
+## 2026-04-12: localized `bit.tobit` overflow-chain acceleration lane closed
+
+- Source point:
+  `f2b0707c Fix s390x 64-bit integer FLOAD`.
+- Attribution artifact:
+  `artifacts/s390x/truth-packs/20260412-111510-kdz-be_number_helper-accel-truth-pack`
+  reran the `be_number_helper` acceleration truth pack on `kdz` with full
+  retained env.
+- Official-row result:
+  `be_helpers/number_helper_loop/hot` stayed within noise at median `0.9876x`
+  (`1/3` red, ratios `0.9876, 1.0255, 0.9728`), and
+  `be_helpers_localized/number_helper_loop_local_tobit/hot` was only a small
+  noisy red at median `1.0297x` (`2/3` red, ratios
+  `1.0297, 0.9733, 1.0392`). The sibling helper rows remained fast:
+  `strto_loop/hot 0.4272x`, localized pack loop `0.0321x`, and pack loop
+  `0.0131x`.
+- Mechanism read:
+  focused reducers still expose the known overflow-exit pattern
+  (`TEXIT_COUNT 31233`, dominated by `exit 0` with one `exit 2`), but the
+  official retained rows do not show a material, repeated payer. A wrap-safe
+  `MULOV`/`ADDOV` lowering special case for `bit.tobit` would therefore be a
+  semantics-sensitive patch chasing a noisy residual rather than an
+  official-row acceleration win.
+- Closure:
+  no source candidate opened for this lane. Continue to cdata mixed-width
+  attribution next.
+
+## 2026-04-12: retained cdata mixed-width `MOD` / narrow-`XSTORE` acceleration closure
+
+- Source point:
+  `f2b0707c Fix s390x 64-bit integer FLOAD` plus the candidate
+  [lj_asm_s390x.h](../../src/lj_asm_s390x.h) backend patch.
+- Pre-patch attribution:
+  `artifacts/s390x/truth-packs/20260412-111834-kdz-ffi_cdata_width-accel-truth-pack`
+  reran the `ffi_cdata_width` acceleration truth pack on `kdz`. It showed
+  `ffi_cdata/mixed_width_loop/hot` still at parity (`1.0021x`) and
+  repeatedly aborting at `NYI: cannot assemble IR instruction 78`, which maps
+  to `IR_XSTORE` in the real `IRDEF` numbering. The sibling rows were
+  already acceptable: `pair_loop/hot 0.0032x` and `buffer_fref_loop/hot`
+  only a small/noisy residual.
+- Mechanism:
+  the existing s390x narrow `XSTORE` path was still opt-in and crashed on the
+  official mixed-width shape. Split repros showed single-width `u8`, `u16`,
+  and `u32` stores passed, but mixed-width loops either crashed or
+  miscomputed. The underlying bug was the integer constant-modulo fast path,
+  not the `STCY` / `STHY` store opcodes: `asm_modk_int()` pinned every modulo
+  result to the fixed `R4` remainder register while using `R5` as the `DSGR`
+  pair partner. That corrupts traces with multiple live modulo results, such
+  as the official cdata mixed-width body.
+- Fix:
+  `asm_modk_int()` now uses `R4/R5` only as the `DSGR` scratch pair and moves
+  the corrected remainder into a normal destination register allocated for the
+  IR result. After that correctness fix, the narrow `XSTORE` slice is
+  default-on with `LUAJIT_S390X_DISABLE_NARROW_XSTORE=1` as the diagnostic
+  opt-out.
+- Causality:
+  the isolated repros `/tmp/ffi_xstore_u16.lua`,
+  `/tmp/ffi_xstore_u8_u16.lua`, `/tmp/ffi_xstore_u16_u32.lua`,
+  `/tmp/ffi_xstore_u8_u32.lua`, and `/tmp/ffi_width_only.lua` all pass with
+  narrow `XSTORE` enabled after the modulo-register fix. The explicit opt-out
+  on `kdz` returns `ffi_cdata/mixed_width_loop/hot` to `0.028584`, proving the
+  acceleration is from the narrow-store path rather than measurement noise.
+- Retained `kdz` proof:
+  `artifacts/s390x/truth-packs/20260412-113445-kdz-ffi_cdata_width-accel-truth-pack`
+  shows `mixed_width_loop/hot` at median `0.000271` versus `0.028213`
+  `-joff` (`0.0095x`). `pair_loop/hot` stays fast at `0.0032x`; the
+  `buffer_fref_loop/hot` sibling remains near parity/noise (`0.9934x`).
+- Host confirmation:
+  `artifacts/s390x/truth-packs/20260412-113847-zkd0-ffi_cdata_width-accel-truth-pack`
+  confirms the same closure on `zkd0`: `mixed_width_loop/hot` median
+  `0.000346` versus `0.037485` `-joff` (`0.0085x`), and `pair_loop/hot`
+  remains fast at `0.0028x`.
+- Guardrails:
+  `kdz` passed `mulov_overflow_guard.lua`, `addsub_overflow_guard.lua`,
+  `numeric_ops.lua`, `pairs_loop.lua`, `compiled_vararg.lua`, retained-env
+  `vararg_paths.lua`, `mixed_noffi.lua`, `iterator_table.lua`,
+  `dispatch_trace.lua`, `ffi_cdata.lua`, `ffi_calls.lua`, `mixed_ffi.lua`,
+  `be_helpers.lua`, and `be_helpers_localized.lua`. `zkd0` passed the core
+  overflow/numeric guardrails, `pairs_loop.lua`, `compiled_vararg.lua`, and
+  retained-env `ffi_cdata.lua`, `iterator_table.lua`, `mixed_noffi.lua`,
+  `vararg_paths.lua`, and `dispatch_trace.lua`.
+- Read:
+  this is a retained acceleration win. Continue with iterator safety-debt
+  attribution next, unless a fresh full retained-env matrix names a larger
+  official-row payer first.

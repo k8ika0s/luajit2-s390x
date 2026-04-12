@@ -1,11 +1,12 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 10:50 PDT
+Last updated: 2026-04-12 11:45 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  `bd0dbb89 Fix s390x guarded MULOV exit state`, including the retained
+  `f2b0707c Fix s390x 64-bit integer FLOAD` plus the retained cdata
+  mixed-width backend closure, including the retained
   route-around reducer, static-stop be-pack, localized be-pack
   promotion-core guard splits, iterator/vararg guardrails, remote oracle
   matrix coverage, and the loop-body guarded `MULOV` exit-state fix. The retained
@@ -26,7 +27,9 @@ Last updated: 2026-04-12 10:50 PDT
   focused rerun (`pairs_sum/hot` median `0.9726x`), and localized `tobit`
   is a tiny/noisy residual after the correctness fix (`1.0007x` median,
   high run-order jitter). Current queue remains attribution-only until a
-  repeated official-row mechanism appears with material absolute time.
+  repeated official-row mechanism appears with material absolute time. The
+  follow-up low-level acceleration pass has since retained the FFI GPR
+  `FLOAD` closure and the cdata mixed-width `MOD` / narrow-`XSTORE` closure.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
@@ -296,12 +299,12 @@ included via a native remote `tests/s390x/build_oracles.sh` build.
 | `hotexit_loop/hot` | `dispatch_trace` | `0.005724` | `0.005709` | `+0.000015`, `1.0030x` | `kdz` | `2026-04-12 08:58 PDT` | dispatch hotexit row parity |
 | `max_loop/hot` | `numeric_ops` | `0.000176` | `0.002608` | `-0.002432`, `0.0675x` | `kdz` | `2026-04-12 08:58 PDT` | exact max body side-trace allow retained |
 | `pair_loop/hot` | `ffi_cdata` | `0.000056` | `0.017314` | `-0.017258`, `0.0033x` | `kdz` | `2026-04-12 08:58 PDT` | obsolete cdata FORL guard retired; compiled fast band |
-| `mixed_width_loop/hot` | `ffi_cdata` | `0.028289` | `0.028265` | `+0.000024`, `0.9976x` | `kdz` | `2026-04-12 08:58 PDT` | mixed-width cdata row at parity |
+| `mixed_width_loop/hot` | `ffi_cdata` | `0.000271` | `0.028213` | `-0.027942`, `0.0095x` | `kdz` | `2026-04-12 11:36 PDT` | retained cdata mixed-width `MOD` / narrow-`XSTORE` closure |
 | `buffer_fref_loop/hot` | `ffi_cdata` | `0.004861` | `0.004934` | `-0.000073`, `0.9787x` | `kdz` | `2026-04-12 08:58 PDT` | FREF coverage row green |
 | `sum_loop/hot` | `vararg_paths` | `0.004328` | `0.004329` | `-0.000001`, `1.0002x` | `kdz` | `2026-04-12 08:58 PDT` | vararg sum row parity under full retained env |
 | `retlast_loop/hot` | `vararg_paths` | `0.002050` | `0.001975` | `+0.000075`, `1.0169x` | `kdz` | `2026-04-12 08:58 PDT` | tiny/noisy residual only |
 | `retconst_loop/hot` | `vararg_paths` | `0.000548` | `0.000554` | `-0.000006`, `0.9734x` | `kdz` | `2026-04-12 08:58 PDT` | retconst row green |
-| `gpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.024893` | `0.024699` | `+0.000194`, `1.0079x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; small one-pass residual only |
+| `gpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.000260` | `0.024619` | `-0.024359`, `0.0106x` | `kdz` | `2026-04-12 11:05 PDT` | retained 64-bit integer `FLOAD` closure |
 | `fpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.000266` | `0.011621` | `-0.011355`, `0.0229x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fast band |
 | `small_u32_call/hot` | `ffi_fixed_struct_calls` | `0.000416` | `0.010782` | `-0.010366`, `0.0390x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
 | `small_u64_call/hot` | `ffi_fixed_struct_calls` | `0.000431` | `0.010767` | `-0.010336`, `0.0400x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
@@ -4783,3 +4786,36 @@ localized-helper carried-`total` lane
   continue with localized `bit.tobit` overflow-chain attribution next, then
   cdata mixed-width, then iterator safety debt. Keep broad guardrail removal
   out of scope unless a truth pack names a correctness-safe replacement.
+
+## 2026-04-12 11:45 PDT
+
+- Cdata mixed-width acceleration retained:
+  - pre-patch current-source truth pack
+    `artifacts/s390x/truth-packs/20260412-111834-kdz-ffi_cdata_width-accel-truth-pack`
+    showed the official `mixed_width_loop` still aborting at `IR_XSTORE`
+    and staying at parity (`1.0021x`)
+  - the opt-in narrow-`XSTORE` crash was traced to `asm_modk_int()` pinning
+    every integer constant-modulo result to fixed `R4`; traces with multiple
+    live `MOD` results corrupted the cdata mixed-width body
+  - [lj_asm_s390x.h](../../src/lj_asm_s390x.h) now uses `R4/R5` only as the
+    `DSGR` scratch pair, moves the remainder into the allocated IR result
+    register, and defaults narrow `XSTORE` on with
+    `LUAJIT_S390X_DISABLE_NARROW_XSTORE=1` as the diagnostic opt-out
+  - `kdz` retained truth pack
+    `artifacts/s390x/truth-packs/20260412-113445-kdz-ffi_cdata_width-accel-truth-pack`:
+    `ffi_cdata/mixed_width_loop/hot median=0.000271` versus
+    `0.028213 -joff` (`0.0095x`); explicit opt-out returns the row to
+    `0.028584`
+  - `zkd0` confirmation
+    `artifacts/s390x/truth-packs/20260412-113847-zkd0-ffi_cdata_width-accel-truth-pack`:
+    `mixed_width_loop/hot median=0.000346` versus `0.037485 -joff`
+    (`0.0085x`)
+- Sibling status:
+  `pair_loop` remains in the compiled fast band on both hosts. The
+  `buffer_fref_loop` row remains a small/noisy residual and is not a source
+  target from this closure.
+- Current acceleration queue:
+  localized `bit.tobit` has closed as no-code; cdata mixed-width is retained.
+  Continue with iterator safety-debt attribution next, or rerun a full
+  retained-env matrix first if the queue needs to be regenerated from the new
+  faster floor.
