@@ -4758,3 +4758,28 @@ localized-helper carried-`total` lane
   do not change retained matrix rows from these attribution reads. The next
   source mutation still requires a repeated official-row payer, not a noisy
   near-parity row or an unsafe guard opt-out.
+
+## 2026-04-12 11:15 PDT
+
+- FFI GPR acceleration retained:
+  - pre-patch current-source truth pack
+    `artifacts/s390x/truth-packs/20260412-110158-kdz-ffi_fixed_gpr-accel-truth-pack`
+    reproduced repeated official `gpr_pressure` aborts at `IR_FLOAD`
+  - [lj_asm_s390x.h](../../src/lj_asm_s390x.h) now supports 64-bit integer
+    `FLOAD` fields with the existing full-width load path
+  - `kdz` retained truth pack
+    `artifacts/s390x/truth-packs/20260412-110542-kdz-ffi_fixed_gpr-accel-truth-pack`:
+    `ffi_fixed_call_pressure/gpr_pressure/hot median=0.000260` versus
+    `0.024619 -joff` (`0.0106x`), `TRACE_ABORT 0`
+  - `zkd0` confirmation
+    `artifacts/s390x/truth-packs/20260412-110939-zkd0-ffi_fixed_gpr-accel-truth-pack`:
+    `gpr_pressure/hot median=0.000384` versus `0.048581 -joff` (`0.0079x`),
+    `TRACE_ABORT 0`
+- Sibling status:
+  `fpr_pressure` and fixed-struct call rows remained in the compiled fast band
+  on both hosts. `kdz` retained-env `vararg_paths`, `mixed_noffi`,
+  `iterator_table`, and `dispatch_trace` smoke rows stayed in band.
+- Current acceleration queue:
+  continue with localized `bit.tobit` overflow-chain attribution next, then
+  cdata mixed-width, then iterator safety debt. Keep broad guardrail removal
+  out of scope unless a truth pack names a correctness-safe replacement.

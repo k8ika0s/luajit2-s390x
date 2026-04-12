@@ -942,10 +942,16 @@ interpretation.
   not as a rerank event. It expands safe numeric/FPR trace coverage, but the
   next performance target still requires a fresh repeated `kdz` official-row
   signal.
-- Treat `mixed_width_loop` and `gpr_pressure` as closed acceleration targets
-  unless a future full retained-env matrix shows them as repeated material
-  payers. They are useful coverage rows, but the latest focused reads do not
-  justify a backend or trace-control patch.
+- Treat the earlier `mixed_width_loop` no-code read as advisory only; reopen it
+  for fresh attribution after the localized `bit.tobit` lane if no larger
+  low-level payer lands first. `gpr_pressure` has moved from no-code closure to
+  retained backend closure: `asm_fload()` now supports 64-bit integer cdata
+  field loads, which eliminates the official `IR_FLOAD` abort chain and moves
+  the row into the compiled fast band on both hosts.
+- Next acceleration queue after the FFI GPR closure:
+  localized `bit.tobit` overflow-chain attribution first, cdata mixed-width
+  second, iterator safety debt third. Keep broad guardrail removal out of
+  scope unless a truth pack proves a correctness-safe replacement mechanism.
 
 ## Where To Look Next
 

@@ -29571,3 +29571,49 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   target should not be a guard toggle or a tiny residual row; either rerun a
   higher-sample full matrix when needed, or open a new acceleration lane only
   when a repeated official-row mechanism appears with material absolute time.
+
+## 2026-04-12: retained FFI GPR `FLOAD`/`CALLXS` acceleration closure
+
+- Source point:
+  `c9a2050d Record post-MULOV retained rerank` plus the candidate
+  [lj_asm_s390x.h](../../src/lj_asm_s390x.h) patch.
+- Pre-patch attribution:
+  `artifacts/s390x/truth-packs/20260412-110158-kdz-ffi_fixed_gpr-accel-truth-pack`
+  reran the FFI GPR acceleration truth pack on current `c9a2050d`. It kept
+  `ffi_fixed_call_pressure/gpr_pressure/hot` near parity (`1.0010x`) but
+  showed the real mechanism: repeated official-row assembly aborts at
+  `NYI: cannot assemble IR instruction 69`. Instruction 69 is `IR_FLOAD`, and
+  the s390x `asm_fload()` path accepted 32-bit scalar, pointer, and GC-value
+  fields but rejected 64-bit integer fields.
+- Fix:
+  `asm_fload()` now accepts `IRT_I64` / `IRT_U64` via `irt_isint64(t)` and
+  emits the existing full-width `emit_load64ofs()` load for those fields. This
+  is intentionally limited to field loads; it does not change C-call ABI
+  setup, `CALLXS`, cdata conversion, or generic `SLOAD` / `XLOAD` lowering.
+- Mechanism proof:
+  `artifacts/s390x/truth-packs/20260412-110542-kdz-ffi_fixed_gpr-accel-truth-pack`
+  shows the official row now compiles through the exact missing field load:
+  the dump includes `u64 FLOAD ... cdata.int64`, `TRACE_ABORT` drops from `7`
+  to `0`, and `gpr_pressure/hot` improves to median `0.000260` versus
+  `0.024619` `-joff` (`0.0106x`). `fpr_pressure/hot` and the fixed-struct
+  siblings remained in the compiled fast band.
+- Host confirmation:
+  `artifacts/s390x/truth-packs/20260412-110939-zkd0-ffi_fixed_gpr-accel-truth-pack`
+  confirms the same closure on `zkd0`: `TRACE_ABORT 0`, `u64 FLOAD ...
+  cdata.int64` present, and `gpr_pressure/hot` median `0.000384` versus
+  `0.048581` `-joff` (`0.0079x`).
+- Guardrails:
+  `kdz` passed `ffi_fixed_call_pressure_trace.lua`,
+  `ffi_stack_call_trace.lua`, `tests/s390x/ffi_abi/run.lua`,
+  `mulov_overflow_guard.lua`, `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `pairs_loop.lua`, `compiled_vararg.lua`, retained-env `vararg_paths.lua`,
+  `mixed_noffi.lua`, `iterator_table.lua`, and retained-env
+  `dispatch_trace.lua`. `zkd0` passed `ffi_fixed_call_pressure_trace.lua`,
+  `ffi_stack_call_trace.lua`, `tests/s390x/ffi_abi/run.lua`,
+  `mulov_overflow_guard.lua`, `addsub_overflow_guard.lua`, and
+  `numeric_ops.lua`.
+- Read:
+  this is a retained acceleration win, not a regression fix. The next
+  low-level lanes remain ordered as localized `bit.tobit` overflow-chain
+  attribution, cdata mixed-width attribution, then iterator safety-debt
+  attribution, with one source candidate active at a time.
