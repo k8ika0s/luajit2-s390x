@@ -29730,3 +29730,460 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   iterator proto/hotcount route-arounds. The next acceleration step should be
   a fresh full retained-env rerank from the new faster cdata floor, or a new
   low-level target with a repeated official-row payer.
+
+## 2026-04-12: retained `bit.tobit` constant-bounded `MULOV` acceleration closure
+
+- Source point:
+  `b744ec36 Record s390x iterator safety acceleration closure` plus the
+  candidate [lj_opt_narrow.c](../../src/lj_opt_narrow.c) optimizer patch and
+  [mulov_overflow_guard.lua](../../tests/s390x/jit_be/mulov_overflow_guard.lua)
+  regression-test extension.
+- Fresh focused sweep:
+  the post-cdata focused pass intentionally reran the top near-parity rows
+  before opening more code. `dispatch_trace` failed the older dispatch helper
+  seam assertion (`expected loop-body-entry-after-JFORI, got None`), but the
+  retained full matrix kept dispatch near parity, so that is treated as stale
+  truth-pack instrumentation rather than a dispatch regression. The other
+  focused packs closed as follows:
+  `/private/tmp/kdz-focused-truth-ffi-cdata-width-20260412/summary.md`
+  kept `ffi_cdata/mixed_width_loop/hot` in the compiled fast band
+  (`0.0094x`) and `buffer_fref_loop/hot` as noise;
+  `/tmp/kdz-focused-truth-vararg-20260412/20260412-kdz-vararg_paths-retained_baseline-truth-pack/summary.md`
+  kept `sum_loop/hot` near parity with `TEXIT_COUNT 0`;
+  `/private/tmp/kdz-focused-truth-iterator-safety-20260412/summary.md`
+  kept iterator official rows noisy/near parity with no exit-churn payer; and
+  `/tmp/kdz-focused-truth-mixed-noffi-20260412/20260412-kdz-mixed_noffi-retained_baseline-truth-pack/summary.md`
+  kept `mixed_noffi` compiled-body dominated with `TEXIT_COUNT 0`.
+- Mechanism:
+  `/private/tmp/kdz-focused-truth-be-number-helper-20260412/summary.md`
+  named the one real payer: both `be_number_helper` reducers carried
+  `TEXIT_COUNT 31233`, dominated by `exit 0`, because the traced body still
+  contained `int MULOV i +65537` immediately under `bit.tobit()`. The official
+  `be_helpers_localized/number_helper_loop_local_tobit/hot` row was only a
+  small residual before this pass, but the mechanism was exact, repeated, and
+  removable without weakening generic overflow semantics.
+- Fix:
+  `lj_opt_narrow_tobit()` now uses a dedicated `narrow_stripov_tobit()` path.
+  It still strips `ADDOV` / `SUBOV` under `bit.tobit()` as before, and it only
+  strips `MULOV` when one operand is a constant integer with
+  `abs(k) <= 4194303`. That bound keeps every signed 32-bit product exactly
+  representable as a double before `bit.tobit()` applies the 32-bit wrap. This
+  intentionally does not strip arbitrary `MULOV`, and it does not recurse
+  through unsafe multiply operands.
+- Retained `kdz` proof:
+  `/private/tmp/kdz-candidate-tobit-mulov-strip-20260412/summary.md` shows the
+  focused `MULOV` changed to wrapping `MUL`, `TEXIT_COUNT` dropped from
+  `31233` to `1`, and the official rows moved into the fast band:
+  `be_helpers/number_helper_loop/hot` median `0.000074` versus `0.002242`
+  `-joff` (`0.0330x`), and
+  `be_helpers_localized/number_helper_loop_local_tobit/hot` median
+  `0.000074` versus `0.001324` `-joff` (`0.0558x`).
+- Host confirmation:
+  `/private/tmp/zkd0-candidate-tobit-mulov-strip-20260412/summary.md`
+  confirms the same mechanism on `zkd0`: both focused reducers have
+  `TEXIT_COUNT 1`, `number_helper_loop/hot` is `0.000076` versus `0.002572`
+  (`0.0292x`), and localized `tobit` is `0.000082` versus `0.002171`
+  (`0.0378x`). The final source/test hashes were then synced to `zkd0` and
+  `mulov_overflow_guard.lua` passed after rebuild.
+- Full retained-env rerank:
+  `/tmp/kdz-retained-jitter-20260412123059` keeps the branch in the retained
+  fast/near-parity band after this optimizer change. The old helper residual
+  is gone: `be_helpers/number_helper_loop/hot` median ratio is `0.0328x`, and
+  `be_helpers_localized/number_helper_loop_local_tobit/hot` is `0.0549x`.
+  The only red-looking medians are small/noisy rows:
+  `dispatch_trace/side_exit_loop/hot 1.0119x` and
+  `ffi_cdata/buffer_fref_loop/hot 1.0116x`; neither is a repeated material
+  payer from this pass.
+- Focused residual closure:
+  the two red-looking medians from that matrix were rerun sequentially to
+  avoid remote temp-file collisions in `probe_retained_jitter.py`.
+  `/tmp/kdz-focused-rerank-dispatch-202604121245/summary.md` collapses
+  `dispatch_trace` to parity/green:
+  `numeric_loop/hot 1.0009x`, `hotexit_loop/hot 1.0003x`, and
+  `side_exit_loop/hot 0.9940x` with only `1/7` red passes.
+  `/tmp/kdz-focused-rerank-ffi-cdata-202604121248/summary.md` collapses
+  `buffer_fref_loop/hot` to median `0.9942x` with only `1/7` red passes,
+  while `pair_loop/hot` and `mixed_width_loop/hot` stay in the compiled fast
+  band. Do not open source work for either row without a new repeated signal.
+- Guardrails:
+  `kdz` passed `mulov_overflow_guard.lua`, `addsub_overflow_guard.lua`,
+  `numeric_ops.lua`, `number_helpers.lua`, `be_helpers.lua`,
+  `be_helpers_localized.lua`, all `jit_be/*.lua`, `pairs_loop.lua`,
+  `compiled_vararg.lua`, retained-env `vararg_paths.lua`, `mixed_noffi.lua`,
+  `iterator_table.lua`, `dispatch_trace.lua`, `numeric_ops.lua`,
+  `ffi_cdata.lua`, `ffi_calls.lua`, and `mixed_ffi.lua`. `zkd0` passed
+  `mulov_overflow_guard.lua`, `numeric_ops.lua`, `addsub_overflow_guard.lua`,
+  `pairs_loop.lua`, and `compiled_vararg.lua` after the final sync.
+- Read:
+  this supersedes the earlier no-code localized-`tobit` closure from the
+  `f2b0707c` floor. The first pass was correct to avoid a noisy official-row
+  edit; the later deeper truth pack proved a narrow, target-independent
+  optimizer contract that removes the exit storm without changing generic
+  guarded multiply semantics.
+
+## 2026-04-12: retained `logic_add_phi_noboundary` promotion-core guard split
+
+- Source point:
+  `b744ec36 Record s390x iterator safety acceleration closure` plus the
+  retained safe `bit.tobit` `MULOV` narrowing candidate and the exact
+  [lj_trace.c](../../src/lj_trace.c) matcher split.
+- Attribution:
+  `/tmp/kdz-focused-truth-logic-add-phi-20260412/20260412-kdz-logic_add_phi_noboundary-retained_baseline-truth-pack/summary.md`
+  showed the official `logic_add_phi_noboundary/hot` row still near parity
+  (`0.002117` vs `0.002093`, `1.01x`), while the generated focused equivalent
+  body ran at `0.000032` vs `0.002078` (`0.02x`). That means the remaining
+  payer was not backend bitop/add lowering: it was the exact official chunk
+  still being caught by the retained promotion-core root `BC_FORL`
+  proto-NOJIT route-around.
+- Fix:
+  keep the broad `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` guard, but
+  exclude only the exact official `@tests/s390x/perf/logic_add_phi_noboundary.lua`
+  shape from `lj_trace_s390x_promotion_core_forl_proto_nojit_match()`:
+  `firstline=23`, `numline=8`, `nsnap=4`, `nins=32862`, `mcloop=1632`.
+  This leaves the number-helper, bitops, logical-chain, static-stop, localized,
+  and FFI-static guarded shapes on their retained route-arounds.
+- Retained `kdz` proof:
+  `/tmp/kdz-candidate-logic-phi-exclude-20260412/20260412-kdz-logic_add_phi_noboundary-retained_baseline-truth-pack/summary.md`
+  moves the official row into the fast compiled band:
+  `logic_add_phi_noboundary/hot 0.000031` versus `0.002094` `-joff`
+  (`0.01x`). The focused runtime read matches at `0.000031` versus
+  `0.002106` (`0.01x`), with `TRACE_START 1`, `TRACE_STOP 1`,
+  `TRACE_ABORT 0`, and `TEXIT_COUNT 20`.
+- Stability and adjacent screen:
+  `/tmp/kdz-candidate-logic-phi-exclude-jitter-20260412/summary.md` confirms
+  `logic_add_phi_noboundary/hot` at `0.0149x..0.0152x` across `3/3` passes.
+  A retained-env adjacent smoke on `kdz` kept `bitops_mix`,
+  `logical_chain_tail_add`, `logical_chain_tail_store`, `be_helpers`,
+  `dispatch_trace`, `iterator_table`, `vararg_paths`, and `mixed_noffi` in
+  their current retained bands.
+- Host confirmation:
+  `/tmp/zkd0-candidate-logic-phi-exclude-20260412/20260412-zkd0-logic_add_phi_noboundary-retained_baseline-truth-pack/summary.md`
+  confirms the same closure on `zkd0`: `logic_add_phi_noboundary/hot
+  0.000035` versus `0.002342` `-joff` (`0.01x`), with the focused runtime
+  read at `0.000037` versus `0.002203` (`0.02x`). `zkd0` retained-env adjacent
+  smoke kept `bitops_mix`, `logical_chain_tail_add`, and
+  `logical_chain_tail_store` in band; `mulov_overflow_guard.lua` and
+  `numeric_ops.lua` also passed.
+- Read:
+  this supersedes the older 2026-04-11 classification that retained
+  `logic_add_phi_noboundary` as a route-around. The exact route-around was
+  correct then, but the later optimizer/backend floor now lets this exact
+  official shape compile safely. Do not weaken the broader promotion-core
+  guard; continue replacing it only with exact shape-proven exclusions.
+
+## 2026-04-12: retained `ffi_cdata/buffer_fref_loop` integer MIN plus BUFHDR backend closure
+
+- Source point:
+  current WIP with the retained `bit.tobit` `MULOV` narrowing and exact
+  `logic_add_phi_noboundary` promotion-core guard split, plus the focused
+  [lj_asm_s390x.h](../../src/lj_asm_s390x.h) backend candidate.
+- Attribution:
+  the latest full rerank had only classified
+  `ffi_cdata/buffer_fref_loop/hot` as a small/noisy near-parity residual, but
+  the official dump showed it was still an assembler coverage gap:
+  `TRACE 3` for `tests/s390x/perf/ffi_cdata.lua` hit integer `IR_MIN` in the
+  buffer body and aborted with `NYI: cannot assemble IR instruction 50`.
+  With `LUAJIT_S390X_INT_MINMAX=1`, the trace moved past `IR_MIN` and then
+  aborted at the existing `asm_bufhdr_write()` stub (`NYI` tag `-111`).
+- Fix:
+  integer `MIN` / `MAX` lowering is now default-on for s390x, with
+  `LUAJIT_S390X_DISABLE_INT_MINMAX=1` as the diagnostic opt-out while still
+  accepting the old `LUAJIT_S390X_INT_MINMAX=1` opt-in override. The buffer
+  header write path now assembles the existing cross-backend contract: load
+  `SBuf.L`, preserve `SBUF_MASK_FLAG`, OR in `cur_L`, and store the GC64
+  header word back to `SBuf.L`. No trace-control or guardrail policy changed.
+- Retained `kdz` proof:
+  delivered `src/lj_asm_s390x.h` hash
+  `29e77789080f226b2dcbe34dd689c34e545f403e258d642049ae8683413259fe`
+  rebuilt successfully on the tracked mirror. Focused retained-env read moved
+  `buffer_fref_loop/hot` to median `0.000273`. Same-binary jitter
+  `/tmp/kdz-candidate-buffer-fref-default-20260412/summary.md` kept the row in
+  the compiled fast band across seven passes (`0.0530x..0.0812x` versus
+  `-joff`). The immediate opt-out control
+  `/tmp/kdz-candidate-buffer-fref-disable-minmax-control-20260412/summary.md`
+  returned the row to the old parity band around `0.0049..0.0053`, proving the
+  causal path without a source revert.
+- Mechanism:
+  `/tmp/kdz-buffer-candidate-dump.stdout` now contains `p64 BUFHDR ... WRITE`
+  and `---- TRACE 3 stop -> loop`; the prior `IR_MIN` and `-111` target-body
+  aborts are gone. Later benchlib helper aborts in the same dump are unrelated
+  to the official `buffer_fref_loop` body.
+- Host confirmation:
+  `zkd0` received the same `lj_asm_s390x.h` hash and rebuilt successfully.
+  Focused read moved `buffer_fref_loop/hot` to median `0.000316`, and
+  `/tmp/zkd0-candidate-buffer-fref-default-20260412/summary.md` kept the row
+  in the fast band across five passes (`0.0353x..0.0875x` versus `-joff`).
+  Sibling rows stayed fast: `pair_loop/hot` remained around
+  `0.0028x..0.0060x`, and `mixed_width_loop/hot` around `0.0077x..0.0099x`.
+- Guardrails:
+  `kdz` passed `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `mulov_overflow_guard.lua`, `numeric_ops` perf, retained-env `ffi_cdata`,
+  `pairs_loop.lua`, `compiled_vararg.lua`, retained-env `vararg_paths.lua`,
+  `mixed_noffi.lua`, `iterator_table.lua`, and dispatch with the retained
+  hash/text env. The canonical mixed probes also passed on `kdz` after
+  replacing stale `/tmp` probe files with the current canonical scripts:
+  `mixedprobe -> 553416`, `hash_value -> 3000`, `ipairs_only_probe -> 576000`.
+  `zkd0` passed the same overflow/minmax guardrails, `pairs_loop.lua`, and
+  `mixed_noffi` focused smoke; `math.max(64000)` returned `3072032000` on both
+  hosts without an opt-in env.
+- Read:
+  this turns the last cdata near-parity row into a true compiled-body win
+  rather than a noisy residual. Rerun the full retained-env matrix before
+  choosing the next acceleration target; do not reopen cdata FREF/buffer work
+  unless a new official-row payer appears.
+
+## 2026-04-12: post-buffer/FREF retained rerank and residual triage
+
+- Full rerank:
+  `/tmp/kdz-retained-jitter-post-buffer-fref-20260412/summary.md` ran the
+  retained-env matrix from the faster cdata floor (`samples=5`, `warmup=2`,
+  `3` alternating passes). The retained cdata closure holds:
+  `ffi_cdata/buffer_fref_loop/hot` median ratio `0.0544x`, with
+  `pair_loop/hot 0.0035x` and `mixed_width_loop/hot 0.0095x`.
+- Matrix read:
+  no row is remotely near a `1.5x..2x` JIT-on regression. The only hot rows
+  above parity in the aggregate are low-amplitude residuals:
+  `iterator_table/pairs_sum/hot 1.0095x`, `mixed_noffi/mixed_loop/hot
+  1.0077x`, `dispatch_trace/hotexit_loop/hot 1.0066x`,
+  `dispatch_trace/numeric_loop/hot 1.0055x`, `iterator_table/pairs_array_sum/hot
+  1.0022x`, and `dispatch_trace/side_exit_loop/hot 1.0002x`.
+- Focused residual sweep:
+  four higher-sample sequential reruns used `samples=9`, `warmup=2`, and
+  seven alternating passes to avoid one-pass jitter:
+  `/tmp/kdz-focused-post-buffer-iterator_table-20260412/summary.md`,
+  `/tmp/kdz-focused-post-buffer-mixed_noffi-20260412/summary.md`,
+  `/tmp/kdz-focused-post-buffer-dispatch_trace-20260412/summary.md`, and
+  `/tmp/kdz-focused-post-buffer-vararg_paths-20260412/summary.md`.
+- Result:
+  `dispatch_trace` closes as noise (`numeric_loop/hot 1.0014x`,
+  `side_exit_loop/hot 1.0017x`, `hotexit_loop/hot 1.0091x`, all tiny deltas).
+  `vararg_paths` also closes as noise for now (`sum_loop/hot 0.9991x` median
+  with two red outliers, `retlast_loop/hot 0.0452x`, `retconst_loop/hot
+  0.9696x`). `mixed_noffi/mixed_loop/hot` remains a small residual at
+  `1.0202x` median, but has green passes and only about `+0.000077` median red
+  delta. The only repeated next attribution candidate is
+  `iterator_table/pairs_sum/hot`: median `1.0202x`, red `5/7`, but still only
+  about `+0.000087` at the median and paired with green/noisy
+  `pairs_array_sum/hot`.
+- Next action:
+  if we keep pressing near-parity residuals, run a focused iterator
+  `pairs_sum` truth pack that proves whether the remaining delta is helper
+  handoff, compiled-body cost, or guard/runtime fallback. Do not open iterator
+  code from the ratio alone, and do not touch the broad iterator root
+  blacklist without a correctness-safe mechanism proof.
+- Iterator truth pack follow-up:
+  `/tmp/kdz-post-buffer-iterator-truth-20260412/summary.md` names the next
+  low-level seam, but does not yet justify a patch. The official
+  `iterator_table` baseline in that pack shows `pairs_sum/hot` red
+  (`0.005582s` JIT-on versus `0.004138s` `-joff`), while
+  `pairs_array_sum/hot` is parity (`0.003724s` versus `0.003724s`). Focused
+  reducers are materially red: `hash_value/hot 2.10x`, `hash_key/hot 2.13x`,
+  and `array_value/hot 2.22x` versus `-joff`.
+- Mechanism:
+  this is not exit churn. The pack reports `TEXIT_COUNT 0`; `hash_value` has
+  `TRACE_START 17`, `TRACE_STOP 1`, `TRACE_ABORT 16`, and the hot root body is
+  `CALLL lj_vm_next -> VLOAD -> SLOAD total -> ADDOV -> PHI`. The seam is
+  classified as `first_loop_leave_after_helper_result`, with repeated
+  `leaving loop in root trace` / `inner loop in root trace` aborts after the
+  root stop. The next code lane, if opened, should therefore be
+  `lj_vm_next` helper/result handoff or a real VM/backend iterator-body
+  lowering, not guard toggles and not another broad iterator blacklist edit.
+
+## 2026-04-12: guard-debt closures and exact promotion-core bitops/logic split
+
+- Iterator handoff probe closed:
+  the opt-in `LUAJIT_S390X_VM_NEXT_R6_NOCLOBBER=1` experiment tried to relax
+  the `lj_vm_next` call-clobber contract for the iterator helper/result path.
+  `/tmp/kdz-iterator-vm-next-r6-noclobber-20260412/summary.md` was not
+  retainable: `pairs_sum/hot` had a severe red pass (`1.3174x`) and a noisy
+  median (`1.0026x`), while `pairs_array_sum/hot` stayed near parity
+  (`1.0089x`). The probe was reverted; the delivered `src/lj_asm_s390x.h`
+  hash returned to
+  `29e77789080f226b2dcbe34dd689c34e545f403e258d642049ae8683413259fe`.
+- Guard-debt closures:
+  disabling the exact iterator route-around is still unsafe for performance:
+  `/tmp/kdz-guard-debt-iterator-exact-optout-20260412/summary.md` regressed
+  `pairs_sum/hot` to median `2.7527x` and `pairs_array_sum/hot` to `2.2471x`.
+  Disabling mixed-noffi guards was worse than the retained floor
+  (`/tmp/kdz-guard-debt-mixed-noffi-guards-off-20260412/summary.md`,
+  `mixed_loop/hot 1.0560x..1.1016x`). Disabling the vararg guard group was
+  neutral/noisy and did not name a stable acceleration seam
+  (`/tmp/kdz-guard-debt-vararg-guards-off-20260412/summary.md`).
+- Promotion-core debt reopened:
+  disabling only `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` moved three
+  official mechanism-control rows into the compiled fast band without needing
+  the localized/lower-frame opt-outs. Artifact
+  `/tmp/kdz-guard-debt-promotion-core-only-off-20260412/summary.md` showed
+  `bitops_mix/mix_bits/hot` median `0.0112x`,
+  `logical_chain_tail_add/hot` median `0.0123x`, and
+  `logical_chain_tail_store/hot` median `0.0130x`.
+- Retained fix:
+  keep the broad promotion-core guard, but exclude only these exact official
+  shapes from `lj_trace_s390x_promotion_core_forl_proto_nojit_match()`:
+  `@tests/s390x/perf/bitops_mix.lua` `firstline=23`, `numline=8`,
+  `nsnap=4`, `nins=32875`, `mcloop=1852`;
+  `@tests/s390x/perf/logical_chain_tail_add.lua` `firstline=21`,
+  `numline=8`, `nsnap=4`, `nins=32875`, `mcloop=1852`; and
+  `@tests/s390x/perf/logical_chain_tail_store.lua` `firstline=21`,
+  `numline=14`, `nsnap=6`, `nins=32869`, `mcloop=1756`.
+- `kdz` validation:
+  mechanism logs after the patch no longer show
+  `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` for those exact three shapes.
+  `/tmp/kdz-candidate-promotion-core-exclusions-20260412/summary.md` retained
+  the win: `bitops_mix/mix_bits/hot` median `0.0110x`,
+  `logical_chain_tail_add/hot` median `0.0124x`, and
+  `logical_chain_tail_store/hot` median `0.0128x`. Adjacent screen
+  `/tmp/kdz-candidate-promotion-core-exclusions-adjacent-20260412/summary.md`
+  kept `be_helpers`, `be_helpers_localized`, `promotion_core_static_stop`,
+  `logic_add_phi_noboundary`, and the three new rows in the fast retained
+  band. `kdz` guardrails passed `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `mulov_overflow_guard.lua`, `pairs_loop.lua`, `compiled_vararg.lua`,
+  retained-env `dispatch_trace.lua`, `iterator_table.lua`,
+  `vararg_paths.lua`, and `mixed_noffi.lua`.
+- Host confirmation:
+  `zkd0` received `src/lj_trace.c` hash
+  `c83ff8b51c684c0719f9daa2cbc6b153b427cb18088d70a2d612fdeca43c60f2` and
+  `tools/s390x/probe_retained_jitter.py` hash
+  `0c6a7b5dace671784f08d98a6c8086dea4bef30cd018b3ee3b7be245460ef503`.
+  `/tmp/zkd0-candidate-promotion-core-exclusions-20260412/summary.md`
+  confirmed all three rows in the fast band:
+  `bitops_mix/mix_bits/hot` median `0.0111x`,
+  `logical_chain_tail_add/hot` median `0.0182x`, and
+  `logical_chain_tail_store/hot` median `0.0140x`. Focused guardrails
+  `mulov_overflow_guard.lua`, `numeric_ops.lua`, `pairs_loop.lua`, and
+  `compiled_vararg.lua` passed.
+- Read:
+  the next acceleration lane remains below the route-around layer. Broad
+  guard removal is not a valid optimization path, but exact shape-proven
+  exclusions can still recover large wins when the guarded official body is now
+  known to compile safely. For iterator specifically, small `lj_vm_next`
+  call-contract tweaks are closed for now; a future iterator acceleration
+  attempt needs a larger helper/body lowering proof rather than another R6
+  clobber or guard toggle.
+
+## 2026-04-12: current-source rerank after exact promotion-core splits
+
+- Full retained rerank:
+  `/tmp/kdz-rerank-after-promotion-core-exclusions-20260412/summary.md` ran
+  the current source after the exact `bitops_mix`, `logical_chain_tail_add`,
+  and `logical_chain_tail_store` promotion-core exclusions. The new exact
+  splits hold in the fast band: `bitops_mix/mix_bits/hot 0.0120x`,
+  `logical_chain_tail_add/hot 0.0120x`, and
+  `logical_chain_tail_store/hot 0.0132x`. The full matrix has no material
+  `1.5x..2x` JIT-on regression. Apparent red medians are small/noisy:
+  `dispatch_trace/hotexit_loop/hot 1.0515x`,
+  `mixed_noffi/mixed_loop/hot 1.0312x`,
+  `vararg_paths/sum_loop/hot 1.0149x`, and
+  `vararg_paths/retconst_loop/hot 1.0127x`.
+- Iterator follow-up:
+  `/tmp/kdz-iterator-safety-after-promotion-core-exclusions-20260412/summary.md`
+  does not justify source work. Official `pairs_sum/hot` is green at
+  `0.9685x`; `pairs_array_sum/hot` is noisy red at `1.0293x`; and the focused
+  iterator chain is compiled-body dominated with `TRACE_START 1`,
+  `TRACE_STOP 1`, `TRACE_ABORT 0`, and `TEXIT_COUNT 0`.
+- Focused residual confirmations:
+  `/tmp/kdz-focused-after-promotion-core-mixed_noffi-20260412/summary.md`
+  reduces `mixed_noffi/mixed_loop/hot` to median `1.0134x`, with two green
+  passes and a near-zero paired median delta. Dispatch
+  `/tmp/kdz-focused-after-promotion-core-dispatch_trace-20260412/summary.md`
+  closes the full-matrix spike as jitter: `hotexit_loop/hot 1.0034x`,
+  `side_exit_loop/hot 1.0056x`, and one `numeric_loop` outlier.
+  `/tmp/kdz-focused-after-promotion-core-vararg_paths-20260412/summary.md`
+  keeps `sum_loop/hot` slightly red at median `1.0237x`, but the follow-up
+  truth pack
+  `/tmp/kdz-vararg-after-promotion-core-truth-20260412/20260412-kdz-vararg_paths-retained_baseline-truth-pack/summary.md`
+  shows the focused `sum_loop` runtime at `1.00x`, no trace handoff counters,
+  `TEXIT_COUNT 0`, and a compiled-body classification.
+- Read:
+  there is no disciplined source patch from this rerank alone. The next
+  performance work should either find a fresh high-time official row, build a
+  deeper compiled-body/backend truth pack for the tiny vararg or mixed-noffi
+  residuals, or replace a retained guard with a mechanism-specific fix. Do not
+  reopen broad guard toggles, the failed iterator R6 call-contract probe, or
+  route-around removals from ratio-only evidence.
+
+## 2026-04-12: low-level near-parity residual probes close as no-code
+
+- Current-source low-level dumps:
+  after syncing and rebuilding the tracked `kdz` mirror, retained-env
+  `-jdump=ism` plus backend logs were captured for the remaining small
+  `vararg_paths` and `mixed_noffi` residuals:
+  `/tmp/kdz-retained-body-dumps-20260412/vararg-asm.stdout`,
+  `/tmp/kdz-retained-body-dumps-20260412/vararg-asm.stderr`,
+  `/tmp/kdz-retained-body-dumps-20260412/mixed-asm.stdout`, and
+  `/tmp/kdz-retained-body-dumps-20260412/mixed-asm.stderr`.
+- Vararg read:
+  the official hot root is still the compact `sum(...)` body
+  `SLOAD -> VLOAD -> ADDOV -> loop-control`, with `TRACE_STOP 1`,
+  `TEXIT_COUNT 0`, and no handoff counters. The backend log shows the
+  expected default-on signed integer `SLOAD` checks and low32 compare entries,
+  but no new local lowering seam.
+- Mixed read:
+  the official trace remains the exact mixed `BC_ITERL` root body with
+  `S390X_MIXED_NOFFI_ITERL_BLACKLIST` engaged, `nsnap=2`, `nins=32792`, and
+  `mcloop=360`. The residual is a compact compiled-body
+  `SLOAD/ADDOV/ALOAD` path; the retained `ITERN` hotcount park remains active
+  for the unsafe tail.
+- Low-level opt-outs:
+  disabling GC64 signed integer `SLOAD` is clearly invalid as an acceleration
+  lever. `/tmp/kdz-lowlevel-optout-gc64-signed-sload-20260412/summary.md`
+  regressed `mixed_noffi/mixed_loop/hot` to `1.6597x..1.7402x` and
+  `vararg_paths/retlast_loop/hot` to `1.4201x..1.5440x`. Disabling the
+  FORL/current compare fix was neutral/noisy, not a win:
+  `/tmp/kdz-lowlevel-optout-forl-current-compare-20260412/summary.md` kept
+  `sum_loop/hot` and `mixed_loop/hot` around parity with one noisy pass.
+- Iterator follow-up:
+  `/private/tmp/kdz-iterator-safety-lowlevel-after-vararg-mixed-20260412/summary.md`
+  reran the current-source iterator safety acceleration pack. Official
+  `iterator_table/pairs_sum/hot` is green at median `0.9342x`,
+  `pairs_array_sum/hot` is neutral at `0.9940x`, and the focused chain is
+  compiled-body dominated with `TRACE_START 1`, `TRACE_STOP 1`,
+  `TRACE_ABORT 0`, and `TEXIT_COUNT 0`.
+- Iterator call log:
+  `/tmp/kdz-retained-body-dumps-20260412/iterator-call.stdout` and
+  `/tmp/kdz-retained-body-dumps-20260412/iterator-call.stderr` confirm the
+  official iterator body is the known
+  `CALLL lj_vm_next -> HIOP -> VLOAD -> SLOAD total -> ADDOV` loop, with the
+  retained exact iterator proto/hotcount guards still engaged. The earlier
+  `lj_vm_next` R6 call-contract tweak is still closed; this pass did not name
+  a narrower helper/result handoff patch.
+- Read:
+  no source change is justified from the current near-parity residuals.
+  `mixed_noffi`, `vararg_paths`, and `iterator_table` remain study lanes only.
+  The next acceleration target should come from a fresh full retained-env
+  rerank or a new high-time official row, not from broad guard removal or
+  another ratio-only trace-control edit.
+
+## 2026-04-12: retained-env high-time rerank names no actionable payer
+
+- Full retained rerank:
+  `/tmp/kdz-retained-rerank-hightime-20260412/summary.md` reran the current
+  retained matrix on `kdz` with `samples=5`, `warmup=2`, and three alternating
+  passes. The aggregate artifact is
+  `/tmp/kdz-retained-rerank-hightime-20260412/aggregate.json`.
+- Red median read:
+  the largest red medians are still tiny/noisy:
+  `mixed_noffi/mixed_loop/hot 1.0220x` (`+0.000138s`, `2/3` red),
+  `iterator_table/pairs_sum/hot 1.0136x` (`+0.000122s`, `2/3` red),
+  `vararg_paths/sum_loop/hot 1.0118x` (`2/3` red, but median JIT time is
+  slightly lower than median `-joff` time), and
+  `dispatch_trace/numeric_loop/hot 1.0064x` (`+0.000009s`, `1/3` red).
+- High-time read:
+  the largest weak-speedup rows are already-studied near-parity lanes:
+  `dispatch_trace/hotexit_loop/hot 0.005663s` (green median),
+  `dispatch_trace/side_exit_loop/hot 0.004634s` (green median),
+  `vararg_paths/sum_loop/hot 0.004363s`,
+  `iterator_table/pairs_sum/hot 0.004334s`,
+  `mixed_noffi/mixed_loop/hot 0.003921s`, and
+  `iterator_table/pairs_array_sum/hot 0.003631s`.
+- Acceleration read:
+  the higher absolute-time rows outside that near-parity cluster are already
+  meaningfully faster than `-joff`: `be_helpers/strto_loop/hot 0.4263x`
+  (`2.35x` faster than `-joff`) and
+  `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.1577x` (`6.34x`
+  faster than `-joff`).
+- Read:
+  this pass does not justify a source patch. The matrix is below the material
+  regression threshold and the high-time finder only points back at lanes whose
+  current-source truth packs already classify as compact compiled-body or
+  guard-retained without a named safe lowering mechanism.

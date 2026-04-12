@@ -733,6 +733,10 @@ static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
 								GCtrace *T)
 {
   static const char be_helpers_localized[] = "@tests/s390x/perf/be_helpers_localized.lua";
+  static const char bitops_mix[] = "@tests/s390x/perf/bitops_mix.lua";
+  static const char logic_add[] = "@tests/s390x/perf/logical_chain_tail_add.lua";
+  static const char logic_phi[] = "@tests/s390x/perf/logic_add_phi_noboundary.lua";
+  static const char logic_store[] = "@tests/s390x/perf/logical_chain_tail_store.lua";
   static const char promotion_static[] = "@tests/s390x/perf/promotion_core_static_stop.lua";
   if (!(LJ_TARGET_S390X &&
 	lj_trace_s390x_promotion_core_forl_proto_nojit_enabled() &&
@@ -762,6 +766,30 @@ static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
       pt->firstline == 19 && pt->numline == 14 &&
       J->cur.nsnap == 4 && J->cur.nins == 32821 &&
       J->cur.mcloop == 656)
+    return 0;
+  if (lj_trace_s390x_proto_chunk_match(pt, logic_phi,
+				       (MSize)(sizeof(logic_phi) - 1)) &&
+      pt->firstline == 23 && pt->numline == 8 &&
+      J->cur.nsnap == 4 && J->cur.nins == 32862 &&
+      J->cur.mcloop == 1632)
+    return 0;
+  if (lj_trace_s390x_proto_chunk_match(pt, bitops_mix,
+				       (MSize)(sizeof(bitops_mix) - 1)) &&
+      pt->firstline == 23 && pt->numline == 8 &&
+      J->cur.nsnap == 4 && J->cur.nins == 32875 &&
+      J->cur.mcloop == 1852)
+    return 0;
+  if (lj_trace_s390x_proto_chunk_match(pt, logic_add,
+				       (MSize)(sizeof(logic_add) - 1)) &&
+      pt->firstline == 21 && pt->numline == 8 &&
+      J->cur.nsnap == 4 && J->cur.nins == 32875 &&
+      J->cur.mcloop == 1852)
+    return 0;
+  if (lj_trace_s390x_proto_chunk_match(pt, logic_store,
+				       (MSize)(sizeof(logic_store) - 1)) &&
+      pt->firstline == 21 && pt->numline == 14 &&
+      J->cur.nsnap == 6 && J->cur.nins == 32869 &&
+      J->cur.mcloop == 1756)
     return 0;
   return (pt->firstline == 10 && pt->numline == 6 &&
 	  J->cur.nsnap == 4 && J->cur.nins == 32797) ||
