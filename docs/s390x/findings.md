@@ -28555,3 +28555,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   leaving the broad iterator root blacklist available for unsafe non-exact
   iterator shapes. The next move should be another retained-env rerank from
   this new floor rather than another mixed trace-control edit.
+
+## 2026-04-11: post-mixed-ordering retained-env rerank
+
+- Source point:
+  `fa1d75e5 Restore mixed noffi trace guard ordering`.
+- Full retained-env `kdz` rerank:
+  `/tmp/kdz-fa1d75e5-full-retained-rerank-20260411184018`.
+  This used tracked-file sync, a direct remote `src/` rebuild, full retained
+  env, 5 samples, 2 warmups, and 3 alternating A/B passes across
+  `dispatch_trace`, `iterator_table`, `vararg_paths`, `mixed_noffi`,
+  `mixed_ffi`, `ffi_cdata`, `ffi_calls`, and `be_helpers`.
+- Focused residual confirmation:
+  `/tmp/kdz-fa1d75e5-residual-confirm-20260411184217`.
+  This reused the same rebuilt binary, used 7 samples, 2 warmups, and 4
+  alternating passes for `iterator_table`, `vararg_paths`, `mixed_noffi`, and
+  `be_helpers`.
+- Combined rerank read:
+  - `mixed_noffi/mixed_loop/hot`: median ratio `1.0219x`, median delta
+    `+0.000083`, red in `4/7` passes. This is the only repeated residual with
+    a meaningful absolute delta.
+  - `iterator_table/pairs_sum/hot`: median ratio `1.0002x`, median delta
+    `+0.000001`, red in `3/7` passes. The focused pass had one high-JIT
+    outlier at `1.3672x`, but the other three focused passes were faster than
+    `-joff`; do not reopen iterator from this read.
+  - `vararg_paths/retconst_loop/hot`: median ratio `1.0000x`, median delta
+    `+0.000000`, red in `3/7` passes. This is a tiny-row/noise signal, not a
+    code target.
+  - `vararg_paths/sum_loop/hot`: median ratio `1.0083x`, median delta
+    `+0.000036`, red in `3/7` passes.
+  - `be_helpers/be_pack_loop/hot`: median ratio `1.0127x`, median delta
+    `+0.000245`, red in `2/7` passes.
+  - `dispatch_trace`, `mixed_ffi`, `ffi_calls`, and `ffi_cdata` were near
+    parity or green in the full retained-env pass.
+- Rerank decision:
+  current active target is not iterator-table. The only defensible next
+  investigation is a fresh official-row `mixed_noffi` attribution focused on
+  the remaining compiled-body residual. If that truth pack does not name a
+  concrete payer, park `mixed_noffi` again and require a repeated same-host
+  `kdz` A/B signal before opening any smaller row.

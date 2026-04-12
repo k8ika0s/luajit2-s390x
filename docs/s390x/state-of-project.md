@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 17:51 PDT
+Last updated: 2026-04-11 18:44 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -54,15 +54,26 @@ It is intentionally current-state only. Historical experiment detail lives in
   official mechanism marker `S390X_MIXED_NOFFI_ITERL_BLACKLIST` re-engaged at
   trace 1. `zkd0` remains too noisy for a ratio decision, but confirms the
   same marker ordering and keeps `pairs_loop` passing.
+- Post-ordering-fix retained-env rerank from `fa1d75e5`:
+  `/tmp/kdz-fa1d75e5-full-retained-rerank-20260411184018` plus focused
+  confirmation `/tmp/kdz-fa1d75e5-residual-confirm-20260411184217`. Combined
+  `kdz` read across seven mixed passes has `mixed_noffi/mixed_loop/hot` at
+  median ratio `1.0219x`, median delta `+0.000083`, and red in `4/7` passes.
+  The other apparent red rows did not hold as stable material payers:
+  `iterator_table/pairs_sum` collapsed to median ratio `1.0002x`,
+  `vararg_paths/retconst_loop` was a tiny-row/noise signal with median delta
+  effectively zero, and `be_helpers/be_pack_loop` was red in only `2/7`
+  passes at median ratio `1.0127x`.
 - The retained env contract is canonicalized in
   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   and imported by the iterator, dispatch, and broader-throughput truth-pack
   helpers. Do not use partial-env runs for retention decisions.
-- Next work should prioritize the inherited guardrails before small clean-row
-  perf residuals: first `vararg_paths` segfault, then `mixed_noffi` mismatch,
-  then `pairs_loop.lua` timeout. After those are stable, rerun the full
-  retained-env matrix and open performance code only if repeated same-host
-  `kdz` A/B names a material JIT-only payer.
+- Next work should stay disciplined: re-attribute the remaining
+  `mixed_noffi` compiled-body residual on the official row before opening
+  code. If that truth-pack does not name a real payer, park `mixed_noffi` and
+  only revisit iterator, vararg, helper, cdata, or call rows after a repeated
+  same-host `kdz` A/B names a larger official-row signal. Do not reopen broad
+  trace-control or guardrail edits from the current near-parity matrix alone.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
@@ -116,6 +127,10 @@ It is intentionally current-state only. Historical experiment detail lives in
   trusted `kdz` A/B rows are `0.003846`, `0.003949`, `0.003946` against
   `-joff 0.003861`, `0.003772`, `0.003827`. `mixed_ffi` and `ffi_cdata`
   remain parked near parity on the carried floor.
+- The follow-up retained-env rerank keeps `mixed_noffi` as the only repeated
+  residual, but much smaller than the pre-fix row: combined `kdz` median
+  `0.003865` vs `-joff 0.003791`, ratio `1.0219x`. This is an attribution
+  target, not permission for another blind mixed trace-control edit.
 - `dispatch_trace` reopened after the ISA promotion, but is now stabilized
   again with an exact root-`BC_FORL` proto-NOJIT route-around in
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c):
