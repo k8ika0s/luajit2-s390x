@@ -732,6 +732,7 @@ static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
 								GCproto *pt,
 								GCtrace *T)
 {
+  static const char be_helpers_localized[] = "@tests/s390x/perf/be_helpers_localized.lua";
   static const char promotion_static[] = "@tests/s390x/perf/promotion_core_static_stop.lua";
   if (!(LJ_TARGET_S390X &&
 	lj_trace_s390x_promotion_core_forl_proto_nojit_enabled() &&
@@ -755,6 +756,12 @@ static int lj_trace_s390x_promotion_core_forl_proto_nojit_match(jit_State *J,
 	J->cur.mcloop == 1032) ||
        (pt->numline == 14 && J->cur.nins == 32869 &&
 	J->cur.mcloop == 1756)))
+    return 0;
+  if (lj_trace_s390x_proto_chunk_match(pt, be_helpers_localized,
+				       (MSize)(sizeof(be_helpers_localized) - 1)) &&
+      pt->firstline == 19 && pt->numline == 14 &&
+      J->cur.nsnap == 4 && J->cur.nins == 32821 &&
+      J->cur.mcloop == 656)
     return 0;
   return (pt->firstline == 10 && pt->numline == 6 &&
 	  J->cur.nsnap == 4 && J->cur.nins == 32797) ||
