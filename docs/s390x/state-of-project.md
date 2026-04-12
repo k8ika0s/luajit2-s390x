@@ -823,6 +823,12 @@ interpretation.
   mcode crash in constant unguarded `UREFO`; [lj_asm_s390x.h](../../src/lj_asm_s390x.h)
   now emits the upvalue-address load after the dereference emission in source
   order, so execution loads the address before `lg dest,0(dest)`
+- after `0f398870`, the full retained-env rerank did not name a material
+  performance payer: the top median red row on trusted `kdz` was only
+  `mixed_noffi/mixed_loop/hot 1.0049x` with red `1/5`
+- the first guardrail debt sweep did not expose a safe high-upside opt-out:
+  exact iterator removal, mixed-noffi guard removal, vararg exact removal, and
+  promotion-core/localized removal all slowed the official rows they protect
 
 ### After The Near-Parity Rerank
 
@@ -836,6 +842,10 @@ interpretation.
   target on its own.
 - The next mutation should start from a fresh matrix/proof pass under the full
   retained env, not from a reduced-probe or trace-meta-only ladder.
+- If we continue seeking above-parity wins without a red matrix row, do it as a
+  mechanism truth-pack exercise against one named guardrail debt seam at a
+  time. Do not weaken the retained guardrails just to expose JIT work; the
+  current debt sweep says they are either neutral or still paying for safety.
 
 ## Where To Look Next
 

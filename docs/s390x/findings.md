@@ -29029,3 +29029,48 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   this is a correctness/stability fix, not a retained speed win. The remaining
   `buffer_fref_loop` residual is small/noisy and should not be opened as a code
   target without a fresh stable official-row proof after this fix lands.
+
+## 2026-04-11: post-UREFO rerank and guardrail debt sweep found no stable payer
+
+- Source point:
+  `0f398870 Fix s390x constant UREFO load ordering`.
+- Full retained-env `kdz` rerank:
+  `/tmp/kdz-post-0f398870-retained-rerank-20260411214254`.
+  The largest median hot-row ratios were:
+  - `mixed_noffi/mixed_loop/hot`: `1.0049x`, red `1/5`
+  - `be_helpers/number_helper_loop/hot`: `1.0045x`, red `2/5`
+  - `dispatch_trace/side_exit_loop/hot`: `1.0040x`, red `0/5`
+  - `ffi_cdata/mixed_width_loop/hot`: `1.0038x`, red `1/5`
+- Numeric coverage fill-in:
+  `/tmp/kdz-post-0f398870-numeric-ops-20260411215500` stayed strongly faster
+  than `-joff` on every hot row:
+  - `abs_loop/hot`: `0.2309x`
+  - `fp_mod_loop/hot`: `0.1183x`
+  - `div_loop/hot`: `0.0816x`
+  - `max_loop/hot`: `0.0694x`
+  - `sqrt_loop/hot`: `0.0676x`
+  - `min_loop/hot`: `0.0627x`
+- Guardrail debt sweep:
+  `/tmp/kdz-guardrail-debt-0f398870-20260411215000`.
+  It compared selected retained-env guardrail opt-outs/removals against the
+  same retained JIT-on baseline. No group exposed a material safe upside:
+  - disabling exact iterator proto/no-hot paths regressed official iterator
+    rows by `2.25x..2.75x`
+  - disabling only the broad iterator root fallback was neutral on official
+    iterator and mixed rows
+  - removing exact mixed-noffi guardrails slowed `mixed_loop/hot` to `1.0593x`
+    of retained JIT-on
+  - removing exact vararg guardrails slowed `retlast_loop/hot` to `1.4505x`
+    of retained JIT-on
+  - disabling the vararg safety opt-outs was neutral/slightly faster in this
+    single perf-only pass, but not material enough to reopen correctness
+    guardrails
+  - removing promotion-core/localized/lower-frame route-arounds slowed
+    `be_helpers/number_helper_loop/hot` to `1.2703x` of retained JIT-on
+  - removing FFI/cdata guardrails was neutral
+- Read:
+  the retained floor is currently near parity or faster on trusted `kdz`, and
+  the guardrail map does not name a safe high-upside guard to replace. Do not
+  open another performance code mutation from these numbers alone; the next
+  useful work is either higher-sample confirmation of a newly red official row
+  or a mechanism-specific truth pack for a named guardrail debt item.
