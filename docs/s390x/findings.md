@@ -28830,3 +28830,110 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   retain the exact split. It converts `be_pack_loop` from a guarded parity row
   into a host-pair JIT win without removing the number-helper route-around or
   weakening the broader promotion-core guard.
+
+## 2026-04-11: post-be-pack retained rerank names no stable red official row
+
+- Starting point:
+  `411961f6 Split s390x be pack promotion guard`, with
+  `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` removed from the retained env
+  and the exact `be_pack_loop` root excluded from the broad promotion-core
+  guard.
+- Core retained-env rerank:
+  `/tmp/kdz-post-411961f6-retained-rerank-core-20260411202636`.
+  Small red reads did not repeat cleanly:
+  - `vararg_paths/retlast_loop/hot`: median ratio `1.0266x`, red in `2/4`
+    passes with high jitter.
+  - `vararg_paths/sum_loop/hot`: median ratio `1.0155x`, red in `2/4`
+    passes with high jitter.
+  - `ffi_cdata/buffer_fref_loop/hot`: median ratio `1.0089x`, red in `2/4`
+    passes with high jitter.
+  - `iterator_table/pairs_sum/hot`: median ratio `0.9306x`; only one pass had
+    a red outlier.
+- Rest retained-env rerank:
+  `/tmp/kdz-post-411961f6-retained-rerank-rest-20260411202918`.
+  `mixed_noffi/mixed_loop/hot` stayed noise-level at median ratio `1.0109x`
+  with about `40-70us` absolute movement outside one green pass.
+  `be_helpers/number_helper_loop/hot` was median ratio `0.9950x`, with only a
+  first-pass red blip. `be_pack_loop`, `strto_loop`, `mixed_ffi`, and
+  `ffi_calls` were green.
+- Manual numeric read:
+  `/tmp/kdz-post-411961f6-numeric-ops-20260411203113`.
+  Hot rows were all green:
+  - `abs_loop/hot 0.000937` vs `-joff 0.003953`
+  - `div_loop/hot 0.000187` vs `-joff 0.002283`
+  - `fp_mod_loop/hot 0.000549` vs `-joff 0.004511`
+  - `sqrt_loop/hot 0.000232` vs `-joff 0.003459`
+  - `min_loop/hot 0.000154` vs `-joff 0.002480`
+  - `max_loop/hot 0.001784` vs `-joff 0.002598`
+- Classification:
+  no stable material official-row payer is named by the current retained
+  matrix. Do not open another guardrail or trace-control patch from these
+  rows. Future perf work should be justified by a focused low-level mechanism,
+  not by sub-3% noisy residuals.
+
+## 2026-04-11: closed post-be-pack guard opt-outs as noisy, unsafe, or slower
+
+- FFI/mixed guard split pass:
+  `/tmp/kdz-post-411961f6-ffi-mixed-guard-split-20260411203230`.
+  Remaining FFI/mixed guard removals were not stable retained candidates:
+  - removing `MIXED_FFI_POST_STITCH_SAVE_DONE` improved `buffer_fref_loop`
+    about `2.5%`, but regressed `mixed_ffi_loop` about `5.6%` and
+    `mixed_width_loop` about `3.1%`.
+  - removing `MIXED_FFI_FORL_PROTO_NOJIT`, removing both mixed-ffi guards,
+    and removing `FFI_CDATA_PAIR_SAVE_DONE` were tiny/noisy.
+- Vararg opt-out checks:
+  `/tmp/kdz-post-411961f6-vararg-guard-split-20260411203320`,
+  `/tmp/kdz-vararg-root-blacklist-ab-20260411203434`, and
+  `/tmp/kdz-sum-loop-forl-blacklist-remove-ab-20260411203535`.
+  One-off reads looked positive only because the retained control window was
+  anomalously slow. Repeated same-host A/B for broad vararg-root blacklist
+  removal bounced around noise, and exact `SUM_LOOP_FORL_BLACKLIST` removal
+  later regressed `sum_loop` and `retlast_loop`.
+- Iterator unguarded checks:
+  `/tmp/kdz-iterator-unguarded-official-20260411203735`,
+  `/tmp/kdz-iterator-fully-unguarded-official-20260411203825`, and
+  `/tmp/kdz-iterator-fully-unguarded-nolog-20260411204011`.
+  Exact iterator proto opt-out fell back to the broad root guard and was much
+  slower (`pairs_sum/hot 0.011642`, `pairs_array_sum/hot 0.008169`).
+  Fully unguarded official iterator tracing was correct without logs but
+  catastrophically slow (`pairs_sum/hot 0.134399`,
+  `pairs_array_sum/hot 0.128479`). The logged run showed repeated exit-1
+  `BC_JLOOP` / hotside churn after the root snapshot was already DONE:
+  `S390X_HOTSIDE 137590`, `S390X_JLOOP_EXIT 275178`, and repeated
+  `parent=1 exit=1 ... done=1`.
+- Classification:
+  keep the exact iterator proto-NOJIT path and the broad fallback guards. The
+  unguarded iterator root exit-1 churn is real guardrail debt, but not a
+  retained speed patch from the current official rows.
+
+## 2026-04-11: numeric max widened-tail side trace is the next low-level candidate
+
+- Purpose:
+  look for upside beyond the near-parity official matrix without reopening
+  noisy guard opt-outs.
+- `tests/s390x/perf/numeric_ops.lua` runs `max_loop` with
+  `LUAJIT_S390X_INT_MINMAX=1`. The row is correct and still green versus
+  `-joff`, but it is much weaker than the sibling numeric rows:
+  `/tmp/kdz-post-411961f6-numeric-ops-20260411203113` showed
+  `max_loop/hot 0.001784` vs `-joff 0.002598`, while `min_loop/hot` was
+  `0.000154` vs `-joff 0.002480`.
+- Focused `-jv` single-call read:
+  `/tmp/kdz-numeric-max-jv-20260411204203`.
+  The root trace records the integer loop, then exits at the overflow boundary:
+  `TRACE 1 ... loop` followed by `TRACE --- (1/0) ... leaving loop in root trace`.
+- Focused repeated-call read:
+  `/tmp/kdz-numeric-max-jv-repeat-20260411204230`.
+  A widened side trace eventually compiles:
+  `TRACE 2 (1/2) ... -> 1`, but it links back to the integer root trace.
+- Full dump:
+  `/tmp/kdz-numeric-max-dump-repeat-20260411204248`.
+  The root body contains `int MAX` and guarded integer `ADDOV`; the side trace
+  widens the accumulator through `num CONV` / `num ADD` but still links back to
+  trace 1 instead of becoming a clean widened loop.
+- Classification:
+  the next high-upside lane should be the `max_loop` widened-tail control
+  contract after the integer `ADDOV` overflow boundary, not another
+  `asm_intmin_max()` local compare shuffle and not another iterator/vararg
+  guard removal. First deliverable should be a proof that the official
+  `max_loop/hot` payer is side-trace root-link churn rather than instruction
+  cost, then one narrow runtime/trace-link candidate if the proof holds.
