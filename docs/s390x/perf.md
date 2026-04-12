@@ -4538,3 +4538,29 @@ localized-helper carried-`total` lane
     pass without a fresh official-row proof
   - the next code mutation should start with a fresh matrix/proof pass, not a
     trace-meta-only ladder or a stale reduced-probe seam
+
+## 2026-04-11 21:40 PDT
+
+- Post-`994ce16f` iterator confirmation:
+  `/tmp/kdz-post-994ce16f-iterator-official-confirm-20260411212302`
+  - `pairs_sum/hot`: median ratio `0.9735x`, red `2/7`
+  - `pairs_array_sum/hot`: median ratio `1.0041x`, red `1/7`
+  - read: iterator stays parked; this is not a stable official-row payer.
+- Non-iterator confirmation:
+  `/tmp/kdz-post-994ce16f-noniterator-confirm-20260411212537`
+  - `ffi_cdata/buffer_fref_loop/hot`: median ratio `1.0279x`, red `3/5`
+  - `mixed_noffi/mixed_loop/hot`: median ratio `1.0222x`, red `4/5`
+  - `be_helpers/number_helper_loop/hot`: median ratio `1.0165x`, red `3/5`
+  - read: residuals are small; the `ffi_cdata` follow-up exposed a correctness
+    crash before it could be treated as a perf target.
+- `ffi_cdata` stress after the `UREFO` ordering fix:
+  `/tmp/kdz-urefo-order-ffi-cdata-confirm-20260411213547`
+  - `pair_loop/hot`: median ratio `0.0035x`
+  - `mixed_width_loop/hot`: median ratio `1.0113x`
+  - `buffer_fref_loop/hot`: median ratio `1.0173x`
+  - read: the generated-code crash is fixed; the remaining cdata residuals are
+    still small/noisy.
+- Host confirmation:
+  `/tmp/zkd0-urefo-order-ffi-cdata-confirm-20260411213838` completed the
+  same long-sample `ffi_cdata` run without crash. The `buffer_fref_loop` timing
+  was noisy (`1.2936x` then `0.9647x`), so it is not a retained perf signal.

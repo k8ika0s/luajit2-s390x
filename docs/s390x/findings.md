@@ -28977,3 +28977,55 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   opt-out env available for causality. This closes the known widened-tail
   numeric payer without weakening the broad duplicate-descendant guard for
   iterator or mixed shapes.
+
+## 2026-04-11: fixed constant UREFO emission order exposed by ffi_cdata stress
+
+- Starting point:
+  after the retained numeric max win, a higher-sample `ffi_cdata` confirmation
+  was opened from the small `buffer_fref_loop` residual:
+  `/tmp/kdz-post-994ce16f-ffi-cdata-confirm-20260411212744`.
+  The run did not yield a perf decision because JIT-on crashed with exit
+  `139` under the full retained env at `S390X_PERF_SAMPLES=20`.
+- Repro and attribution:
+  - exact remote repro:
+    `/tmp/ffi-cdata-repro-s20.jsonl`
+  - each `ffi_cdata` workload passed alone at the same sample count, and
+    two-workload sequences passed; the crash required the combined process to
+    reach `buffer_fref_loop` after prior FFI cdata traces.
+  - gdb captured the fault in generated mcode:
+    `lg %r6,0(%r6)` with `%r6 = -14`, reached from `lj_BC_JLOOP`; `-14` is
+    `LJ_TNUMX`.
+  - `-jdump` / SLOAD logs showed the crashing stitched trace entered
+    `buffer.new` with constant unguarded `UREFO` followed by `ULOAD`.
+- Root cause:
+  [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h) `asm_uref()` emitted the
+  constant unguarded `UREFO` path in source order as:
+  `emit_loadu64(dest, address)` then `emit_load64ofs(dest, dest, 0)`. Since
+  s390x emission runs backwards, execution dereferenced the stale destination
+  register before loading the upvalue address. The faulting stale register was
+  the previous integer tag value.
+- Fix:
+  swap the two emissions so execution loads the constant upvalue address before
+  dereferencing it. This is the same ordering class as the earlier SLOAD
+  typecheck fix, but scoped only to constant unguarded `UREFO`.
+- Validation:
+  - `kdz` long-sample retained-env `ffi_cdata`:
+    `/tmp/kdz-urefo-order-ffi-cdata-confirm-20260411213547`; three alternating
+    passes completed at `S390X_PERF_SAMPLES=20`.
+  - `kdz` guardrails:
+    `/tmp/20260411-kdz-urefo-order-guardrails`; passed
+    `addsub_overflow_guard.lua`, `jit_be/numeric_ops.lua`,
+    `jit_loops/pairs_loop.lua`, `perf/numeric_ops.lua`, long-sample
+    `perf/ffi_cdata.lua`, `ffi_calls.lua`, `mixed_ffi.lua`,
+    `mixed_noffi.lua`, `vararg_paths.lua`, `iterator_table.lua`, and
+    retained-env `dispatch_trace.lua`.
+  - `zkd0` long-sample retained-env `ffi_cdata`:
+    `/tmp/zkd0-urefo-order-ffi-cdata-confirm-20260411213838`; completed
+    without crash.
+  - `zkd0` guardrails passed `addsub_overflow_guard.lua`,
+    `jit_be/numeric_ops.lua`, `pairs_loop.lua`, retained-env
+    `mixed_noffi.lua`, and retained-env `dispatch_trace.lua`.
+- Perf read:
+  this is a correctness/stability fix, not a retained speed win. The remaining
+  `buffer_fref_loop` residual is small/noisy and should not be opened as a code
+  target without a fresh stable official-row proof after this fix lands.

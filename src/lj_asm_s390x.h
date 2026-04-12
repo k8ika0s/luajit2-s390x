@@ -3113,8 +3113,8 @@ static void asm_uref(ASMState *as, IRIns *ir)
   if (irref_isk(ir->op1) && !guarded) {
     GCfunc *fn = ir_kfunc(IR(ir->op1));
     MRef *v = &gcref(fn->l.uvptr[(ir->op2 >> 8)])->uv.v;
-    emit_loadu64(as, dest, (uintptr_t)v);
     emit_load64ofs(as, dest, dest, 0);
+    emit_loadu64(as, dest, (uintptr_t)v);
     return;
   }
 
