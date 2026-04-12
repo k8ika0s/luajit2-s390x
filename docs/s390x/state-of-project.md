@@ -74,6 +74,15 @@ It is intentionally current-state only. Historical experiment detail lives in
   only revisit iterator, vararg, helper, cdata, or call rows after a repeated
   same-host `kdz` A/B names a larger official-row signal. Do not reopen broad
   trace-control or guardrail edits from the current near-parity matrix alone.
+- Follow-up attribution from this floor did not name a retainable code lane.
+  The mixed-noffi truth-pack stayed compiled-body dominated with `TEXIT_COUNT
+  0`; the exact mixed `BC_ITERN` `0xffff` hotcount-width candidate reduced
+  park retries but moved only about `15us` median JIT time versus the reverted
+  control. `be_helpers` official rows were green, `vararg_paths` official rows
+  were near parity, and the manual `numeric_ops` read was green, including
+  `fp_mod_loop/hot`. Current policy state: no active material perf seam is
+  named; the next code attempt should wait for a fresh repeated same-host A/B
+  signal or a new parity backlog item with direct correctness/coverage value.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)

@@ -56,6 +56,19 @@ Last updated: 2026-04-11 18:44 PDT
   read: re-attribute the remaining `mixed_noffi` compiled-body residual before
   code; keep iterator, vararg, dispatch, ffi, and helper rows parked unless a
   repeated same-host A/B names a larger official-row payer.
+- Follow-up attribution closed the immediate small-row candidates rather than
+  naming a new code lane. `mixed_noffi` truth-pack
+  `/tmp/20260411-kdz-mixed_noffi-retained_baseline-truth-pack` stayed
+  compiled-body dominated with `TEXIT_COUNT 0`; the exact mixed `BC_ITERN`
+  `0xffff` park-width follow-up was mechanism-valid but too small to retain.
+  `be_helpers` truth-pack
+  `/tmp/20260411-kdz-be_helpers-retained_baseline-truth-pack` was green on
+  official rows, `vararg_paths` truth-pack
+  `/tmp/20260411-kdz-vararg_paths-retained_baseline-truth-pack` was near
+  parity, and the manual `numeric_ops` read
+  `/tmp/kdz-numeric-ops-retained-rerank-20260411190856` was green including
+  `fp_mod_loop/hot 0.000540` vs `-joff 0.004580`. Current state: no stable
+  material official-row perf target is named from this rerank.
 
 ## Canonical Perf Suite
 
