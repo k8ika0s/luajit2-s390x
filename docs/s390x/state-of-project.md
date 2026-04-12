@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 20:45 PDT
+Last updated: 2026-04-11 21:10 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,8 +8,9 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The current runtime/code source point is
-  `411961f6 Split s390x be pack promotion guard`, on top of
+- The current runtime/code source point is the
+  `411961f6 Split s390x be pack promotion guard` floor plus the retained
+  `numeric_ops/max_loop` exit-0 body side-trace allow, on top of
   `52d50a22 Retire obsolete ffi cdata FORL guard`, the iterator guard
   ordering promotion, and the guardrail promotion from WIP
   `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
@@ -132,16 +133,23 @@ It is intentionally current-state only. Historical experiment detail lives in
   unguarded official iterator tracing was correct but much slower
   (`/tmp/kdz-iterator-fully-unguarded-nolog-20260411204011`) due to repeated
   exit-1 `BC_JLOOP` / hotside churn.
-- The best currently named “beyond parity” candidate is
-  `numeric_ops/max_loop`: it is correct and green (`0.001784` vs
-  `-joff 0.002598`) but much weaker than the sibling numeric rows. Focused
-  dumps show the integer root exits at the `ADDOV` overflow boundary, then a
-  widened side trace links back to the integer root instead of becoming a
-  clean widened loop:
-  `/tmp/kdz-numeric-max-jv-repeat-20260411204230` and
-  `/tmp/kdz-numeric-max-dump-repeat-20260411204248`. If we continue pursuing
-  large wins rather than near-parity cleanup, this is the next low-level
-  attribution lane.
+- The best named “beyond parity” candidate has now landed:
+  `numeric_ops/max_loop` uses an exact `@numeric_ops_max` exit-0 body
+  side-trace allow in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c).
+  `kdz` same-binary causality:
+  `/tmp/kdz-numeric-max-body-allow-samebinary-20260411210817` moved
+  `max_loop/hot` from opt-out `0.001802` to default `0.000177`, with
+  `min_loop/hot` unchanged. `zkd0`
+  `/tmp/zkd0-numeric-max-body-allow-samebinary-20260411210945` moved
+  `max_loop/hot` from opt-out `0.002409` to default `0.000229`, again with
+  `min_loop` unchanged. Guardrails passed in
+  `/tmp/kdz-numeric-max-body-allow-guardrails-20260411210837` and
+  `/tmp/zkd0-numeric-max-body-allow-guardrails-20260411211004`.
+- Current forward map:
+  rerun the retained-env rerank after the numeric max closure before opening
+  another code lane. Do not reopen the latest noisy iterator, vararg, mixed,
+  or FFI guard opt-outs unless the new matrix names a fresh repeated payer.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)

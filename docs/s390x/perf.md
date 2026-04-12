@@ -1,11 +1,12 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 20:45 PDT
+Last updated: 2026-04-11 21:10 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  `411961f6 Split s390x be pack promotion guard`, on top of
+  the `411961f6 Split s390x be pack promotion guard` floor, plus the retained
+  `numeric_ops/max_loop` exit-0 body side-trace allow, on top of
   `52d50a22 Retire obsolete ffi cdata FORL guard` and the iterator guard
   ordering promotion. The retained env now omits the obsolete
   `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` guard, keeps the broad
@@ -117,15 +118,20 @@ Last updated: 2026-04-11 20:45 PDT
   re-entered an exit-1 `BC_JLOOP` / hotside churn path
   (`/tmp/kdz-iterator-fully-unguarded-nolog-20260411204011`).
 - Current forward target:
-  keep the near-parity official rows parked and use low-level debt attribution
-  for further wins. The best named next candidate is `numeric_ops/max_loop`:
-  it is correct and green (`0.001784` vs `-joff 0.002598`) but much weaker
-  than `min_loop` because the integer root exits at the `ADDOV` overflow
-  boundary and the widened side trace links back to the integer root rather
-  than becoming a clean widened loop
-  (`/tmp/kdz-numeric-max-jv-repeat-20260411204230`,
-  `/tmp/kdz-numeric-max-dump-repeat-20260411204248`). Do not reopen iterator,
-  vararg, mixed, or FFI guard removal from the latest noisy opt-outs.
+  the previously named low-level `numeric_ops/max_loop` widened-tail payer is
+  now closed by an exact exit-0 body side-trace allow in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c).
+  Same-binary causality:
+  `kdz` `/tmp/kdz-numeric-max-body-allow-samebinary-20260411210817` moved
+  `max_loop/hot` from opt-out `0.001802` to default `0.000177`, and `zkd0`
+  `/tmp/zkd0-numeric-max-body-allow-samebinary-20260411210945` moved
+  `0.002409` to `0.000229`, with `min_loop` unchanged on both hosts.
+  Guardrails passed in
+  `/tmp/kdz-numeric-max-body-allow-guardrails-20260411210837` and
+  `/tmp/zkd0-numeric-max-body-allow-guardrails-20260411211004`. Next
+  performance work should rerun the retained-env rerank and choose a fresh
+  named payer rather than reopening the latest noisy iterator, vararg, mixed,
+  or FFI guard opt-outs.
 
 ## Canonical Perf Suite
 
@@ -147,6 +153,7 @@ enough for retained policy rows.
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | retained exact root `BC_ITERL` / `BC_ITERN` / stitched `BC_FORL` blacklists, exact post-root `BC_ITERL` abort blacklist, and exact early proto-NOJIT / `BC_ITERN` hotcount park; now near parity |
 | [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win plus exact root-FORL proto-NOJIT fallback; now near parity and a regression screen |
 | [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop`, `strto_loop` | helper-heavy carried-floor controls; exact number-helper root remains guarded, while the exact `be_pack_loop` root is now allowed to compile after guardrail-debt proof |
+| [tests/s390x/perf/numeric_ops.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/numeric_ops.lua) | `numeric_ops` | `abs_loop`, `div_loop`, `fp_mod_loop`, `sqrt_loop`, `min_loop`, `max_loop` | numeric backend/control suite; `max_loop` now carries the exact widened-tail exit-0 body side-trace allow, while FP modulo and integer overflow guards remain regression screens |
 | [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua) | `ffi_calls` | `direct_abs`, `stored_abs` | call-heavy carried-floor controls; stabilized after post-promotion drift with the same exact root-`BC_FORL` proto-NOJIT route-around |
 | [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua) | `bitops_mix` | `mix_bits` | helper-light logic/bitops control |
 | [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua) | `logical_chain_tail_add` | `chain_tail_add` | recurring logic-chain sibling |
@@ -199,6 +206,7 @@ latest retained host-backed rows until the next full retained-env rerank.
 | `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
 | `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; host-pair clean and slightly faster than `-joff` on kdz |
 | `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; restored the promoted carried floor to near/parity |
+| `max_loop/hot` | `numeric_ops` | `0.000177` | `0.002598` | `-0.002421`, `0.07x` | `kdz` | `2026-04-11 21:08 PDT` | exact `@numeric_ops_max` exit-0 body side-trace allow; same-binary opt-out `0.001802`, zkd0 default `0.000229` vs opt-out `0.002409` |
 | `pair_loop/hot` | `ffi_cdata` | `0.000059` | `0.017281` | `-0.017222`, `0.003x` | `kdz` | `2026-04-11 20:06 PDT` | retired obsolete retained root-`BC_FORL` blacklist from the canonical env; host-pair A/B clean, zkd0 `0.025598 -> 0.000072` |
 | `mixed_width_loop/hot` | `ffi_cdata` | `0.028126` | `0.028030` | `+0.000096`, `1.00x` | `kdz` | `2026-04-11 20:06 PDT` | sibling under the retired pair-loop blacklist; kdz near parity and zkd0 improved in the confirmation pass |
 | `buffer_fref_loop/hot` | `ffi_cdata` | `0.004945` | `0.005004` | `-0.000059`, `0.99x` | `kdz` | `2026-04-11 20:06 PDT` | FREF/STRTO/modulo coverage row; kdz near parity and zkd0 improved in the confirmation pass |

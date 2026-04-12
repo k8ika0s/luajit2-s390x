@@ -28937,3 +28937,43 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   guard removal. First deliverable should be a proof that the official
   `max_loop/hot` payer is side-trace root-link churn rather than instruction
   cost, then one narrow runtime/trace-link candidate if the proof holds.
+
+## 2026-04-11: retained numeric max exit-0 body side trace closes widened-tail cost
+
+- Starting point:
+  `tests/s390x/perf/numeric_ops.lua` was green but weak on
+  `max_loop/hot`. The retained `kdz` row was around `0.001765-0.001784`,
+  much slower than the sibling `min_loop/hot` row around `0.000153`.
+- Attribution correction:
+  the first `BC_JLOOP`-based loop-descendant probe was non-engaging for the
+  official benchmark. The official row builds fresh `@numeric_ops_max`
+  closures, and the real seam is the first side trace from the root self-loop:
+  `parent=1 exit=0`, `root=1`, `startop=BC_JMP`, current `pc=BC_GGET`,
+  previous op `BC_JFORI`, parent root starts at `BC_FORL`, and parent
+  `mcloop=576`. The root `min_loop` and `max_loop` traces both had `32` IRs
+  and `672` bytes of mcode, so the payer was not local `MAX` instruction cost.
+- Mechanism proof:
+  `/tmp/kdz-numeric-max-body-allow-mech-20260411210446` shows
+  `S390X_NUMERIC_MAX_EXIT0_BODY_ALLOW trace=2 parent=1 exit=0 root=1 ...`
+  and the side trace stops as a self-loop instead of aborting at
+  `rec_loop_jit_exit0_dup_loop_descendant`.
+- Host-pair same-binary causality:
+  - `kdz` `/tmp/kdz-numeric-max-body-allow-samebinary-20260411210817`:
+    default `max_loop/hot 0.000177`, opt-out
+    `LUAJIT_S390X_DISABLE_NUMERIC_MAX_EXIT0_BODY_ALLOW=1` gives
+    `0.001802`; `min_loop/hot` stayed `0.000153` in both modes.
+  - `zkd0` `/tmp/zkd0-numeric-max-body-allow-samebinary-20260411210945`:
+    default `max_loop/hot 0.000229`, opt-out `0.002409`; `min_loop/hot`
+    stayed `0.000179` vs `0.000178`.
+- Guardrails:
+  `/tmp/kdz-numeric-max-body-allow-guardrails-20260411210837` and
+  `/tmp/zkd0-numeric-max-body-allow-guardrails-20260411211004` passed
+  `addsub_overflow_guard.lua`, `jit_be/numeric_ops.lua`,
+  `perf/numeric_ops.lua`, `pairs_loop.lua`, `iterator_table.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, and retained-env
+  `dispatch_trace.lua`.
+- Retained read:
+  keep the exact `@numeric_ops_max` exit-0 body side-trace allow with the
+  opt-out env available for causality. This closes the known widened-tail
+  numeric payer without weakening the broad duplicate-descendant guard for
+  iterator or mixed shapes.
