@@ -29375,3 +29375,45 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   change the broad guard policy: only the proven safe localized be-pack root
   is allowed to compile, while the localized number-helper and other retained
   unsafe promotion-core roots remain parked.
+
+## 2026-04-12: remote oracle build restored FFI fixed-call matrix coverage
+
+- Question:
+  `ffi_fixed_call_pressure.lua` and `ffi_fixed_struct_calls.lua` need
+  `tests/s390x/ffi_abi/build/liboracle.so`, so why was the retained jitter
+  matrix excluding those rows instead of providing the library?
+- Answer:
+  tracked-file sync was doing the correct thing by not copying the local
+  `liboracle.so`. It is a build artifact and may be host-architecture output.
+  The bug was in
+  [probe_retained_jitter.py](../../tools/s390x/probe_retained_jitter.py):
+  it rebuilt only `src/` on the remote mirror and did not run the existing
+  native s390x oracle build script before oracle-backed perf rows.
+- Fix:
+  `probe_retained_jitter.py` now classifies
+  `ffi_fixed_call_pressure` and `ffi_fixed_struct_calls` as oracle-backed
+  families and runs `CC=gcc sh tests/s390x/build_oracles.sh` on the remote
+  mirror before execution, with stdout/stderr archived under
+  `oracle-build.*.log`.
+- Focused proof:
+  `/tmp/kdz-retained-jitter-20260412085453` ran
+  `ffi_fixed_call_pressure` successfully after building the remote oracle.
+  `gpr_pressure/hot` was `0.026604` vs `-joff 0.024632`, while
+  `fpr_pressure/hot` was `0.000270` vs `-joff 0.011652`.
+- Full restamp:
+  `/tmp/kdz-retained-jitter-20260412085621` ran all known retained jitter
+  families with the oracle rows included (`samples=5`, `warmup=2`, three
+  alternating passes). Oracle-backed rows are now in the primary matrix:
+  `ffi_fixed_call_pressure/gpr_pressure/hot` median `1.0079x`,
+  `ffi_fixed_call_pressure/fpr_pressure/hot` median `0.0229x`, and all
+  `ffi_fixed_struct_calls` rows are in the compiled fast band
+  (`0.0210x..0.0400x`).
+- Rerank:
+  the expanded matrix did not name a material new payer. The largest median
+  residuals were tiny/noisy:
+  `be_helpers/number_helper_loop/hot 1.0181x`,
+  `mixed_noffi/mixed_loop/hot 1.0171x`,
+  `vararg_paths/retlast_loop/hot 1.0169x`, and
+  `be_helpers_localized/number_helper_loop_local_tobit/hot 1.0127x`.
+  Current policy remains attribution-only until a focused same-host A/B or
+  truth pack names a larger repeated mechanism.

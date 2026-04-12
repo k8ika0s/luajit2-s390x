@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 08:45 PDT
+Last updated: 2026-04-12 08:58 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
@@ -197,6 +197,15 @@ Last updated: 2026-04-12 08:45 PDT
   band. `zkd0` `/tmp/zkd0-retained-jitter-20260412084217` confirmed the
   target row in the fast band (`0.0236x..0.0296x`) while keeping adjacent
   be-pack/static/route rows fast.
+- Oracle-backed matrix coverage repair:
+  the expanded retained-env helper now builds
+  `tests/s390x/ffi_abi/build/liboracle.so` natively on the remote s390x mirror
+  whenever `ffi_fixed_call_pressure` or `ffi_fixed_struct_calls` is selected.
+  This keeps tracked-file sync correct while avoiding host-built `.so` reuse.
+  Full `kdz` artifact `/tmp/kdz-retained-jitter-20260412085621` now includes
+  those rows. The primary matrix below has been restamped from that artifact;
+  the only red-ish rows are tiny/noisy deltas, while the fixed-call and
+  fixed-struct oracle rows are mostly deep in the compiled fast band.
 
 ## Canonical Perf Suite
 
@@ -229,6 +238,8 @@ enough for retained policy rows.
 | [tests/s390x/perf/lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua) | `lower_frame_same_callsite` | `const_same_callsite`, `lua_abs_same_callsite` | callsite/lower-frame regression suite |
 | [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua) | `promotion_core_static_stop` | `number_helper_literal_stop_real`, `number_helper_literal_stop_real_local_tobit`, `be_pack_literal_stop_real` | static-stop mechanism suite; exact be-pack literal root is now excluded from the broad promotion-core proto-NOJIT guard and allowed to compile |
 | [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua) | `ffi_calls_static_stop` | `direct_abs_literal_stop_real`, `stored_abs_literal_stop_real` | static-stop FFI regression suite |
+| [tests/s390x/perf/ffi_fixed_call_pressure.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_fixed_call_pressure.lua) | `ffi_fixed_call_pressure` | `gpr_pressure`, `fpr_pressure` | fixed-call ABI pressure coverage; requires remote native `liboracle.so` build |
+| [tests/s390x/perf/ffi_fixed_struct_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_fixed_struct_calls.lua) | `ffi_fixed_struct_calls` | fixed small/HFA struct call variants | fixed-struct ABI call coverage; requires remote native `liboracle.so` build |
 | [tests/s390x/perf/be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua) | `be_helpers_localized` | `number_helper_loop_local_tobit`, `be_pack_loop_local_ops_real` | localized helper experiments; exact be-pack root is now excluded from the broad promotion-core proto-NOJIT guard while the number-helper root remains guarded |
 | [tests/s390x/perf/route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua) | `route_around_reducers_truth_pack` | `be_pack_literal_stop`, `be_pack_literal_stop_local_ops`, `be_pack_loop_local_ops` | reducer route-around experiments; exact be-pack reducer family is now excluded from the broad promotion-core proto-NOJIT guard and allowed to compile |
 | [tests/s390x/perf/int_add_phi_only.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/int_add_phi_only.lua) | `int_add_phi_only` | `add_phi_only` | narrow integer-phi experiment |
@@ -249,35 +260,49 @@ This is the current retained matrix for the stable carried workloads. If a
 workload belongs to the carried suite, it should have one row here even if the
 number is ugly.
 
-Post-guardrail note: `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` are
-now runnable after the guardrail promotion. The current iterator rows below
-come from the pinned iterator guard promotion A/B; other rows remain the
-latest retained host-backed rows until the next full retained-env rerank.
+Current source: `/tmp/kdz-retained-jitter-20260412085621`, full retained env,
+all known `probe_retained_jitter.py` families, `S390X_PERF_SAMPLES=5`,
+`S390X_PERF_WARMUP=2`, three alternating passes. Oracle-backed FFI rows are
+included via a native remote `tests/s390x/build_oracles.sh` build.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004472` | `0.004675` | `-0.000203`, `0.96x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.010467`; zkd0 default `0.009195` vs opt-out `0.021250` |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003716` | `0.004274` | `-0.000558`, `0.87x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.008237`; zkd0 default `0.006530` vs opt-out `0.017199` |
-| `mixed_loop/hot` | `mixed_noffi` | `0.003865` | `0.003791` | `+0.000083`, `1.02x` | `kdz` | `2026-04-11 18:44 PDT` | post-ordering-fix combined rerank median; exact mixed `BC_ITERL` blacklist still runs before the broad iterator root fallback, and remaining residual needs fresh compiled-body attribution before any code |
-| `mixed_ffi_loop/hot` | `mixed_ffi` | `0.012178` | `0.012168` | `+0.000010`, `1.00x` | `kdz` | `2026-04-09 21:53 PDT` | retained exact root-`BC_FORL` proto-NOJIT fallback after the post-stitch save-time cut; near parity |
-| `number_helper_loop/hot` | `be_helpers` | `0.002244` | `0.002280` | `-0.000036`, `0.98x` | `kdz` | `2026-04-11 20:22 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around retained for this shape; zkd0 rerun stays around or faster than `-joff` |
-| `be_pack_loop/hot` | `be_helpers` | `0.000246` | `0.018973` | `-0.018727`, `0.013x` | `kdz` | `2026-04-11 20:22 PDT` | exact `be_pack_loop` root excluded from the broad promotion-core proto-NOJIT guard; host-pair A/B clean, zkd0 `0.040121 -> 0.000309` |
-| `strto_loop/hot` | `be_helpers` | `0.003466` | `0.008154` | `-0.004688`, `0.43x` | `kdz` | `2026-04-11 20:22 PDT` | STRTO coverage row; unaffected by the be-pack split and still green |
-| `direct_abs/hot` | `ffi_calls` | `0.010257` | `0.010148` | `+0.000109`, `1.01x` | `kdz` | `2026-04-10 16:10 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
-| `stored_abs/hot` | `ffi_calls` | `0.007338` | `0.006981` | `+0.000357`, `1.05x` | `kdz` | `2026-04-10 16:10 PDT` | exact call route-around; host-pair clean |
-| `mix_bits/hot` | `bitops_mix` | `0.001882` | `0.001854` | `+0.000028`, `1.02x` | `kdz` | `2026-04-11 00:00 PDT` | exact promotion-core root-`BC_FORL` proto-NOJIT route-around for the current retained bitops shape; host-pair clean |
-| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.001829` | `0.001825` | `+0.000004`, `1.00x` | `kdz` | `2026-04-11 00:00 PDT` | exact promotion-core root-`BC_FORL` proto-NOJIT route-around for the current retained logic-chain shape; host-pair clean |
-| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.001763` | `0.001839` | `-0.000076`, `0.96x` | `kdz` | `2026-04-11 00:00 PDT` | exact promotion-core root-`BC_FORL` proto-NOJIT route-around for the current retained logic-chain shape; host-pair clean |
-| `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; host-pair clean |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; host-pair clean and slightly faster than `-joff` on kdz |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; restored the promoted carried floor to near/parity |
-| `max_loop/hot` | `numeric_ops` | `0.000177` | `0.002598` | `-0.002421`, `0.07x` | `kdz` | `2026-04-11 21:08 PDT` | exact `@numeric_ops_max` exit-0 body side-trace allow; same-binary opt-out `0.001802`, zkd0 default `0.000229` vs opt-out `0.002409` |
-| `pair_loop/hot` | `ffi_cdata` | `0.000059` | `0.017281` | `-0.017222`, `0.003x` | `kdz` | `2026-04-11 20:06 PDT` | retired obsolete retained root-`BC_FORL` blacklist from the canonical env; host-pair A/B clean, zkd0 `0.025598 -> 0.000072` |
-| `mixed_width_loop/hot` | `ffi_cdata` | `0.028126` | `0.028030` | `+0.000096`, `1.00x` | `kdz` | `2026-04-11 20:06 PDT` | sibling under the retired pair-loop blacklist; kdz near parity and zkd0 improved in the confirmation pass |
-| `buffer_fref_loop/hot` | `ffi_cdata` | `0.004945` | `0.005004` | `-0.000059`, `0.99x` | `kdz` | `2026-04-11 20:06 PDT` | FREF/STRTO/modulo coverage row; kdz near parity and zkd0 improved in the confirmation pass |
-| `sum_loop/hot` | `vararg_paths` | `0.004437` | `0.004789` | `-0.000352`, `0.93x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion rerun after the sibling restamp; root-FORL blacklist floor is preserved |
-| `retlast_loop/hot` | `vararg_paths` | `0.001997` | `0.001991` | `+0.000006`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; near parity on trusted kdz and confirmed on zkd0 |
-| `retconst_loop/hot` | `vararg_paths` | `0.000598` | `0.000598` | `+0.000000`, `1.00x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion sibling matcher restamp; parity on trusted kdz and confirmed on zkd0 |
+| `pairs_sum/hot` | `iterator_table` | `0.004437` | `0.004129` | `+0.000308`, `1.0004x` | `kdz` | `2026-04-12 08:58 PDT` | exact iterator guard path retained; one noisy pass, median at parity |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003683` | `0.003668` | `+0.000015`, `1.0055x` | `kdz` | `2026-04-12 08:58 PDT` | exact iterator guard path retained; median near parity |
+| `mixed_loop/hot` | `mixed_noffi` | `0.003867` | `0.003807` | `+0.000060`, `1.0171x` | `kdz` | `2026-04-12 08:58 PDT` | exact mixed `BC_ITERL` ordering retained; tiny residual only |
+| `mixed_ffi_loop/hot` | `mixed_ffi` | `0.000824` | `0.012084` | `-0.011260`, `0.0682x` | `kdz` | `2026-04-12 08:58 PDT` | compiled fast band after guardrail promotions |
+| `number_helper_loop/hot` | `be_helpers` | `0.002277` | `0.002229` | `+0.000048`, `1.0181x` | `kdz` | `2026-04-12 08:58 PDT` | guarded route-around retained for this shape; tiny residual |
+| `be_pack_loop/hot` | `be_helpers` | `0.000247` | `0.018806` | `-0.018559`, `0.0131x` | `kdz` | `2026-04-12 08:58 PDT` | exact be-pack root allowed to compile |
+| `strto_loop/hot` | `be_helpers` | `0.003479` | `0.008361` | `-0.004882`, `0.4170x` | `kdz` | `2026-04-12 08:58 PDT` | STRTO backend row green |
+| `direct_abs/hot` | `ffi_calls` | `0.000282` | `0.010242` | `-0.009960`, `0.0275x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
+| `stored_abs/hot` | `ffi_calls` | `0.000281` | `0.007012` | `-0.006731`, `0.0401x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
+| `mix_bits/hot` | `bitops_mix` | `0.000254` | `0.002140` | `-0.001886`, `0.1187x` | `kdz` | `2026-04-12 08:58 PDT` | logic/bitops control green |
+| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000242` | `0.002143` | `-0.001901`, `0.1129x` | `kdz` | `2026-04-12 08:58 PDT` | logic-chain add control green |
+| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000166` | `0.002002` | `-0.001836`, `0.0829x` | `kdz` | `2026-04-12 08:58 PDT` | logic-chain store control green |
+| `numeric_loop/hot` | `dispatch_trace` | `0.002206` | `0.002197` | `+0.000009`, `1.0023x` | `kdz` | `2026-04-12 08:58 PDT` | dispatch route-around retained; parity |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.004612` | `0.004654` | `-0.000042`, `0.9916x` | `kdz` | `2026-04-12 08:58 PDT` | dispatch side-exit row green |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.005724` | `0.005709` | `+0.000015`, `1.0030x` | `kdz` | `2026-04-12 08:58 PDT` | dispatch hotexit row parity |
+| `max_loop/hot` | `numeric_ops` | `0.000176` | `0.002608` | `-0.002432`, `0.0675x` | `kdz` | `2026-04-12 08:58 PDT` | exact max body side-trace allow retained |
+| `pair_loop/hot` | `ffi_cdata` | `0.000056` | `0.017314` | `-0.017258`, `0.0033x` | `kdz` | `2026-04-12 08:58 PDT` | obsolete cdata FORL guard retired; compiled fast band |
+| `mixed_width_loop/hot` | `ffi_cdata` | `0.028289` | `0.028265` | `+0.000024`, `0.9976x` | `kdz` | `2026-04-12 08:58 PDT` | mixed-width cdata row at parity |
+| `buffer_fref_loop/hot` | `ffi_cdata` | `0.004861` | `0.004934` | `-0.000073`, `0.9787x` | `kdz` | `2026-04-12 08:58 PDT` | FREF coverage row green |
+| `sum_loop/hot` | `vararg_paths` | `0.004328` | `0.004329` | `-0.000001`, `1.0002x` | `kdz` | `2026-04-12 08:58 PDT` | vararg sum row parity under full retained env |
+| `retlast_loop/hot` | `vararg_paths` | `0.002050` | `0.001975` | `+0.000075`, `1.0169x` | `kdz` | `2026-04-12 08:58 PDT` | tiny/noisy residual only |
+| `retconst_loop/hot` | `vararg_paths` | `0.000548` | `0.000554` | `-0.000006`, `0.9734x` | `kdz` | `2026-04-12 08:58 PDT` | retconst row green |
+| `gpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.024893` | `0.024699` | `+0.000194`, `1.0079x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; small one-pass residual only |
+| `fpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.000266` | `0.011621` | `-0.011355`, `0.0229x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fast band |
+| `small_u32_call/hot` | `ffi_fixed_struct_calls` | `0.000416` | `0.010782` | `-0.010366`, `0.0390x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `small_u64_call/hot` | `ffi_fixed_struct_calls` | `0.000431` | `0.010767` | `-0.010336`, `0.0400x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `one_float_call/hot` | `ffi_fixed_struct_calls` | `0.000195` | `0.006208` | `-0.006013`, `0.0314x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `one_double_call/hot` | `ffi_fixed_struct_calls` | `0.000173` | `0.006166` | `-0.005993`, `0.0281x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `big_pair_call/hot` | `ffi_fixed_struct_calls` | `0.000429` | `0.012778` | `-0.012349`, `0.0334x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `hfa2d_call/hot` | `ffi_fixed_struct_calls` | `0.000214` | `0.008441` | `-0.008227`, `0.0260x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `small_u32_take6/hot` | `ffi_fixed_struct_calls` | `0.000647` | `0.021029` | `-0.020382`, `0.0305x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `small_u32_take7/hot` | `ffi_fixed_struct_calls` | `0.000873` | `0.023503` | `-0.022630`, `0.0374x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `small_u64_take6/hot` | `ffi_fixed_struct_calls` | `0.000695` | `0.021324` | `-0.020629`, `0.0326x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `small_u64_take7/hot` | `ffi_fixed_struct_calls` | `0.000947` | `0.023701` | `-0.022754`, `0.0400x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `one_double_take6/hot` | `ffi_fixed_struct_calls` | `0.000383` | `0.018252` | `-0.017869`, `0.0210x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `one_double_take7/hot` | `ffi_fixed_struct_calls` | `0.000726` | `0.021625` | `-0.020899`, `0.0336x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
 
 ## Pinned Recurring Workloads
 
@@ -291,13 +316,13 @@ shrink.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004472` | `0.004675` | `-0.000203`, `0.96x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.010467`; zkd0 default `0.009195` vs opt-out `0.021250` |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003716` | `0.004274` | `-0.000558`, `0.87x` | `kdz` | `2026-04-11 17:08 PDT` | exact root-`BC_ITERN` proto-NOJIT path default-on before broad iterator blacklist; opt-out fallback `0.008237`; zkd0 default `0.006530` vs opt-out `0.017199` |
-| `mixed_loop/hot` | `mixed_noffi` | `0.003865` | `0.003791` | `+0.000083`, `1.02x` | `kdz` | `2026-04-11 18:44 PDT` | post-ordering-fix combined rerank median; exact mixed `BC_ITERL` blacklist still runs before the broad iterator root fallback, and remaining residual needs fresh compiled-body attribution before any code |
-| `numeric_loop/hot` | `dispatch_trace` | `0.002170` | `0.002165` | `+0.000005`, `1.00x` | `kdz` | `2026-04-10 15:40 PDT` | exact post-promotion root-`BC_FORL` proto-NOJIT route-around; zkd0 confirmation `0.002530` vs `-joff 0.003831` |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.004557` | `0.004704` | `-0.000147`, `0.97x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.005002` vs `-joff 0.007007` |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.005522` | `0.005572` | `-0.000050`, `0.99x` | `kdz` | `2026-04-10 15:40 PDT` | exact dispatch route-around; zkd0 confirmation `0.006005` vs `-joff 0.009427` |
-| `sum_loop/hot` | `vararg_paths` | `0.004437` | `0.004789` | `-0.000352`, `0.93x` | `kdz` | `2026-04-10 13:04 PDT` | post-promotion root-`BC_FORL` blacklist restamp; current whole-loop-contract lane closed |
+| `pairs_sum/hot` | `iterator_table` | `0.004437` | `0.004129` | `+0.000308`, `1.0004x` | `kdz` | `2026-04-12 08:58 PDT` | exact root-`BC_ITERN` proto-NOJIT path retained; one noisy pass, median at parity |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003683` | `0.003668` | `+0.000015`, `1.0055x` | `kdz` | `2026-04-12 08:58 PDT` | exact root-`BC_ITERN` proto-NOJIT path retained; median near parity |
+| `mixed_loop/hot` | `mixed_noffi` | `0.003867` | `0.003807` | `+0.000060`, `1.0171x` | `kdz` | `2026-04-12 08:58 PDT` | exact mixed `BC_ITERL` blacklist still runs before broad iterator fallback; tiny residual only |
+| `numeric_loop/hot` | `dispatch_trace` | `0.002206` | `0.002197` | `+0.000009`, `1.0023x` | `kdz` | `2026-04-12 08:58 PDT` | exact dispatch route-around retained; parity |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.004612` | `0.004654` | `-0.000042`, `0.9916x` | `kdz` | `2026-04-12 08:58 PDT` | exact dispatch route-around retained; green |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.005724` | `0.005709` | `+0.000015`, `1.0030x` | `kdz` | `2026-04-12 08:58 PDT` | exact dispatch route-around retained; parity |
+| `sum_loop/hot` | `vararg_paths` | `0.004328` | `0.004329` | `-0.000001`, `1.0002x` | `kdz` | `2026-04-12 08:58 PDT` | vararg sum row at parity under full retained env |
 
 ### Regression And Control Workloads
 
@@ -306,13 +331,13 @@ than the primary “still slow” blockers.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `number_helper_loop/hot` | `be_helpers` | `0.002378` | `0.002280` | `+0.000098`, `1.04x` | `kdz` | `2026-04-10 16:10 PDT` | exact root-`BC_FORL` proto-NOJIT route-around; zkd0 candidate `0.002554` vs reopened control `0.006344` |
-| `be_pack_loop/hot` | `be_helpers` | `0.018912` | `0.018973` | `-0.000061`, `1.00x` | `kdz` | `2026-04-10 16:10 PDT` | exact route-around; zkd0 candidate `0.020728` vs reopened control `0.023800` |
-| `direct_abs/hot` | `ffi_calls` | `0.010257` | `0.010148` | `+0.000109`, `1.01x` | `kdz` | `2026-04-10 16:10 PDT` | exact root-`BC_FORL` proto-NOJIT route-around; zkd0 candidate `0.012293` vs reopened control `0.016268` |
-| `stored_abs/hot` | `ffi_calls` | `0.007338` | `0.006981` | `+0.000357`, `1.05x` | `kdz` | `2026-04-10 16:10 PDT` | exact route-around; zkd0 candidate `0.008434` vs reopened control `0.012996` |
-| `mix_bits/hot` | `bitops_mix` | `0.000730` | `0.002148` | `-0.001418`, `0.34x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic/bitops control |
-| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000748` | `0.002107` | `-0.001359`, `0.35x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
-| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000594` | `0.002025` | `-0.001431`, `0.29x` | `kdz` | `2026-04-04 08:52 PDT` | retained logic-chain control |
+| `number_helper_loop/hot` | `be_helpers` | `0.002277` | `0.002229` | `+0.000048`, `1.0181x` | `kdz` | `2026-04-12 08:58 PDT` | exact root-`BC_FORL` proto-NOJIT route-around retained; tiny residual |
+| `be_pack_loop/hot` | `be_helpers` | `0.000247` | `0.018806` | `-0.018559`, `0.0131x` | `kdz` | `2026-04-12 08:58 PDT` | exact be-pack root allowed to compile |
+| `direct_abs/hot` | `ffi_calls` | `0.000282` | `0.010242` | `-0.009960`, `0.0275x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
+| `stored_abs/hot` | `ffi_calls` | `0.000281` | `0.007012` | `-0.006731`, `0.0401x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
+| `mix_bits/hot` | `bitops_mix` | `0.000254` | `0.002140` | `-0.001886`, `0.1187x` | `kdz` | `2026-04-12 08:58 PDT` | retained logic/bitops control |
+| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000242` | `0.002143` | `-0.001901`, `0.1129x` | `kdz` | `2026-04-12 08:58 PDT` | retained logic-chain add control |
+| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000166` | `0.002002` | `-0.001836`, `0.0829x` | `kdz` | `2026-04-12 08:58 PDT` | retained logic-chain store control |
 
 Pinned-workload rules from here:
 
