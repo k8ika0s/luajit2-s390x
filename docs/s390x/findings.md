@@ -28427,3 +28427,57 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   repeated-root STRTO second-invocation failure is aligned with the queued
   guardrail-promotion lane and should not be fixed by broadening this
   perf-coverage patch.
+
+## 2026-04-11: iterator guard ordering promotion closes the current iterator payer
+
+- Scope:
+  after `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`, rerank the
+  current WIP floor under the full retained env before opening more performance
+  code, then promote the narrow iterator guard refinement from
+  `k8ika0s/s390x-iterator-guard-refine`.
+- Pre-promotion rerank:
+  `/tmp/post-guardrail-full-retained-20260411170050`.
+  The top stable payer was `iterator_table`:
+  - `pairs_sum/hot`: median ratio `2.6463x`
+  - `pairs_array_sum/hot`: median ratio `2.2158x`
+  - secondary residual `mixed_noffi/mixed_loop/hot`: median ratio `1.3052x`
+  - `vararg_paths`, `dispatch_trace`, `mixed_ffi`, `ffi_calls`,
+    `numeric_ops`, and `ffi_cdata` were near parity or green in the same
+    retained-env matrix.
+- Promoted candidate:
+  `547f5917 Refine s390x iterator guard ordering`, cherry-picked from
+  commit `30e0dfb2` on the narrow iterator promotion branch.
+  The change makes the exact `iterator_table` root `BC_ITERN` proto-NOJIT path
+  default-on before the broad iterator root blacklist, while preserving the
+  broad blacklist fallback for unsafe non-exact iterator shapes.
+- Delivered hashes:
+  - `kdz` and `zkd0` `src/lj_trace.c`:
+    `e459dc21cfe41881e0845d27eab59bbf03b4aafae6688202cd9aa874b3048baf`
+  - `kdz` and `zkd0` `docs/s390x/state-of-project.md`:
+    `37193dc6fc5f93997eca698edc2329ddce85467112e50263d6b63aca4d9c7db5`
+- `kdz` validation:
+  `/tmp/iterator-guard-promote-validation-20260411170533`.
+  Passed `iterator_table`, `mixed_noffi`, `pairs_loop`, all `jit_be`, all
+  `jit_loops`, `vararg_paths`, `numeric_ops`, retained-env `dispatch_trace`,
+  `ffi_calls`, `ffi_cdata`, `mixed_ffi`, and the exact-path opt-out causality
+  check.
+- Clean pinned `kdz` policy read:
+  `/tmp/iterator-guard-kdz-pinned-20260411170826`.
+  - default `pairs_sum/hot 0.004472` vs `-joff 0.004675` vs exact-path
+    opt-out fallback `0.010467`
+  - default `pairs_array_sum/hot 0.003716` vs `-joff 0.004274` vs exact-path
+    opt-out fallback `0.008237`
+- `zkd0` confirmation:
+  `/tmp/iterator-guard-promote-zkd0-20260412120719` and
+  `/tmp/iterator-guard-zkd0-pinned-20260412120738`.
+  `zkd0` remains noisy and still sits above `-joff` on the pinned read, but
+  default is materially better than opt-out:
+  - `pairs_sum/hot 0.009195` vs opt-out `0.021250`
+  - `pairs_array_sum/hot 0.006530` vs opt-out `0.017199`
+- Read:
+  retain the iterator guard ordering promotion. It closes the current
+  `iterator_table` payer on the trusted `kdz` policy signal and preserves the
+  broad iterator fallback needed by `mixed_noffi` and `pairs_loop`. After this
+  lands in WIP, the next performance move is a fresh full retained-env rerank;
+  do not open another iterator trace-control edit unless a new repeated
+  official-row payer is named.
