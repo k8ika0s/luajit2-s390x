@@ -29137,3 +29137,69 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   integer TValue must convert the integer payload into the FPR destination.
   The broader performance queue is unchanged until a repeated full-env `kdz`
   pass names a stable official-row payer.
+
+## 2026-04-12: unparked the route-around reducer be-pack family
+
+- Starting point:
+  `d3430611 Fix s390x numeric SLOAD integer reentry`.
+- Full retained-env `kdz` rerank:
+  `/tmp/kdz-retained-jitter-20260412073653`.
+  The stable main matrix did not name a material official-row payer:
+  `mixed_noffi/mixed_loop/hot` stayed green in `5/5` passes at median
+  `0.9924x`, `iterator_table/pairs_sum/hot` was noisy at median `0.9991x`,
+  and the largest red reads were small/noisy helper or tiny-row residuals.
+- Extra-family coverage update:
+  [tools/s390x/probe_retained_jitter.py](../../tools/s390x/probe_retained_jitter.py)
+  now includes the newer perf/gap suites and formats zero-`-joff` ratios as
+  `n/a` instead of crashing on suites such as
+  `lower_frame_same_callsite.lua`.
+- Route-around attribution:
+  `/tmp/kdz-retained-jitter-20260412074304` showed
+  `route_around_reducers_truth_pack/be_pack_literal_stop/hot` as the only
+  extra-family material red read. The focused truth pack
+  `/tmp/d3430611-route-around-truth/20260412-kdz-route_around_reducers-retained_baseline-truth-pack`
+  proved the official `@tests/s390x/perf/route_around_reducers.lua` chunk was
+  still caught by the retained
+  `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` route-around, while the
+  same temporary reducer bodies compiled at `0.02x..0.03x` of `-joff`.
+- Causality:
+  disabling only `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` for the
+  official `route_around_reducers.lua` row moved:
+  - `be_pack_literal_stop/hot`: `0.047233 -> 0.000746`
+  - `be_pack_literal_stop_local_ops/hot`: `0.020430 -> 0.000674`
+  - `be_pack_loop_local_ops/hot`: `0.019594 -> 0.000674`
+- Fix:
+  remove only `@tests/s390x/perf/route_around_reducers.lua` from the exact
+  promotion-core proto-NOJIT matcher in
+  [src/lj_trace.c](../../src/lj_trace.c). The broad guard remains active for
+  the previously retained promotion-core route-around families.
+- `kdz` validation:
+  delivered hashes were
+  `src/lj_trace.c 5ad14f45b11e3f0c41be823ea661fbfed5b7c4d5fa248524d304d664271b6db2`
+  and
+  `tools/s390x/probe_retained_jitter.py 460063ee722ecfe119666ba345a0260e05bb2cb5d8f5b7af566a428e61525baa`.
+  Candidate artifact `/tmp/kdz-retained-jitter-20260412074938` kept adjacent
+  promotion-core families in band while moving the three route-around reducer
+  hot rows to roughly `0.015x`, `0.034x`, and `0.034x` of `-joff`.
+  Broader retained-env regression screen:
+  `/tmp/kdz-retained-jitter-20260412075243`; main families remained near
+  parity or faster, with only small noisy residuals such as
+  `mixed_noffi/mixed_loop/hot 1.0202x`.
+- Guardrails:
+  `kdz` passed retained-env `pairs_loop.lua`, `iterator_table.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, and `dispatch_trace.lua`. The
+  `/tmp` mixed/ipairs probe files on `kdz` printed different historical
+  constants, but JIT and `-joff` matched for those exact files.
+- `zkd0` confirmation:
+  same delivered hashes and rebuild were clean. Focused retained-env artifact
+  `/tmp/zkd0-retained-jitter-20260412075528` moved route-around reducer hot
+  rows to about `0.015x`, `0.036x`, and `0.035x` of `-joff`. Exact probes on
+  `zkd0` printed the expected constants (`mixedprobe 553416`,
+  `hash_value 3000`, `ipairs_only 576000`), `pairs_loop.lua` passed, and the
+  retained-env `route_around_reducers`, `iterator_table`, `mixed_noffi`, and
+  `dispatch_trace` smokes completed.
+- Read:
+  this is another route-around debt closure. It does not name a new broad
+  backend seam; it narrows the promotion-core proto-NOJIT guard so the
+  exact route-around reducer be-pack family can use the already-retained fast
+  compiled path.

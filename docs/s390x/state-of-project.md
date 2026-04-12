@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 21:10 PDT
+Last updated: 2026-04-12 07:56 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -9,8 +9,9 @@ It is intentionally current-state only. Historical experiment detail lives in
 ## Current State
 
 - The current runtime/code source point is the
-  `411961f6 Split s390x be pack promotion guard` floor plus the retained
-  `numeric_ops/max_loop` exit-0 body side-trace allow, on top of
+  `d3430611 Fix s390x numeric SLOAD integer reentry` floor plus the
+  route-around reducer promotion-core guard split, on top of
+  `411961f6 Split s390x be pack promotion guard`,
   `52d50a22 Retire obsolete ffi cdata FORL guard`, the iterator guard
   ordering promotion, and the guardrail promotion from WIP
   `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
@@ -146,10 +147,29 @@ It is intentionally current-state only. Historical experiment detail lives in
   `min_loop` unchanged. Guardrails passed in
   `/tmp/kdz-numeric-max-body-allow-guardrails-20260411210837` and
   `/tmp/zkd0-numeric-max-body-allow-guardrails-20260411211004`.
+- Post-`d3430611` retained-env rerank kept the stable main matrix near parity
+  or faster, so the next useful signal came from the expanded guardrail-debt
+  coverage rather than a core matrix row. The route-around reducer truth pack
+  showed `@tests/s390x/perf/route_around_reducers.lua` was still caught by
+  the broad `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1` guard, even
+  though the equivalent reducer bodies now compile cleanly. The exact
+  `route_around_reducers.lua` chunk is therefore removed from that matcher
+  while retaining the guard for the older promotion-core route-around shapes.
+  Artifacts:
+  `/tmp/kdz-retained-jitter-20260412073653`,
+  `/tmp/kdz-retained-jitter-20260412074304`,
+  `/tmp/d3430611-route-around-truth/20260412-kdz-route_around_reducers-retained_baseline-truth-pack`,
+  `/tmp/kdz-retained-jitter-20260412074938`,
+  `/tmp/kdz-retained-jitter-20260412075243`, and
+  `/tmp/zkd0-retained-jitter-20260412075528`. Result:
+  `route_around_reducers` be-pack hot rows now run in the compiled fast band
+  on both hosts while the main retained families stay near parity or faster
+  on trusted `kdz`.
 - Current forward map:
-  rerun the retained-env rerank after the numeric max closure before opening
-  another code lane. Do not reopen the latest noisy iterator, vararg, mixed,
-  or FFI guard opt-outs unless the new matrix names a fresh repeated payer.
+  rerun the retained-env rerank after each guardrail-debt closure before
+  opening another code lane. Do not reopen the latest noisy iterator, vararg,
+  mixed, or FFI guard opt-outs unless the new matrix names a fresh repeated
+  payer.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
@@ -167,7 +187,7 @@ It is intentionally current-state only. Historical experiment detail lives in
 - The delivered
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
   hash is now identical on local, `kdz`, and `zkd0`:
-  `e459dc21cfe41881e0845d27eab59bbf03b4aafae6688202cd9aa874b3048baf`.
+  `5ad14f45b11e3f0c41be823ea661fbfed5b7c4d5fa248524d304d664271b6db2`.
 - Current retained `vararg_paths` rows after the sibling restamp:
   - trusted `kdz` rerun:
     - `sum_loop/hot 0.004437` vs `-joff 0.004789`
@@ -243,19 +263,18 @@ It is intentionally current-state only. Historical experiment detail lives in
   - trusted `zkd0` focused same-source A/B: `mix_bits/hot 0.003830 -> 0.001969`,
     `chain_tail_add/hot 0.003976 -> 0.002125`,
     `chain_tail_store/hot 0.003794 -> 0.002741`
-- The same env-gated promotion-core route-around now also covers exact
-  mechanism-only localized/static-stop/route-around/FFI-static reducer rows:
+- The same env-gated promotion-core route-around still covers exact
+  mechanism-only localized/static-stop/FFI-static reducer rows:
   [be_helpers_localized.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers_localized.lua),
   [promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua),
-  [route_around_reducers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/route_around_reducers.lua),
-  and
   [ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua).
   This reuses `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT=1`; no new env
-  knob or stable-matrix row was added. Trusted `kdz` retained-source controls
+  knob or stable-matrix row was added. The later post-`d3430611` split removes
+  the exact `route_around_reducers.lua` be-pack reducer family from this guard
+  because it now compiles cleanly. Trusted `kdz` retained-source controls
   moved to candidate rows of `0.001386` for localized `tobit`, `0.008632`
   for localized `be_pack`, `0.002281` / `0.001368` / `0.018765` for the
-  static-stop reducers, and `0.047332` / `0.020023` / `0.020076` for the
-  route-around reducers. The follow-up FFI static-stop extension moves `kdz`
+  static-stop reducers. The follow-up FFI static-stop extension moves `kdz`
   `direct_abs_literal_stop_real` / `stored_abs_literal_stop_real` from
   `0.013968` / `0.010697` controls to `0.010142` / `0.006919`, with `zkd0`
   same-source rows at `0.012448` / `0.008949` versus `-joff 0.013297` /

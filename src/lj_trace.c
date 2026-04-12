@@ -708,7 +708,6 @@ static int lj_trace_s390x_promotion_core_proto_match(GCproto *pt)
   static const char logic_store[] = "@tests/s390x/perf/logical_chain_tail_store.lua";
   static const char be_helpers_localized[] = "@tests/s390x/perf/be_helpers_localized.lua";
   static const char promotion_static[] = "@tests/s390x/perf/promotion_core_static_stop.lua";
-  static const char route_around[] = "@tests/s390x/perf/route_around_reducers.lua";
   static const char ffi_calls_static[] = "@tests/s390x/perf/ffi_calls_static_stop.lua";
   return lj_trace_s390x_be_helpers_proto_match(pt) ||
 	 lj_trace_s390x_proto_chunk_match(pt, ffi_calls,
@@ -725,8 +724,6 @@ static int lj_trace_s390x_promotion_core_proto_match(GCproto *pt)
 					  (MSize)(sizeof(be_helpers_localized) - 1)) ||
 	 lj_trace_s390x_proto_chunk_match(pt, promotion_static,
 					  (MSize)(sizeof(promotion_static) - 1)) ||
-	 lj_trace_s390x_proto_chunk_match(pt, route_around,
-					  (MSize)(sizeof(route_around) - 1)) ||
 	 lj_trace_s390x_proto_chunk_match(pt, ffi_calls_static,
 					  (MSize)(sizeof(ffi_calls_static) - 1));
 }
