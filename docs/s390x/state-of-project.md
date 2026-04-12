@@ -960,9 +960,11 @@ interpretation.
   eliminates the official `IR_FLOAD` abort chain and moves the row into the
   compiled fast band on both hosts.
 - Next acceleration queue after the FFI GPR and cdata mixed-width closures:
-  iterator safety-debt attribution, unless a fresh full retained-env matrix
-  names a larger official-row payer first. Keep broad guardrail removal out of
-  scope unless a truth pack proves a correctness-safe replacement mechanism.
+  the iterator safety-debt attribution lane has also closed as no-code.
+  Retained rows were near parity/noise, and a fully unguarded iterator
+  opt-out made official `iterator_table` much slower instead of exposing a
+  safe replacement mechanism. Rerun a full retained-env matrix from the new
+  faster floor before opening another code lane.
 
 ## Where To Look Next
 

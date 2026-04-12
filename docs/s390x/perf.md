@@ -4816,6 +4816,9 @@ localized-helper carried-`total` lane
   target from this closure.
 - Current acceleration queue:
   localized `bit.tobit` has closed as no-code; cdata mixed-width is retained.
-  Continue with iterator safety-debt attribution next, or rerun a full
-  retained-env matrix first if the queue needs to be regenerated from the new
-  faster floor.
+  Iterator safety-debt attribution also closed as no-code on
+  `9f65662f`: retained rows were near parity/noise and fully unguarded
+  iterator tracing made official `iterator_table` much slower
+  (`pairs_sum/hot 0.178898`, `pairs_array_sum/hot 0.180155`). Rerun a full
+  retained-env matrix from the new faster floor before opening another code
+  lane.
