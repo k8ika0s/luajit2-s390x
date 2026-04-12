@@ -29203,3 +29203,69 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   backend seam; it narrows the promotion-core proto-NOJIT guard so the
   exact route-around reducer be-pack family can use the already-retained fast
   compiled path.
+
+## 2026-04-12: unparked the promotion static-stop be-pack literal family
+
+- Trigger:
+  after the route-around reducer split, the corrected full retained-env probe
+  `/tmp/kdz-retained-jitter-20260412080232` showed no main-matrix blocker, but
+  it named the mechanism-only
+  `promotion_core_static_stop/be_pack_literal_stop_real/hot` row as another
+  over-guarded promotion-core shape (`1.0264x`, red in `2/3` passes).
+- Tooling fix:
+  [tools/s390x/probe_retained_jitter.py](../../tools/s390x/probe_retained_jitter.py)
+  now defaults to all known `BENCH_FILES`; the previous no-argument default
+  still ran only `dispatch_trace`, `iterator_table`, `vararg_paths`, and
+  `ffi_cdata`, which made the expanded matrix easy to under-run accidentally.
+- Causality:
+  removing only `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` from the
+  retained env moved `promotion_core_static_stop/be_pack_literal_stop_real/hot`
+  from `0.018943` to `0.000247`, but it also regressed the two
+  number-helper static-stop siblings. This ruled out dropping the broad guard.
+- Mechanism:
+  the first candidate used an outdated `numline=14` / `nins=32869` /
+  `mcloop=1756` shape and did not engage. The live meta log showed the actual
+  saved root was:
+  `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT trace=3 firstline=21 nsnap=4 nins=32840 mcloop=1032`.
+- Fix:
+  add a second exact exclusion inside
+  [src/lj_trace.c](../../src/lj_trace.c)
+  `lj_trace_s390x_promotion_core_forl_proto_nojit_match()` for the
+  `@tests/s390x/perf/promotion_core_static_stop.lua` be-pack literal root:
+  `firstline=21`, `numline=10`, `nsnap=4`, `nins=32840`, `mcloop=1032`.
+  The older `numline=14` / `nins=32869` / `mcloop=1756` compatibility shape
+  is retained in the same exact exclusion. The broad guard still parks the
+  number-helper static-stop roots.
+- `kdz` validation:
+  delivered hashes were
+  `src/lj_trace.c 71b8ac1285c67238a6b0ebe0ddd9cb81784cb1ef4f6cfb972a4c516ee7d5bc93`
+  and
+  `tools/s390x/probe_retained_jitter.py 4f5fdb5b24d3f0a488196265b9634945b82a8c69fe44c0fb3f68af06347a10f7`.
+  Meta logs after the restamp showed only the two number-helper static roots
+  still hitting `S390X_PROMOTION_CORE_FORL_PROTO_NOJIT`; the be-pack literal
+  root no longer hit the guard and ran at `0.000246`.
+- Focused `kdz` A/B:
+  `/tmp/kdz-retained-jitter-20260412080916` moved
+  `promotion_core_static_stop/be_pack_literal_stop_real/hot` to
+  `0.0130x`, `0.0131x`, and `0.0131x` of `-joff` across three passes. The
+  number-helper static-stop siblings stayed near parity, and adjacent
+  `be_helpers_localized`, `be_helpers`, `route_around_reducers`,
+  `ffi_calls_static_stop`, and `logic_add_phi_noboundary` rows stayed in band
+  on the trusted `kdz` read.
+- Broader `kdz` screen:
+  `/tmp/kdz-retained-jitter-20260412081025` kept the main retained families
+  clean while preserving the static be-pack literal win. Additional retained
+  smoke checks completed for `pairs_loop.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, and `dispatch_trace.lua`.
+- `zkd0` confirmation:
+  `/tmp/zkd0-retained-jitter-20260412081200` confirmed the static be-pack
+  literal row in the fast band (`0.0179x`, `0.0105x` of `-joff`) and kept
+  route-around reducer rows fast. `zkd0` remained noisy in unrelated retained
+  rows, so it is confirmation-only here; exact probes still printed
+  `mixedprobe 553416`, `hash_value 3000`, and `ipairs_only 576000`, and
+  `pairs_loop.lua` passed.
+- Read:
+  this is another exact route-around debt split, not a new generic trace
+  policy. The promotion-core proto-NOJIT guard remains retained for the
+  number-helper and other unsafe promotion-core shapes; only the exact
+  static-stop be-pack literal root is allowed to compile.

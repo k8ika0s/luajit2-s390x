@@ -303,7 +303,7 @@ def main() -> int:
     args = parse_args()
     host = args.host
     repo = args.repo or restamp.AUTHORITATIVE_REPOS[host]
-    families = args.family or ["dispatch_trace", "iterator_table", "vararg_paths", "ffi_cdata"]
+    families = args.family or list(BENCH_FILES)
     bench_files = [BENCH_FILES[family] for family in families]
     stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
     output_dir = args.output_dir or DEFAULT_OUTPUT_ROOT / f"{host}-retained-jitter-{stamp}"
