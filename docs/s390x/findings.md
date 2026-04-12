@@ -29463,3 +29463,80 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   no-code. The retained guardrails still protect real unsafe paths or only
   expose noise-scale movement. The primary matrix is unchanged; do not update
   retained rows from these exploratory opt-out reads.
+
+## 2026-04-12: acceleration truth packs exposed guarded `MULOV` exit-state bug
+
+- Tooling:
+  added
+  [build_acceleration_truth_pack.py](../../tools/s390x/build_acceleration_truth_pack.py)
+  to build focused low-level acceleration packs from the canonical retained
+  env. Each pack syncs tracked files to the remote mirror, rebuilds `src/`,
+  runs official same-host retained/JIT-off A/B rows, and archives focused trace
+  counters, `-jdump=ism` output, official benchmark dumps, remote hashes, and
+  optional `perf stat` output.
+- Target 1, `ffi_cdata/mixed_width_loop/hot`:
+  `artifacts/s390x/truth-packs/20260412-100111-kdz-ffi_cdata_width-accel-truth-pack`
+  confirmed the higher-sample `/tmp/kdz-retained-jitter-20260412092847` read:
+  `mixed_width_loop/hot` stayed parity/noise (`0.9928x`, red `0/3`), while
+  `pair_loop/hot` stayed in the compiled fast band and `buffer_fref_loop/hot`
+  stayed tiny/noisy. No cdata width lowering patch was justified.
+- Target 2, `ffi_fixed_call_pressure/gpr_pressure/hot`:
+  `artifacts/s390x/truth-packs/20260412-100633-kdz-ffi_fixed_gpr-accel-truth-pack`
+  kept `gpr_pressure/hot` parity/noise (`0.9825x`, red `1/3`) and
+  `fpr_pressure/hot` fast (`0.0226x`). The official dump shows the GPR path
+  still aborting with `NYI: cannot assemble IR instruction 69`, but the
+  official row is not a material red payer, so no call-lowering patch was
+  opened in this tranche.
+- Target 3, iterator safety debt:
+  `artifacts/s390x/truth-packs/20260412-101059-kdz-iterator_safety-accel-truth-pack`
+  did not name a safe guard-narrowing target. `mixed_noffi/mixed_loop/hot`
+  was neutral (`1.0052x`, red `0/3`), `pairs_sum/hot` was neutral
+  (`0.9998x`), and `pairs_array_sum/hot` showed only a small/noisy
+  millisecond-scale residual (`1.0409x`, red `2/3`). The focused
+  `pairs_loop` chain was compiled-body dominated with no abort or exit storm.
+- Target 4, helper residuals:
+  the first helper pack
+  `artifacts/s390x/truth-packs/20260412-101311-kdz-be_number_helper-accel-truth-pack`
+  exposed a real correctness issue in the focused localized `bit.tobit`
+  reducer, not just a perf payer. Interpreter reference for
+  `local tobit = bit.tobit; total = tobit(total + i * 65537)` at `n=64000`
+  is `-149783296`, while the traced loop returned `-1760346880`. Boundary
+  probing showed the first wrong result at `n=32768`.
+- Root cause:
+  guarded integer `MULOV` in loop bodies had the same exit-state hazard as the
+  earlier loop-body `ADDOV` / `SUBOV` family. The multiply could clobber the
+  destination register before the overflow guard branched, and the common
+  source-order move of the left operand into `dest` could also overwrite an
+  exit-snapshot value before the guard. On overflow, the interpreter resumed
+  from a corrupted snapshot state.
+- Fix:
+  [lj_asm_s390x.h](../../src/lj_asm_s390x.h) now handles loop-body guarded
+  integer `MULOV` by computing into scratch registers, comparing the full
+  product with its sign-extended 32-bit form, and moving the scratch result
+  into the destination only after the guard falls through. The scratch path
+  returns before the generic `dest <- left` setup move, preserving the
+  pre-overflow exit snapshot.
+- Guardrail:
+  added
+  [mulov_overflow_guard.lua](../../tests/s390x/jit_be/mulov_overflow_guard.lua)
+  covering both localized and global `bit.tobit` multiply loops across the
+  overflow boundary (`32767`, `32768`, and `64000`).
+- Validation:
+  `kdz` passed `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`, all `tests/s390x/jit_be/*.lua`,
+  `pairs_loop.lua`, `compiled_vararg.lua`, retained-env `vararg_paths.lua`,
+  `mixed_noffi.lua`, `iterator_table.lua`, and retained-env
+  `dispatch_trace.lua`. The old standalone repro now reports
+  `INTERP -149783296`, `TRACED -149783296`, `MATCH true`.
+- Host confirmation:
+  `zkd0` passed `mulov_overflow_guard.lua`, `addsub_overflow_guard.lua`, and
+  `numeric_ops.lua` after the same tracked-file sync and direct `src/` build.
+- Post-fix helper pack:
+  `artifacts/s390x/truth-packs/20260412-102450-kdz-be_number_helper-accel-truth-pack`
+  shows the focused localized `tobit` reducer now runs correctly and exits
+  through the overflow boundary (`TEXIT_COUNT 31233`). The official helper
+  rows are tiny and slightly red in the short three-pass pack
+  (`number_helper_loop/hot 1.0634x`,
+  `number_helper_loop_local_tobit/hot 1.0119x`), so they remain follow-up
+  attribution candidates rather than primary matrix changes.
