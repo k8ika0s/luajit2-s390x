@@ -4564,3 +4564,36 @@ localized-helper carried-`total` lane
   `/tmp/zkd0-urefo-order-ffi-cdata-confirm-20260411213838` completed the
   same long-sample `ffi_cdata` run without crash. The `buffer_fref_loop` timing
   was noisy (`1.2936x` then `0.9647x`), so it is not a retained perf signal.
+
+## 2026-04-11 21:58 PDT
+
+- Post-`0f398870` full retained-env rerank:
+  `/tmp/kdz-post-0f398870-retained-rerank-20260411214254`
+  - top median red: `mixed_noffi/mixed_loop/hot 1.0049x`, red `1/5`
+  - `be_helpers/number_helper_loop/hot 1.0045x`, red `2/5`, high jitter
+  - `dispatch_trace/side_exit_loop/hot 1.0040x`, red `0/5`
+  - `ffi_cdata/mixed_width_loop/hot 1.0038x`, red `1/5`
+  - read: no row meets the material/repeated threshold for a code target.
+- Guardrail debt sweep:
+  `/tmp/kdz-guardrail-debt-0f398870-20260411215000`
+  - exact iterator opt-out is much worse:
+    `pairs_sum/hot 2.7477x` and `pairs_array_sum/hot 2.2467x` versus retained
+    JIT-on
+  - broad iterator root opt-out is neutral
+  - mixed-noffi guard removal is worse: `mixed_loop/hot 1.0593x`
+  - exact vararg guard removal is worse on `retlast_loop/hot 1.4505x`
+  - promotion-core/localized/lower-frame removal is worse on
+    `be_helpers/number_helper_loop/hot 1.2703x`
+  - FFI/cdata guard removal is neutral
+  - read: the retained guardrails are not currently hiding an obvious safe
+    high-upside path.
+- Numeric perf fill-in:
+  `/tmp/kdz-post-0f398870-numeric-ops-20260411215500`
+  - all hot rows remain strongly faster than `-joff`
+  - `fp_mod_loop/hot 0.1183x`, `max_loop/hot 0.0694x`,
+    `min_loop/hot 0.0627x`
+- Current queue:
+  park performance source edits until a repeated retained-env `kdz` A/B names
+  a material official-row payer. If the team wants to keep pushing for
+  above-parity wins, the next work should be mechanism truth packs against a
+  named guardrail debt seam, not another broad trace-control edit.
