@@ -182,6 +182,10 @@ def parse_remaining_stubs(root: pathlib.Path) -> Dict[str, object]:
                 matches.append({"line": line_no, "text": line.strip()})
         if not matches:
             return ("implemented", matches)
+        if name == "vm_mod fast path":
+            if any("NYI" in entry["text"] or "TODO:" in entry["text"] for entry in matches):
+                return ("nyi", matches)
+            return ("implemented", matches)
         if any("NYI" in entry["text"] or "TODO:" in entry["text"] for entry in matches):
             return ("nyi", matches)
         return ("tracked", matches)
@@ -313,13 +317,13 @@ def write_report(out_dir: pathlib.Path, bc: Dict[str, object], ir: Dict[str, obj
         lines.append(f"- `{group}`: `{len(ops)}` ops")
     lines.extend(["", "## Notes", ""])
     if any(item["call"] == "IRCALL_lj_vm_modi" for item in helper_calls["helper_calls"]):
-        lines.append("- `IR_MOD -> IRCALL_lj_vm_modi` remains the first measured post-closure optimization target.")
+        lines.append("- Generic `IR_MOD -> IRCALL_lj_vm_modi` fallback remains tracked for non-fast-path integer modulo shapes.")
     else:
         lines.append("- No `IRCALL_lj_vm_modi` fallback was found in the current source scan.")
     if any(item["name"] == "asm_tobit" and item["status"] == "implemented" for item in risk_items):
         lines.append("- `asm_tobit` is implemented and should no longer be treated as a closure stub.")
     if any(item["name"] == "asm_prof" for item in risk_items):
-        lines.append("- `asm_prof` is tracked as a feature-gated/debug surface until a support-surface exercise test proves it closure-critical.")
+        lines.append("- `asm_prof` is implemented and remains tracked as feature-gated/debug coverage.")
     (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 15:20 PDT
+Last updated: 2026-04-12 16:02 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,9 +8,10 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The current runtime/code source point is `b744ec36 Record s390x iterator
-  safety acceleration closure` plus the retained safe constant-bounded
-  `bit.tobit` `MULOV` narrowing candidate. It includes the retained
+- The current runtime/code source point is `34a342fe Retain s390x low-level
+  acceleration closures` plus the allocator-safe `asm_prof` hookmask guard
+  closure and the retained safe constant-bounded `bit.tobit` `MULOV`
+  narrowing candidate. It includes the retained
   ADDOV/SUBOV and MULOV overflow work, remote oracle matrix coverage,
   route-around reducer splits, static-stop and localized be-pack
   promotion-core guard splits, iterator guard ordering, guardrail promotion,
@@ -117,6 +118,18 @@ It is intentionally current-state only. Historical experiment detail lives in
   `iterator_table/pairs_sum/hot` (`1.0136x`, `+0.000122s`), and
   `mixed_noffi/mixed_loop/hot` (`1.0220x`, `+0.000138s`). This is below the
   current source-change bar.
+- The x86-parity/NYI cleanup is now down to the cross-arch parked item:
+  `/tmp/s390x-x86-parity-coverage-asm-prof-20260412d/report.md`, the `kdz`
+  mirror report `/tmp/kdz-s390x-parity-coverage-asm-prof-20260412b/report.md`,
+  and the `zkd0` mirror report
+  `/tmp/zkd0-s390x-parity-coverage-asm-prof-20260412/report.md` show zero
+  explicit s390x ASM stubs and zero stubbed IR ops after `asm_prof` was
+  implemented. The stale `vm_mod fast path` inventory entry is corrected to
+  implemented; generic `IR_MOD -> IRCALL_lj_vm_modi` remains visible as a
+  non-fast-path integer modulo fallback. The remaining compiled vararg
+  `BC_JFUNCV` VM NYI stays parked because x86/x64/arm64 also leave compiled
+  vararg functions NYI and [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  asserts that path cannot happen under current hotcall recording semantics.
 - The current next-target rule is therefore stricter: no more source changes
   from ratio alone. The next patch needs either a fresh high-time row, a
   current-source truth pack with a concrete compiled-body/backend payer, or a

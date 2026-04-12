@@ -2264,7 +2264,19 @@ static void asm_hiop(ASMState *as, IRIns *ir)
     break;
   }
 }
-ASM_S390X_STUB_IR(asm_prof)
+static void asm_prof(ASMState *as, IRIns *ir)
+{
+  Reg g = ra_scratch(as, RSET_GPR_NOB);
+  UNUSED(ir);
+  asm_guardcc(as, CC_NE);
+  emit_u32(as, S390X_INS_SI(S390XI_TM, g,
+			    (int32_t)offsetof(global_State, hookmask),
+			    HOOK_PROFILE));
+  emit_addptr(as, g, GG_DISP2G);
+  if (g != RID_DISPATCH)
+    emit_u32(as, S390X_INS_RXE(S390XI_LGR, g, RID_DISPATCH));
+}
+
 static void asm_comp(ASMState *as, IRIns *ir)
 {
   if (irt_isfp(ir->t))
