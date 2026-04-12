@@ -1,13 +1,16 @@
 # s390x Performance Status
 
-Last updated: 2026-04-11 20:24 PDT
+Last updated: 2026-04-11 20:45 PDT
 
-## Post-Guardrail Iterator Checkpoint
+## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  `547f5917 Refine s390x iterator guard ordering`, cherry-picked from the
-  narrow `k8ika0s/s390x-iterator-guard-refine` promotion branch on top of
-  WIP `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
+  `411961f6 Split s390x be pack promotion guard`, on top of
+  `52d50a22 Retire obsolete ffi cdata FORL guard` and the iterator guard
+  ordering promotion. The retained env now omits the obsolete
+  `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` guard, keeps the broad
+  promotion-core guard for `number_helper_loop`, and excludes only the exact
+  `be_helpers.lua` `be_pack_loop` root so that path can compile.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
@@ -91,6 +94,38 @@ Last updated: 2026-04-11 20:24 PDT
   `0.040121 -> 0.000309`; a retained-env rerun
   `/tmp/zkd0-be-pack-split-retained-rerun-20260411202323` kept
   `number_helper_loop` around or faster than `-joff`.
+- Post-`411961f6` retained-env rerank:
+  `/tmp/kdz-post-411961f6-retained-rerank-core-20260411202636`,
+  `/tmp/kdz-post-411961f6-retained-rerank-rest-20260411202918`, and
+  `/tmp/kdz-post-411961f6-numeric-ops-20260411203113`.
+  The official matrix did not name a stable material red row. The only red
+  reads were small and inconsistent: `vararg_paths/retlast_loop` median ratio
+  `1.0266x` with `2/4` red passes, `vararg_paths/sum_loop` median ratio
+  `1.0155x` with `2/4` red passes, `ffi_cdata/buffer_fref_loop` median ratio
+  `1.0089x` with `2/4` red passes, and `mixed_noffi/mixed_loop` median ratio
+  `1.0109x`. `iterator_table`, `dispatch_trace`, `mixed_ffi`, `ffi_calls`,
+  `be_helpers`, `ffi_cdata/pair_loop`, and the numeric rows were green or
+  near parity.
+- Follow-up guardrail opt-outs did not name another retained source/env edit.
+  FFI/mixed guard splits were neutral or had sibling regressions
+  (`/tmp/kdz-post-411961f6-ffi-mixed-guard-split-20260411203230`), broad
+  vararg and exact `SUM_LOOP_FORL_BLACKLIST` opt-outs were noisy or regressed
+  later passes (`/tmp/kdz-vararg-root-blacklist-ab-20260411203434`,
+  `/tmp/kdz-sum-loop-forl-blacklist-remove-ab-20260411203535`), and the fully
+  unguarded official iterator path was correct but catastrophically slower
+  (`pairs_sum/hot 0.134399`, `pairs_array_sum/hot 0.128479`) because it
+  re-entered an exit-1 `BC_JLOOP` / hotside churn path
+  (`/tmp/kdz-iterator-fully-unguarded-nolog-20260411204011`).
+- Current forward target:
+  keep the near-parity official rows parked and use low-level debt attribution
+  for further wins. The best named next candidate is `numeric_ops/max_loop`:
+  it is correct and green (`0.001784` vs `-joff 0.002598`) but much weaker
+  than `min_loop` because the integer root exits at the `ADDOV` overflow
+  boundary and the widened side trace links back to the integer root rather
+  than becoming a clean widened loop
+  (`/tmp/kdz-numeric-max-jv-repeat-20260411204230`,
+  `/tmp/kdz-numeric-max-dump-repeat-20260411204248`). Do not reopen iterator,
+  vararg, mixed, or FFI guard removal from the latest noisy opt-outs.
 
 ## Canonical Perf Suite
 

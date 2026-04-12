@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-11 20:24 PDT
+Last updated: 2026-04-11 20:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,9 +8,10 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The current runtime/code source point is the iterator guard promotion:
-  `547f5917 Refine s390x iterator guard ordering`, cherry-picked from the
-  narrow `k8ika0s/s390x-iterator-guard-refine` branch on top of WIP
+- The current runtime/code source point is
+  `411961f6 Split s390x be pack promotion guard`, on top of
+  `52d50a22 Retire obsolete ffi cdata FORL guard`, the iterator guard
+  ordering promotion, and the guardrail promotion from WIP
   `4ea7b1d1 Guard unsafe s390x vararg and iterator traces`.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
@@ -68,12 +69,11 @@ It is intentionally current-state only. Historical experiment detail lives in
   [tools/s390x/restamp_iterator_perf.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/restamp_iterator_perf.py)
   and imported by the iterator, dispatch, and broader-throughput truth-pack
   helpers. Do not use partial-env runs for retention decisions.
-- Next work should stay disciplined: re-attribute the remaining
-  `mixed_noffi` compiled-body residual on the official row before opening
-  code. If that truth-pack does not name a real payer, park `mixed_noffi` and
-  only revisit iterator, vararg, helper, cdata, or call rows after a repeated
-  same-host `kdz` A/B names a larger official-row signal. Do not reopen broad
+- Next work should stay disciplined: the post-`411961f6` retained-env rerank
+  did not name a stable material official-row payer, so do not reopen broad
   trace-control or guardrail edits from the current near-parity matrix alone.
+  Further performance work should target low-level debt only after a focused
+  attribution names a repeated mechanism.
 - Follow-up attribution from this floor did not name a retainable code lane.
   The mixed-noffi truth-pack stayed compiled-body dominated with `TEXIT_COUNT
   0`; the exact mixed `BC_ITERN` `0xffff` hotcount-width candidate reduced
@@ -111,6 +111,37 @@ It is intentionally current-state only. Historical experiment detail lives in
   `/tmp/zkd0-be-pack-split-retained-rerun-20260411202323`. Result:
   `be_pack_loop/hot` moved from `0.019222` to `0.000246` on `kdz`, and from
   `0.040121` to `0.000309` on `zkd0`; the `kdz` guardrail screen stayed clean.
+- Post-`411961f6` retained-env rerank artifacts:
+  `/tmp/kdz-post-411961f6-retained-rerank-core-20260411202636`,
+  `/tmp/kdz-post-411961f6-retained-rerank-rest-20260411202918`, and
+  `/tmp/kdz-post-411961f6-numeric-ops-20260411203113`.
+  No stable material red official row repeated. Small/noisy reads included
+  `vararg_paths/retlast_loop/hot` median ratio `1.0266x` with `2/4` red
+  passes, `vararg_paths/sum_loop/hot` median ratio `1.0155x` with `2/4` red
+  passes, `ffi_cdata/buffer_fref_loop/hot` median ratio `1.0089x` with `2/4`
+  red passes, and `mixed_noffi/mixed_loop/hot` median ratio `1.0109x`.
+  `iterator_table`, `dispatch_trace`, `mixed_ffi`, `ffi_calls`,
+  `be_helpers`, `ffi_cdata/pair_loop`, and the numeric rows were green or
+  near parity.
+- Latest guardrail opt-out checks are closed as non-retainable:
+  FFI/mixed splits were neutral or moved siblings the wrong way
+  (`/tmp/kdz-post-411961f6-ffi-mixed-guard-split-20260411203230`), vararg
+  broad/exact opt-outs were noisy or regressed later passes
+  (`/tmp/kdz-vararg-root-blacklist-ab-20260411203434`,
+  `/tmp/kdz-sum-loop-forl-blacklist-remove-ab-20260411203535`), and fully
+  unguarded official iterator tracing was correct but much slower
+  (`/tmp/kdz-iterator-fully-unguarded-nolog-20260411204011`) due to repeated
+  exit-1 `BC_JLOOP` / hotside churn.
+- The best currently named “beyond parity” candidate is
+  `numeric_ops/max_loop`: it is correct and green (`0.001784` vs
+  `-joff 0.002598`) but much weaker than the sibling numeric rows. Focused
+  dumps show the integer root exits at the `ADDOV` overflow boundary, then a
+  widened side trace links back to the integer root instead of becoming a
+  clean widened loop:
+  `/tmp/kdz-numeric-max-jv-repeat-20260411204230` and
+  `/tmp/kdz-numeric-max-dump-repeat-20260411204248`. If we continue pursuing
+  large wins rather than near-parity cleanup, this is the next low-level
+  attribution lane.
 - The currently retained trace-control recovery point still includes the
   existing
   [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
