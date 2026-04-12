@@ -848,8 +848,11 @@ static int asm_s390x_stack_restore_log_enabled(void)
 static int asm_s390x_int_minmax_enabled(void)
 {
   static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_INT_MINMAX") != NULL);
+  if (enabled == -1) {
+    const char *opt_in = getenv("LUAJIT_S390X_INT_MINMAX");
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_INT_MINMAX");
+    enabled = (opt_out == NULL) || opt_in != NULL;
+  }
   return enabled;
 }
 
@@ -1906,8 +1909,15 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref, MSize mode)
 
 static void asm_bufhdr_write(ASMState *as, Reg sb)
 {
-  UNUSED(sb);
-  asm_s390x_nyi_tag(as, -111);
+  Reg tmp = ra_scratch(as, rset_exclude(RSET_GPR_NOB, sb));
+  IRIns irgc;
+  irgc.ot = IRT(0, IRT_PGC);  /* GC type. */
+  emit_storeofs(as, &irgc, tmp, sb, (int32_t)offsetof(SBuf, L));
+  emit_u32(as, S390X_INS_RXE(S390XI_OGR, tmp, RID_TMP));
+  emit_getgl(as, RID_TMP, cur_L);
+  emit_u32(as, S390X_INS_RXE(S390XI_NGR, tmp, RID_TMP));
+  emit_loadi(as, RID_TMP, SBUF_MASK_FLAG);
+  emit_loadofs(as, &irgc, tmp, sb, (int32_t)offsetof(SBuf, L));
 }
 
 static Reg asm_setup_call_slots(ASMState *as, IRIns *ir, const CCallInfo *ci)

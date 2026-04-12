@@ -85,6 +85,16 @@ def parse_env_overrides(items: list[str]) -> dict[str, str]:
     return overrides
 
 
+def parse_env_unsets(items: list[str]) -> set[str]:
+    unsets: set[str] = set()
+    for item in items:
+        key = item.strip()
+        if not key or "=" in key:
+            raise SystemExit(f"invalid --unset-env entry {item!r}; expected KEY")
+        unsets.add(key)
+    return unsets
+
+
 def build_remote_oracles(host: str, repo: str, raw_dir: pathlib.Path) -> None:
     script = f"""
 set -euo pipefail
@@ -313,6 +323,13 @@ def parse_args() -> argparse.Namespace:
         metavar="KEY=VALUE",
         help="Extra environment variable to add to the retained baseline env.",
     )
+    parser.add_argument(
+        "--unset-env",
+        action="append",
+        default=[],
+        metavar="KEY",
+        help="Remove an environment variable from the retained baseline env.",
+    )
     return parser.parse_args()
 
 
@@ -328,6 +345,8 @@ def main() -> int:
     raw_dir.mkdir(parents=True, exist_ok=True)
     remote_tmp = f"/tmp/{host}-retained-jitter-{stamp}"
     retained_env = dict(restamp.RETAINED_BASELINE_ENV)
+    for key in parse_env_unsets(args.unset_env):
+        retained_env.pop(key, None)
     retained_env.update(parse_env_overrides(args.env))
 
     if not args.skip_sync:

@@ -447,6 +447,58 @@ static TRef narrow_stripov(jit_State *J, TRef tr, int lastop, IRRef mode)
   return tr;
 }
 
+/*
+** Narrow conversion to bitop operand, preserving Lua number precision.
+** ADD/SUB can use 32 bit wrap-around semantics under bit.tobit(). MULOV is
+** only safe when a constant operand bounds the full signed 32 bit product to
+** the exactly representable integer range of a double.
+*/
+#define NARROW_TOBIT_MULOV_KMAX	4194303
+
+static int narrow_tobit_mulov_safe_k(jit_State *J, IRRef ref)
+{
+  if (irref_isk(ref) && IR(ref)->o == IR_KINT) {
+    int32_t k = IR(ref)->i;
+    uint32_t mag = k < 0 ? ~((uint32_t)k) + 1u : (uint32_t)k;
+    return mag <= NARROW_TOBIT_MULOV_KMAX;
+  }
+  return 0;
+}
+
+static TRef narrow_stripov_tobit(jit_State *J, TRef tr)
+{
+  IRRef ref = tref_ref(tr);
+  IRIns *ir = IR(ref);
+  int op = ir->o;
+  IRRef op1, op2, mode;
+
+  if (op == IR_ADDOV || op == IR_SUBOV || op == IR_ADD || op == IR_SUB) {
+    IRRef ref1 = ir->op1, ref2 = ir->op2;
+    op1 = (IRRef)narrow_stripov_tobit(J, ref1);
+    op2 = (IRRef)narrow_stripov_tobit(J, ref2);
+    op = (op == IR_ADDOV || op == IR_SUBOV) ? op - IR_ADDOV + IR_ADD : op;
+    if (op1 == ref1 && op2 == ref2 && (ir->o == IR_ADD || ir->o == IR_SUB))
+      return tr;
+    return emitir(IRT(op, IRT_INT), op1, op2);
+  }
+
+  if (op != IR_MULOV ||
+      (!narrow_tobit_mulov_safe_k(J, ir->op1) &&
+       !narrow_tobit_mulov_safe_k(J, ir->op2)))
+    return tr;
+
+  mode = (IRT_INT<<5)|IRT_INT|IRCONV_TOBIT;
+  {
+    BPropEntry *bp = narrow_bpc_get(J, ref, mode);
+    if (bp)
+      return TREF(bp->val, irt_t(IR(bp->val)->t));
+  }
+
+  tr = emitir(IRTI(IR_MUL), ir->op1, ir->op2);
+  narrow_bpc_set(J, ref, tref_ref(tr), mode);
+  return tr;
+}
+
 /* Narrow array index. */
 TRef LJ_FASTCALL lj_opt_narrow_index(jit_State *J, TRef tr)
 {
@@ -488,10 +540,11 @@ TRef LJ_FASTCALL lj_opt_narrow_tobit(jit_State *J, TRef tr)
   if (!tref_isinteger(tr))
     lj_trace_err(J, LJ_TRERR_BADTYPE);
   /*
-  ** Wrapped overflow semantics allow stripping of ADDOV and SUBOV.
-  ** MULOV cannot be stripped due to precision widening.
+  ** Wrapped overflow semantics allow stripping of ADDOV and SUBOV. MULOV can
+  ** only be stripped for constant-bounded products that cannot lose precision
+  ** before bit.tobit() applies the 32 bit wrap.
   */
-  return narrow_stripov(J, tr, IR_SUBOV, (IRT_INT<<5)|IRT_INT|IRCONV_TOBIT);
+  return narrow_stripov_tobit(J, tr);
 }
 
 #if LJ_HASFFI
@@ -610,5 +663,6 @@ IRType lj_opt_narrow_forl(jit_State *J, cTValue *tv)
 #undef fins
 #undef emitir
 #undef emitir_raw
+#undef NARROW_TOBIT_MULOV_KMAX
 
 #endif

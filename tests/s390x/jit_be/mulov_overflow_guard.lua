@@ -25,14 +25,16 @@ end
 local function trace_result(fn, n)
   jit.flush()
   local cap = t.trace_capture()
+  local texit_cap = t.texit_counter_capture_lite()
   local result = t.with_finally(function()
+    texit_cap.stop()
     cap.stop()
   end, function()
     fn(20); fn(20); fn(20)
     return fn(n)
   end)
   t.truthy(t.find_trace_event(cap.events, "stop"), "loop traced")
-  return result
+  return result, texit_cap.total
 end
 
 jit.off(localized_tobit_mul_loop, true)
@@ -43,12 +45,18 @@ t.eq(trace_result(localized_tobit_mul_loop, 32767), -536887296,
      "localized before overflow")
 t.eq(trace_result(localized_tobit_mul_loop, 32768), 1610629120,
      "localized first overflow exit")
-t.eq(trace_result(localized_tobit_mul_loop, 64000), expected_localized,
-     "localized overflow exits")
+do
+  local result, exits = trace_result(localized_tobit_mul_loop, 64000)
+  t.eq(result, expected_localized, "localized overflow exits")
+  t.truthy(exits < 10, "localized tobit MULOV guard stripped")
+end
 
 jit.off(global_tobit_mul_loop, true)
 local expected_global = global_tobit_mul_loop(64000)
 jit.on(global_tobit_mul_loop, true)
 t.eq(expected_global, -149783296, "global interpreter reference")
-t.eq(trace_result(global_tobit_mul_loop, 64000), expected_global,
-     "global overflow exits")
+do
+  local result, exits = trace_result(global_tobit_mul_loop, 64000)
+  t.eq(result, expected_global, "global overflow exits")
+  t.truthy(exits < 10, "global tobit MULOV guard stripped")
+end
