@@ -29703,3 +29703,30 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   this is a retained acceleration win. Continue with iterator safety-debt
   attribution next, unless a fresh full retained-env matrix names a larger
   official-row payer first.
+
+## 2026-04-12: iterator safety-debt acceleration lane closed as no-code
+
+- Source point:
+  `9f65662f Fix s390x cdata mixed-width stores`.
+- Retained attribution:
+  `artifacts/s390x/truth-packs/20260412-114402-kdz-iterator_safety-accel-truth-pack`
+  reran the iterator safety acceleration pack on `kdz` with full retained env.
+  The official rows stayed near parity/noise:
+  `iterator_table/pairs_sum/hot 1.0348x`, `pairs_array_sum/hot 0.9916x`, and
+  `mixed_noffi/mixed_loop/hot 1.0113x`. The focused
+  `iterator_pairs_loop_chain` reducer was compiled-body dominated with
+  `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, and `TEXIT_COUNT 0`.
+- Opt-out causality:
+  a timeout-protected unguarded iterator probe removed the retained
+  `ITERATOR_ITERN_BLACKLIST`, `ITERATOR_ITERL_BLACKLIST`, exact proto-NOJIT,
+  exact hotcount-park, post-proto no-hot, and broad root-blacklist controls.
+  It did not reveal a safe narrower replacement. Instead, official
+  `iterator_table` slowed catastrophically:
+  `pairs_sum/hot 0.178898`, `pairs_array_sum/hot 0.180155`, with the meta log
+  showing new `BC_ITERN` roots and side traces rather than a clean VM/backend
+  handoff payer.
+- Closure:
+  no source candidate opened. Keep the broad iterator root blacklist and exact
+  iterator proto/hotcount route-arounds. The next acceleration step should be
+  a fresh full retained-env rerank from the new faster cdata floor, or a new
+  low-level target with a repeated official-row payer.
