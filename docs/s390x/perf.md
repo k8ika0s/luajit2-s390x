@@ -5085,3 +5085,9 @@ localized-helper carried-`total` lane
   `/tmp/kdz-guard-retire-mixed-ffi-post-stitch-env-retired-20260412/summary.md`
   remained in band, and the ledger is now 20 gates: 15 mechanism-debt items and
   five still-unsafe guards.
+- Follow-up probes left these gates retained: the root-1 replay triplet pair
+  regressed `mixed_noffi`; `SUM_LOOP_SELECT_EXIT0_DONE` is still
+  performance-positive versus immediate control; `LOWER_FRAME_LUA_ABS_PROTO_NOJIT`
+  is still slightly better retained; and `MIXED_FFI_FORL_PROTO_NOJIT` remains a
+  safety rail because mixed-noffi was worse with it unset on both `kdz` and
+  `zkd0`.
