@@ -30412,3 +30412,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   has 24 retained env gates and no bake-in/env-cleanup candidates left:
   18 mechanism-debt items and six still-unsafe guards. From here, gate removal
   requires a real mechanism fix, not another env cleanup.
+
+## 2026-04-12: obsolete `FFI_CDATA_PAIR_SAVE_DONE` retained-env cleanup
+
+- Pre-proof:
+  `/tmp/kdz-guard-retire-ffi-cdata-pair-save-done-unset-20260412/summary.md`
+  removed `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE` from the retained env for a
+  higher-sample focused cdata pass. The former protected row is now decisively
+  safe without it: `ffi_cdata/pair_loop/hot` stayed around `0.0029x..0.0035x`,
+  `mixed_width_loop/hot` stayed around `0.0092x..0.0095x`, and
+  `buffer_fref_loop/hot` stayed around `0.051x..0.054x`.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE` in
+  `RETAINED_BASELINE_ENV`. The old source diagnostic remains available, but
+  the retained cdata backend closures have made this env route-around obsolete.
+- Validation:
+  `/tmp/kdz-guard-retire-ffi-cdata-pair-save-done-env-retired-20260412/summary.md`
+  confirmed the canonical env after removal. `pair_loop/hot` stayed in the
+  `0.003x` band and both sibling rows stayed fast.
+- Post-cleanup ledger:
+  `/private/tmp/s390x-guard-retirement-after-ffi-cdata-pair-save-done-20260412/ledger.md`
+  is down to 23 retained env gates: 17 mechanism-debt items and six
+  still-unsafe guards. No remaining item should be removed as simple cleanup;
+  each now needs a payer-specific mechanism fix or a focused proof that it has
+  become obsolete after a later source change.
