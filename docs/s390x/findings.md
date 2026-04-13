@@ -30379,3 +30379,36 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   env-cleanup candidate is the explicit dispatch `FORL` skip marker; the rest
   are mechanism or safety debt and should not be removed without a targeted
   fix.
+
+## 2026-04-12: dispatch `FORL` skip retained-env marker cleanup
+
+- Pre-proof:
+  `/tmp/kdz-guard-retire-dispatch-forl-env-unset-20260412/summary.md` removed
+  the explicit `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI=1` marker from the
+  retained env while keeping the source default-on behavior. `dispatch_trace`
+  stayed near parity/green: `numeric_loop/hot` was `1.0009x`, `0.9822x`,
+  `1.0014x` across the three alternating passes, with side-exit and hotexit
+  also in the same small/noisy band.
+- Causality update:
+  the old diagnostic expectation for
+  `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI=1` is now stale on current
+  WIP. `/tmp/kdz-dispatch-forl-marker-disable-causality.out` passed
+  `dispatch_trace.lua` instead of reproducing the old `numeric_loop/hot`
+  failure. That does not weaken the source path; it means the explicit
+  retained-env marker is no longer needed as a retention signal.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI` in
+  `RETAINED_BASELINE_ENV`. The source path in [lj_trace.c](../../src/lj_trace.c)
+  remains default-on and still has the diagnostic
+  `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI` opt-out.
+- Validation:
+  `/tmp/kdz-guard-retire-dispatch-forl-env-retired-20260412/summary.md`
+  confirmed the updated canonical env. `dispatch_trace/numeric_loop/hot`
+  stayed close to parity (`1.0127x`, `1.0023x`, `1.0270x`), while
+  `side_exit_loop/hot` and `hotexit_loop/hot` stayed green/noisy.
+- Post-cleanup ledger:
+  `/private/tmp/s390x-guard-retirement-after-dispatch-forl-env-20260412/ledger.md`
+  has 24 retained env gates and no bake-in/env-cleanup candidates left:
+  18 mechanism-debt items and six still-unsafe guards. From here, gate removal
+  requires a real mechanism fix, not another env cleanup.

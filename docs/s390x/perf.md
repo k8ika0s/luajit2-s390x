@@ -179,6 +179,17 @@ Last updated: 2026-04-12 17:00 PDT
   `route_around_reducers`, and `lower_frame_same_callsite` in the fast band.
   Current ledger:
   `/private/tmp/s390x-guard-retirement-after-localized-equiv-env-20260412/ledger.md`.
+- Dispatch marker cleanup:
+  `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI` is now removed from the canonical
+  retained env because the source path is already default-on. kdz pre-proof
+  `/tmp/kdz-guard-retire-dispatch-forl-env-unset-20260412/summary.md` and the
+  post-cleanup run
+  `/tmp/kdz-guard-retire-dispatch-forl-env-retired-20260412/summary.md` keep
+  `dispatch_trace` in the near-parity/green band. The old
+  `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI=1` failure expectation is
+  stale on current WIP: `/tmp/kdz-dispatch-forl-marker-disable-causality.out`
+  passed. Current ledger:
+  `/private/tmp/s390x-guard-retirement-after-dispatch-forl-env-20260412/ledger.md`.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.

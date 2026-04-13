@@ -184,6 +184,16 @@ It is intentionally current-state only. Historical experiment detail lives in
   `/private/tmp/s390x-guard-retirement-after-localized-equiv-env-20260412/ledger.md`,
   with only one env-cleanup candidate left before the mechanism/safety-debt
   items.
+- The final env-cleanup marker is now retired as well:
+  `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI` is removed from the canonical
+  retained env while the [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  source path remains default-on. `kdz`
+  `/tmp/kdz-guard-retire-dispatch-forl-env-retired-20260412/summary.md` keeps
+  `dispatch_trace` in band. The old
+  `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI=1` causality failure did not
+  reproduce on current WIP and is recorded as stale. The current guard ledger
+  is `/private/tmp/s390x-guard-retirement-after-dispatch-forl-env-20260412/ledger.md`:
+  24 retained env gates, all classified as mechanism debt or still-unsafe.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
   WIP mirror and are no longer treated as inherited blocking failures.
