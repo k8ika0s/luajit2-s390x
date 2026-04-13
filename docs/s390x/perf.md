@@ -1,23 +1,23 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 16:02 PDT
+Last updated: 2026-04-12 17:00 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  `34a342fe Retain s390x low-level acceleration closures` plus the
-  allocator-safe `asm_prof` closure and retained safe constant-bounded
-  `bit.tobit` `MULOV` narrowing candidate,
-  including the retained cdata mixed-width backend closure, the retained
+  `210ac773 Close s390x asm profiler stub`, including the retained
+  safe constant-bounded `bit.tobit` `MULOV` narrowing candidate, the retained
+  cdata mixed-width backend closure, the retained
   route-around reducer, static-stop be-pack, localized be-pack
   promotion-core guard splits, iterator/vararg guardrails, remote oracle
   matrix coverage, the loop-body guarded `MULOV` exit-state fix, the cdata
   buffer/FREF backend closure, and the latest exact promotion-core split for
-  `bitops_mix`, `logical_chain_tail_add`, and `logical_chain_tail_store`. The
-  retained env omits the obsolete `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST`
-  guard, keeps the broad promotion-core guard for the retained route-around
-  families, and excludes only the exact official shapes that have host-pair
-  proof for safe compiled execution.
+  `bitops_mix`, `logical_chain_tail_add`, and `logical_chain_tail_store`, plus
+  the allocator-safe `asm_prof` closure. The retained env omits the obsolete
+  `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST` guard, keeps the broad
+  promotion-core guard for the retained route-around families, and excludes
+  only the exact official shapes that have host-pair proof for safe compiled
+  execution.
 - Post-`MULOV` retained-env rerank:
   `/tmp/kdz-retained-jitter-20260412104303` ran the full retained matrix on
   `kdz` (`samples=5`, `warmup=2`, three alternating passes). Focused
@@ -124,6 +124,40 @@ Last updated: 2026-04-12 16:02 PDT
   inventory is compiled vararg `BC_JFUNCV`, which stays parked because the
   peer backends also leave compiled vararg functions NYI and the recorder
   asserts this path cannot become hot.
+- Iterator moonshot confirmation:
+  `/private/tmp/kdz-iterator-moonshot-confirm-20260412/summary.md` reran the
+  current-source iterator acceleration pack with `samples=9`, `warmup=2`, and
+  five alternating passes. `iterator_table/pairs_sum/hot` is technically red
+  at median `1.0366x`, but the median absolute delta is only about
+  `+0.000147s` and the sibling `pairs_array_sum/hot` is median green at
+  `0.9978x`. The focused iterator reducer remains compiled-body dominated
+  with `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, and `TEXIT_COUNT 0`.
+  This keeps the `CALLL lj_vm_next -> VLOAD/HIOP -> ADDOV/PHI` body as a study
+  seam only.
+- Current-source retained rerank:
+  `/tmp/kdz-current-rerank-after-iterator-moonshot-20260412/summary.md` ran
+  the full retained matrix again on `kdz` with `samples=5`, `warmup=2`, and
+  three alternating passes. It still does not name a source-patch target:
+  `iterator_table/pairs_sum/hot 1.0462x` is the largest red median, but only
+  about `+0.000195s`; `mixed_noffi/mixed_loop/hot 1.0164x`,
+  `vararg_paths/sum_loop/hot 1.0108x`, and
+  `vararg_paths/retconst_loop/hot 1.0186x` are smaller/noisier residuals.
+- Guard retirement start:
+  `/private/tmp/s390x-guard-retirement-20260412/ledger.md` identified
+  `LUAJIT_S390X_AREF_BASE_ALLGPR` as a bake-in candidate, not a live safety
+  route-around. It is now default-on in [lj_asm_s390x.h](../../src/lj_asm_s390x.h)
+  with diagnostic opt-out `LUAJIT_S390X_DISABLE_AREF_BASE_ALLGPR`, and the
+  canonical retained env no longer carries `LUAJIT_S390X_AREF_BASE_ALLGPR`.
+  `kdz` `/tmp/kdz-guard-retire-aref-bakein-20260412/summary.md` keeps
+  `mixed_noffi/mixed_loop/hot` near parity (`1.0081x` median) and iterator in
+  the noisy near-parity band. `zkd0` was noisy on first read, but rerun
+  `/tmp/zkd0-guard-retire-aref-bakein-rerun-20260412/summary.md` plus the
+  `kdz1` tie-breaker mirror confirmed no host-level collapse and clean
+  guardrails. Diagnostic opt-out control
+  `/tmp/kdz-guard-retire-aref-disable-control-20260412/summary.md` still
+  reintroduces the expected mixed/iterator degradation, so the opt-out remains
+  useful for causality only. Post-retirement ledger:
+  `/private/tmp/s390x-guard-retirement-after-aref-20260412/ledger.md`.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.

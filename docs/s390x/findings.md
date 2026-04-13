@@ -30226,3 +30226,94 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `BC_JFUNCV` cannot happen because there is no hotcall counting for vararg
   functions. Do not remove the s390x `BC_JFUNCV` trap by simply falling
   through into `IFUNCV` without a cross-arch semantic plan.
+
+## 2026-04-12: iterator moonshot confirmation and current rerank
+
+- Subagent synthesis:
+  iterator remains the only plausible moonshot study lane, but not a source
+  lane from current official-row evidence. Compiled vararg `BC_JFUNCV` stays
+  parked because peer backends also leave it NYI and the recorder asserts the
+  path cannot become hot under current hotcall semantics. Generic integer
+  `MOD` also stays no-code: s390x already has the safe positive-constant
+  `asm_modk_int()` specialization, while broader integer modulo still follows
+  the shared helper fallback contract and x86/x64 do not expose a broader
+  fast path to mirror.
+- Iterator confirmation pack:
+  `/private/tmp/kdz-iterator-moonshot-confirm-20260412/summary.md` ran the
+  current-source iterator acceleration target on `kdz` at `samples=9`,
+  `warmup=2`, and five alternating passes. Official
+  `iterator_table/pairs_sum/hot` is median `1.0366x`, red in `3/5` passes,
+  but the median absolute delta is only about `+0.000147s` and the ratios
+  include one noisy `1.2983x` pass. `pairs_array_sum/hot` is median green at
+  `0.9978x`, and `mixed_noffi/mixed_loop/hot` is tiny/noisy at `1.0064x`.
+- Mechanism read:
+  the focused iterator reducer still compiles as a compact body with
+  `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, and `TEXIT_COUNT 0`.
+  That keeps the known `CALLL lj_vm_next -> HIOP/VLOAD -> SLOAD total ->
+  ADDOV/PHI` path as a study seam, but it does not justify a trace-control or
+  helper-result patch without a larger official-row signal.
+- Full current rerank:
+  `/tmp/kdz-current-rerank-after-iterator-moonshot-20260412/summary.md` reran
+  the current retained matrix on `kdz` at `samples=5`, `warmup=2`, and three
+  alternating passes. The top red median is still
+  `iterator_table/pairs_sum/hot 1.0462x`, but the delta is only about
+  `+0.000195s` and one pass is a clear outlier (`1.3558x`). The remaining red
+  medians are smaller: `mixed_noffi/mixed_loop/hot 1.0164x`,
+  `vararg_paths/sum_loop/hot 1.0108x`, and
+  `vararg_paths/retconst_loop/hot 1.0186x` with only about `+0.000012s`
+  median delta.
+- Decision:
+  no source patch is justified from this pass. Keep iterator helper-result
+  handling as a mechanism-only lane and require a larger official-row payer, a
+  current-source truth pack with a concrete backend/body win, or a
+  correctness-safe guard replacement before the next runtime/backend edit.
+
+## 2026-04-12: AREF base-all-GPR guard retirement
+
+- Guard ledger:
+  `/private/tmp/s390x-guard-retirement-20260412/ledger.md` classified the
+  retained env surface into bake-in candidates, mechanism debt, and still-unsafe
+  route-arounds. `LUAJIT_S390X_AREF_BASE_ALLGPR` was the first bake-in target:
+  it is a host-pair retained backend lowering win, not a current safety guard.
+- Pre-proof:
+  `/tmp/kdz-guard-retire-aref-unset-20260412/summary.md` showed that simply
+  unsetting `LUAJIT_S390X_AREF_BASE_ALLGPR` from the retained env regresses the
+  mixed floor. That proves the env bit was still behavior-carrying and should
+  be retired by making the safe lowering default-on in source, not by dropping
+  the env without a code change.
+- Source change:
+  [lj_asm_s390x.h](../../src/lj_asm_s390x.h) now defaults the
+  `AREF_BASE_ALLGPR` lowering on and keeps only the diagnostic opt-out
+  `LUAJIT_S390X_DISABLE_AREF_BASE_ALLGPR`. The canonical retained env in
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_AREF_BASE_ALLGPR`.
+- `kdz` validation:
+  `/tmp/kdz-guard-retire-aref-bakein-20260412/summary.md` keeps
+  `mixed_noffi/mixed_loop/hot` near parity (`1.0081x` median, `2/5` red) and
+  iterator rows in the same noisy band. Exactness and guardrails passed:
+  `/tmp/mixedprobe.lua -> RESULT 553416`, `/tmp/hash_value.lua -> HASH_VALUE
+  3000`, `/tmp/ipairs_only_probe.lua -> RESULT 576000`,
+  `pairs_loop.lua`, `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, `vararg_paths.lua`, retained-env `dispatch_trace.lua`,
+  and `ffi_cdata.lua`.
+- Diagnostic opt-out:
+  `/tmp/kdz-guard-retire-aref-disable-control-20260412/summary.md` confirms
+  that `LUAJIT_S390X_DISABLE_AREF_BASE_ALLGPR=1` is still useful for
+  causality: it reintroduces the mixed/iterator degradation pattern while the
+  retained default-on source path stays in band.
+- `zkd0` and `kdz1` read:
+  the first `zkd0` focused A/B was a noisy false collapse, but the rerun
+  `/tmp/zkd0-guard-retire-aref-bakein-rerun-20260412/summary.md` returned
+  mixed and iterator rows to the near-parity band with clean exactness. The
+  `kdz1` tie-breaker mirror `/root/luajit2-s390x-current-probe/repo` built the
+  same source hashes and confirmed the decision: three manual retained-env
+  passes kept `mixed_noffi/mixed_loop/hot` around `0.996x..1.032x`, iterator
+  rows in the small/noisy band, and official `mixed_noffi.lua`,
+  `iterator_table.lua`, `pairs_loop.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, and `numeric_ops.lua` all passed.
+- Post-retirement ledger:
+  `/private/tmp/s390x-guard-retirement-after-aref-20260412/ledger.md` now has
+  27 retained env gates: two bake-in candidates, one bake-in/env-cleanup
+  candidate, 18 mechanism-debt items, and six still-unsafe guards. Continue
+  retiring exactly one gate at a time; do not remove broad safety route-arounds
+  without a mechanism fix.

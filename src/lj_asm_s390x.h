@@ -1121,7 +1121,7 @@ static int lj_asm_s390x_aref_base_allgpr_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_AREF_BASE_ALLGPR") != NULL);
+    enabled = (getenv("LUAJIT_S390X_DISABLE_AREF_BASE_ALLGPR") == NULL);
   return enabled;
 }
 
