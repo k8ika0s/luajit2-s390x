@@ -30437,3 +30437,38 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   still-unsafe guards. No remaining item should be removed as simple cleanup;
   each now needs a payer-specific mechanism fix or a focused proof that it has
   become obsolete after a later source change.
+
+## 2026-04-12: obsolete promotion-core proto-NOJIT retained-env cleanup
+
+- Re-proof:
+  after the exact promotion-core shape exclusions and downstream backend
+  closures, `/tmp/kdz-mechdebt-promotion-core-broad-optout-scout-20260412/summary.md`
+  removed only `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` from the retained
+  env across the promotion-core, helper, FFI-call, bitops, and logical-chain
+  protected rows. The old broad-guard hazard did not reproduce on current WIP.
+- Confirmation:
+  `/tmp/kdz-mechdebt-promotion-core-broad-optout-confirm-20260412/summary.md`
+  repeated the same opt-out with higher samples and a wider family set:
+  `be_helpers`, `be_helpers_localized`, `promotion_core_static_stop`,
+  `route_around_reducers`, `lower_frame_same_callsite`, `ffi_calls`,
+  `ffi_calls_static_stop`, `bitops_mix`, `logical_chain_tail_add`,
+  `logical_chain_tail_store`, `logic_add_phi_noboundary`, `large_immediates`,
+  and `numeric_ops`. All sampled official rows stayed in their accelerated
+  bands.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` in
+  `RETAINED_BASELINE_ENV`. The trace-control matcher remains available as an
+  opt-in diagnostic, but it is no longer part of the canonical run contract.
+- Validation:
+  `/tmp/kdz-mechdebt-promotion-core-env-retired-20260412/summary.md` confirmed
+  the updated retained env after removal. Representative rows stayed strongly
+  accelerated: `be_pack_loop/hot` around `0.013x`, `strto_loop/hot` around
+  `0.425x`, `route_around_reducers_truth_pack/be_pack_literal_stop/hot` around
+  `0.015x..0.016x`, `ffi_calls/direct_abs/hot` around `0.027x`, bitops and
+  logical-chain rows around `0.011x..0.015x`, and numeric rows remained green.
+- Post-cleanup ledger:
+  `/private/tmp/s390x-guard-retirement-after-promotion-core-env-20260412/ledger.md`
+  is down to 22 retained env gates: 17 mechanism-debt items and five
+  still-unsafe guards. The next lane should be a mechanism-specific proof, not
+  broad retained-env deletion.

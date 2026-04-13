@@ -1152,6 +1152,13 @@ interpretation.
   mechanism. If continuing performance work from here, the next disciplined
   step is the iterator helper-result handoff lane named by the new truth pack,
   not immediate source mutation from the small `1.0202x` ratio alone.
+- Guard-debt cleanup has since retired several stale retained-env markers. The
+  latest cleanup removes `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` from
+  `RETAINED_BASELINE_ENV` after `kdz` opt-out and post-cleanup confirmation
+  kept promotion-core, helper, FFI-call, bitops, large-immediate, and numeric
+  rows in their accelerated bands. The current debt map is 22 retained env
+  gates: 17 mechanism-debt items and five still-unsafe guards. Remaining
+  removals need a mechanism-specific proof, not broad guard deletion.
 
 ## Where To Look Next
 

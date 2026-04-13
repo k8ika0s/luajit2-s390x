@@ -5043,3 +5043,19 @@ localized-helper carried-`total` lane
   `CALLL lj_vm_next -> VLOAD -> ADDOV/PHI`. Treat this as an attribution
   target before code; do not weaken the broad iterator blacklist from this
   evidence.
+
+## 2026-04-12  Guard-Debt Env Cleanup
+
+- The promotion-core proto-NOJIT env marker is no longer part of the retained
+  performance contract. Current-source `kdz` opt-out and post-cleanup
+  confirmation artifacts
+  `/tmp/kdz-mechdebt-promotion-core-broad-optout-confirm-20260412/summary.md`
+  and `/tmp/kdz-mechdebt-promotion-core-env-retired-20260412/summary.md` kept
+  the protected promotion-core, helper, FFI-call, bitops, large-immediate, and
+  numeric rows in their accelerated bands without
+  `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT`.
+- `RETAINED_BASELINE_ENV` is now down to 22 gates. The current ledger
+  `/private/tmp/s390x-guard-retirement-after-promotion-core-env-20260412/ledger.md`
+  classifies the remainder as 17 mechanism-debt items and five still-unsafe
+  guards. Do not treat the remaining entries as simple env cleanup; the next
+  performance work needs a named mechanism proof.
