@@ -166,6 +166,15 @@ It is intentionally current-state only. Historical experiment detail lives in
   reintroduces the expected degradation, so the opt-out is causality-only. The
   current guard ledger is
   `/private/tmp/s390x-guard-retirement-after-aref-20260412/ledger.md`.
+- The stale `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET` retained-env entry has
+  also been removed without a source change. `kdz`
+  `/tmp/kdz-guard-retire-sum-select-gget-env-retired-20260412/summary.md` and
+  the `kdz1` tie-breaker mirror keep `vararg_paths` and `compiled_vararg`
+  clean under the updated env. The source diagnostic knob remains available in
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+  but it is no longer part of the retained run contract. The current guard
+  ledger after this cleanup is
+  `/private/tmp/s390x-guard-retirement-after-gget-env-20260412/ledger.md`.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
   WIP mirror and are no longer treated as inherited blocking failures.
