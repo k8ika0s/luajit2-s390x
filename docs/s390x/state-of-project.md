@@ -175,6 +175,15 @@ It is intentionally current-state only. Historical experiment detail lives in
   but it is no longer part of the retained run contract. The current guard
   ledger after this cleanup is
   `/private/tmp/s390x-guard-retirement-after-gget-env-20260412/ledger.md`.
+- The localized hotside equivalence env entry is also retired from the
+  retained run contract without a source change. `kdz`
+  `/tmp/kdz-guard-retire-localized-equiv-env-retired-20260412/summary.md`
+  keeps `be_helpers_localized`, `promotion_core_static_stop`,
+  `route_around_reducers`, and `lower_frame_same_callsite` in the fast band.
+  The current guard ledger is now
+  `/private/tmp/s390x-guard-retirement-after-localized-equiv-env-20260412/ledger.md`,
+  with only one env-cleanup candidate left before the mechanism/safety-debt
+  items.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
   WIP mirror and are no longer treated as inherited blocking failures.

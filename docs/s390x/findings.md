@@ -30347,3 +30347,35 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   now down to 26 retained env gates: one bake-in candidate, one
   bake-in/env-cleanup candidate, 18 mechanism-debt items, and six still-unsafe
   guards.
+
+## 2026-04-12: stale localized hotside equivalence retained-env cleanup
+
+- Pre-proof:
+  `/tmp/kdz-guard-retire-localized-equiv-unset-20260412/summary.md` removed
+  `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV` from the retained env for
+  the exact protected families. It did not regress the current floor:
+  `be_helpers_localized`, `promotion_core_static_stop`,
+  `route_around_reducers`, and `lower_frame_same_callsite` all stayed in their
+  fast retained bands.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV` in
+  `RETAINED_BASELINE_ENV`. The trace-control diagnostic matcher remains in
+  [lj_trace.c](../../src/lj_trace.c), but it is no longer part of the
+  canonical run contract because the exact promotion-core exclusions now carry
+  these rows without it.
+- Validation:
+  `/tmp/kdz-guard-retire-localized-equiv-env-retired-20260412/summary.md`
+  confirmed the updated canonical env. Representative hot medians stayed well
+  accelerated: `be_pack_loop_local_ops_real` around `0.029x..0.031x`,
+  `promotion_core_static_stop/be_pack_literal_stop_real` around
+  `0.013x`, `route_around_reducers_truth_pack/be_pack_literal_stop` around
+  `0.016x`, and `lower_frame_same_callsite/lua_abs_same_callsite` around
+  `0.154x..0.155x`.
+- Post-cleanup ledger:
+  `/private/tmp/s390x-guard-retirement-after-localized-equiv-env-20260412/ledger.md`
+  is now down to 25 retained env gates: one bake-in/env-cleanup candidate,
+  18 mechanism-debt items, and six still-unsafe guards. The remaining
+  env-cleanup candidate is the explicit dispatch `FORL` skip marker; the rest
+  are mechanism or safety debt and should not be removed without a targeted
+  fix.

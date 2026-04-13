@@ -169,6 +169,16 @@ Last updated: 2026-04-12 17:00 PDT
   under the new env. The recorder diagnostic knob remains opt-in in source,
   but it is not part of the retained run contract. Current ledger:
   `/private/tmp/s390x-guard-retirement-after-gget-env-20260412/ledger.md`.
+- Retained-env localized equivalence cleanup:
+  `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV` is also removed from the
+  canonical env with no source change. kdz pre-proof
+  `/tmp/kdz-guard-retire-localized-equiv-unset-20260412/summary.md` and the
+  post-cleanup run
+  `/tmp/kdz-guard-retire-localized-equiv-env-retired-20260412/summary.md`
+  kept `be_helpers_localized`, `promotion_core_static_stop`,
+  `route_around_reducers`, and `lower_frame_same_callsite` in the fast band.
+  Current ledger:
+  `/private/tmp/s390x-guard-retirement-after-localized-equiv-env-20260412/ledger.md`.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
