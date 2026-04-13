@@ -30472,3 +30472,46 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   is down to 22 retained env gates: 17 mechanism-debt items and five
   still-unsafe guards. The next lane should be a mechanism-specific proof, not
   broad retained-env deletion.
+
+## 2026-04-12: obsolete `IPAIRS_EXIT1_SKIP_BODY` retained-env cleanup
+
+- Re-proof:
+  `/tmp/kdz-debt-ipairs-exit1-final-20260412/summary.md` removed only
+  `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY` from the retained env for
+  `mixed_noffi` with five alternating high-sample passes. The official
+  `mixed_noffi/mixed_loop/hot` row stayed in band: median ratio `1.0036x`,
+  red `1/5`, with pass ratios `1.0036`, `1.0062`, `0.9977`, `1.0127`, and
+  `0.9881`.
+- `kdz` exactness and safety:
+  under the same retained env minus only this marker, `/tmp/mixedprobe.lua`
+  returned `RESULT 553416`, `/tmp/hash_value.lua` returned `HASH_VALUE 3000`,
+  `/tmp/ipairs_only_probe.lua` returned `RESULT 576000`, `pairs_loop.lua`
+  passed, and direct smokes kept `mixed_noffi`, `iterator_table`, and
+  `vararg_paths` in band.
+- `kdz1` tie-break:
+  the manual probe mirror had the same [lj_snap.c](../../src/lj_snap.c) hash.
+  With the same env, `pairs_loop.lua` passed, `mixed_noffi/hot` stayed around
+  `0.003977`, `iterator_table/pairs_sum/hot` stayed around `0.004128`, and
+  recreated exact probes returned `RESULT 553416`, `HASH_VALUE 3000`, and
+  `RESULT 576000`.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY` in
+  `RETAINED_BASELINE_ENV`. The snapshot restore diagnostic remains available in
+  [lj_snap.c](../../src/lj_snap.c), but the current mixed/iterator guard stack
+  no longer depends on this restored-PC skip.
+- Post-cleanup controls:
+  `/tmp/kdz-guard-retire-ipairs-exit1-env-retired-mixedonly-20260412/summary.md`
+  and `/tmp/kdz-guard-retire-ipairs-exit1-restored-control-20260412/summary.md`
+  both read as small `mixed_noffi` noise on `kdz`: retired-env median JIT
+  `0.003936`, restored-control median JIT `0.003921`. The `zkd0` comparison
+  was also noisy but not materially worse:
+  `/tmp/zkd0-guard-retire-ipairs-exit1-env-retired-20260412/summary.md` median
+  JIT `0.004568` versus restored-control
+  `/tmp/zkd0-guard-retire-ipairs-exit1-restored-control-20260412/summary.md`
+  median JIT `0.004696`, with one retired-env outlier. Treat this as neutral
+  guard-debt cleanup, not a retained speed win.
+- Post-cleanup ledger:
+  `/private/tmp/s390x-guard-retirement-after-ipairs-exit1-20260412/ledger.md`
+  is down to 21 retained env gates: 16 mechanism-debt items and five
+  still-unsafe guards.

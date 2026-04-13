@@ -1159,6 +1159,15 @@ interpretation.
   rows in their accelerated bands. The current debt map is 22 retained env
   gates: 17 mechanism-debt items and five still-unsafe guards. Remaining
   removals need a mechanism-specific proof, not broad guard deletion.
+- `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY` has now also been removed from the
+  retained env after `kdz` and `kdz1` proved the current mixed/iterator floor no
+  longer depends on that restored-PC skip. Keep the root-1 replay triplet pair
+  retained until a separate proof says it is stale or a mechanism replacement
+  lands.
+- The `IPAIRS_EXIT1_SKIP_BODY` removal is neutral cleanup, not a speed win:
+  immediate `kdz` restored-control and retired-env reads were within small
+  mixed-noffi noise, and `zkd0` was noisy but not materially worse. The current
+  retained-env debt map is 21 gates: 16 mechanism-debt and five still-unsafe.
 
 ## Where To Look Next
 

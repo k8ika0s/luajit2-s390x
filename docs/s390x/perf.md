@@ -5059,3 +5059,16 @@ localized-helper carried-`total` lane
   classifies the remainder as 17 mechanism-debt items and five still-unsafe
   guards. Do not treat the remaining entries as simple env cleanup; the next
   performance work needs a named mechanism proof.
+- The `mixed_noffi` snapshot marker `LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY` has
+  also been retired from `RETAINED_BASELINE_ENV`. `kdz` high-sample proof
+  `/tmp/kdz-debt-ipairs-exit1-final-20260412/summary.md` kept
+  `mixed_noffi/mixed_loop/hot` at median `1.0036x` with red `1/5`, and the
+  `kdz1` tie-breaker passed `mixedprobe`, `hash_value`, `ipairs_only_probe`,
+  `pairs_loop.lua`, `mixed_noffi.lua`, and `iterator_table.lua` under the same
+  env. The remaining root-1 replay triplet pair is still retained and should
+  be tested separately.
+- Immediate restored-control comparisons classify this as neutral cleanup:
+  `kdz` retired-env median JIT `0.003936` versus restored-control `0.003921`,
+  and `zkd0` retired-env median JIT `0.004568` versus restored-control
+  `0.004696` with one outlier. The ledger is now 21 gates: 16 mechanism-debt
+  items and five still-unsafe guards.
