@@ -30587,3 +30587,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   (`kdz` median JIT `0.003898` unset versus `0.003877` retained; `zkd0`
   median `0.004540` unset versus `0.004460` retained). Keep this classified as
   a safety rail.
+
+## 2026-04-12: dispatch hotexit cooldown retained-env cleanup
+
+- Probe:
+  `/tmp/kdz-debt-dispatch-cooldown-unset-20260412/summary.md` removed only
+  `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12` from the
+  retained env for `dispatch_trace`. The row stayed in band across three
+  alternating passes:
+  - `numeric_loop/hot` ratios `0.9932x`, `1.0122x`, `1.0000x`
+  - `side_exit_loop/hot` ratios `0.9702x`, `0.9902x`, `1.0026x`
+  - `hotexit_loop/hot` ratios `0.9736x`, `0.9884x`, `1.0025x`
+- Control:
+  `/tmp/kdz-debt-dispatch-cooldown-retained-control-20260412/summary.md`
+  kept the cooldown in a comparable band, but did not show a retained
+  advantage: `hotexit_loop/hot` ratios were `1.0026x`, `1.0031x`, and
+  `1.0101x`.
+- `kdz1` tie-break:
+  the disposable synthesis mirror `/root/luajit2-s390x-synthesis/current` was
+  tracked-file synced and rebuilt before use. Two direct retained-env
+  dispatch passes kept cooldown-unset neutral:
+  - retained-first pass: retained `hotexit_loop/hot 0.005661`, unset
+    `0.005651`
+  - unset-first pass: unset `hotexit_loop/hot 0.005648`, retained `0.005686`
+  `side_exit_loop/hot` moved only in the sub-2% noise band and did not name a
+  mechanism.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN`
+  in `RETAINED_BASELINE_ENV`. The source diagnostic remains available in
+  [lj_trace.c](../../src/lj_trace.c), but the current dispatch floor no longer
+  depends on the env-valued cooldown.
+- Post-cleanup validation:
+  `/tmp/kdz-debt-dispatch-cooldown-env-retired-20260412/summary.md` used the
+  updated canonical retained env and kept `dispatch_trace` in the same band:
+  `numeric_loop/hot` ratios `1.0023x`, `0.9995x`, `1.0005x`;
+  `side_exit_loop/hot` ratios `1.0092x`, `1.0043x`, `1.0069x`; and
+  `hotexit_loop/hot` ratios `1.0023x`, `0.9950x`, `1.0030x`.
+- Current ledger:
+  `/private/tmp/s390x-guard-retirement-after-dispatch-cooldown-20260412/ledger.md`
+  is down to 19 retained env gates: 14 mechanism-debt items and five
+  still-unsafe guards.

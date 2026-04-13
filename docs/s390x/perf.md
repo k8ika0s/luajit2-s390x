@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 17:00 PDT
+Last updated: 2026-04-12 18:48 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
@@ -18,6 +18,11 @@ Last updated: 2026-04-12 17:00 PDT
   promotion-core guard for the retained route-around families, and excludes
   only the exact official shapes that have host-pair proof for safe compiled
   execution.
+- Current guard-debt cleanup note:
+  `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12` has been
+  removed from the canonical retained env after neutral `kdz` A/B and a
+  `kdz1` tie-break. The dispatch source diagnostic remains available, but
+  current retained runs no longer require the env-valued cooldown.
 - Post-`MULOV` retained-env rerank:
   `/tmp/kdz-retained-jitter-20260412104303` ran the full retained matrix on
   `kdz` (`samples=5`, `warmup=2`, three alternating passes). Focused
