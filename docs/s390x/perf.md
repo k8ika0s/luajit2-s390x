@@ -5072,3 +5072,16 @@ localized-helper carried-`total` lane
   and `zkd0` retired-env median JIT `0.004568` versus restored-control
   `0.004696` with one outlier. The ledger is now 21 gates: 16 mechanism-debt
   items and five still-unsafe guards.
+- `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE` is now retired from the
+  retained env as neutral cleanup. `kdz`
+  `/tmp/kdz-debt-mixed-ffi-post-stitch-final-20260412/summary.md` kept
+  `mixed_ffi_loop`, `pair_loop`, `mixed_width_loop`, and `buffer_fref_loop` in
+  their compiled fast bands without the marker, and the restored-control read
+  `/tmp/kdz-debt-mixed-ffi-post-stitch-retained-control-20260412/summary.md`
+  was comparable. `zkd0`
+  `/tmp/zkd0-debt-mixed-ffi-post-stitch-final-20260412/summary.md` confirmed
+  the same rows stayed strongly faster than `-joff`.
+- Post-cleanup canonical `kdz`
+  `/tmp/kdz-guard-retire-mixed-ffi-post-stitch-env-retired-20260412/summary.md`
+  remained in band, and the ledger is now 20 gates: 15 mechanism-debt items and
+  five still-unsafe guards.

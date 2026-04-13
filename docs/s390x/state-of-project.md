@@ -1168,6 +1168,13 @@ interpretation.
   immediate `kdz` restored-control and retired-env reads were within small
   mixed-noffi noise, and `zkd0` was noisy but not materially worse. The current
   retained-env debt map is 21 gates: 16 mechanism-debt and five still-unsafe.
+- `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE` has also been removed from
+  the retained env after `kdz` and `zkd0` confirmed `mixed_ffi_loop` and cdata
+  sibling rows stay in their compiled fast bands without it. Keep
+  `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT` retained; it is still classified as
+  a safety rail, not stale cleanup.
+- The current retained-env debt map is now 20 gates: 15 mechanism-debt items
+  and five still-unsafe guards.
 
 ## Where To Look Next
 

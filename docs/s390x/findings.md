@@ -30515,3 +30515,43 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `/private/tmp/s390x-guard-retirement-after-ipairs-exit1-20260412/ledger.md`
   is down to 21 retained env gates: 16 mechanism-debt items and five
   still-unsafe guards.
+
+## 2026-04-12: obsolete `MIXED_FFI_POST_STITCH_SAVE_DONE` retained-env cleanup
+
+- Re-proof:
+  `/tmp/kdz-debt-mixed-ffi-post-stitch-final-20260412/summary.md` removed only
+  `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE` from the retained env across
+  `mixed_ffi` and cdata siblings. The old post-stitch regression did not
+  reproduce on current WIP: `mixed_ffi/mixed_ffi_loop/hot` stayed at median
+  JIT `0.000840`, with cdata siblings also in their compiled fast bands
+  (`pair_loop` median `0.000056`, `mixed_width_loop` median `0.000268`,
+  `buffer_fref_loop` median `0.000270`).
+- Control:
+  `/tmp/kdz-debt-mixed-ffi-post-stitch-retained-control-20260412/summary.md`
+  kept the old retained env in a comparable band, but with a noisy outlier:
+  `mixed_ffi/mixed_ffi_loop/hot` median JIT `0.000843`,
+  `pair_loop` median `0.000059`, `mixed_width_loop` median `0.000271`, and
+  `buffer_fref_loop` median `0.000273`. The env removal is neutral-to-slightly
+  better, not a new speed feature.
+- Host confirmation:
+  `/tmp/zkd0-debt-mixed-ffi-post-stitch-final-20260412/summary.md` kept the
+  same source in the fast band with the marker absent: `mixed_ffi_loop/hot`
+  median JIT `0.001199`, `pair_loop` median `0.000071`,
+  `mixed_width_loop` median `0.000313`, and `buffer_fref_loop` median
+  `0.000339`; all rows remained strongly faster than `-joff`.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE` in
+  `RETAINED_BASELINE_ENV`. The trace-control diagnostic remains in
+  [lj_trace.c](../../src/lj_trace.c), but the retained mixed-FFI/cdata floor no
+  longer needs this save-DONE marker.
+- Post-cleanup validation:
+  `/tmp/kdz-guard-retire-mixed-ffi-post-stitch-env-retired-20260412/summary.md`
+  confirmed the canonical retained env after removal: `mixed_ffi_loop/hot`
+  stayed around `0.00082..0.00092`, `pair_loop/hot` around
+  `0.000056..0.000079`, `mixed_width_loop/hot` around `0.000270..0.000308`,
+  and `buffer_fref_loop/hot` around `0.000272..0.000273`.
+- Post-cleanup ledger:
+  `/private/tmp/s390x-guard-retirement-after-mixed-ffi-post-stitch-20260412/ledger.md`
+  is down to 20 retained env gates: 15 mechanism-debt items and five
+  still-unsafe guards.
