@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 17:00 PDT
+Last updated: 2026-04-12 18:48 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -19,6 +19,11 @@ It is intentionally current-state only. Historical experiment detail lives in
   promotion-core splits for `bitops_mix`, `logical_chain_tail_add`, and
   `logical_chain_tail_store`, plus the allocator-safe `asm_prof` hookmask
   guard closure.
+- Current retained-env cleanup:
+  `LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN=12` is no
+  longer part of the canonical retained env. `kdz` dispatch A/B and a tracked
+  `kdz1` tie-break both kept `dispatch_trace` in band without it, so the
+  source cooldown remains diagnostic-only.
 - The previous full-matrix rerank was the post-`MULOV` read on `kdz`:
   `/tmp/kdz-retained-jitter-20260412104303`, with focused confirmation in
   `/tmp/kdz-bd0dbb89-focused-rerank-202604121047`. It does not name a stable
