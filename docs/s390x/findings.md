@@ -30317,3 +30317,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   candidate, 18 mechanism-debt items, and six still-unsafe guards. Continue
   retiring exactly one gate at a time; do not remove broad safety route-arounds
   without a mechanism fix.
+
+## 2026-04-12: stale `SUM_LOOP_SELECT_CONST_GGET` retained-env cleanup
+
+- Pre-proof:
+  `/tmp/kdz-guard-retire-sum-select-gget-unset-20260412/summary.md` removed
+  `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET` from the retained env for
+  `vararg_paths`. It did not regress the current floor: `sum_loop/hot` moved
+  around the noise band (`1.0166x`, `0.9986x`, `0.9867x` across the three
+  alternating passes), `retlast_loop/hot` stayed fast, and
+  `retconst_loop/hot` stayed a tiny-row/noise read.
+- Cleanup:
+  [restamp_iterator_perf.py](../../tools/s390x/restamp_iterator_perf.py) no
+  longer carries `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET` in
+  `RETAINED_BASELINE_ENV`. The recorder-side diagnostic knob remains in
+  [lj_record.c](../../src/lj_record.c), but it is no longer part of the
+  canonical retained run contract because the current floor does not depend on
+  it.
+- Validation:
+  `/tmp/kdz-guard-retire-sum-select-gget-env-retired-20260412/summary.md`
+  kept `vararg_paths` in band with the canonical env after removal:
+  `sum_loop/hot` was green/noisy in two of three passes and `retlast_loop/hot`
+  stayed in the fast band. The `kdz1` tie-breaker mirror also passed
+  `vararg_paths.lua` under the new env (`sum_loop/hot 0.004344`,
+  `retlast_loop/hot 0.000091`, `retconst_loop/hot 0.000533`) and
+  `compiled_vararg.lua`.
+- Post-cleanup ledger:
+  `/private/tmp/s390x-guard-retirement-after-gget-env-20260412/ledger.md` is
+  now down to 26 retained env gates: one bake-in candidate, one
+  bake-in/env-cleanup candidate, 18 mechanism-debt items, and six still-unsafe
+  guards.

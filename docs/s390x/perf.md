@@ -158,6 +158,17 @@ Last updated: 2026-04-12 17:00 PDT
   reintroduces the expected mixed/iterator degradation, so the opt-out remains
   useful for causality only. Post-retirement ledger:
   `/private/tmp/s390x-guard-retirement-after-aref-20260412/ledger.md`.
+- Retained-env stale cleanup:
+  `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET` is no longer in the canonical
+  retained env. kdz pre-proof
+  `/tmp/kdz-guard-retire-sum-select-gget-unset-20260412/summary.md` and the
+  post-cleanup run
+  `/tmp/kdz-guard-retire-sum-select-gget-env-retired-20260412/summary.md`
+  keep `vararg_paths` in the same near-parity/fast band, and the `kdz1`
+  tie-breaker mirror passed `vararg_paths.lua` plus `compiled_vararg.lua`
+  under the new env. The recorder diagnostic knob remains opt-in in source,
+  but it is not part of the retained run contract. Current ledger:
+  `/private/tmp/s390x-guard-retirement-after-gget-env-20260412/ledger.md`.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
