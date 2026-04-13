@@ -1175,6 +1175,11 @@ interpretation.
   a safety rail, not stale cleanup.
 - The current retained-env debt map is now 20 gates: 15 mechanism-debt items
   and five still-unsafe guards.
+- Follow-up probes kept the next obvious removals retained: root-1 replay
+  triplet pair, vararg select exit-0 stopper, lower-frame Lua `abs`
+  proto-NOJIT, and mixed-FFI root `FORL` proto-NOJIT all remain live mechanism
+  or safety debt. The next source work should replace one of those mechanisms,
+  not delete the env.
 
 ## Where To Look Next
 

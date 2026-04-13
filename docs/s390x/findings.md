@@ -30555,3 +30555,35 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `/private/tmp/s390x-guard-retirement-after-mixed-ffi-post-stitch-20260412/ledger.md`
   is down to 20 retained env gates: 15 mechanism-debt items and five
   still-unsafe guards.
+
+## 2026-04-12: guard-debt probes kept retained
+
+- Root-1 replay triplet pair:
+  `/tmp/kdz-debt-root1-replay-final-20260412/summary.md` removed
+  `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET` and
+  `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT` together. It was not
+  clean: `mixed_noffi/mixed_loop/hot` was red `3/5` with ratio spikes up to
+  `1.0799x`. Keep the pair retained until the root-1 `ITERL` replay mechanism
+  is replaced.
+- Vararg select exit-0 stopper:
+  `/tmp/kdz-debt-select-exit0-final-20260412/summary.md` looked correct and
+  noisy with `SUM_LOOP_SELECT_EXIT0_DONE` unset, but the immediate retained
+  control `/tmp/kdz-debt-select-exit0-retained-control-20260412/summary.md`
+  had a better `sum_loop/hot` JIT median (`0.004377` retained versus
+  `0.004512` unset). Keep the stopper retained; it is still performance-positive
+  for current `vararg_paths`.
+- Lower-frame Lua `abs` proto-NOJIT:
+  `/tmp/kdz-debt-lower-frame-luaabs-final-20260412/summary.md` stayed fast with
+  `LOWER_FRAME_LUA_ABS_PROTO_NOJIT` unset, but the retained control
+  `/tmp/kdz-debt-lower-frame-luaabs-retained-control-20260412/summary.md` was
+  slightly better on the protected `lua_abs_same_callsite` median. Keep the
+  route-around retained until a lower-frame same-callsite mechanism replacement
+  lands.
+- Mixed-FFI root `FORL` proto-NOJIT:
+  `/tmp/kdz-debt-mixed-ffi-forl-proto-final-20260412/summary.md` and
+  `/tmp/zkd0-debt-mixed-ffi-forl-proto-final-20260412/summary.md` kept
+  `mixed_ffi` and cdata rows fast with `MIXED_FFI_FORL_PROTO_NOJIT` unset, but
+  the mixed-noffi guardrail worsened versus immediate controls on both hosts
+  (`kdz` median JIT `0.003898` unset versus `0.003877` retained; `zkd0`
+  median `0.004540` unset versus `0.004460` retained). Keep this classified as
+  a safety rail.
