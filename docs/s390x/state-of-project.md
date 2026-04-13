@@ -194,6 +194,12 @@ It is intentionally current-state only. Historical experiment detail lives in
   reproduce on current WIP and is recorded as stale. The current guard ledger
   is `/private/tmp/s390x-guard-retirement-after-dispatch-forl-env-20260412/ledger.md`:
   24 retained env gates, all classified as mechanism debt or still-unsafe.
+- `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE` has also been retired from the
+  retained env after focused kdz proof. `pair_loop/hot` stays in the `0.003x`
+  fast band without the env, and `mixed_width_loop` / `buffer_fref_loop` stay
+  accelerated. The current guard ledger is
+  `/private/tmp/s390x-guard-retirement-after-ffi-cdata-pair-save-done-20260412/ledger.md`:
+  23 retained env gates, all mechanism-debt or still-unsafe.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
   WIP mirror and are no longer treated as inherited blocking failures.

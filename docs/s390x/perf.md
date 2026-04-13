@@ -190,6 +190,15 @@ Last updated: 2026-04-12 17:00 PDT
   stale on current WIP: `/tmp/kdz-dispatch-forl-marker-disable-causality.out`
   passed. Current ledger:
   `/private/tmp/s390x-guard-retirement-after-dispatch-forl-env-20260412/ledger.md`.
+- Cdata route-around cleanup:
+  `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE` is removed from the canonical
+  retained env after focused kdz proof
+  `/tmp/kdz-guard-retire-ffi-cdata-pair-save-done-unset-20260412/summary.md`
+  and post-cleanup validation
+  `/tmp/kdz-guard-retire-ffi-cdata-pair-save-done-env-retired-20260412/summary.md`.
+  `ffi_cdata/pair_loop/hot` remains in the `0.003x` fast band and
+  `mixed_width_loop` / `buffer_fref_loop` stay accelerated. Current ledger:
+  `/private/tmp/s390x-guard-retirement-after-ffi-cdata-pair-save-done-20260412/ledger.md`.
 - The post-guardrail full retained-env rerank on `kdz` before the iterator
   guard refinement named `iterator_table` as the top stable payer:
   `/tmp/post-guardrail-full-retained-20260411170050`.
