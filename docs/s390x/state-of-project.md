@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 16:02 PDT
+Last updated: 2026-04-12 17:00 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,10 +8,8 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The current runtime/code source point is `34a342fe Retain s390x low-level
-  acceleration closures` plus the allocator-safe `asm_prof` hookmask guard
-  closure and the retained safe constant-bounded `bit.tobit` `MULOV`
-  narrowing candidate. It includes the retained
+- The current runtime/code source point is `210ac773 Close s390x asm profiler
+  stub`. It includes the retained
   ADDOV/SUBOV and MULOV overflow work, remote oracle matrix coverage,
   route-around reducer splits, static-stop and localized be-pack
   promotion-core guard splits, iterator guard ordering, guardrail promotion,
@@ -19,7 +17,8 @@ It is intentionally current-state only. Historical experiment detail lives in
   narrow-`XSTORE` closure, the cdata buffer/FREF integer `MIN` plus
   `BUFHDR` closure, the `bit.tobit` helper exit-storm closure, and the exact
   promotion-core splits for `bitops_mix`, `logical_chain_tail_add`, and
-  `logical_chain_tail_store`.
+  `logical_chain_tail_store`, plus the allocator-safe `asm_prof` hookmask
+  guard closure.
 - The previous full-matrix rerank was the post-`MULOV` read on `kdz`:
   `/tmp/kdz-retained-jitter-20260412104303`, with focused confirmation in
   `/tmp/kdz-bd0dbb89-focused-rerank-202604121047`. It does not name a stable
@@ -135,6 +134,38 @@ It is intentionally current-state only. Historical experiment detail lives in
   current-source truth pack with a concrete compiled-body/backend payer, or a
   correctness-safe replacement for an existing retained guard. Current iterator
   helper-result evidence remains a study lane, not a source lane.
+- Iterator moonshot follow-up stayed below the patch bar. The current-source
+  iterator acceleration pack
+  `/private/tmp/kdz-iterator-moonshot-confirm-20260412/summary.md` has
+  `iterator_table/pairs_sum/hot 1.0366x` with `3/5` red passes but only about
+  `+0.000147s` median delta, while `pairs_array_sum/hot` is median green at
+  `0.9978x` and `mixed_noffi/mixed_loop/hot` is tiny/noisy at `1.0064x`. The
+  focused iterator chain is compiled-body dominated with `TRACE_START 1`,
+  `TRACE_STOP 1`, `TRACE_ABORT 0`, and `TEXIT_COUNT 0`, so this remains a
+  reducer/mechanism note, not a source lane.
+- Fresh current-source retained rerank
+  `/tmp/kdz-current-rerank-after-iterator-moonshot-20260412/summary.md`
+  likewise names no material payer. The worst official hot-row median is
+  `iterator_table/pairs_sum/hot 1.0462x`, but the delta is only about
+  `+0.000195s` and includes one noisy `1.3558x` pass. The other red medians
+  are smaller residuals: `mixed_noffi/mixed_loop/hot 1.0164x`,
+  `vararg_paths/sum_loop/hot 1.0108x`, and
+  `vararg_paths/retconst_loop/hot 1.0186x` with only `+0.000012s` median
+  delta. Keep source edits parked until a larger official row or a safe guard
+  replacement appears.
+- The guard-retirement workflow has started with a true bake-in rather than a
+  broad guard removal. `LUAJIT_S390X_AREF_BASE_ALLGPR` is now default-on in
+  [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  and removed from the canonical retained env, with only diagnostic opt-out
+  `LUAJIT_S390X_DISABLE_AREF_BASE_ALLGPR` left. `kdz`
+  `/tmp/kdz-guard-retire-aref-bakein-20260412/summary.md` and the `kdz1`
+  tie-breaker mirror confirm the floor stays near parity with clean guardrails;
+  the initial `zkd0` collapse did not reproduce on rerun and is treated as host
+  noise. `kdz` opt-out control
+  `/tmp/kdz-guard-retire-aref-disable-control-20260412/summary.md` still
+  reintroduces the expected degradation, so the opt-out is causality-only. The
+  current guard ledger is
+  `/private/tmp/s390x-guard-retirement-after-aref-20260412/ledger.md`.
 - The guardrail promotion has cleared the inherited runnable-row blockers:
   `vararg_paths`, `mixed_noffi`, and `pairs_loop.lua` now pass on the rebuilt
   WIP mirror and are no longer treated as inherited blocking failures.
