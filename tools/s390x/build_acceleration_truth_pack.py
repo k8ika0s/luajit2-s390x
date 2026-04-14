@@ -243,10 +243,180 @@ run_with_counters("be_number_helper_local_tobit", 64000, run, function(result)
   testlib.eq(result, expected, "be_number_helper_local_tobit")
 end)
 """,
+    "low32_bitops_mix": LUA_COMMON
+    + """\
+local bit = require("bit")
+local function mix(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = bit.tobit(total + mix(i))
+    end
+  end
+  return bit.tobit(total)
+end
+local expected = reference_result(run, 20)
+run_with_counters("low32_bitops_mix", 20, run, function(result)
+  testlib.eq(result, expected, "low32_bitops_mix")
+end)
+""",
+    "low32_logical_tail_add": LUA_COMMON
+    + """\
+local bit = require("bit")
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+local function run(chunks)
+  local total = 0
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      total = bit.tobit(total + chain(i))
+    end
+  end
+  return bit.tobit(total)
+end
+local expected = reference_result(run, 20)
+run_with_counters("low32_logical_tail_add", 20, run, function(result)
+  testlib.eq(result, expected, "low32_logical_tail_add")
+end)
+""",
+    "low32_logical_tail_store": LUA_COMMON
+    + """\
+local bit = require("bit")
+local function chain(i)
+  local x = bit.band(i, 0xff)
+  x = bit.bxor(x, bit.lshift(i, 3))
+  x = bit.bor(x, bit.rshift(i, 1))
+  x = bit.bxor(x, bit.arshift(-i, 2))
+  x = bit.bxor(x, bit.rol(i, 5))
+  x = bit.bxor(x, bit.ror(i, 7))
+  x = bit.bxor(x, bit.bswap(i))
+  x = bit.bxor(x, bit.bnot(i))
+  return x
+end
+local function run(chunks)
+  local total = 0
+  local sink = { 0 }
+  for _ = 1, chunks do
+    for i = 1, 200 do
+      local x = chain(i)
+      sink[1] = x
+      local y = sink[1]
+      if x == y then
+        total = total + 1
+      end
+    end
+  end
+  return bit.tobit(total + sink[1])
+end
+local expected = reference_result(run, 20)
+run_with_counters("low32_logical_tail_store", 20, run, function(result)
+  testlib.eq(result, expected, "low32_logical_tail_store")
+end)
+""",
+    "lower_frame_lua_abs": LUA_COMMON
+    + """\
+local function run_lua_abs()
+  local total = 0
+  for i = 1, 80000 do
+    local x = (i % 17) - 8
+    if x < 0 then
+      x = -x
+    end
+    total = total + x
+  end
+  return total
+end
+local function run(_)
+  local out = 0
+  for _ = 1, 4 do
+    out = run_lua_abs()
+  end
+  return out
+end
+local expected = reference_result(run, 1)
+run_with_counters("lower_frame_lua_abs", 1, run, function(result)
+  testlib.eq(result, expected, "lower_frame_lua_abs")
+end)
+""",
+    "string_scan_strto_cache": LUA_COMMON
+    + """\
+local values = { "1.25", "2.5", "3.75", "4.125" }
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    total = total + tonumber(values[(i % #values) + 1])
+  end
+  return total
+end
+local expected = reference_result(run, 64000)
+run_with_counters("string_scan_strto_cache", 64000, run, function(result)
+  if math.abs(result - expected) > 1e-9 then
+    error("string_scan_strto_cache: expected " .. tostring(expected) ..
+          ", got " .. tostring(result))
+  end
+end)
+""",
 }
 
 
 TARGETS: dict[str, dict[str, Any]] = {
+    "low32_home": {
+        "summary": "low32-home bitop/add/PHI state contract and normalization-boundary attribution",
+        "families": ["bitops_mix", "logical_chain_tail_add", "logical_chain_tail_store"],
+        "focus": ["low32_bitops_mix", "low32_logical_tail_add", "low32_logical_tail_store"],
+        "oracle": False,
+        "mechanism_env": {
+            "LUAJIT_S390X_ADDHOME_LOG": "1",
+            "LUAJIT_S390X_BNORM_LOG": "1",
+            "LUAJIT_S390X_LOW32CMP_LOG": "1",
+            "LUAJIT_S390X_LOW32HOME_LOG": "1",
+        },
+        "target_rows": [
+            "bitops_mix/mix_bits/hot",
+            "logical_chain_tail_add/chain_tail_add/hot",
+            "logical_chain_tail_store/chain_tail_store/hot",
+        ],
+    },
+    "lower_frame_body": {
+        "summary": "lower-frame lua_abs compiled-body MOD/SUBOV/CONV/ADD attribution",
+        "families": ["lower_frame_same_callsite"],
+        "focus": ["lower_frame_lua_abs"],
+        "oracle": False,
+        "target_rows": [
+            "lower_frame_same_callsite/lua_abs_same_callsite/hot",
+            "lower_frame_same_callsite/const_same_callsite/hot",
+        ],
+    },
+    "string_scan": {
+        "summary": "string-to-number scan/cache helper and semantic string parsing attribution",
+        "families": ["be_helpers"],
+        "focus": ["string_scan_strto_cache"],
+        "oracle": False,
+        "target_rows": [
+            "be_helpers/strto_loop/hot",
+            "be_helpers/num_aload_loop/hot",
+        ],
+    },
     "ffi_cdata_width": {
         "summary": "cdata width MOD, narrow XSTORE/XLOAD, CONV, ADDOV/PHI attribution",
         "families": ["ffi_cdata"],
@@ -612,6 +782,7 @@ def write_summary(
     aggregate: list[dict[str, Any]],
     trace_counts: dict[str, dict[str, int | str]],
     perf_stats: dict[str, dict[str, object]],
+    mechanism_env: dict[str, str],
 ) -> None:
     target_rows = set(target["target_rows"])
     lines = [
@@ -624,9 +795,18 @@ def write_summary(
         f"- Target summary: {target['summary']}",
         f"- Generated: `{dt.datetime.now().astimezone().isoformat()}`",
         "",
-        "## Delivered File Hashes",
+        "## Mechanism Environment",
         "",
     ]
+    for key, value in sorted(mechanism_env.items()):
+        lines.append(f"- `{key}={value}`")
+    lines.extend(
+        [
+            "",
+            "## Delivered File Hashes",
+            "",
+        ]
+    )
     for relpath in HASH_STAMP_PATHS:
         lines.append(f"- `{relpath}`: `{remote_hashes.get(relpath) or 'missing'}`")
     lines.extend(["", "## Official Retained A/B", ""])
@@ -725,6 +905,8 @@ def main() -> int:
         directory.mkdir(parents=True, exist_ok=True)
 
     retained_env = dict(restamp.RETAINED_BASELINE_ENV)
+    mechanism_env = dict(retained_env)
+    mechanism_env.update(target.get("mechanism_env", {}))
     commit = restamp.current_commit()
     if not args.skip_sync:
         restamp.sync_tracked_files(host, repo)
@@ -758,7 +940,7 @@ def main() -> int:
                 remote_tmp=remote_tmp,
                 name=name,
                 raw_dir=trace_dir,
-                retained_env=retained_env,
+                retained_env=mechanism_env,
             )
             run_dump(
                 host=host,
@@ -766,7 +948,7 @@ def main() -> int:
                 remote_tmp=remote_tmp,
                 name=name,
                 raw_dir=dump_dir,
-                retained_env=retained_env,
+                retained_env=mechanism_env,
             )
             perf_stats[name] = run_perf_stat(
                 host=host,
@@ -782,7 +964,7 @@ def main() -> int:
             repo=repo,
             target=target,
             raw_dir=official_dump_dir,
-            retained_env=retained_env,
+            retained_env=mechanism_env,
         )
         write_summary(
             output_dir=output_dir,
@@ -796,6 +978,7 @@ def main() -> int:
             aggregate=aggregate,
             trace_counts=trace_counts,
             perf_stats=perf_stats,
+            mechanism_env=target.get("mechanism_env", {}),
         )
     finally:
         restamp.run_ssh_script(host, f"rm -rf {shlex.quote(remote_tmp)}")

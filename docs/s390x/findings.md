@@ -32063,3 +32063,59 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Do not disable or broadly narrow GC64 signed integer `SLOAD`; the remaining
   correctness bug needs a mechanism-specific repair that preserves the signed
   path where retained floors depend on it.
+
+## 2026-04-14: low-level acceleration truth packs and `%17` MLR proof closure
+
+- Source point:
+  `c26ea495 Retain s390x iterator and helper acceleration fixes`.
+- Tooling:
+  [build_acceleration_truth_pack.py](../../tools/s390x/build_acceleration_truth_pack.py)
+  now has focused targets for the next acceleration lanes:
+  `low32_home`, `lower_frame_body`, and `string_scan`. Mechanism-only env
+  overlays are separated from retained official A/B so logging flags do not
+  contaminate the policy rows.
+- Low32-home read:
+  [20260414-102209-kdz-low32_home-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-102209-kdz-low32_home-accel-truth-pack/summary.md)
+  showed the current official low32 rows are already deeply accelerated:
+  `bitops_mix/mix_bits/hot 0.0119x`,
+  `logical_chain_tail_add/chain_tail_add/hot 0.0156x`, and
+  `logical_chain_tail_store/chain_tail_store/hot 0.0173x`. The mechanism logs
+  still show low32-home carry opportunities, but the official rows are not
+  material payers on this source point. Keep `W32_HOME` / `W64_NORM` as a
+  design lane, not a current source patch.
+- Lower-frame read:
+  [20260414-102507-kdz-lower_frame_body-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-102507-kdz-lower_frame_body-accel-truth-pack/summary.md)
+  confirmed `lower_frame_same_callsite/lua_abs_same_callsite/hot` is the live
+  official compiled-body target at `0.1551x` (`~0.002326s` JIT versus
+  `~0.014996s -joff`). The root body is the repeated
+  `MOD 17 -> SUBOV +8 -> LT/NE -> SUBOV 0-x -> CONV -> ADD` chain, with
+  `TRACE_ABORT 0` and only one recorded exit in the focused reducer.
+- String/scan read:
+  [20260414-102811-kdz-string_scan-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-102811-kdz-string_scan-accel-truth-pack/summary.md)
+  kept `be_helpers/strto_loop/hot` accelerated at median `0.1273x`; the dump
+  still has table-fed `str ALOAD -> num STRTO`, so the next string win needs a
+  new string-heavy benchmark or a semantic value-identity mechanism, not a
+  local `asm_strto()` reshuffle.
+- `%17` MLR proof:
+  a remote `kdz` assembler/C proof validated the unsigned 32-bit `%17`
+  formula using `MLR` plus magic `0xf0f0f0f1` for nonnegative operands, while
+  preserving negative operands through the existing signed modulo semantics.
+  An opt-in backend candidate using that split (`LUAJIT_S390X_MODK17_MLR=1`)
+  built and passed a signed modulo smoke:
+  `/tmp/modk17_semantics.lua -> MODK17_SEMANTICS_OK 109000`.
+- Candidate result:
+  the opt-in candidate improved the intended lower-frame row in alternating
+  `kdz` A/B (`lua_abs_same_callsite/hot` candidate medians
+  `0.002130`, `0.002309`, `0.002129`, `0.002282`, `0.002197` versus controls
+  `0.002406`, `0.002362`, `0.002270`, `0.002295`, `0.002325`). But it was
+  not retainable as a generic `%17` backend path: sibling `%17` rows slowed
+  under the same binary (`ffi_calls/direct_abs/hot 0.000331` versus control
+  `0.000305`, `ffi_calls/stored_abs/hot 0.000334` versus `0.000281`, and
+  `vararg_paths/sum_loop/hot 0.004421` versus `0.004341`; retlast/retconst
+  siblings also moved slower).
+- Closure:
+  the generic modulo-by-17 MLR path is closed and was backed out. The viable
+  future version is not another backend opcode swap; it needs a proof of
+  nonnegative `IR_MOD` input range, or a loop-remainder recurrence transform,
+  so lower-frame can get the fast path without slowing unrelated `%17`
+  call/vararg bodies.
