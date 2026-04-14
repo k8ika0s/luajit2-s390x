@@ -28,11 +28,20 @@ local function be_pack_loop(n)
 end
 
 local strto_values = { "1.25", "2.5", "3.75", "4.125" }
+local num_aload_values = { 1.25, 2.5, 3.75, 4.125 }
 
 local function strto_loop(n)
   local total = 0
   for i = 1, n do
     total = total + tonumber(strto_values[(i % #strto_values) + 1])
+  end
+  return total
+end
+
+local function num_aload_loop(n)
+  local total = 0
+  for i = 1, n do
+    total = total + num_aload_values[(i % #num_aload_values) + 1]
   end
   return total
 end
@@ -76,6 +85,7 @@ for _, scale in ipairs(bench.scale_order(scales)) do
   local expected_helper = number_helper_loop(n)
   local expected_pack = be_pack_loop(n)
   local expected_strto = strto_loop_ref(n)
+  local expected_num_aload = num_aload_loop(n)
   cases[#cases + 1] = {
     workload = "number_helper_loop",
     scale = scale,
@@ -104,6 +114,18 @@ for _, scale in ipairs(bench.scale_order(scales)) do
     validate = function(result)
       if math.abs(result - expected_strto) > 1e-9 then
         error("strto_loop/" .. scale .. ": expected " .. tostring(expected_strto) ..
+              ", got " .. tostring(result))
+      end
+    end,
+  }
+  cases[#cases + 1] = {
+    workload = "num_aload_loop",
+    scale = scale,
+    iterations = n,
+    run = num_aload_loop,
+    validate = function(result)
+      if math.abs(result - expected_num_aload) > 1e-9 then
+        error("num_aload_loop/" .. scale .. ": expected " .. tostring(expected_num_aload) ..
               ", got " .. tostring(result))
       end
     end,

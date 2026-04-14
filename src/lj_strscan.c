@@ -540,6 +540,56 @@ int LJ_FASTCALL lj_strscan_num(GCstr *str, TValue *o)
   return (fmt != STRSCAN_ERROR);
 }
 
+#if LJ_TARGET_S390X
+#define STRSCAN_NUM_CACHE_SLOTS		16
+#define STRSCAN_NUM_CACHE_MAXLEN	16
+
+typedef struct StrScanNumCache {
+  lua_Number num;
+  StrHash hash;
+  MSize len;
+  uint8_t data[STRSCAN_NUM_CACHE_MAXLEN];
+} StrScanNumCache;
+#endif
+
+int LJ_FASTCALL lj_strscan_num_cache(GCstr *str, TValue *o)
+{
+#if LJ_TARGET_S390X
+  static __thread StrScanNumCache strscan_num_cache[STRSCAN_NUM_CACHE_SLOTS];
+  static __thread int cache_disabled = -1;
+  MSize len = str->len;
+  StrHash hash = str->hash;
+  const uint8_t *data = (const uint8_t *)strdata(str);
+  StrScanNumCache *cache;
+
+  if (LJ_UNLIKELY(cache_disabled < 0))
+    cache_disabled = getenv("LUAJIT_S390X_DISABLE_STRSCAN_NUM_CACHE") != NULL;
+  if (LJ_UNLIKELY(cache_disabled))
+    return lj_strscan_num(str, o);
+
+  if (len == 0 || len > STRSCAN_NUM_CACHE_MAXLEN)
+    return lj_strscan_num(str, o);
+
+  cache = &strscan_num_cache[hash & (STRSCAN_NUM_CACHE_SLOTS - 1)];
+  if (cache->len == len && cache->hash == hash &&
+      memcmp(cache->data, data, len) == 0) {
+    setnumV(o, cache->num);
+    return 1;
+  }
+
+  if (!lj_strscan_num(str, o))
+    return 0;
+
+  cache->len = len;
+  cache->hash = hash;
+  memcpy(cache->data, data, len);
+  cache->num = numV(o);
+  return 1;
+#else
+  return lj_strscan_num(str, o);
+#endif
+}
+
 #if LJ_DUALNUM
 int LJ_FASTCALL lj_strscan_number(GCstr *str, TValue *o)
 {
@@ -555,4 +605,3 @@ int LJ_FASTCALL lj_strscan_number(GCstr *str, TValue *o)
 #undef DNEXT
 #undef DPREV
 #undef DLEN
-

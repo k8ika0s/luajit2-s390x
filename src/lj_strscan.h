@@ -25,6 +25,7 @@ typedef enum {
 LJ_FUNC StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o,
 				   uint32_t opt);
 LJ_FUNC int LJ_FASTCALL lj_strscan_num(GCstr *str, TValue *o);
+LJ_FUNC int LJ_FASTCALL lj_strscan_num_cache(GCstr *str, TValue *o);
 #if LJ_DUALNUM
 LJ_FUNC int LJ_FASTCALL lj_strscan_number(GCstr *str, TValue *o);
 #else

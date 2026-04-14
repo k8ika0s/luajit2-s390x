@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-12 18:48 PDT
+Last updated: 2026-04-14 09:10 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,11 +8,13 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- The current runtime/code source point is `210ac773 Close s390x asm profiler
-  stub`. It includes the retained
+- The current runtime/code source point is current WIP over
+  `5814717c Retire stale dispatch cooldown env`. It includes the retained
+  iterator hash-payload recorder fix plus the retained
   ADDOV/SUBOV and MULOV overflow work, remote oracle matrix coverage,
   route-around reducer splits, static-stop and localized be-pack
   promotion-core guard splits, iterator guard ordering, guardrail promotion,
+  the STRTO short-string parse-cache helper closure,
   the FFI GPR `IR_FLOAD` closure, the cdata mixed-width `MOD` /
   narrow-`XSTORE` closure, the cdata buffer/FREF integer `MIN` plus
   `BUFHDR` closure, the `bit.tobit` helper exit-storm closure, and the exact
@@ -24,6 +26,94 @@ It is intentionally current-state only. Historical experiment detail lives in
   longer part of the canonical retained env. `kdz` dispatch A/B and a tracked
   `kdz1` tie-break both kept `dispatch_trace` in band without it, so the
   source cooldown remains diagnostic-only.
+- The vararg sibling `BC_FORL` blacklist has also been removed from the
+  canonical retained env after current `kdz` opt-out/control and `zkd0`
+  confirmation kept `sum_loop`, `retlast_loop`, and `retconst_loop` in band.
+  The matcher remains in source for diagnostic opt-in use, but is no longer
+  part of the default retained contract.
+- The latest backend correctness fix is in the FFI cdata immediate allocator
+  path: `asm_cnew()` now materializes constant `IR_CNEWI` payload values
+  rather than the constant IR reference number, and keeps the payload source in
+  the call-preserved non-BASE GPR set across `lj_mem_newgco`. This fixed the
+  intermittent `ffi_fixed_call_pressure/gpr_pressure` bad `uint64_t(0)`
+  payload seen during retained-env matrix runs. Focused `kdz` and `zkd0` FFI
+  pressure A/B now pass, and the exact `kdz` 100-run stress loop passed.
+- The previous post-`CNEWI` full retained-env matrix was
+  `/tmp/kdz-retained-jitter-20260414070532/summary.md`. It kept the branch in
+  the fast band and did not name a broad regression. Its next study lane was
+  iterator, specifically `iterator_table/pairs_sum/hot`, but the signal was
+  process-order sensitive: focused rerun
+  `/tmp/kdz-retained-jitter-20260414070752/summary.md` has red JIT-first
+  passes and neutral JOFF-first passes, and trace-meta confirms the exact
+  iterator proto-NOJIT path engages in both. Do not patch iterator until the
+  secondary trace/harness-order payer is named.
+- Dispatch is now a retained acceleration win again. The exact
+  `dispatch_trace` `FORL` skip / proto-NOJIT source guard was still default-on
+  after the env marker cleanup, which suppressed the official
+  `@tests/s390x/perf/dispatch_trace.lua` chunk while the same focused loop body
+  compiled fast. The source guard is now opt-in via
+  `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI`; the canonical retained env leaves
+  it off. `kdz` `/tmp/kdz-retained-jitter-20260414072840/summary.md` and
+  `zkd0` `/tmp/zkd0-retained-jitter-20260414073305/summary.md` confirm the
+  official dispatch rows compile at roughly `0.07x..0.14x` versus `-joff`.
+  The latest full retained-env matrix is now
+  `/tmp/kdz-retained-jitter-20260414073108/summary.md`: dispatch is green in
+  `3/3` passes, and the only remaining red-looking rows are small/noisy
+  residuals (`mixed_noffi` around `1.015x`, one `vararg_paths/sum_loop` red
+  pass, and the known jitter-sensitive `iterator_table/pairs_sum` spike).
+- Numeric table value loads are now a retained backend acceleration closure.
+  While probing the remaining STRTO helper row, a numeric-table sibling exposed
+  that s390x still lacked numeric `IR_ALOAD` assembly support. The missing
+  `asm_ahuvload()` path now emits an FPR numeric load with the existing
+  number-tag guard / integer-to-double conversion contract. The new
+  `be_helpers/num_aload_loop` coverage reads `0.082x..0.084x` on `kdz` and
+  `0.090x..0.111x` on `zkd0` versus `-joff`, with the adjacent helper,
+  iterator, mixed, vararg, and dispatch guardrails clean in focused screens.
+  A follow-up adjacent-load sweep verified the same generic backend path for
+  dynamic hash `num HLOAD`, mutable upvalue `num ULOAD`, and retained
+  vararg-shape `num VLOAD`; the jit_be regression now covers all four numeric
+  A/H/U/V load forms and passed on `kdz`.
+  STRTO then moved from design debt into a retained helper acceleration:
+  s390x `asm_strto()` now uses `lj_strscan_num_cache()`, a s390x-only
+  thread-local short-string parse cache that keeps the existing two-argument
+  helper ABI and validates string hash, length, and bytes before returning a
+  cached number. `kdz`
+  `/tmp/kdz-retained-jitter-20260414085612/summary.md` moved
+  `be_helpers/strto_loop/hot` to `0.1358x..0.2891x`, and the diagnostic opt-out
+  `/tmp/kdz-retained-jitter-20260414085754/summary.md` restored the old
+  `0.3991x..0.4381x` band. `zkd0`
+  `/tmp/zkd0-retained-jitter-20260414090701/summary.md` confirmed the win, and
+  `/tmp/zkd0-retained-jitter-20260414090833/summary.md` confirmed the opt-out
+  fallback.
+  The post-cache full `kdz` matrix is
+  `/tmp/kdz-retained-jitter-20260414091220/summary.md`; it keeps the branch in
+  the fast band and does not name a material red blocker. STRTO remains
+  accelerated at `0.1338x`, `0.1390x`, and `0.2537x`. Remaining red-looking
+  rows are small parity/noise residuals, so the next queue should rank by
+  absolute JIT time and mechanism; current first probe is
+  `lower_frame_same_callsite/lua_abs_same_callsite` at about `0.00235s` JIT and
+  `0.156x` versus `-joff`. That lower-frame probe is compiled-body dominated,
+  but the first signed-integer `SLOAD` narrowing candidate is closed: it fixed
+  a reduced loop-carried side-exit correctness repro but regressed retained
+  mixed-noffi, vararg, lower-frame, and helper rows. GC64 signed integer
+  `SLOAD` stays default-on until a mechanism-specific correctness repair can
+  preserve those floors.
+  The prior post-numeric retained-env rerank was
+  `/tmp/kdz-retained-jitter-20260414081234/summary.md`; it keeps the branch in
+  the fast band and does not name a new material regression after the numeric
+  `ALOAD` closure.
+- The focused residual rerank after adjacent numeric-load coverage keeps
+  iterator, mixed-noffi, and vararg parked. Iterator
+  `/tmp/kdz-retained-jitter-20260414082735` was neutral/green on median
+  (`pairs_sum/hot 0.9663x`, `pairs_array_sum/hot 1.0027x` with only
+  `+0.000016s`). Mixed-noffi
+  `/tmp/kdz-retained-jitter-20260414082945` stayed a tiny residual
+  (`mixed_loop/hot 1.0204x`, `+0.000073s`, one outlier), and vararg
+  `/tmp/kdz-retained-jitter-20260414083158` stayed tiny/noisy
+  (`sum_loop/hot 1.0082x`, `+0.000047s`, `retconst_loop` median green,
+  `retlast_loop` still fast). No current source patch is justified from these
+  rows; future work needs a larger official-row mechanism now that the STRTO
+  table-string parse-cache seam has landed.
 - The previous full-matrix rerank was the post-`MULOV` read on `kdz`:
   `/tmp/kdz-retained-jitter-20260412104303`, with focused confirmation in
   `/tmp/kdz-bd0dbb89-focused-rerank-202604121047`. It does not name a stable
@@ -824,7 +914,6 @@ It is intentionally current-state only. Historical experiment detail lives in
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
-  - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -1154,9 +1243,10 @@ interpretation.
   iterator safety-debt attribution lane closed as no-code: retained rows were
   near parity/noise, and a fully unguarded iterator opt-out made official
   `iterator_table` much slower instead of exposing a safe replacement
-  mechanism. If continuing performance work from here, the next disciplined
-  step is the iterator helper-result handoff lane named by the new truth pack,
-  not immediate source mutation from the small `1.0202x` ratio alone.
+  mechanism. If continuing iterator performance work from here, the next
+  disciplined step is a state-correct terminal `BC_ITERN` leave/restart
+  handoff proof, not immediate source mutation from the small `1.0202x` ratio
+  alone.
 - Guard-debt cleanup has since retired several stale retained-env markers. The
   latest cleanup removes `LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT` from
   `RETAINED_BASELINE_ENV` after `kdz` opt-out and post-cleanup confirmation
@@ -1185,6 +1275,53 @@ interpretation.
   proto-NOJIT, and mixed-FFI root `FORL` proto-NOJIT all remain live mechanism
   or safety debt. The next source work should replace one of those mechanisms,
   not delete the env.
+- Iterator hash-payload unlock:
+  the official `iterator_table/pairs_sum` hash row is now a retained source
+  win instead of a guard-debt study lane. `rec_itern()` now recognizes the
+  hash-payload state where `lj_record_next()` leaves `ix.key == 0` while
+  `nextt` is non-nil, and the exact iterator-table matcher includes the new
+  `(nins=32789, mcloop=236)` root shape. kdz moved `pairs_sum/hot` from the
+  diagnostic opt-out control `0.010577` to final `0.004105` while keeping
+  `pairs_array_sum/hot` neutral and `mixed_noffi` clean. zkd0 confirmed the
+  direction (`0.014177` opt-out control to `0.007341` final), and
+  `pairs_loop.lua` remains passing.
+- Current iterator policy:
+  keep the broad iterator root blacklist. The retained fix removes the
+  official hash-payload misclassification and restores the fast exact row, but
+  arbitrary non-exact iterator roots are still not proven safe for broad
+  fallback removal. A post-fix broad-root opt-out smoke is clean on `kdz` but
+  regresses `mixed_noffi` on `zkd0`, so the broad fallback remains default-on.
+  The next iterator work should target a non-exact-root safety proof or a
+  narrower fallback replacement.
+- Exact iterator rail status:
+  do not remove the exact iterator proto-NOJIT/blacklist rails yet. With all
+  iterator rails unguarded after the hash-payload fix, the official row is
+  correct but falls into a `trace 2 exit 1` storm back to root `BC_ITERN`
+  (`TEXIT_COUNT` about `719997`) and runs around `0.13s` on `kdz`. Existing
+  loop-desc/descendant toggles and root-1 replay toggles were retested and
+  remain closed. The missing mechanism is a real root-exit side-trace handoff,
+  not another guard toggle.
+- Latest retained-env rerank:
+  `/tmp/kdz-retained-jitter-post-itern-hashpayload-20260413082518/summary.md`
+  ran after reverting the failed iterator terminal root-link proof. It does
+  not name a material red blocker. `mixed_noffi/mixed_loop/hot` is technically
+  red in `3/3` passes but only by `+0.00005s..+0.000084s`; the other red-looking
+  rows are similarly small or noisy (`vararg_paths`, `iterator_table` array
+  row, and `dispatch_trace/side_exit_loop`). The hash iterator row is median
+  green.
+- Current queue:
+  the regression queue is empty. Iterator remains the main mechanism-debt lane,
+  but not a current matrix blocker. The next iterator source patch must solve
+  the terminal `BC_ITERN` exit-1 key/control-state handoff or come from a new
+  dense official-row proof; broad guard removal, root-link terminal handoff,
+  loop-desc/replay toggles, and generic `vm_IITERN` instruction shuffles are
+  closed for the current shape.
+- Acceleration posture:
+  high-time rows are no longer near-parity targets in this rerank. `ffi_cdata`,
+  FFI fixed-call pressure, mixed FFI, numeric helpers, cdata FREF, and
+  promotion-core reducer rows are all strongly faster than `-joff`. Continue
+  looking for new acceleration opportunities, but require a named compiled-body
+  or runtime handoff payer before changing source.
 
 ## Where To Look Next
 

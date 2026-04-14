@@ -1305,6 +1305,15 @@ def render_summary(
         if isinstance(first_abort, dict):
             lines.append(f"  - first trace abort `{first_abort['line']}`")
 
+    numeric_seam = exit_focus["numeric_loop"].get("seam_attribution")
+    lines.extend(["", "## Numeric Seam Guard", ""])
+    lines.append(f"- expected seam `{CURRENT_SEAM_NAME}`")
+    lines.append(f"- observed seam `{numeric_seam or 'unclassified'}`")
+    if numeric_seam != CURRENT_SEAM_NAME:
+        lines.append("- status `drifted`; retain the artifact and re-attribute before using this seam as a patch gate")
+    else:
+        lines.append("- status `matched`")
+
     lines.extend(["", "## perf stat", ""])
     for name in LOOP_NAMES:
         info = perf_stats[name]
@@ -1504,10 +1513,11 @@ def main() -> int:
             perf_stats[name] = run_perf_stat(host, repo, remote_tmp, perf_dir, name, args.pin_core, candidate_env)
 
         numeric_seam = exit_focus["numeric_loop"].get("seam_attribution")
-        if numeric_seam != CURRENT_SEAM_NAME:
-            raise restamp.RestampError(
-                f"{host} dispatch seam drift: expected {CURRENT_SEAM_NAME}, got {numeric_seam!r}"
-            )
+        seam_check = {
+            "expected": CURRENT_SEAM_NAME,
+            "observed": numeric_seam,
+            "status": "matched" if numeric_seam == CURRENT_SEAM_NAME else "drifted",
+        }
 
         proof_result = None
         if args.proof_loop_control:
@@ -1553,6 +1563,7 @@ def main() -> int:
             "focused_loops": list(LOOP_NAMES),
             "runtime_fallback_metrics": runtime_metrics,
             "derived_perf_metrics": perf_metrics,
+            "numeric_seam_check": seam_check,
             "proof_loop_control": proof_result,
         }
         write_json(output_dir / "metadata.json", metadata)

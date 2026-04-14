@@ -30628,3 +30628,1438 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `/private/tmp/s390x-guard-retirement-after-dispatch-cooldown-20260412/ledger.md`
   is down to 19 retained env gates: 14 mechanism-debt items and five
   still-unsafe guards.
+
+## 2026-04-12: iterator and mixed exact guard debt follow-up
+
+- Iterator exact path opt-out:
+  `/tmp/kdz-iterator-exact-optout-after-cooldown-20260412/summary.md`
+  disabled the default-on exact iterator-table `BC_ITERN` proto-NOJIT path plus
+  the array/hash hotcount parks and post-proto no-hot dispatch. It is not a
+  retirement candidate: `pairs_sum/hot` regressed to `2.7507x`, `2.4262x`, and
+  `2.7642x`; `pairs_array_sum/hot` regressed to `2.2225x`, `1.9782x`, and
+  `2.2990x`.
+- Mixed-noffi exact `ITERL` blacklist opt-out:
+  `/tmp/kdz-mixed-noffi-iterl-blacklist-optout-20260412/summary.md` removed
+  only `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST` while keeping the sibling
+  mixed guards. It was worse than immediate retained control:
+  opt-out `mixed_loop/hot` ratios were `1.1187x`, `1.0650x`, and `1.0749x`
+  versus retained control ratios `1.0326x`, `1.0166x`, and `1.0559x` from
+  `/tmp/kdz-mixed-noffi-retained-control-after-iterl-optout-20260412/summary.md`.
+- Iterator mechanism attribution:
+  `/tmp/kdz-iterator-exact-real-disable-metalog-20260412` confirmed the exact
+  iterator opt-out falls to the broad root blacklist: root `BC_ITERN` traces
+  with `nsnap=6` and `nins/mcloop` pairs `(32785,208)` and `(32792,300)` are
+  blacklisted, then the `BC_ITERL` root with `nins=32798 mcloop=516` is also
+  blacklisted.
+- Unguarded iterator root proof:
+  `/tmp/kdz-iterator-unguarded-dump-20260412.log` disabled both exact iterator
+  guards and the broad iterator root fallback. The official row stayed correct
+  but collapsed into repeated side-trace construction: `trace 2` is the
+  `BC_ITERN` root for `iterator_table.lua:25`, `trace 3` starts from parent
+  `2/1`, and traces `4..60` repeat the same `CALLL lj_vm_next` side-family,
+  each stopping back to trace `2`. Hot rows ballooned to about `0.088s` to
+  `0.151s`, so the exact iterator guard remains real safety/performance debt.
+- Closed candidate:
+  an opt-in local `LUAJIT_S390X_ITERATOR_HOTSIDE_EQUIV` experiment tried to
+  reuse earlier equivalent iterator side traces. It did not improve the
+  unguarded row, which stayed around `0.09s`, and the local patch was reverted.
+  The next iterator mechanism target is lower than hotside reuse: fix why the
+  root `BC_ITERN` trace exits into the same `BC_JMP`/`lj_vm_next` sidechain
+  rather than replacing the exact guard with another trace-control shim.
+- Closed recorder-side candidate:
+  `/tmp/kdz-iterator-root-nil-done-candidate-20260412/summary.md` set the
+  root-owned `BC_ITERN` nil-descendant retry path DONE for the unguarded
+  iterator proof. It reduced the local retry/LLEAVE churn, but not the official
+  hot-row cost: `pairs_sum/hot` stayed at `20.6033x` and
+  `pairs_array_sum/hot` stayed at `31.6364x`. The repeated nil-descendant
+  abort is therefore a symptom, not the dominant payer.
+- Closed key-recording candidates:
+  `/tmp/kdz-iterator-full-key-unguarded-candidate-20260412/summary.md`
+  recorded the full key instead of the s390x hidden-key shortcut for the
+  unguarded iterator proof. It stayed red at `25.7686x` and `29.9187x`.
+  `/tmp/kdz-iterator-hidden-key-payload-candidate-20260412/summary.md` then
+  treated hidden hash-key plus non-nil value as payload in `rec_itern()`;
+  it also stayed red at `23.6620x` and `28.5733x`. The control-value/keyindex
+  contract is still suspect, but neither local recorder key-shaping edit is a
+  retainable route.
+- Exit-count attribution:
+  a direct lightweight unguarded capture on the official iterator rows showed
+  the collapse is exit dominated: `pairs_sum` recorded `TEXIT_HIST 1:1=488518`,
+  while `pairs_array_sum` eventually concentrated at
+  `TEXIT_HIST 6:1=487521`. `ALLOW_ITER_DESC` was also retried on the current
+  floor and timed out. The next iterator debt step should target the root
+  iterator side-exit/control-state contract, not more hotside reuse, nil-DONE,
+  or key-recording micro-edits.
+- Vararg guard debt cleanup:
+  `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST` is no longer needed in the canonical
+  retained env. On `kdz`, removing only that env while keeping the full retained
+  bundle produced `sum_loop/hot` ratios `0.9884`, `1.0114`, and `0.9979`, with
+  `retlast_loop/hot` still around `0.045x`, versus immediate retained-control
+  `sum_loop/hot` ratios `0.9998`, `1.0107`, and `1.0166`. The requested kdz1
+  tie-breaker agreed: opt-out `sum_loop/hot` ratios were `0.9849`, `1.0084`,
+  and `1.0060`, while retained control was `1.0171`, `1.0247`, and `1.1268`.
+  The canonical `RETAINED_BASELINE_ENV` now omits the guard; the runtime
+  opt-in code remains available for diagnostics but is no longer part of the
+  retained performance contract. The post-edit default-env check
+  `/tmp/kdz-vararg-retained-after-sum-forl-retire-20260412/summary.md`
+  matched the validated opt-out band: `sum_loop/hot` ratios `1.0254`,
+  `0.9936`, and `0.9840`, with `retlast_loop/hot` still around `0.045x`.
+- Mixed-ffi guard debt cleanup:
+  `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT` is also stale in the canonical
+  retained env. On `kdz`, removing only that env gave `mixed_ffi_loop/hot`
+  ratios `0.0673`, `0.0673`, and `0.0699`; immediate retained control was the
+  same fast band at `0.0748`, `0.0742`, and `0.0631`. The kdz1 tie-breaker
+  also stayed clean: opt-out ratios `0.0674`, `0.0661`, and `0.0676` versus
+  retained control `0.0649`, `0.0672`, and `0.0663`. The retained env now
+  omits the guard; the opt-in code remains available for diagnostic probes.
+  The post-edit kdz default-env check
+  `/tmp/kdz-mixed-ffi-retained-after-forl-proto-retire-20260412/summary.md`
+  matched the opt-out band with `mixed_ffi_loop/hot` ratios `0.0675`,
+  `0.0667`, and `0.0673`.
+- Vararg sibling guard retained:
+  `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST` is still a live retained rail.
+  On `kdz`, the opt-out was not a correctness failure and stayed close:
+  `sum_loop/hot` ratios `1.0067`, `1.0091`, and `1.0130`. The requested kdz1
+  tie-breaker rejected retirement: opt-out `sum_loop/hot` ratios were
+  `0.9847`, `1.0057`, and `1.0288`, while same-current-env retained control
+  was cleaner at `0.9871`, `0.9743`, and `0.9966` from
+  `/tmp/kdz1-vararg-retained-current-control-after-sibling-optout-20260412`.
+  Keep this guard in the retained env.
+- Lower-frame guard debt cleanup:
+  `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT` is stale in the canonical
+  retained env. On `kdz`, removing it kept `lua_abs_same_callsite/hot` in the
+  same band as retained control: opt-out ratios `0.1571`, `0.1590`, and
+  `0.1575`; retained control ratios `0.1604`, `0.1579`, and `0.1535`. The
+  kdz1 tie-breaker agreed: opt-out ratios `0.1591`, `0.1553`, and `0.1561`
+  versus retained control `0.1573`, `0.1582`, and `0.1537`. The retained env
+  now omits the guard; the diagnostic env remains available.
+- Ledger restamp:
+  `/private/tmp/s390x-guard-retirement-after-env-burndown-20260412/ledger.md`
+  now reports 16 retained gates: 13 mechanism-debt gates and three still-unsafe
+  gates. The still-unsafe set is down to the broad iterator `ITERN`/`ITERL`
+  blacklists and `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST`.
+- Vararg select guards retained:
+  the two exact `SUM_LOOP_SELECT_*` guards are still live mechanism debt.
+  Removing only `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE` on current retained
+  env produced `sum_loop/hot` ratios `1.0170`, `1.0566`, and `1.0071` from
+  `/tmp/kdz-vararg-select-exit0-done-optout-20260412/summary.md`. Removing only
+  `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ` produced `sum_loop/hot` ratios
+  `1.0219`, `1.0660`, and `0.9935`, and also pushed `retconst_loop/hot` as high
+  as `1.1011` from
+  `/tmp/kdz-vararg-select-skip-func-eq-optout-20260412/summary.md`. Keep both
+  guards retained until the select/vararg root mechanism is replaced.
+- Mixed root1 replay pair retained:
+  disabling both `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET` and
+  `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT` on the cleaned retained
+  env did not beat control. The opt-out produced `mixed_loop/hot` ratios
+  `1.0547`, `1.0369`, and `1.0117` from
+  `/tmp/kdz-mixed-noffi-root1-replay-pair-optout-20260412/summary.md`, while
+  immediate retained control was tighter at `1.0208`, `1.0197`, and `1.0207`
+  from
+  `/tmp/kdz-mixed-noffi-retained-control-after-root1-replay-pair-optout-20260412/summary.md`.
+  Keep the pair retained.
+- Iterator sidechain proof candidates closed:
+  the one-pass existing-knob sweep on the unguarded iterator proof stayed in
+  the same bad family. Baseline remained `pairs_sum 23.4079x` and
+  `pairs_array_sum 25.6243x` in `/tmp/kdz-iterator-lever-baseline-20260412`.
+  `LINK_LOOP_DESC`, `LINK_LOOP_DESC_NONSTUB`, loop-desc self ownership,
+  payload-desc loop ownership, root-owned nil-desc reopen,
+  retry-first-array-exit, `RECLOOP_EXIT2`, and
+  `NO_EXTRA_LOOP_CONT_STUB` all stayed around `23x..30x` or made the array row
+  catastrophic. This closes the already-wired loop-desc/restart-desc switch
+  family for the official iterator debt proof.
+- Iterator hash control-payload proof:
+  the opt-in `LUAJIT_S390X_ITERN_HASH_CTRL_PAYLOAD=1` experiment changed the
+  first root IR in the intended direction: the second `CALLL lj_vm_next` in
+  `/tmp/kdz-iterator-hash-ctrl-payload-dump-irs-20260412.log` used the HIOP
+  successor control value instead of the original keyindex. It still was not a
+  performance fix: `/tmp/kdz-iterator-hash-ctrl-payload-candidate-20260412/summary.md`
+  stayed red at `pairs_sum/hot 22.7066x` and
+  `pairs_array_sum/hot 27.7117x`. This closes the first-root hash
+  control-carry theory; the remaining payer is later side/restart state.
+- Iterator `VLOAD` typecheck proof:
+  the opt-in `LUAJIT_S390X_VLOAD_INT_TYPECHECK=1` backend experiment added a
+  local integer typecheck on the value load path, but did not move the
+  iterator debt proof. `/tmp/kdz-iterator-vload-int-typecheck-candidate-20260412/summary.md`
+  stayed at `pairs_sum/hot 24.5426x` and
+  `pairs_array_sum/hot 30.1471x`. Combining it with
+  `LUAJIT_S390X_ITERN_HASH_CTRL_PAYLOAD=1` also failed in
+  `/tmp/kdz-iterator-vload-typecheck-plus-hash-ctrl-candidate-20260412/summary.md`
+  (`24.9722x` / `27.4810x`). This closes the local VLOAD guard hypothesis for
+  the current iterator debt proof.
+- Iterator root exit-1 DONE proof:
+  the opt-in `LUAJIT_S390X_ITERATOR_ROOT_EXIT1_DONE=1` admission cut marked the
+  root `BC_ITERN` exit-1 retry DONE from `trace_hotside()`. It was much worse:
+  `/tmp/kdz-iterator-root-exit1-done-candidate-20260412/summary.md` reported
+  `pairs_sum/hot 63.3855x` and `pairs_array_sum/hot 71.7332x`. This closes
+  pre-recorder root-exit DONE as too broad; any future side-exit candidate must
+  first prove a more exact state transition than parent root/exit alone.
+- Iterator saturated-sidecheck skip proof:
+  a local opt-in `LUAJIT_S390X_ITERATOR_SIDECHECK_SKIP_RECITERN=1` candidate
+  tested the exact saturated `sidecheck_interp` seam by skipping only the
+  `rec_itern()` call and preserving the existing `LJ_TRLINK_INTERP` stop. The
+  one-pass unguarded official-row probe did not complete in a sane interval and
+  was killed without retention artifacts. The patch was reverted. This
+  classifies direct sidecheck skip as unsafe/dead for now and reinforces the
+  current read: the hard problem is not the extra recorder visit by itself,
+  but the missing safe state transition after the root-owned `BC_ITERN`
+  exit-1 family saturates.
+- Current retained iterator truth pack:
+  `/private/tmp/kdz-iterator-focus-truth-current-20260412/summary.md` reran the
+  focused iterator-safety acceleration pack on the clean mirror after reverting
+  the local sidecheck proof. It does not name a material official-row payer:
+  `pairs_sum/hot` was green on median (`0.8871x`, red `1/3`) and
+  `pairs_array_sum/hot` was parity/noise (`1.0080x`, red `1/3`). The focused
+  `iterator_pairs_loop_chain` reducer was compiled-body dominated
+  (`TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 0`).
+  Official dump still shows repeated `trace 2 start iterator_table.lua:24`
+  aborts with `inner loop in root trace`, but this is warmup/admission noise on
+  the retained floor, not a measured hot-row regression. Continue to treat
+  iterator as mechanism debt, not as the current top-matrix blocker, unless a
+  denser same-host rerun names a repeated material official-row payer.
+- Dense iterator retained-env rerun:
+  `/tmp/kdz-iterator-focused-dense-current-20260412/summary.md` ran
+  `samples=9`, `warmup=2`, and seven alternating same-host `kdz` passes. It
+  closed the current official iterator row as a source target for this tranche:
+  `pairs_sum/hot` median ratio `0.9873x` with only `1/7` red passes, and
+  `pairs_array_sum/hot` median ratio `0.9986x` with `0/7` red passes. This
+  leaves iterator route-around removal as mechanism debt, but not as a
+  material current performance blocker. Any future iterator source patch needs
+  a new, denser official-row payer or a correctness-safe design that removes
+  the broad root blacklist without re-entering the known `20x..70x` bad
+  sidechain families.
+- Iterator exact proto-NOJIT split proof:
+  a local opt-in `LUAJIT_S390X_ITERATOR_ITERN_SKIP_PROTO_NOJIT=1` candidate
+  kept the exact post-proto `BC_ITERN` no-hot dispatch but skipped setting
+  `PROTO_NOJIT` and the array/hash hotcount parks. The official
+  `iterator_table.lua` retained-env run crashed immediately with exit 139 in
+  `/tmp/kdz-iterator-skip-proto-nojit-candidate-20260412/raw/pass1-jit.stderr.log`.
+  A quick gdb run on the candidate binary stopped in `lj_vm_IITERN`, which
+  proves the proto-wide park is part of the current safety invariant for this
+  exact escape hatch. The patch was reverted; future iterator guard retirement
+  must replace the `lj_vm_IITERN`/root-exit state contract itself, not split
+  the exact proto-NOJIT rail into a partial no-hot-only route.
+- Iterator VM hash-index strength-reduction proof:
+  a local `vm_s390x.dasc` candidate replaced the generic iterator hash-path
+  `mghi ..., #NODE` address step in `vm_next` and `vm_IITERN` with `sllg ...,
+  5`, mirroring a specialized root-2 bridge shape. It is not a valid generic
+  substitution: `/tmp/kdz-iterator-vm-node-shift-candidate-20260412/raw/pass1-jit.stderr.log`
+  failed the official retained-env iterator row with
+  `attempt to perform arithmetic on local 'value' (a string value)`. The patch
+  was reverted. Keep `#NODE` multiplication in the generic VM iterator body;
+  the specialized bridge address contract does not transfer to the generic
+  Node layout.
+- Iterator generic proto-NOJIT proof:
+  a local opt-in `LUAJIT_S390X_ITERATOR_GENERIC_ITERN_PROTO_NOJIT=1` candidate
+  tried to apply the exact iterator-table proto park to non-exact roots with
+  the same `BC_ITERN`, `nsnap=6`, `nins/mcloop=(32785,208)|(32792,300)` shape
+  before the broad root blacklist. The official row was noisy rather than a
+  win (`/tmp/kdz-iterator-generic-itern-proto-nojit-official-20260412/summary.md`),
+  and the focused truth pack crashed with exit 139 in
+  `/tmp/kdz-iterator-generic-itern-proto-nojit-truth-20260412/raw/focused-jit-on.stderr.log`.
+  The patch and temporary truth-pack selector were reverted. This closes the
+  generic proto park as unsafe: the exact iterator-table route depends on more
+  than the root trace shape, and the global no-hot `BC_ITERN` dispatch cannot
+  be safely enabled for arbitrary same-shape iterator protos.
+- Current iterator truth after reversions:
+  `/tmp/kdz-iterator-clean-dense-after-reverts-20260412/summary.md` restored
+  the official retained row to noise/parity after the local probe reversions:
+  `pairs_sum/hot` had mixed ratios `0.9397`, `1.0172`, `0.7723`, `1.0308`,
+  and `1.0478`, while `pairs_array_sum/hot` stayed at or below parity except
+  one `1.0044` pass. The focused truth pack
+  `/tmp/kdz-iterator-truth-after-reverts-20260412/summary.md` still shows the
+  non-exact focused reducers as compiled-body dominated (`TEXIT_COUNT 0`) and
+  materially red: `hash_value/hot 2.45x`, `hash_key/hot 2.07x`, and
+  `array_value/hot 2.24x`. The next viable iterator unlock is therefore a real
+  `lj_vm_next`/compiled-body replacement design; partial proto/no-hot splits,
+  generic proto parks, hotside reuse, root-exit DONE, sidecheck skips, and
+  local VM address-strength reductions are all closed.
+- Iterator `lj_vm_next_i32` pair-result proof:
+  a local opt-in `LUAJIT_S390X_ITERATOR_NEXT_INT_PAIR=1` candidate added an
+  s390x-only `lj_vm_next_i32` helper returning next-index in `RETLO` and the
+  integer value in `RETHI`, with a recorder rewrite for exact value-only
+  iterator-table/focused reducers. The focused root trace engaged and removed
+  the `VLOAD` from the value-only root body:
+  `/tmp/kdz-iterator-next-i32-micro-20260412/raw/ir/hash_value.stdout.log`
+  shows `CALLL lj_vm_next_i32`, `HIOP`, `NE idx,0`, and direct `ADDOV` of the
+  returned integer value. The first official attempt missed the exact
+  proto-NOJIT matcher because the helper changed `mcloop` to `260`/`308` and
+  fell back to the broad iterator blacklist; it regressed badly
+  (`pairs_sum/hot 0.011453`, `pairs_array_sum/hot 0.008271` versus retained
+  `0.005576`/`0.003859`). A combined variant restamped the exact matcher for
+  those helper root shapes and did engage
+  `S390X_ITERATOR_ITERN_PROTO_NOJIT` (`trace=1`, `nins=32792`,
+  `mcloop=260`), but the repeated same-binary `kdz` A/B did not retain: one
+  pass looked good (`pairs_sum/hot 0.004131` versus retained `0.005572`), the
+  next pass was neutral (`0.004171` versus retained `0.004144`), and a
+  three-pass alternation was neutral-to-worse for the candidate
+  (`pairs_sum/hot`: retained `0.004191`, `0.004469`, `0.004199`; candidate
+  `0.004678`, `0.005566`, `0.004132`). The patch was reverted. This closes
+  the simple pair-result helper design as a non-retainable official-row win:
+  it proves the root-body `VLOAD` can be removed, but the remaining iterator
+  cost is not solved by replacing `lj_vm_next` with a value-only two-register
+  helper under the current exact safety rail.
+- Iterator generic `vm_IITERN` nil-register hoist:
+  tested a lower VM-body micro-edit in the retained interpreter iterator path:
+  move `lghi TMPR0, LJ_TNIL` out of the generic hash scan loop in
+  `vm_IITERN`, leaving the root-2 bridge body untouched. The candidate built
+  and stayed semantically plausible, but the repeated `kdz` official-row reads
+  were noisy-to-worse, not a stable hash-row win:
+  first two 9-sample reads produced `pairs_sum/hot 0.006296` then `0.004128`
+  and `pairs_array_sum/hot 0.004326` then `0.003660`; a follow-up three-pass
+  read produced `pairs_sum/hot 0.004259`, `0.004181`, `0.005840` and
+  `pairs_array_sum/hot 0.005835`, `0.003740`, `0.003643`. The patch was
+  reverted. This closes the simple invariant-nil hoist in the generic
+  `vm_IITERN` hash walker; the retained iterator path is not bottlenecked by
+  that one loop-local immediate setup.
+- Iterator hash-payload recorder fix retained:
+  the unsafe broad-root opt-out was re-examined from the official
+  `iterator_table` and `pairs_loop` rows. The root cause was not another
+  hotside/admission dial: `lj_record_next()` intentionally leaves
+  `ix.key == 0` on hash traversal because the visible key TValue remains in
+  the frame, but `rec_itern()` then classified that state as nil/leave because
+  it only tested `tref_isnil(ix.key)`. The retained s390x fix recognizes the
+  hash payload from the already-computed `nextt` type and lets the root enter
+  the payload path when `nextt` is non-nil, with diagnostic opt-out
+  `LUAJIT_S390X_DISABLE_ITERN_HASH_PAYLOAD=1`.
+- Mechanism proof:
+  before the fix, disabling only the broad iterator root blacklist timed out
+  `tests/s390x/jit_loops/pairs_loop.lua` and the dump showed the iterator root
+  reusing the original key SLOAD across `lj_vm_next`. With the hash-payload
+  fix, the same broad-root opt-out passed `pairs_loop.lua` (`pairs total 5050`)
+  and the official `iterator_table` row stayed fast after restamping the exact
+  hash-root matcher to include `(nins=32789, mcloop=236)`.
+- kdz retained A/B:
+  final default source under the retained env moved
+  `iterator_table/pairs_sum/hot` to `0.004105` in
+  `/tmp/kdz-itern-hashpayload-final-iterator-s5-20260413.stdout`.
+  The immediate diagnostic opt-out control
+  `/tmp/kdz-itern-hashpayload-disabled-iterator-s7-20260413.stdout` was
+  `0.010577`, while sibling `pairs_array_sum/hot` stayed neutral
+  (`0.003688` opt-out, `0.003696` final). `mixed_noffi/mixed_loop/hot` stayed
+  clean/slightly better (`0.003828` default versus `0.003947` opt-out in the
+  seven-sample A/B), and `pairs_loop.lua` passed.
+- zkd0 confirmation:
+  final same-source validation in
+  `/tmp/zkd0-itern-hashpayload-final-iterator-s5-20260413.stdout` kept
+  `pairs_sum/hot` materially better than the previous diagnostic opt-out
+  control (`0.007341` final versus `0.014177` opt-out), with
+  `pairs_array_sum/hot 0.004531` and `pairs_loop.lua` passing. The earlier
+  zkd0 same-source opt-out pass also showed `mixed_noffi/mixed_loop/hot`
+  staying clean at `0.004249`.
+- Guardrails:
+  kdz passed `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `compiled_vararg.lua`, `pairs_loop.lua`, `vararg_paths.lua`,
+  retained-env `dispatch_trace.lua`, `ffi_cdata.lua`, `mixed_ffi.lua`, and the
+  mixed exact probes (`mixedprobe`, `hash_value`, `ipairs_only_probe`) under
+  the same source. The unrelated `mod_hotexit_stress.lua` failure still
+  reproduces without iterator opt-outs and is not attributed to this iterator
+  fix.
+- Current iterator posture:
+  keep the broad iterator root blacklist for now. The hash-payload fix removes
+  the known official hash-payload misclassification and makes the exact
+  iterator rows fast, but arbitrary non-exact iterator roots are not yet proven
+  safe enough for broad fallback removal. The next iterator debt item is a
+  targeted non-exact-root safety proof, not another broad blacklist deletion.
+- Broad iterator root fallback post-fix opt-out:
+  after the hash-payload fix, `LUAJIT_S390X_DISABLE_ITERATOR_ROOT_BLACKLIST=1`
+  is no longer immediately catastrophic on `kdz`. A smoke pass kept
+  `iterator_table`, `mixed_noffi`, `vararg_paths`, retained-env
+  `dispatch_trace`, `numeric_ops`, `ffi_calls`, `ffi_cdata`, `mixed_ffi`,
+  `be_helpers`, and `pairs_loop.lua` passing, with `iterator_table/pairs_sum`
+  still around `0.004132`. zkd0 did not retain the removal, though:
+  iterator stayed correct, but `mixed_noffi/mixed_loop/hot` moved to
+  `0.005707` under the opt-out versus the default confirmation `0.004249`.
+  Keep the broad fallback default-on; the next safe removal would need a
+  narrower mixed/non-exact-root mechanism, not a global opt-out.
+- Exact iterator proto-NOJIT removal after hash-payload fix:
+  disabling only `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT` still falls through
+  to the broad root blacklist and returns the old slow path
+  (`pairs_sum/hot 0.010517`, `pairs_array_sum/hot 0.008215`). Disabling the
+  exact proto rail plus the broad root fallback still hits the retained exact
+  `ITERATOR_ITERN_BLACKLIST`/`ITERATOR_ITERL_BLACKLIST` rails and fails the
+  official row with `invalid key to 'next'`.
+- Full iterator unguarded proof:
+  after also unsetting the retained exact iterator blacklists, the official
+  row becomes correct but catastrophically slow:
+  `/tmp/kdz-full-iterator-unguard-20260413.stdout` reports
+  `pairs_sum/hot 0.130675` and `pairs_array_sum/hot 0.134029`. The trace count
+  probe shows the mechanism clearly: retained has trace starts/aborts and
+  `TEXIT_COUNT 0`, while full unguarded has `TEXIT_COUNT 719997`, almost all
+  on `trace 2 exit 1`. `trace 2` is the `parent=1 exit=1 root=1` side trace
+  that jumps back to the root `BC_ITERN`, after which repeated trace attempts
+  abort with `LLEAVE`/`LINNER`.
+- Post-hash-payload loop-desc/replay retest:
+  existing knobs remain closed on the new shape. `ALLOW_ITER_DESC` was
+  catastrophically worse (`pairs_sum/hot 13.454812`,
+  `pairs_array_sum/hot 5.889684`). `RESTART_DESC_LOOP`,
+  `LOOPLINK_PAYLOAD_DESC`, `LINK_LOOP_DESC`, `LINK_LOOP_DESC_NONSTUB`, and
+  `LOOPDESC_SELF_OWNER_STOP` all stayed in the `~0.13s+` bad band. Removing
+  the root-1 replay triplet pair changed the side trace to a self-loop shape
+  (`trace 2 linktype=LOOP link=2`) but was still worse
+  (`pairs_sum/hot 0.144868` without the pair and `0.154902` without only the
+  link-parent marker). This closes existing loop-desc/replay toggles for the
+  current post-hash-payload iterator storm.
+- Current next mechanism:
+  the remaining locked gate is precise: to remove the exact iterator
+  proto-NOJIT/blacklist rails, a new implementation must handle the root
+  `BC_ITERN` exit-1 side trace so it does not produce `trace 2 exit 1`
+  `LLEAVE`/`LINNER` exit storms. Existing broad fallback deletion,
+  descendant permission, loop-desc link rewrites, and root-1 replay toggles do
+  not solve it.
+- Iterator retained-row bimodality check:
+  a post-fix dense `kdz` rerank excluding the transient
+  `ffi_fixed_call_pressure` harness blip left only `iterator_table/pairs_sum`
+  as a suspicious residual: the dense iterator pass
+  `/tmp/kdz-iterator-dense-post-itern-hashpayload-rebuild-20260413075232`
+  showed `pairs_sum/hot` median ratio `1.0788x`, red in `4/7`, while
+  `pairs_array_sum/hot` stayed neutral. Repeated same-process official runs
+  with an `-e` order prelude kept the exact retained root shape
+  (`S390X_ITERATOR_ITERN_PROTO_NOJIT`, `nins=32789`, `mcloop=236`) in both
+  fast and slow samples. The slow mode is therefore not a matcher-order drift;
+  it is below trace-control in the retained hash iterator body/runtime path.
+- Iterator hash-order attribution:
+  a reduced same-process hash-order probe showed order-sensitive timings, but
+  the official retained row was not explained by a single hash rotation. Under
+  the official chunk and retained env, `a,b,c,d,e` sometimes ran in the fast
+  `~0.0042s` band and sometimes in the slow `~0.0056s` band, while the trace
+  markers stayed identical. Treat hash-order/locality as a supporting signal,
+  not a standalone patch target.
+- Iterator VM duplicate-value-load candidate:
+  a `vm_s390x.dasc` candidate changed the generic `vm_IITERN` hash body to
+  load `NODE->val` into `RD` for the nil check and reuse it for the stack value
+  store, leaving the specialized root-2 bridge untouched. It built and passed
+  the first iterator benchmark executions, but the `kdz` retained-env official
+  row was worse/noisier than immediate control:
+  candidate `pairs_sum/hot` samples included `0.005796`, `0.005541`,
+  `0.004192`, `0.004539`, `0.005618`, `0.004316`, `0.005815`; immediate
+  restored control returned to `0.004187`, `0.004438`, `0.004128`,
+  `0.004304`, `0.004170`, `0.004168`, `0.004203`. The patch was reverted.
+- Iterator VM target-load hoist candidate:
+  a second `vm_IITERN` candidate hoisted `PC_RD` once at hash-entry and
+  branched directly for hash payload hits instead of reloading the ITERL target
+  through the shared array/hash payload label. It built but immediately
+  segfaulted `tests/s390x/jit_loops/pairs_loop.lua`, so it was reverted
+  before perf consideration. This closes another generic VM-body micro-edit:
+  the retained iterator safety rail is not replaceable by local
+  `vm_IITERN` instruction shuffling.
+- Iterator nil-descendant retest:
+  re-enabling the current `RESTART_DESC_LOOP` nil-descendant path after the
+  hash-payload fix still produced an unbounded same-shape iterator ladder under
+  the official benchmark: trace 1/2 handled the hash root/side pair, then the
+  array-side root 3 spawned repeated `BC_JMP` children rooted at trace 3 with
+  `exit=1`, `linktype=LOOP`, and later `linktype=INTERP` rows. This confirms
+  the descendant lane remains closed; the missing mechanism is still a real
+  terminal iterator leave handoff, not permission to record more descendants.
+- Iterator terminal root-link proof:
+  a local `LUAJIT_S390X_ITERATOR_RESTART_ROOT_LINK=1` proof kept the existing
+  `RESTART_DESC_LOOP` terminal iterator descendant admission but stopped the
+  terminal trace as `LJ_TRLINK_ROOT` to the compiled root instead of as a
+  self-loop. The reduced probe changed the intended shape (`trace 3` became
+  `linktype=ROOT link=1`, `nins=32793`, `mcloop=0` instead of the self-loop
+  `nins=32801`, `mcloop=492`), but the official retained-env unguarded
+  `iterator_table.lua` row failed immediately with `invalid key to 'next'`.
+  The patch was reverted. This rules out a simple root-link terminal leave
+  handoff; the terminal path still needs a key/control-state-correct contract,
+  not just a different trace link type.
+- Retained rerank after iterator hash-payload fix:
+  `/tmp/kdz-retained-jitter-post-itern-hashpayload-20260413082518/summary.md`
+  ran the current retained env after all temporary iterator proofs were
+  reverted. It does not name a material official-row blocker. The red-looking
+  rows are tiny residuals: `mixed_noffi/mixed_loop/hot` is median `1.0136x`
+  but only `+0.00005s..+0.000084s` in the three passes, `vararg_paths/sum_loop`
+  is median `1.0153x`, `vararg_paths/retconst_loop` is median `1.0489x` on a
+  sub-millisecond row, `iterator_table/pairs_array_sum` is median `1.0152x`,
+  and `dispatch_trace/side_exit_loop` is median `1.0139x`. The hash iterator
+  row itself is median green (`pairs_sum/hot 0.9656x`) with one noisy red pass.
+  The large/higher-time rows remain strongly accelerated: `ffi_cdata`,
+  `ffi_fixed_call_pressure`, `mixed_ffi`, `numeric_ops`, `be_helpers`, and the
+  promotion-core reducer rows are all well below `-joff`.
+- Current queue correction:
+  the regression queue is empty. Iterator remains the main mechanism-debt
+  study lane because full unguarded tracing still falls into the terminal
+  `BC_ITERN` exit-1 storm, but it is not a current matrix blocker after the
+  hash-payload fix. Do not open another iterator source candidate from the
+  small residual ratios alone; the next iterator patch needs a key/control
+  state-correct terminal leave handoff design or a new dense official-row
+  proof that names a larger payer.
+- Iterator helper-key materialization retest:
+  a temporary `LUAJIT_S390X_ITERN_FORCE_HASH_KEY_VLOAD=1` diagnostic forced
+  hash iterators to materialize the visible key from the helper tuple instead
+  of leaving the key slot to the existing frame value. The probe
+  `artifacts/s390x/iterator-force-hash-key-vload-20260413/probe` was correct
+  (`RESULT actual=3000 expected=3000`) and changed the first child trace from
+  the retained payload body to include the extra helper-key `VLOAD`
+  (`BASE,NOP,SLOAD,SLOAD,CARG,CALLL,HIOP,VLOAD,VLOAD,SLOAD,ADDOV`). It did
+  not change the actual blocker: `texit-histogram.json` still shows
+  `trace 2 exit 1 count 1795`, followed by the same terminal descendant abort
+  ladder. The diagnostic was reverted. This closes helper-key materialization
+  as the missing iterator unlock; the locked seam remains the terminal
+  `BC_ITERN` exit-1 leave/restart contract.
+- Iterator frame-visible-key materialization retest:
+  a temporary `LUAJIT_S390X_ITERN_HASH_VISIBLE_KEY=1` diagnostic materialized
+  the hash payload key from the existing frame slot instead of the helper tuple.
+  The reduced probe
+  `artifacts/s390x/iterator-hash-visible-key-20260413/probe` stayed correct
+  (`RESULT actual=3000 expected=3000`) and changed the first child into a
+  self-loop trace carrying an extra `SLOAD` for the visible key
+  (`BASE,NOP,SLOAD,SLOAD,CARG,CALLL,HIOP,VLOAD,SLOAD,SLOAD,ADDOV,...`), but
+  it did not unlock the mechanism: `texit-histogram.json` still showed
+  `trace 2 exit 1 count 1795`. The diagnostic was reverted.
+- Iterator terminal setup-skip proof:
+  a temporary `LUAJIT_S390X_ITERATOR_TERMINAL_SETUP_SKIP=1` diagnostic skipped
+  `rec_itern()` replay for the exact `parent=2 exit=1 root=1` terminal
+  `JLOOP -> FORL` side trace and stopped directly as `LJ_TRLINK_INTERP`.
+  This removed the hot terminal exit storm in the reduced probe
+  `artifacts/s390x/iterator-terminal-setup-skip-20260413/probe`, but it was
+  semantically invalid: `pairs_sum:200` returned `15` instead of `3000`.
+  The diagnostic was reverted. This proves the terminal path needs the outer
+  loop continuation/control state, not a bare post-`ITERN` skip to `FORL`.
+- Iterator bridge-state attribution after hash-payload fix:
+  the non-mutating probe
+  `artifacts/s390x/iterator-bridge-state-alljloop-20260413/probe` confirms
+  the post-hash-payload blocker is not missing child metadata on the saved
+  side trace. Trace 2 is saved as the intended payload loop child
+  (`parent=1 exit=1 root=1 linktype=LOOP link=2`, `nins=32789`,
+  `mcloop=236`) and carries a valid saved resume contract
+  (`resumeop=BC_ITERL`), but the runtime exit path for `trace 2 exit 1`
+  still dispatches through the original root trace 1 `BC_ITERN` target
+  (`dispatch-original`, target `resumevalid=0`). No `VM_BRIDGE_DISPATCH`
+  hit appears on this path. The remaining storm is therefore a terminal
+  iterator leave/restart handoff problem, not a bridge-child discovery
+  problem.
+- Iterator current-resume retarget proof:
+  a temporary `LUAJIT_S390X_JLOOP_CURRENT_ITERL_RESUME=1` candidate retargeted
+  the exact live `BC_JLOOP` exit from root trace 1 to the current trace 2
+  `BC_ITERL` resume contract. The reduced probe
+  `iterator-current-iterl-resume-20260413` hung and was killed. The patch was
+  reverted. This closes raw current-trace `resumeins=BC_ITERL` dispatch as an
+  iterator unlock: the target resume exists, but jumping to it without the
+  right visible key/control state is unsafe.
+- Iterator current-owner self-reentry proof:
+  a temporary `LUAJIT_S390X_JLOOP_CURRENT_PAYLOAD_SELF_REENTER=1` candidate
+  redirected the exact live `BC_JLOOP 1` payload exit to the current loop
+  child (`trace 2`) instead of root trace 1. The reduced probe
+  `iterator-current-payload-self-reenter-20260413` also hung and was killed,
+  then reverted. Direct current-owner self reentry is therefore closed; the
+  terminal path needs an explicit state-correct leave contract, not just a
+  different trace target.
+- Iterator terminal setup keep-maxslot proof:
+  a temporary `LUAJIT_S390X_ITERATOR_TERMINAL_SETUP_KEEP_MAXSLOT=1` diagnostic
+  retested the earlier terminal setup skip without shrinking `J->maxslot`.
+  The reduced probe
+  `artifacts/s390x/iterator-terminal-setup-keep-maxslot-20260413/probe`
+  removed the storm (`trace 2 exit 1 count 2` and trace 3 stopped as
+  `LJ_TRLINK_INTERP`), but returned `15` instead of `3000`. The patch was
+  reverted. This closes maxslot shrink as the explanation for the setup-skip
+  failure: the missing piece is still outer loop continuation/control state.
+- Iterator payload exit-1 DONE proof:
+  a temporary `LUAJIT_S390X_ITERATOR_PAYLOAD_EXIT1_DONE=1` candidate set
+  `trace 2` snap 1 to `SNAPCOUNT_DONE` after saving the exact official
+  `iterator_table.lua` hash-payload loop child (`parent=1 exit=1 root=1`,
+  `startop=BC_JMP`, `linktype=LOOP`, `nins=32789`, `mcloop=236`). The official
+  row probe on `kdz` with all iterator root/proto guards opted out proved the
+  marker engaged and `snap=1 count=255`, but the hot rows remained unusably
+  slow (`pairs_sum/hot 2.096121`, `pairs_array_sum/hot 2.087004`) and
+  `S390X_JLOOP_EXIT parent=2 exit=1` still repeated through the original root
+  dispatch. The patch was reverted. This closes post-save admission parking as
+  the iterator unlock; the blocker is the terminal runtime handoff itself.
+- Iterator VM `BC_ITERN` bridge-shape restamp proof:
+  a temporary `vm_s390x.dasc` candidate restamped the existing root-owned
+  `BC_ITERN` static-dispatch bridge gate from only `nins=32785/mcloop=216` to
+  also accept the current official root shape `nins=32789/mcloop=236`. The
+  official `iterator_table.lua` guard-opt-out probe on `kdz` remained
+  unchanged (`pairs_sum/hot 2.091008`, `pairs_array_sum/hot 2.102751`) and the
+  logs still showed repeated `S390X_JLOOP_EXIT phase=dispatch-original` on
+  `parent=1 exit=1` and `parent=2 exit=1`. The patch was reverted. This closes
+  stale VM bridge-shape matching as a standalone unlock; the failure is higher
+  than the existing bridge gate and still needs a state-correct terminal
+  continuation design.
+- Iterator root exit-1 DONE proof:
+  a temporary `LUAJIT_S390X_ITERATOR_ROOT_EXIT1_DONE=1` candidate allowed the
+  official hash `BC_ITERN` root body to compile, then marked only its exit-1
+  snapshot `SNAPCOUNT_DONE` (`trace=1`, `nins=32789`, `mcloop=236`). The marker
+  engaged and the hot side check reported `done=1`, but the official opt-out
+  row still ran at exit-storm speed (`pairs_sum/hot 2.116183`,
+  `pairs_array_sum/hot 2.118615`). The patch was reverted. This proves the
+  remaining cost is the repeated terminal runtime exit itself, not just side
+  trace construction or side-admission churn.
+- Iterator root-promotion/root-child retest on the current hash-payload shape:
+  a controlled env-only `kdz` probe used the current source with iterator root
+  guards opted out plus `LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP=1` and
+  `LUAJIT_S390X_ROOT_JLOOP_CHILD=1`. Unlike the older stale-shape retest, the
+  runtime did eventually select the payload child as `target_exec=2` and
+  `target_resumechild=2`, while `trace 2` carried the expected
+  `resumeop=BC_ITERL` contract. The probe still segfaulted
+  (`/tmp/iter-rootpromote-current-20260413100537`, `RC=139`) and the hot
+  terminal exit remained on `phase=dispatch-original parent=2 exit=1 trace=2`.
+  This closes root child promotion on the current shape as well: selecting the
+  child owner is not sufficient, and raw consumption of the child resume
+  contract remains unsafe.
+- Iterator exact hotcount-only proof:
+  a temporary `LUAJIT_S390X_ITERATOR_ITERN_HOTCOUNT_ONLY=1` candidate kept the
+  exact `iterator_table` `BC_ITERN` root matcher and hotcount parking, but did
+  not set the whole proto `PROTO_NOJIT`. It stayed correct on `kdz` and
+  `pairs_loop.lua` still passed, but it did not improve the official row:
+  candidate `pairs_sum/hot 0.004134` versus immediate retained control
+  `0.004123`, and candidate `pairs_array_sum/hot 0.003923` versus control
+  `0.003691` (`/tmp/iter-hotcountonly-20260413100832`). The patch was
+  reverted. This closes a narrower exact guard-removal path; the retained
+  exact proto-NOJIT rail remains the faster policy choice until a real
+  state-correct terminal leave handoff exists.
+- Iterator restart-descendant plus nil-DONE proof:
+  an env-only `kdz` probe combined the existing
+  `LUAJIT_S390X_RESTART_DESC_LOOP=1` terminal iterator descendant admission
+  with `LUAJIT_S390X_MARK_NIL_DESC_DONE=1`, while opting out the retained
+  iterator root/proto guards. The official row stayed correct, but the hot
+  rows remained far outside retainable range (`pairs_sum/hot 0.071751`,
+  `pairs_array_sum/hot 0.080695`; `/tmp/iter-restart-markdone-20260413101007`).
+  The logs show the payload descendant still aborts at
+  `rec_itern_payload_loop_descendant`, the terminal nil descendant is saved as
+  a self-loop (`trace 5`, `linktype=LOOP`, `link=5`), and the failure moves to
+  repeated root `BC_FORL -> BC_JLOOP` `S390X_LINNER site=rec_loop_jit_root`.
+  This closes the current restart-descendant plus nil-DONE state cut as an
+  iterator unlock: it can form a terminal loop trace, but it does not provide
+  the missing state-correct continuation needed to remove the guardrail.
+- Iterator trace2 payload-exit attribution:
+  a focused `kdz` unguarded official-row log with
+  `LUAJIT_S390X_JLOOP_EXIT_PARENT=2`,
+  `LUAJIT_S390X_JLOOP_EXIT_EXIT=1`,
+  `LUAJIT_S390X_VM_BRIDGE_DISPATCH_LOG=1`, and
+  `LUAJIT_S390X_VM_ITERL_LOG=1` timed out under the intentionally noisy log
+  but proved the live hot loop is still repeated `trace 2 exit 1` into
+  `phase=dispatch-original` targeting the root `BC_ITERN` trace:
+  `target=1`, `target_exec=1`, `retop=BC_ITERN`, `target_root=0`,
+  `target_linktype=LOOP`, `target_mcloop=236`, `resumevalid=0`. The same run
+  produced zero `S390X_VM_BRIDGE_DISPATCH` and zero `S390X_VM_ITERL` log hits
+  (`/tmp/iter-vm-path-current.stderr`). This keeps the blocker classified as
+  the original `BC_ITERN` leave/restart handoff, not the existing bridge-log
+  path or a stale bridge-child discovery failure.
+- Iterator recorder-focused unguarded attribution:
+  reran the same official row with recorder logs instead of the huge exit log
+  (`/tmp/iter-rec-current.stdout`, `/tmp/iter-rec-current.stderr`). The row was
+  correct but stayed slow (`pairs_sum/hot 0.086387`,
+  `pairs_array_sum/hot 0.085049`). The first hash root saved trace 1 as the
+  root `BC_ITERN` loop, saved trace 2 as the exact payload child
+  (`parent=1`, `exit=1`, `startop=BC_JMP`), then the next attempt from
+  `parent=2 exit=1` hit `rec_itern_payload_descendant` and the subsequent
+  outer root attempts repeated `S390X_LINNER site=rec_loop_jit_root`. This
+  confirms the remaining unguarded debt is a coupled payload-exit plus outer
+  continuation problem: permitting or retargeting only the payload side still
+  leaves the root `FORL -> JLOOP` inner-loop abort churn.
+- Iterator payload-child INTERP-link proof:
+  a temporary opt-in candidate changed only the exact
+  `ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT` stop point so the first payload
+  child stopped as `LJ_TRLINK_INTERP` instead of root-linking back to trace 1
+  (`LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_INTERP=1`). It engaged
+  exactly (`trace 2 linktype=INTERP`), stayed correct, and `pairs_loop.lua`
+  still passed, but the official unguarded row remained in the bad band
+  (`pairs_sum/hot 0.083411`, `pairs_array_sum/hot 0.088032`;
+  `/tmp/iter-link-interp.stdout`, `/tmp/iter-link-interp.stderr`). The logs
+  still showed `rec_itern_payload_descendant` followed by repeated
+  `rec_loop_jit_root` `LINNER` churn. The patch was reverted. This closes the
+  "one-payload side trace to interpreter" variant: the root-link itself is not
+  the sole problem; the unlock still needs a state-correct continuation that
+  handles both the key/control update and the outer loop handoff.
+- Revert/sanity after the INTERP-link proof:
+  kdz was restored to the retained `src/lj_record.c` hash
+  `f942c8a2f62b58b5dd871264ff0395332d318958635cde86162272a8db3407be` and
+  rebuilt successfully. The retained iterator guardrail row returned to the
+  expected fast band in `/tmp/iter-retained-after-linkinterp-revert.stdout`
+  (`pairs_sum/hot 0.004128`, `pairs_array_sum/hot 0.003686`) and
+  `tests/s390x/jit_loops/pairs_loop.lua` passed (`pairs total 5050`). The
+  local tree no longer carries the INTERP-link diagnostic.
+- Iterator hash root duplicate-exit DONE proof:
+  a temporary `LUAJIT_S390X_ITERATOR_HASH_EXIT1_DONE=1` candidate unlocked the
+  exact hash `BC_ITERN` root and then marked only the duplicate
+  `parent=1 exit=1` hot side as `SNAPCOUNT_DONE` before recording a side
+  trace. The mechanism engaged repeatedly, but it made the official retained
+  row catastrophically worse (`pairs_sum/hot 0.560493`,
+  `pairs_array_sum/hot 0.003725`;
+  `/tmp/iterator-fullenv-unlock-exit1done-1776114711533747812.log`). This
+  closes "suppress the first duplicate payload side" as the unlock mechanism:
+  the repeated side-entry itself is not enough to fix the flow because the
+  terminal/outer continuation remains uncaptured and the row pays through
+  repeated exit handling.
+- Iterator outer-to-inner root-link proof:
+  a temporary `LUAJIT_S390X_ITERATOR_OUTER_LINK_ROOT=1` candidate tried to let
+  the outer `pairs_sum` root trace link to the already saved inner iterator
+  root instead of aborting at `rec_loop_jit_root`. The proof was run under the
+  retained environment with exact iterator proto-NOJIT disabled so an outer
+  trace could form. It did not engage the official hash row before the broad
+  iterator root blacklist caught the remaining `BC_ITERN`/`BC_ITERL` roots,
+  and the row stayed slow (`pairs_sum/hot 0.011419`,
+  `pairs_array_sum/hot 0.008143`;
+  `/tmp/iterator-fullenv-disable-protonojit-outerlink-1776115065952868595.log`).
+  This closes the first outer-link variant: simply avoiding the root LINNER
+  abort is not reachable until the exact iterator root policy can expose a
+  stable, state-correct terminal continuation.
+- Iterator cleanup after closed probes:
+  the `ITERATOR_HASH_EXIT1_DONE` and `ITERATOR_OUTER_LINK_ROOT` hooks were
+  removed after the failed proofs. The `kdz` mirror was resynced to the local
+  retained iterator state and rebuilt; the quick retained guardrail pass
+  `/tmp/iterator-cleanup-retained-1776115173008717349.log` stayed correct and
+  in band (`pairs_sum/hot 0.004516`, `pairs_array_sum/hot 0.003703`).
+- Iterator post-cleanup deep-dive closure:
+  reviewed `/Users/kaitlyndavis/Downloads/iterator-jit-findings-consolidated.md`.
+  Its bottom-line guidance matches the current notebook: iterator is mechanism
+  debt rather than a retained matrix blocker, and the only credible unlock is
+  a key/control-state-correct terminal leave handoff for the `BC_ITERN`
+  exit-1 payload family.
+- Iterator exact hotside-canon proof:
+  a temporary opt-in `LUAJIT_S390X_ITERATOR_HASH_HOTSIDE_EQUIV=1` candidate
+  canonicalized the current hash iterator side family before generic hotside
+  canon. Focus logging proved it engaged, but it repeatedly mapped
+  `parent=5 exit=1` back to candidate trace 2 and the official row timed out
+  (`/tmp/iterator-exact-hotside-official-focus-1776118193410025189.log`).
+  The patch was removed. This closes same-shape hotside canonicalization as
+  the terminal handoff mechanism: it can find an equivalent payload body, but
+  it does not preserve the terminal key/control state.
+- Iterator closed key/control probes:
+  three existing disabled proof knobs were retested on the current
+  hash-payload floor with iterator root/proto guards opted out:
+  `LUAJIT_S390X_ITERN_KEYINDEX_TV_SYNC=1` failed immediately with
+  `invalid key to 'next'`
+  (`/tmp/iterator-keyindex-tv-sync-proof-1776118479322199000.log`);
+  `LUAJIT_S390X_ITERN_HASH_TERMINAL_LINK_ROOT=1` failed the same way
+  (`/tmp/iterator-hash-terminal-link-root-proof-1776118500108861000.log`);
+  and a temporary last-snapshot DONE proof also failed with
+  `invalid key to 'next'`
+  (`/tmp/iterator-terminal-lastsnap-done-proof-1776118787393695000.log`).
+  The disabled unsafe hooks were removed from the local `lj_record.c` diff.
+- Iterator retained-state sanity after probe cleanup:
+  the cleaned source was synced to `kdz` (`src/lj_record.c` remote hash
+  `e2914b5f61935cfa7130a19fc2a5d707de60f381d0c362bcaa0505755aebb014`,
+  `src/lj_trace.c` remote hash
+  `1377577ffbfc253eafba9bdc5121e1d095cb16622a1d66249971296c32850637`) and
+  rebuilt. The retained iterator guardrail row stayed in band in
+  `/tmp/iterator-retained-cleaned-1776119265.log`:
+  `pairs_sum/hot 0.004201`, `pairs_array_sum/hot 0.003668`.
+  Follow-up guardrails stayed clean: `tests/s390x/jit_loops/pairs_loop.lua`
+  returned `pairs total 5050`, and retained-env `mixed_noffi.lua` reported
+  `mixed_loop/hot 0.003820`.
+  Do not update the top matrix from this one cleanup read; it is a guardrail
+  sanity check, not a retained matrix rerank.
+- Iterator outer-root-link proof closed:
+  a temporary `LUAJIT_S390X_ITERATOR_OUTER_ROOT_LINK=1` candidate allowed the
+  exact `iterator_table.lua` outer `BC_FORL -> BC_JLOOP` root to stop as
+  `LJ_TRLINK_ROOT` to the existing iterator loop target instead of aborting
+  at `rec_loop_jit_root`. The hook engaged (`trace=3` and `trace=6` in the
+  focused logs), but did not converge the official row. Alone it stayed in
+  the bad band (`pairs_sum/hot 0.082847`, `pairs_array_sum/hot 0.084539`;
+  `/tmp/iter-outer-root-link-alone-1776120222.log`). Combined with the
+  existing root-nil-desc path it stayed bad (`0.085140` / `0.087649`;
+  `/tmp/iter-outer-root-link-plus-rootnil-1776120239.log`). With the retained
+  root-1 replay pair removed, `trace 2` became a loop owner but still stayed
+  bad (`0.080797` / `0.081858`;
+  `/tmp/iter-outer-root-link-no-replay-1776120265.log`). Combined with the
+  restart-desc loop proof it was worse (`0.102867` / `0.088320`;
+  `/tmp/iter-outer-root-link-restart-desc-1776120393.log`). The proof hook
+  was removed. Close outer-root-link as a standalone unlock: the remaining
+  seam is still inside the iterator payload descendant/restart state, not
+  just the outer caller loop root-link.
+- Iterator `parent=2 exit=1` hash-payload attribution:
+  a focused unguarded official-row log without the root-1 replay pair
+  (`/tmp/iter-parent2-exit1-focus-no-replay-1776120451.log`) showed the direct
+  bad seam is not terminal nil. At `parent=2 exit=1`, `lj_record_next()`
+  produced a nonterminal hash-payload state: `nextt=4`, `ix.key == 0`,
+  `s_key=0`, `s_val=0x93008007`, value integer `1`, and control state
+  `ctrl_u64=0xfffe7fff00000002`. The trace then hit
+  `rec_itern_payload_loop_descendant`. This shifts the next honest mechanism
+  one step earlier than terminal nil: first solve nonterminal hash-payload
+  descendant convergence while preserving the hidden key/control state, then
+  recheck the terminal nil handoff.
+- Iterator payload-descendant self-loop proof closed:
+  the existing `LUAJIT_S390X_ALLOW_ITER_DESC=1` plus
+  `LUAJIT_S390X_LOOPLINK_PAYLOAD_DESC=1` combination was retested on the
+  current hash-payload floor with iterator rails opted out
+  (`/tmp/iter-allow-desc-looplink-payload-1776120481.log`). It did not produce
+  a perf row; instead it built a same-root payload sidechain/ladder with many
+  `S390X_RECLOOP ... payload_desc_loop=1` traces, eventually saturating
+  `sidecheck_interp` at thousands of traces. This closes the current
+  descendant-permission plus self-loop-link mechanism: it preserves too little
+  restart state and does not converge the official iterator row.
+- Iterator retained sanity after outer-root-link cleanup:
+  after removing the temporary outer-root-link proof hook, the cleaned source
+  was resynced to `kdz` (`src/lj_record.c` hash
+  `e2914b5f61935cfa7130a19fc2a5d707de60f381d0c362bcaa0505755aebb014`,
+  `src/lj_trace.c` hash
+  `1377577ffbfc253eafba9bdc5121e1d095cb16622a1d66249971296c32850637`) and
+  rebuilt. A quick retained iterator pass stayed in band:
+  `pairs_sum/hot 0.004177`, `pairs_array_sum/hot 0.003733`, and
+  `tests/s390x/jit_loops/pairs_loop.lua` returned `pairs total 5050`.
+- Iterator payload-descendant parent-link proof closed:
+  a temporary `LUAJIT_S390X_ITERN_PAYLOAD_DESC_LINK_PARENT=1` candidate tried
+  to make the exact hash-payload descendant stop as `LJ_TRLINK_ROOT` to its
+  immediate parent instead of the root owner. The first exact matcher did not
+  engage (`/tmp/iter-payload-link-parent-replay-1776121079.log`); after
+  widening only the current proto line shape, it engaged but still timed out
+  (`/tmp/iter-payload-link-parent-mech2-1776121248.log`). The trace ladder
+  changed shape but did not converge: `trace 3 parent=2 exit=1 root=1 link=2
+  linktype=ROOT`, then `trace 4 parent=3 exit=1 root=1 link=3 linktype=ROOT`,
+  then repeated same-family descendants into thousands of traces and later
+  sidecheck saturation. The hook was removed. Close parent-link ownership as a
+  standalone unlock: linking each payload descendant to the immediate parent
+  still records a ladder instead of producing a single state-correct reusable
+  owner.
+- Iterator terminal handoff proof update, 2026-04-13:
+  reviewed `/Users/kaitlyndavis/Downloads/iterator-jit-findings-consolidated.md`
+  and reran the next narrow official-row probes on the current hash-payload
+  floor. A temporary exact root-`BC_ITERN` reentry proof engaged repeatedly
+  (`grep -c phase=root-itern-reenter = 200` in
+  `/tmp/iter-root-itern-reenter-1776122764.log`) but timed out, closing plain
+  root reentry as a state-correct terminal handoff. The proof hook was
+  removed.
+- Iterator child-selection hypothesis closed:
+  a current-source official-row probe with iterator guards opted out and
+  `JLOOP_EXIT` focus on `parent=2 exit=1` showed `child-query=0`,
+  `loopdesc-child-query=0`, and `dispatch-original=3810605` while the row
+  stayed catastrophically slow (`pairs_sum/hot 2.286457`,
+  `pairs_array_sum/hot 0.119629`;
+  `/tmp/iter-child-select-1776122947.log`). This closes the current
+  child-reuse/child-retarget theory for the observed seam: runtime does not
+  reach the child-query path before it falls back through the original root
+  `BC_ITERN` target.
+- Iterator exact payload descendant attribution refreshed:
+  a focused official-row trace-meta run on the retained hash-payload floor
+  (`/tmp/iter-side-save-meta-1776123037.log`) again named the live unsafe seam
+  as `trace=3 parent=2 exit=1` entering the hash-payload path. `rec_itern()`
+  advanced from `BC_ITERN` to the body `BC_ADDVV`, logged
+  `S390X_ITERN_FOCUS site=payload` with hidden-key hash payload state, and
+  then aborted at `S390X_LLEAVE site=rec_itern_payload_descendant` with
+  `LJ_TRERR_LLEAVE`. The same run showed subsequent root attempts ending in
+  `rec_loop_jit_root` / `LINNER` churn. This keeps the open problem scoped to
+  a coupled nonterminal hash-payload descendant plus outer continuation
+  contract, not terminal nil alone.
+- Iterator stop-retarget bridge repro closed on current source:
+  retesting the existing opt-in bridge/stop-retarget knobs on the current
+  hash-payload floor with iterator root/proto guards opted out
+  (`LUAJIT_S390X_ALLOW_ITER_DESC=1`,
+  `LUAJIT_S390X_SKIP_PATCHEXIT_BCJMP_LOOPDESC=1`,
+  `LUAJIT_S390X_STOP_RETARGET_LOOPDESC=1`, and bridge dispatch logging)
+  timed out in `/tmp/iter-stop-retarget-bridge-current-1776123260.log`.
+  It produced no `S390X_STOP_RETARGET` or `S390X_VM_BRIDGE_DISPATCH` hits and
+  instead built a large same-family trace ladder. Close this env combination
+  as a current unlock: the existing bridge retarget machinery is not reached
+  by the official hash-payload seam in this shape.
+- Iterator retained sanity after root-reentry cleanup:
+  after removing the temporary root-reentry hook, `kdz` was resynced to the
+  retained iterator source (`src/lj_record.c` hash
+  `e2914b5f61935cfa7130a19fc2a5d707de60f381d0c362bcaa0505755aebb014`,
+  `src/lj_trace.c` hash
+  `1377577ffbfc253eafba9bdc5121e1d095cb16622a1d66249971296c32850637`) and
+  rebuilt. A quick retained pass stayed in band:
+  `iterator_table/pairs_sum/hot 0.004264`,
+  `iterator_table/pairs_array_sum/hot 0.003751`, and
+  `tests/s390x/jit_loops/pairs_loop.lua` returned `pairs total 5050`. Do not
+  update the top matrix from this cleanup read; it is a guardrail sanity
+  check after unsafe proofs.
+- Iterator `lj_vm_next` handoff proof-of-upside:
+  a temporary opt-in recorder proof replaced the official
+  `iterator_table.lua` hash `pairs_sum` `CALLL lj_vm_next -> HIOP -> VLOAD`
+  cluster with a direct one-node hash load for exact `IR_SLOAD KEYINDEX`
+  controls. After fixing the proof to detect `IRSLOAD_KEYINDEX` on the
+  `IR_SLOAD` op2 flags, it engaged and showed the real upside:
+  `/tmp/kdz-inline-next-20260413165014` moved `pairs_sum/hot` from
+  `0.004264` control to `0.001990`, with `pairs_array_sum/hot` neutral
+  (`0.003714` control vs `0.003742`). The cleaner alternating pass
+  `/tmp/kdz-inline-next-ab-20260413165043` reproduced two fast runs
+  (`0.001964`, `0.001965`) but one unsafe/holey-layout run regressed to
+  `0.010835`. Focus logs showed the proof was loading the current raw hash
+  node and therefore missed the required `lj_vm_next` skip-hole semantics.
+  A tightened non-nil hash-tail gate eliminated the regressions but also
+  eliminated all engagement on the official row
+  (`/tmp/kdz-inline-next-tail-ab-20260413165457`, `inline_count=0`). The proof
+  hook was removed. Close recorder one-node hash inlining as unsafe and
+  non-retainable, but keep the mechanism result: the next high-upside iterator
+  implementation target is a real generated-code/VM lowering for the
+  `lj_vm_next` hash scan contract that preserves skip-hole behavior and the
+  paired return (`CRET1` next index, `CRET2` node/TValue pointer), not another
+  trace-control or payload-link variant.
+- Iterator retained sanity after inline-next proof cleanup:
+  after removing the non-retainable inline-next proof hook, `kdz` was resynced
+  to the retained iterator source (`src/lj_record.c` hash
+  `e2914b5f61935cfa7130a19fc2a5d707de60f381d0c362bcaa0505755aebb014`) and
+  rebuilt. The cleanup sanity pass
+  `/tmp/kdz-iter-clean-retained-20260413165743.log` stayed correct and in
+  band: `iterator_table/pairs_sum/hot 0.004109`,
+  `iterator_table/pairs_array_sum/hot 0.003681`, and
+  `tests/s390x/jit_loops/pairs_loop.lua` returned `pairs total 5050`.
+  This is a guardrail sanity read only; do not update the top matrix from it.
+- Iterator `lj_vm_next` helper micro-contract closures:
+  two direct VM-helper variants were tested after the inline-next proof named
+  the helper/result seam. First, skipping array setup when `GCtab.asize == 0`
+  in `vm_next` built and ran but stayed in/noisily behind the retained band
+  (`/tmp/kdz-vm-next-asize-candidate-*`: `pairs_sum/hot 0.004160`,
+  `pairs_array_sum/hot 0.003728`). Second, returning a hash-hit
+  `tmptv/tmptv2` tuple pointer instead of the raw `Node` pointer preserved
+  skip-hole semantics but added store/reload traffic and slowed the official
+  row (`/tmp/kdz-vm-next-tmptv-candidate-*`: `pairs_sum/hot 0.004397`,
+  `pairs_array_sum/hot 0.003945`). Both hooks were removed. Close one-op
+  `vm_next` body reshapes for this lane; the remaining high-upside target is
+  still a generated-code inline hash scanner that preserves the helper's
+  skip-hole loop and paired return contract.
+- Iterator inline skip-hole scanner proof closed:
+  a temporary opt-in backend proof added `LUAJIT_S390X_INLINE_VM_NEXT_HASH=1`
+  for the exact `@tests/s390x/perf/iterator_table.lua` `pairs_sum` root
+  `BC_ITERN` trace. The proof emitted a generated-code hash scanner with an
+  internal skip-hole loop and the same paired return contract as
+  `lj_vm_next` (`CRET1` next index, `CRET2` `Node.val` pointer). It built and
+  stayed correct, and the array sibling remained neutral, but the official
+  hash row slowed badly:
+  `/tmp/kdz-inline-vm-next-hash-*` reported `pairs_sum/hot 0.011483` and the
+  focused meta run reported `pairs_sum/hot 0.011890`. Mechanism logs showed no
+  trace-exit churn: this was a compiled root body (`S390X_TRACE_META
+  phase=stop trace=1 ... startop=BC_ITERN linktype=LOOP nins=32789`) with
+  larger machine code (`szmcode=536`, `mcloop=332`). Close the direct branchy
+  inline hash scanner shape as non-retainable. The useful boundary is now
+  clear: naive one-node hash loads are fast but unsafe without skip-hole
+  semantics, while a literal in-trace skip-hole scanner is correct but too
+  expensive. The next iterator acceleration attempt needs a different
+  contract, such as a compact state-specific next-index mapping or a helper
+  ABI that returns the value without reloading while preserving node/key
+  semantics, not another generic trace-control brake.
+- Iterator VM fallback load-once hash path closed:
+  a narrow `BC_ITERN` VM-body candidate changed the hash-hit path in
+  `vm_IITERN` and `vm_IITERN_root2_hashbridge` to load `Node.val` once into a
+  register, compare that register to `LJ_TNIL`, and store the same register
+  into the result slot instead of using a memory compare followed by a second
+  value load. It built and stayed correct, but `kdz` retained-env iterator
+  reads were neutral-to-worse: `/tmp/kdz-itern-vm-loadonce-*` reported
+  `pairs_sum/hot 0.004255`, `pairs_array_sum/hot 0.003683`, and the repeat
+  `/tmp/kdz-itern-vm-loadonce-repeat-*` regressed to `pairs_sum/hot 0.005563`.
+  Close this VM fallback one-load rewrite as non-retainable.
+- Iterator hash-only helper ABI closed:
+  a temporary opt-in s390x-only `lj_vm_next_hash` helper was tested for the
+  exact official `iterator_table.lua` `pairs_sum` hash root. The probe kept
+  skip-hole semantics in VM code while removing the generic helper's array
+  setup/subtract path, and was gated behind
+  `LUAJIT_S390X_VM_NEXT_HASH_HELPER=1`. It built on `kdz`, but did not unlock
+  the official row. With retained iterator guards disabled, the control stayed
+  in the pathological ladder (`/tmp/kdz-vm-next-hash-helper-20260413180611.log`:
+  `pairs_sum/hot 0.085490`, `pairs_array_sum/hot 0.085243`) and the helper
+  was no better (`pairs_sum/hot 0.085043`, `pairs_array_sum/hot 0.086418`).
+  Removing the exact iterator root/ITERL blacklists as well did not help
+  (`/tmp/kdz-vm-next-hash-helper-unblacklisted-20260413180639.log`:
+  unguarded `pairs_sum/hot 0.081778`; helper `0.084919`). The hook was
+  removed. Close the separate hash-only helper ABI as a current iterator
+  acceleration path; the dominant unlocked failure is still trace-ladder
+  control before this helper contract can matter.
+- Iterator exact-root execution middle state closed:
+  a retained-env ordering probe tested whether the exact `BC_ITERN` root could
+  be saved and used without the broader proto-NOJIT fallback. With exact
+  proto-NOJIT disabled, broad iterator root disabled, and exact
+  `S390X_ITERATOR_ITERN_BLACKLIST` left active, the row failed immediately
+  with `invalid key to 'next'`
+  (`/tmp/kdz-iterator-root-blacklist-middle-20260413180908.log`). Focused meta
+  logging in `/tmp/kdz-iterator-exact-root-invalid-key-20260413180932.log`
+  showed exact hash/array `BC_ITERN` roots saving first (`mcloop=236` and
+  `mcloop=300`) and then a later `BC_LOOP` root (`trace=3`, `mcloop=516`)
+  before the invalid-key failure. A second opt-in then kept exact
+  proto-NOJIT but patched the saved `BC_ITERN` root to `JLOOP`; it stayed
+  correct but reopened the same hash slowdown
+  (`/tmp/kdz-iterator-proto-nojit-patchroot-20260413181218.log`:
+  retained `pairs_sum/hot 0.005557`, patch-root `0.081523`, array neutral).
+  Close "execute the saved hash root under proto-NOJIT" as non-retainable.
+  The actionable mechanism is narrower: the official hash iterator root can
+  be recorded, but executing it reopens the bad hash control/key handoff; the
+  retained guard remains necessary until that handoff is redesigned.
+- Iterator retained `vm_IITERN` asize-zero branch closed:
+  a VM-body candidate added an early `GCtab.asize == 0` branch in generic
+  `vm_IITERN` to skip the array pointer load and generic array check on
+  retained hash-only tables. It built and stayed correct on `kdz`, but the
+  official retained-env row was not improved:
+  `/tmp/kdz-itern-asize0-candidate-20260413181622.log` reported
+  `pairs_sum/hot 0.004355`, `pairs_array_sum/hot 0.003682`, and
+  `pairs_loop.lua` passed. Since the cleaned retained band immediately before
+  the probe was `pairs_sum/hot 0.004131`, this is noise/slower. The patch was
+  removed. Close generic `vm_IITERN` asize-zero branch-shaping as a current
+  acceleration lane.
+- Iterator retained `vm_IITERN` compact hash-only subpath closed:
+  a deeper VM-body candidate routed `GCtab.asize == 0` through a local
+  root2-style hash loop that hoisted the `ITERL` target, used shift-based
+  `Node` addressing, and avoided the generic array/hash fallthrough. This was
+  unsafe on the official retained-env iterator row:
+  `/tmp/kdz-itern-hashonly-bridge-candidate-20260413181845.log` segfaulted
+  immediately under `tests/s390x/perf/iterator_table.lua`. The patch was
+  removed. Close compact retained `vm_IITERN` hash-only subpaths as a current
+  VM fallback acceleration lane; the prior target-load-hoist warning still
+  applies.
+- Iterator `BC_ITERN` paired-result helper proof closed:
+  a temporary opt-in `lj_vm_next_i32` proof tested whether a helper that
+  preserves skip-hole iteration but returns the next index in `CRET1` and the
+  integer value directly in `CRET2` could unlock the exact official
+  `iterator_table.lua` `BC_ITERN` roots. The root-only hash proof engaged and
+  removed the root value `VLOAD`, but left the recurring side path unchanged
+  and stayed in the slow unguarded class
+  (`/tmp/kdz-bcitern-vmnext-i32-proof-20260413191047.log`:
+  `pairs_sum/hot 0.088641`, `pairs_array_sum/hot 0.086507`). Expanding the
+  proof to the official hash side traces changed trace 2 to
+  `CALLL lj_vm_next_i32` but only moved `pairs_sum/hot` to `0.085552` and
+  worsened the array sibling to `0.148846`
+  (`/tmp/kdz-bcitern-vmnext-i32-side-dump-20260413191318.log`). Expanding the
+  helper to both array and hash traversal made both hot rows worse
+  (`/tmp/kdz-bcitern-vmnext-i32-array-dump-20260413191619.log`:
+  `pairs_sum/hot 0.100583`, `pairs_array_sum/hot 0.152425`). The proof code
+  was removed and the retained mirror rebuilt; the cleanup sanity stayed in
+  the retained band (`pairs_sum/hot 0.004270`,
+  `pairs_array_sum/hot 0.003770`). Close the paired-result helper/value-load
+  contraction lane. The live unlocked `BC_ITERN` failure is now clearly the
+  side/abort ladder (`inner loop in root trace`, `leaving loop in root trace`,
+  and repeated `stop -> root`) rather than the local `VLOAD` or helper return
+  ABI by itself.
+- Iterator `BC_ITERN` nested-root topology proofs closed:
+  after the paired-result helper lane closed, two exact opt-in topology probes
+  tested whether the bad unlocked `BC_ITERN` state could be repaired by trace
+  ownership alone. First, `LUAJIT_S390X_ITERATOR_OUTER_ROOT_LINK=1` made the
+  exact `iterator_table.lua` outer `BC_FORL` root stop/link to the already
+  compiled inner `BC_ITERN` root instead of aborting with `LINNER`. It engaged
+  and saved the outer roots (`trace=3/6`, `startop=BC_FORL`, `linktype=ROOT`
+  to the inner `BC_ITERN` roots), but did not improve the hot rows:
+  `/tmp/kdz-bcitern-outer-root-link-20260413192146.log` reported
+  `pairs_sum/hot 0.084479`, `pairs_array_sum/hot 0.086039`. Second,
+  combining that with `LUAJIT_S390X_ITERATOR_ITERN_EXIT1_DONE=1` marked the
+  exact inner `BC_ITERN` root exit-1 snapshot DONE to suppress side-trace
+  recording and force terminal fallback through the VM. It also engaged, but
+  remained in the same slow class:
+  `/tmp/kdz-bcitern-exit1done-rootlink-20260413192422.log` reported
+  `pairs_sum/hot 0.084364`, `pairs_array_sum/hot 0.090445`. Both proof hooks
+  were removed and the retained mirror rebuilt; cleanup stayed in band
+  (`pairs_sum/hot 0.004300`, `pairs_array_sum/hot 0.003689`). Close simple
+  root-link and exit-DONE topology fixes. The current conclusion is stricter:
+  running the inner iterator as a nested root creates expensive per-outer-loop
+  trace exits even when abort churn is suppressed. Unlocking `BC_ITERN` needs
+  a real fused outer+inner iterator trace/stitch/resume contract, not just a
+  helper value contraction, root-link retarget, or terminal side-trace brake.
+- Iterator `BC_JLOOP -> BC_ITERN` fused-replay proof closed:
+  a final exact opt-in recorder proof attempted to record the official
+  `iterator_table.lua` outer `BC_FORL` root through the patched inner
+  `BC_JLOOP` by replaying the original linked `BC_ITERN` start instruction.
+  The first version engaged
+  (`S390X_ITERATOR_JLOOP_REPLAY_ITERN`, linked start `BC_ITERN`) but repeatedly
+  hit the retained payload-descendant safety gate
+  (`rec_itern_payload_descendant` / `LLEAVE`) and stayed in the bad unlocked
+  class: `/tmp/kdz-bcitern-jloop-replay-itern-20260413195244.log` reported
+  `pairs_sum/hot 0.104999` and `pairs_array_sum/hot 0.106828`. A second
+  exact-only proof then allowed that official replay payload descendant. That
+  saved more of the intended fused shape, but it was incorrect on the official
+  row: `/tmp/kdz-bcitern-jloop-replay-payload-20260413195444.log` failed with
+  `pairs_sum/hot: expected 1120057, got 1120000` after recording a deeper
+  `JMP` sidechain. The proof hooks were removed and the retained mirror was
+  rebuilt; cleanup sanity returned to the retained band (`pairs_sum/hot
+  0.004186`, `pairs_array_sum/hot 0.003644`). Close direct `BC_JLOOP`
+  re-entry replay as unsafe/non-retainable. The remaining viable iterator
+  route is not "force record past the guard"; it needs a new state-correct
+  iterator continuation contract that preserves hash payload/key/index state
+  across the outer `FORL` and terminal `ITERL` handoff.
+- Iterator existing resume/link knobs and generic VM target-hoist closed:
+  after the direct replay proof closed, an official-row sweep tested the
+  already-present opt-in JLOOP/resume/link controls under the unguarded
+  iterator setup. Baseline unguarded remained slow but correct
+  (`/tmp/kdz-bcitern-existing-20260413195737-base.log`: `pairs_sum/hot
+  0.083570`, `pairs_array_sum/hot 0.083225`). Enabling the stale resume
+  families made the row dramatically worse, all with repeated
+  `S390X_JLOOP_EXIT phase=dispatch-original parent=4 exit=1 retop=BC_ITERN`:
+  `ROOT_PROMOTE_CHILD_LOOP + ROOT_JLOOP_CHILD` was about `1.45s`,
+  `BCJMP_LOOPDESC_RESUME + JLOOP_LOOPDESC_CHILD` was about `1.47s`,
+  `CHILD_INHERIT_ROOT_RESUME + JLOOP_EXEC_RESUME/CHILD` was about `1.45s`,
+  and the self-resume/mcloop variant was about `1.44s`. Close the existing
+  resume/retarget knobs as current iterator candidates. A separate VM-body
+  candidate then tried to hoist `llgh RD, PC_RD` once on the generic
+  `vm_IITERN` hash subpath and branch directly from the hash-hit tail, leaving
+  the array path unchanged. It built but dumped core on the retained-env
+  official iterator suite, so it was removed; cleanup rebuilt successfully and
+  returned to the retained band (`pairs_sum/hot 0.004167`,
+  `pairs_array_sum/hot 0.003696`). Close generic `vm_IITERN` hash
+  target-load hoisting as unsafe. The retained VM/interpreter fallback remains
+  the safe floor, and further acceleration needs either a verified state
+  carrier for compiled iterator continuation or a different VM-body cut that
+  does not perturb `RD`/`PC` branch state.
+- Iterator low-level helper/register-order follow-ons closed:
+  a retained-floor `lj_vm_next` `CCI_NOFPRCLOBBER` probe in `lj_ircall.h`
+  looked promising on its first `kdz` read (`pairs_sum/hot 0.004110`,
+  `pairs_array_sum/hot 0.003680`), but the immediate control and repeat read
+  did not confirm it (`control pairs_sum/hot 0.004293`, repeat candidate
+  `0.004438`). It was removed. A deeper s390x-only allocator hint then tried
+  to keep the `lj_vm_next` pointer/index pair in the next call's ABI-friendly
+  order. Alone it missed the exact iterator proto-NOJIT matcher and fell into
+  the slow broad fallback (`pairs_sum/hot 0.011891`,
+  `pairs_array_sum/hot 0.008235`). Restamping the exact matcher to the shifted
+  trace shapes (`BC_ITERN` `nins=32790/mcloop=248`, array
+  `32792/304`, `BC_ITERL` `32798/516`) made the exact guard engage but still
+  regressed the hash row (`pairs_sum/hot 0.005559`, array neutral). Close
+  `lj_vm_next` callinfo and register-order reshaping as current iterator
+  acceleration lanes.
+- Iterator `lj_vm_next`/`BC_ITERN` node-address and VLOAD-end-guard probes
+  closed:
+  replacing the `lj_vm_next` hash-path `mghi #NODE` with `sllg 5` was neutral
+  to slower (`pairs_sum/hot 0.004432` vs immediate control `0.004206`) and was
+  removed. Applying the same shift to the generic `BC_ITERN` hash interpreter
+  path was incorrect: the official iterator suite failed with
+  `attempt to perform arithmetic on local 'value' (a string value)`, proving
+  `#NODE` is not a general shift-by-5 contract for the generic path despite
+  the retained root-2 bridge using a specialized shifted address. Finally,
+  narrow `lj_vm_next` integer `VLOAD` guards exposed but did not solve the
+  explicit `next()` problem: guarding key lane `#1` changed the failure from
+  `invalid key to 'next'` to wrong result `1001`, adding a recff snapshot
+  request still produced wrong side traces, and guarding both key/value lanes
+  missed the exact official iterator matcher and fell to the slow broad path
+  (`pairs_sum/hot 0.010597`, `pairs_array_sum/hot 0.008233`). All proof code
+  was removed. The explicit fast-function `next()` bug remains a separate
+  recorder/snapshot continuation problem, not a one-op backend VLOAD fix, and
+  it is not a retained official `iterator_table` acceleration path yet.
+- Explicit fast-function `next()` s390x guardrail retained:
+  after the VLOAD-end-guard probes closed, the reduced explicit array
+  `next()` repro was rechecked on the retained mirror and still failed with
+  `invalid key to 'next'`. A narrow key-materialization split inside
+  `lj_record_next()` made the IR load both helper tuple lanes
+  (`CALLL lj_tab_keyindex`, `CALLL lj_vm_next`, `VLOAD #1`, `VLOAD #0`) but
+  still failed, and adding `recff_next()` `needsnap` did not change the
+  snapshot topology. The safe retained fix is therefore to stop recording
+  s390x fast-function `next()` through `recff_next()` and fall back to the
+  existing interpreter/NYI path while leaving bytecode `pairs()` / `BC_ITERN`
+  recording unchanged. Validation:
+  - `kdz`: reduced `/tmp/explicit_next_probe.lua` returned
+    `NEXT_RESULT 66000`
+  - `zkd0`: reduced `/tmp/explicit_next_probe.lua` returned
+    `NEXT_RESULT 66000`
+  - `kdz`: `tests/s390x/jit_loops/explicit_next.lua`,
+    `tests/s390x/jit_loops/iter_pairs.lua`, and
+    `tests/s390x/jit_loops/pairs_loop.lua` passed
+  - `zkd0`: `tests/s390x/jit_loops/explicit_next.lua` and
+    `tests/s390x/jit_loops/pairs_loop.lua` passed
+  - `kdz` retained-env focused rows stayed in band:
+    `iterator_table/pairs_sum/hot 0.004136`,
+    `iterator_table/pairs_array_sum/hot 0.003700`,
+    `mixed_noffi/mixed_loop/hot 0.004465`,
+    `vararg_paths/sum_loop/hot 0.004301`,
+    `dispatch_trace/numeric_loop/hot 0.002205`,
+    `dispatch_trace/side_exit_loop/hot 0.004660`,
+    `dispatch_trace/hotexit_loop/hot 0.005678`.
+  This closes explicit `next()` as a current correctness gap without claiming
+  an acceleration win. The remaining iterator acceleration problem is still
+  the state-correct `BC_ITERN`/outer-continuation contract for the official
+  `iterator_table` hot rows.
+- Post-explicit-next retained rerank and next-target closures:
+  a fresh full retained-env `kdz` rerank on current source produced
+  `/tmp/kdz-retained-jitter-20260413215554/summary.md`. It did not name a
+  material performance blocker: the largest repeated red rows were
+  `mixed_noffi/mixed_loop/hot` median `1.0240x`, `vararg_paths/sum_loop/hot`
+  median `1.0201x`, and `dispatch_trace/side_exit_loop/hot` median
+  `1.0156x`, all with very small absolute deltas. The follow-up
+  `mixed_noffi` truth pack
+  `artifacts/s390x/truth-packs/20260413-kdz-mixed_noffi-retained_baseline-truth-pack/summary.md`
+  measured the official `mixed_loop/hot` row at JIT-on `0.003932s` vs
+  `-joff` `0.003886s` (`1.01x`, `+0.000046s`). Its focused reducer was much
+  worse (`1.34x`, `TEXIT_COUNT 141`), but that is not official-row evidence
+  for a source patch. The follow-up `vararg_paths` truth pack
+  `artifacts/s390x/truth-packs/20260413-kdz-vararg_paths-retained_baseline-truth-pack/summary.md`
+  measured official `sum_loop/hot` at `1.07x`, while the focused `sum_loop`
+  read collapsed to `1.01x` with `TRACE_ABORT 7`, `TEXIT_COUNT 0`, and
+  compiled-body classification. The dispatch truth-pack rerun
+  `artifacts/s390x/truth-packs/20260413-220527-kdz-retained_baseline-dispatch-truth-pack`
+  showed direct dispatch hot rows at parity (`side_exit_loop/hot` JIT
+  `0.004661s` vs `-joff` `0.004659s`), but the helper's old
+  `loop-body-entry-after-JFORI` seam assertion failed because the numeric
+  seam classifier returned `None`; treat that as stale tooling attribution,
+  not a runtime regression. No new performance source patch is justified from
+  these three residuals. The next acceleration search should skip tiny
+  near-parity noise and return to a mechanism-first target such as iterator
+  state continuation or another high-time row only after a fresh truth pack
+  proves a concrete payer.
+- Dispatch truth-pack seam guard repaired:
+  the stale seam assertion above was changed from a hard pre-summary failure
+  into an explicit `Numeric Seam Guard` report in
+  `tools/s390x/build_dispatch_truth_pack.py`. The reduced validation run
+  `artifacts/s390x/truth-packs/20260413-220956-kdz-retained_baseline-dispatch-truth-pack/summary.md`
+  completed and recorded expected seam `loop-body-entry-after-JFORI`,
+  observed seam `unclassified`, and status `drifted`. This is a tooling
+  robustness fix only; it does not change runtime behavior and the reduced
+  sample run is not retained performance evidence.
+- Current vararg sibling blacklist retained-env cleanup:
+  after the explicit-next fix and current rerank, `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST`
+  was rechecked as the next still-unsafe ledger rail. On current `kdz`, removing
+  only this env from the full retained bundle kept all official vararg hot rows
+  in band: `/tmp/kdz-retained-jitter-20260414063856/summary.md` reported
+  `sum_loop/hot` ratios `1.0104`, `1.0007`, and `1.0142`,
+  `retlast_loop/hot` around `0.046x..0.048x`, and `retconst_loop/hot`
+  `1.0000`, `0.9697`, and `0.9381`. Immediate retained control
+  `/tmp/kdz-retained-jitter-20260414064035/summary.md` was not better:
+  `sum_loop/hot` ratios `1.0381`, `1.0062`, and `1.0267`, `retlast_loop/hot`
+  around `0.045x..0.046x`, and noisy `retconst_loop/hot` around
+  `0.9471`, `1.0321`, and `0.9666`. `zkd0` confirmation was noisy but did not
+  show a protected-row regression: opt-out
+  `/tmp/zkd0-retained-jitter-20260414064226/summary.md` had `sum_loop/hot`
+  `0.9434x` then an outlier-driven `0.2474x`, while retained control
+  `/tmp/zkd0-retained-jitter-20260414064414/summary.md` was
+  `0.8758x` then `1.0732x`; `retlast_loop` stayed fast in both, and
+  `retconst_loop` was noisy/red in both. The canonical
+  `RETAINED_BASELINE_ENV` now omits `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST`.
+  The source matcher remains available for diagnostics. The refreshed ledger
+  `/tmp/s390x-guard-ledger-after-vararg-sibling-20260414/ledger.md` is down to
+  15 retained env gates: 13 mechanism-debt items and two still-unsafe broad
+  iterator blacklists.
+- FFI fixed-call `CNEWI` payload correctness fix:
+  the first post-vararg-sibling full retained-env rerank
+  `/tmp/kdz-retained-jitter-20260414065043` completed two passes, then failed
+  in the third JIT-on pass with
+  `ffi_fixed_call_pressure/gpr_pressure/small: expected 3512500, got 4393755056310`.
+  The bad result was not a perf regression: it decoded as dirty 64-bit cdata
+  payload state, with high 32 bits `0x3ff` and low 32 bits equal to the
+  expected result plus one. Focused repro showed the failure required the
+  perf-file pressure shape (`S390X_PERF_OUTPUT_JSONL`, samples/warmup, and
+  `taskset`) and narrowed it to the short `gpr_pressure` function-entry trace
+  that records `uint64_t(0)` as `IR_CNEWI +12 +0`, exits to the interpreter,
+  and then lets the interpreted loop accumulate from a bad initial cdata
+  value. The first source cut moved the `CNEWI` payload source to the
+  call-preserved non-BASE GPR set (`RSET_GPR_CALL_NOB`), proving the allocator
+  call was clobbering the old caller-saved source, but the stress repro then
+  failed with initial payload `32754`: the old s390x `asm_cnew()` path had
+  also been passing the constant IR reference (`ir->op2`) to `ra_allock()`
+  instead of the constant payload value. The retained fix adds
+  `asm_cnewi_k64val()` with x86-compatible `KINT` zero-extension and uses that
+  value for constant `CNEWI` payload materialization, while still keeping the
+  source in `RSET_GPR_CALL_NOB` across `lj_mem_newgco`. Validation:
+  `kdz` focused FFI pressure A/B
+  `/tmp/kdz-retained-jitter-20260414070305/summary.md` passed three
+  alternating passes; the exact 100-run retained-env perf-file stress loop
+  passed; `kdz` `ffi_fixed_call_pressure.lua`,
+  `ffi_fixed_struct_calls.lua`, `ffi_calls.lua`, `ffi_abi/run.lua`,
+  `jit_be/addsub_overflow_guard.lua`, and `jit_be/numeric_ops.lua` passed;
+  `zkd0` focused FFI pressure A/B
+  `/tmp/zkd0-retained-jitter-20260414071206/summary.md` passed three
+  alternating passes.
+- Post-`CNEWI` full retained-env rerank:
+  `/tmp/kdz-retained-jitter-20260414070532/summary.md` completed the full
+  retained-env matrix after the `CNEWI` fix. The FFI pressure row is now fast
+  and stable (`ffi_fixed_call_pressure/gpr_pressure/hot` median `0.0105x`,
+  `0/3` red). The remaining red-looking rows are small or jitter-sensitive:
+  `iterator_table/pairs_sum/hot` median `1.0568x` with ratios
+  `0.9877, 1.4112, 1.0568`, `dispatch_trace/side_exit_loop/hot` median
+  `1.0321x`, and `mixed_noffi/mixed_loop/hot` median `1.0200x`.
+  Focused iterator rerank
+  `/tmp/kdz-retained-jitter-20260414070752/summary.md` confirms the only
+  material repeated study signal is `iterator_table/pairs_sum/hot`, but it is
+  process-order sensitive: JIT-first passes are red (`1.36x`, `1.26x`,
+  `1.34x`) and JOFF-first passes are neutral (`0.98x`, `1.00x`). Trace-meta
+  captures show the exact iterator proto-NOJIT path still engages in both red
+  and neutral runs (`S390X_ITERATOR_ITERN_PROTO_NOJIT`, `startop=BC_ITERN`,
+  `nins=32789`, `mcloop=236`). The difference is later harness/secondary
+  trace shape, not the broad iterator root guard being bypassed. Treat
+  iterator as the next attribution lane, but do not patch iterator from this
+  read alone.
+- Dispatch exact `FORL` skip / proto-NOJIT source guard retired:
+  the post-`CNEWI` matrix made `dispatch_trace/side_exit_loop/hot` look like a
+  small red row (`1.0321x`), but the fresh dispatch truth pack
+  `artifacts/s390x/truth-packs/20260414-072114-kdz-retained_baseline-dispatch-truth-pack/summary.md`
+  exposed the real mechanism: the official
+  `@tests/s390x/perf/dispatch_trace.lua` chunk was still caught by the exact
+  source `dispatch_forl_skip_jfori` / `dispatch_forl_proto_nojit` route-around
+  and therefore ran near `-joff`, while the same focused loop body copied into
+  the truth-pack helper did not match the chunk-name guard and ran compiled:
+  `numeric_loop/hot 0.000155`, `side_exit_loop/hot 0.000376`, and
+  `hotexit_loop/hot 0.000767`. The old causality expectation was rechecked on
+  current WIP: running official `dispatch_trace.lua` with
+  `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI=1` passed and moved the hot
+  rows to the compiled band. Focused retained-env proof
+  `/tmp/kdz-retained-jitter-20260414072629/summary.md` kept all five
+  alternating passes fast:
+  `numeric_loop/hot 0.0696x..0.0735x`,
+  `side_exit_loop/hot 0.0723x..0.0779x`, and
+  `hotexit_loop/hot 0.1306x..0.1398x`.
+  The retained source fix makes `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI`
+  opt-in, still honoring `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI`,
+  instead of default-on. Current retained-env `kdz` proof
+  `/tmp/kdz-retained-jitter-20260414072840/summary.md` confirms the default
+  official row is now compiled without needing an opt-out:
+  `numeric_loop/hot 0.0699x..0.0729x`,
+  `side_exit_loop/hot 0.0751x..0.0778x`, and
+  `hotexit_loop/hot 0.1321x..0.1358x`. Core kdz guardrails passed after the
+  source change: `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `compiled_vararg.lua`, `pairs_loop.lua`, retained-env `dispatch_trace.lua`,
+  `iterator_table.lua`, `vararg_paths.lua`, and `mixed_noffi.lua`. `zkd0`
+  confirmation `/tmp/zkd0-retained-jitter-20260414073305/summary.md` also kept
+  dispatch strongly accelerated. The refreshed full kdz matrix
+  `/tmp/kdz-retained-jitter-20260414073108/summary.md` shows dispatch is no
+  longer a near-parity row: `numeric_loop/hot 0.0713x`,
+  `side_exit_loop/hot 0.0767x`, and `hotexit_loop/hot 0.1355x`. Remaining
+  red-looking rows are tiny or noisy: `mixed_noffi/mixed_loop/hot 1.0154x`
+  (`+0.000060s` scale), `vararg_paths/sum_loop/hot 0.9998x` median with one
+  red pass, and the known jitter-sensitive `iterator_table/pairs_sum/hot`
+  median green with one red spike. This closes dispatch as a retained
+  acceleration win and leaves iterator/mixed/vararg as attribution-only lanes.
+- Post-dispatch residual sweep:
+  after the dispatch source guard retirement, focused same-host `kdz` reruns
+  did not name a new material official-row payer. `mixed_noffi`
+  `/tmp/kdz-retained-jitter-20260414073755/summary.md` alternated around
+  parity across seven passes (`mixed_loop/hot` ratios `0.9555`, `1.0117`,
+  `1.0097`, `0.9923`, `1.0236`, `0.9997`, `1.0439`), so the full-matrix
+  `1.0154x` row is not a patchable signal. `vararg_paths`
+  `/tmp/kdz-retained-jitter-20260414073959/summary.md` also stayed in noise:
+  `sum_loop/hot` ratios `1.0025`, `0.9666`, `1.0191`, `0.9977`, `1.0103`,
+  `1.0067`, `1.0093`, with `retlast_loop` still around `0.044x..0.046x`
+  and `retconst_loop` green/noisy. A deeper iterator rerun
+  `/tmp/kdz-retained-jitter-20260414074809/summary.md` likewise showed
+  process jitter rather than a stable mechanism: `pairs_sum/hot` ranged from
+  `0.7407x` to `1.3525x`, while the paired array row stayed near parity
+  (`0.9588x..1.0598x`). Do not patch these three families from the current
+  residual reads; require a new repeated official-row mechanism first.
+- STRTO acceleration closure:
+  the remaining stable high-time helper row is
+  `be_helpers/strto_loop/hot`. A focused stable-vs-fresh probe on `kdz`
+  showed the fresh-function perf harness is not the payer: stable JIT median
+  `0.003428s`, fresh JIT median `0.003478s`, stable `-joff` median
+  `0.008113s`, and fresh `-joff` median `0.008187s`. The trace still contains
+  `num STRTO` in the loop body fed by `str ALOAD` from the mutable values
+  table, so removing the helper call would require a new semantic mechanism
+  such as safe string-number caching or guarded table-slot parse folding, not
+  a narrow s390x assembler tweak. A focused be_helpers rerun
+  `/tmp/kdz-retained-jitter-20260414075141/summary.md` confirms the current
+  state: `number_helper_loop/hot` is `0.0297x..0.0345x`, `be_pack_loop/hot`
+  is `0.0128x..0.0133x`, and `strto_loop/hot` is the only significant helper
+  body left at `0.4050x..0.4295x`. Keep STRTO as a design-level acceleration
+  backlog item; do not attempt a test-shaped constant parse fold against
+  mutable table contents.
+- Numeric `ALOAD` backend gap closure:
+  the STRTO bound probe exposed a better adjacent payer: replacing the string
+  table with a numeric table did not speed up before the candidate because
+  s390x aborted the loop on `NYI: cannot assemble IR instruction 66`, which
+  maps to `IR_ALOAD`. The missing case was `num ALOAD` from array/hash/upvalue
+  TValue references: [lj_asm_s390x.h](../../src/lj_asm_s390x.h)
+  `asm_ahuvload()` only accepted int/u32/address/primitive loads. The retained
+  candidate adds the numeric FPR destination path and reuses the existing
+  s390x stack-load number tag guard / integer-to-double conversion contract.
+  Focused proof on `kdz` changed the numeric-table sibling from repeated
+  ALOAD assembly aborts into a compiled root with `num ALOAD` in the loop body.
+  The same bound then moved from interpreter speed to compiled speed:
+  numeric-table JIT `0.000319s` versus `-joff 0.003811s`, while the string
+  `tonumber()` row stayed helper dominated at about `0.003468s`.
+- Official coverage and host-pair read for numeric `ALOAD`:
+  [be_helpers.lua](../../tests/s390x/perf/be_helpers.lua) now includes
+  `num_aload_loop` as matrix coverage for traced numeric table value loads,
+  and [num_aload.lua](../../tests/s390x/jit_be/num_aload.lua) covers the
+  backend trace-stop/correctness path. `kdz` retained-env focused A/B
+  `/tmp/kdz-retained-jitter-20260414080313/summary.md` kept existing
+  `be_helpers` rows in band and read `num_aload_loop/hot` at
+  `0.0822x..0.0837x` versus `-joff`. `kdz` guardrails passed the new temp
+  regression script, all existing `jit_be/*.lua`, `compiled_vararg.lua`,
+  `pairs_loop.lua`, retained-env `be_helpers.lua`, `iterator_table.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, and `dispatch_trace.lua`.
+  `zkd0` confirmation `/tmp/zkd0-retained-jitter-20260414080629/summary.md`
+  read `num_aload_loop/hot` at `0.0897x..0.1106x` versus `-joff`; compact
+  zkd0 guardrails passed the new temp regression, numeric/addsub checks,
+  `pairs_loop.lua`, retained-env `be_helpers.lua`, `iterator_table.lua`, and
+  `mixed_noffi.lua`. A parallel zkd0 mixed/iterator probe was discarded
+  because both jobs collided on the same timestamped artifact path; sequential
+  follow-ups showed mixed-noffi neutral/noisy
+  (`/tmp/zkd0-retained-jitter-20260414080837/summary.md`) and iterator still
+  host-jitter dominated (`/tmp/zkd0-retained-jitter-20260414080925/summary.md`).
+  The final full `kdz` retained-env rerank
+  `/tmp/kdz-retained-jitter-20260414081234/summary.md` keeps the branch in the
+  fast band and includes the new row: `num_aload_loop/hot` ratios `0.0822`,
+  `0.0839`, and `0.0833`. Remaining red-looking rows are the same small/noisy
+  residuals, not new candidate regressions: iterator hash/array has small
+  alternating deltas, mixed-noffi is `1.0370`, `1.0202`, `0.9661`, and
+  vararg sum/retconst are tiny sub-`0.00006s` deltas.
+- Adjacent numeric A/H/U/V load sweep:
+  after the `IR_ALOAD` closure, a temporary `kdz` dump probe verified the
+  shared `asm_ahuvload()` numeric path covers the adjacent memory-load family
+  too. The dynamic hash reducer compiled `num HLOAD` in the loop body, the
+  mutable upvalue reducer compiled `num ULOAD`, and the vararg reducer compiled
+  `num VLOAD` under the retained vararg guard shape; all stopped cleanly and
+  returned the expected totals. The regression test
+  [num_aload.lua](../../tests/s390x/jit_be/num_aload.lua) now covers numeric
+  ALOAD/HLOAD/ULOAD/VLOAD trace-stop correctness, and the temporary kdz test
+  passed as `NUM_AHUVLOAD_TEST_OK`. This closes the adjacent numeric load
+  family as coverage debt, not a separate next payer.
+- Dense residual rerank after numeric A/H/U/V load coverage:
+  the top near-parity residuals from the full matrix were rerun on `kdz` with
+  `samples=9`, `warmup=2`, and seven alternating passes. Iterator collapsed
+  back to noise/neutral in `/tmp/kdz-retained-jitter-20260414082735`: median
+  `pairs_sum/hot 0.9663x` with ratios `0.9057`, `1.0323`, `0.9663`, `1.0259`,
+  `1.0242`, `0.9284`, `0.9393`, and median `pairs_array_sum/hot 1.0027x`
+  with only `+0.000016s` median delta. Mixed-noffi stayed as a small residual,
+  not a source target: `/tmp/kdz-retained-jitter-20260414082945` had
+  `mixed_loop/hot` median `1.0204x`, `+0.000073s` median delta, and one
+  `1.1192x` outlier. Vararg also stayed tiny/noisy in
+  `/tmp/kdz-retained-jitter-20260414083158`: `sum_loop/hot` median `1.0082x`
+  with `+0.000047s` median delta, `retconst_loop/hot` median `0.9926x`, and
+  `retlast_loop/hot` still fast at `0.0459x`. These reads keep iterator,
+  mixed-noffi, and vararg parked until a new official-row mechanism produces a
+  larger repeated signal.
+- STRTO boundary reconfirmation:
+  a literal-vs-table `tonumber()` dump on `kdz` showed the backend is not
+  missing a simple `STRTO` assembler closure. Literal strings fold through
+  `STRTO KGC` into numeric constants in the loop body, while the official
+  helper row still has `str ALOAD -> num STRTO` because the string comes from
+  mutable table contents. Removing that helper requires a new value-identity or
+  parse-cache semantic mechanism, not a local `asm_strto()` instruction
+  reshuffle.
+- STRTO short-string parse-cache closure:
+  the value-identity/cache seam above is now retained as a host-pair
+  acceleration win. The first per-`global_State` cache design was rejected
+  because adding fields to `global_State` changed the s390x dispatch-relative
+  layout and broke `buildvm` DynASM generation. The retained design keeps the
+  existing two-argument `STRTO` helper ABI and routes s390x `asm_strto()`
+  through `lj_strscan_num_cache()`, a s390x-only thread-local 16-slot cache for
+  short strings (`len <= 16`) keyed by string hash, length, and byte payload;
+  the cache validates bytes before returning the cached number, and the
+  diagnostic opt-out is `LUAJIT_S390X_DISABLE_STRSCAN_NUM_CACHE=1`.
+  `kdz` default retained-env A/B
+  `/tmp/kdz-retained-jitter-20260414085612/summary.md` moved
+  `be_helpers/strto_loop/hot` from the old `0.40x..0.43x` band to ratios
+  `0.1622`, `0.2891`, `0.2807`, `0.1358`, and `0.2569`; the same-binary
+  opt-out `/tmp/kdz-retained-jitter-20260414085754/summary.md` restored the
+  old band at `0.3991x..0.4381x`. `zkd0` confirmed the host-pair direction:
+  cache-on `/tmp/zkd0-retained-jitter-20260414090701/summary.md` read
+  `0.0876x..0.2807x`, while the opt-out
+  `/tmp/zkd0-retained-jitter-20260414090833/summary.md` fell back to
+  `0.3250x..0.5073x`. kdz guardrails passed add/sub overflow, numeric ops, the
+  broadened numeric A/H/U/V load test, `pairs_loop.lua`, `compiled_vararg.lua`,
+  retained-env `be_helpers.lua`, and focused retained-env iterator, vararg,
+  mixed-noffi, and dispatch screens:
+  `/tmp/kdz-retained-jitter-20260414090033/summary.md`,
+  `/tmp/kdz-retained-jitter-20260414090138/summary.md`,
+  `/tmp/kdz-retained-jitter-20260414090250/summary.md`, and
+  `/tmp/kdz-retained-jitter-20260414090358/summary.md`. A focused cache
+  semantics smoke on `kdz` also passed repeated traced `tonumber()` parses for
+  decimal, signed decimal, exponent, hex-float, invalid strings, empty strings,
+  and `nan` as `STRTO_CACHE_SMOKE_OK`.
+- Post-STRTO full retained rerank:
+  `/tmp/kdz-retained-jitter-20260414091220/summary.md` ran the full `kdz`
+  retained-env matrix after the STRTO cache. It keeps the branch in the fast
+  band and does not name a material red blocker. `be_helpers/strto_loop/hot`
+  stayed accelerated at `0.1338x`, `0.1390x`, and `0.2537x`; the remaining
+  red-looking parity rows are small/noisy (`mixed_noffi/mixed_loop/hot`
+  `1.0140x`, `1.0040x`, `1.0097x`; `vararg_paths/sum_loop/hot` `1.0086x`,
+  `1.0049x`, `0.9975x`; iterator array row only `+0.000016s/+0.000046s`
+  before returning green). The next acceleration probe should be selected by
+  absolute JIT time and mechanism, not red ratio; current candidates are
+  `lower_frame_same_callsite/lua_abs_same_callsite` (`~0.00235s`, `0.156x`),
+  then helper/numeric rows that are already much faster but still visible.
+- Lower-frame signed-`SLOAD` correctness/perf tradeoff closure:
+  focused `kdz` rerun `/tmp/kdz-retained-jitter-20260414091510/summary.md`
+  confirmed `lower_frame_same_callsite/lua_abs_same_callsite` is stable at
+  `0.1560x..0.1591x`, not a noisy row. Mechanism capture
+  `/tmp/kdz-lower-frame-lua-abs-20260414/summary.md` showed the row is compiled
+  body dominated (`TRACE_START 3`, `TRACE_STOP 3`, `TRACE_ABORT 0`,
+  `TEXIT_COUNT 1`) with the expected `MOD 17 -> SUBOV +8 -> LT/NE -> SUBOV
+  0-x -> CONV -> ADD` loop body. A reduced no-mod side-exit splitter exposed a
+  real JIT correctness gap: the loop-carried branch reducer returned `27`
+  under JIT versus `338816` under `-joff`; setting
+  `LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD=1` fixed that reducer. However,
+  narrowing the default-on signed integer `SLOAD` path to only the exact
+  FORL/current-compare shape was not retainable: it regressed
+  `mixed_noffi/mixed_loop/hot` to `~5.5x`
+  (`/tmp/kdz-retained-jitter-20260414092759/summary.md`), regressed
+  `vararg_paths/retlast_loop/hot` to `~1.45x`
+  (`/tmp/kdz-retained-jitter-20260414092900/summary.md`), regressed
+  lower-frame itself to `~1.98x`
+  (`/tmp/kdz-retained-jitter-20260414093000/summary.md`), and regressed helper
+  rows (`/tmp/kdz-retained-jitter-20260414093101/summary.md`). The candidate
+  was backed out. Restored source returned `mixed_noffi` to small residual
+  range in `/tmp/kdz-retained-jitter-20260414093343/summary.md` and kept the
+  STRTO cache win in `/tmp/kdz-retained-jitter-20260414093443/summary.md`.
+  Do not disable or broadly narrow GC64 signed integer `SLOAD`; the remaining
+  correctness bug needs a mechanism-specific repair that preserves the signed
+  path where retained floors depend on it.

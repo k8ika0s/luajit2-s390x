@@ -688,8 +688,8 @@ void lj_record_stop(jit_State *J, TraceLink linktype, TraceNo lnk)
     if (lj_record_s390x_stop_log_enabled()) {
       fprintf(stderr,
 	      "S390X_NILRESTART_DONE trace=%u parent=%u exit=%u nsnap=%u site=record_stop\n",
-      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-      (unsigned int)J->exitno, (unsigned int)J->cur.nsnap);
+	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	      (unsigned int)J->exitno, (unsigned int)J->cur.nsnap);
     }
   }
   J->s390x_nil_restart_desc = 0;
@@ -992,6 +992,15 @@ static int lj_record_s390x_root_itern_nil_desc_enabled(void)
   static int enabled = -1;
   if (enabled == -1)
     enabled = (getenv("LUAJIT_S390X_ROOT_ITERN_NIL_DESC") != NULL);
+  return enabled;
+}
+
+static int lj_record_s390x_itern_hash_payload_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = LJ_TARGET_S390X &&
+	      getenv("LUAJIT_S390X_DISABLE_ITERN_HASH_PAYLOAD") == NULL;
   return enabled;
 }
 
@@ -1825,6 +1834,7 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
   IRType nextt;
   uint32_t keyflags;
   int nextisarray = 0;
+  int s390x_hash_payload = 0;
   /* Since ITERN is recorded at the start, we need our own loop detection. */
   if (J->pc == J->startpc &&
       J->framedepth + J->retdepth == 0 && J->parent == 0 && J->exitno == 0) {
@@ -1855,10 +1865,13 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
   ix.mobj = 1;  /* We need the next index, too. */
   J->maxslot = ra + lj_record_next(J, &ix);
   J->needsnap = 1;
-  if (!nextisarray && ix.key == 0 && !tref_isnil(ix.val))
+  if (!nextisarray && ix.key == 0 && (nextt & 0xff) != IRT_NIL &&
+      lj_record_s390x_itern_hash_payload_enabled())
+    s390x_hash_payload = 1;
+  if (s390x_hash_payload && !tref_isnil(ix.val))
     J->base[ra+1] = ix.val;
   lj_record_s390x_itern_focus_log(J, "after_next", ra, &ix, nextt, keyflags);
-  if (!tref_isnil(ix.key)) {  /* Looping back? */
+  if (!tref_isnil(ix.key) || s390x_hash_payload) {  /* Looping back? */
     const BCIns *oldpc = J->pc;
     if (lj_record_s390x_retry_first_array_exit_enabled() &&
 	J->parent == 4 && J->exitno == 1 &&
@@ -1933,7 +1946,7 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 #endif
     return LOOPEV_ENTER;
   } else {
-  lj_record_s390x_itern_focus_log(J, "nil", ra, &ix, nextt, keyflags);
+    lj_record_s390x_itern_focus_log(J, "nil", ra, &ix, nextt, keyflags);
 #if LJ_TARGET_S390X
     BCOp nextop = bc_op(J->pc[2]);
     int allow_numkey_nil_desc = 0;
@@ -1960,17 +1973,18 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
       GCtrace *parent = traceref(J, J->parent);
       TraceNo root = parent->root ? parent->root : parent->traceno;
       if (root == parent->traceno &&
-		  parent->linktype == LJ_TRLINK_LOOP &&
-		  bc_op(parent->startins) == BC_ITERN &&
-		  bc_op(J->cur.startins) == BC_JMP &&
-		  (nextop == BC_FORL || nextop == BC_IFORL || nextop == BC_JFORL))
-		allow_numkey_nil_desc = 1;
-	    }
-	    if (allow_numkey_nil_desc)
-	      J->s390x_nil_restart_desc = J->s390x_nil_restart_desc ? J->s390x_nil_restart_desc : 1;
-	    if (!lj_record_s390x_allow_iter_desc_enabled() &&
-		J->parent != 0 && J->exitno == 1) {
-	      GCtrace *parent = traceref(J, J->parent);
+	  parent->linktype == LJ_TRLINK_LOOP &&
+	  bc_op(parent->startins) == BC_ITERN &&
+	  bc_op(J->cur.startins) == BC_JMP &&
+	  (nextop == BC_FORL || nextop == BC_IFORL || nextop == BC_JFORL))
+	allow_numkey_nil_desc = 1;
+    }
+    if (allow_numkey_nil_desc)
+      J->s390x_nil_restart_desc = J->s390x_nil_restart_desc ?
+				  J->s390x_nil_restart_desc : 1;
+    if (!lj_record_s390x_allow_iter_desc_enabled() &&
+	J->parent != 0 && J->exitno == 1) {
+      GCtrace *parent = traceref(J, J->parent);
       int skip_done = lj_record_s390x_skip_nil_desc_done_enabled();
       if (lj_record_s390x_retry_first_array_exit_enabled() &&
 	  J->parent == 4 && J->exitno == 1 &&
@@ -1978,12 +1992,12 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 	  parent->snap[J->exitno].count <
 	    J->param[JIT_P_hotexit] + lj_record_s390x_retry_first_array_exit_limit())
 	skip_done = 1;
-	      if (parent->linktype == LJ_TRLINK_LOOP && parent->root != 0 &&
-		  !allow_numkey_nil_desc) {
-		if (!skip_done)
-		  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
-		lj_record_s390x_lleave_log(J, "rec_itern_nil_loop_descendant");
-		lj_trace_err(J, LJ_TRERR_LLEAVE);
+      if (parent->linktype == LJ_TRLINK_LOOP && parent->root != 0 &&
+	  !allow_numkey_nil_desc) {
+	if (!skip_done)
+	  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
+	lj_record_s390x_lleave_log(J, "rec_itern_nil_loop_descendant");
+	lj_trace_err(J, LJ_TRERR_LLEAVE);
       }
       /* Do not record iterator restart descendants on native s390x.
       ** If the nil/restart path wins the exit-1 race, it seeds the slow
@@ -1993,12 +2007,12 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
       if (parent->root != 0 && !allow_numkey_nil_desc)
 	if (!skip_done)
 	  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
-	      if (!allow_numkey_nil_desc) {
-		UNUSED(nextop);
-		lj_record_s390x_lleave_log(J, "rec_itern_nil_descendant");
-		lj_trace_err(J, LJ_TRERR_LLEAVE);
-	      }
-	    }
+      if (!allow_numkey_nil_desc) {
+	UNUSED(nextop);
+	lj_record_s390x_lleave_log(J, "rec_itern_nil_descendant");
+	lj_trace_err(J, LJ_TRERR_LLEAVE);
+      }
+    }
 #endif
     J->maxslot = ra-3;
     J->pc += 2;

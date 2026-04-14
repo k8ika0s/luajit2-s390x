@@ -65,6 +65,14 @@ static intptr_t asm_kintptr(ASMState *as, IRRef ref)
   return (intptr_t)asm_k64val(as, ref);
 }
 
+static uint64_t asm_cnewi_k64val(ASMState *as, IRRef ref)
+{
+  IRIns *ir = IR(ref);
+  if (ir->o == IR_KINT)
+    return (uint64_t)(uint32_t)ir->i;
+  return asm_k64val(as, ref);
+}
+
 static LJ_NORET LJ_NOINLINE void asm_s390x_nyi_tag(ASMState *as, int32_t tag);
 
 static int asm_s390x_ir_log_enabled(void)
@@ -2994,12 +3002,18 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   lj_assertA(!(ir->o == IR_VLOAD && 8 * ir->op2 < 0), "bad VLOAD offset");
 
   if (ra_used(ir)) {
-    if (!(irt_isint(t) || irt_isu32(t) || irt_isaddr(t) || irt_ispri(t))) {
+    if (!(irt_isnum(t) || irt_isint(t) || irt_isu32(t) ||
+	  irt_isaddr(t) || irt_ispri(t))) {
       asm_s390x_nyi_ir(as, ir);
       return;
     }
-    dest = ra_dest_nobase(as, ir, allow, -215);
-    fr = asm_fuseahuref(as, ir->op1, rset_clear(allow, dest));
+    if (irt_isnum(t)) {
+      dest = ra_dest(as, ir, RSET_FPR);
+      fr = asm_fuseahuref(as, ir->op1, allow);
+    } else {
+      dest = ra_dest_nobase(as, ir, allow, -215);
+      fr = asm_fuseahuref(as, ir->op1, rset_clear(allow, dest));
+    }
     ofs = fr.ofs;
     if (ir->o == IR_VLOAD)
       ofs += 8 * ir->op2;
@@ -3022,11 +3036,30 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
 
 dotypecheck:
   rset_clear(allow, fr.reg);
-  if (!irt_isint(t) && !irt_isu32(t) && !irt_isaddr(t) && !irt_ispri(t)) {
+  if (!irt_isnum(t) && !irt_isint(t) && !irt_isu32(t) &&
+      !irt_isaddr(t) && !irt_ispri(t)) {
     asm_s390x_nyi_ir(as, ir);
     return;
   }
-  if (irt_isaddr(t)) {
+  if (irt_isnum(t)) {
+    Reg tmp = ra_scratch(as, allow);
+    Reg limit = ra_scratch(as, rset_exclude(allow, tmp));
+    int numdest = ra_hasreg(dest);
+    asm_s390x_guard_log(as, "aload_num", ir,
+			numdest ? CC_HI : CC_HS, ofs, 0);
+    if (numdest) {
+      MCode *l_done = as->mcp;
+      emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, tmp));
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, tmp));
+      emit_loadu32ofs(as, tmp, fr.reg, asm_s390x_vload_intofs(as, ir, ofs));
+      emit_condbranch(as, CC_NE, l_done);
+    }
+    asm_guardcc(as, numdest ? CC_HI : CC_HS);
+    emit_u32(as, S390X_INS_RXE(S390XI_CLGR, tmp, limit));
+    emit_loadu64(as, limit, (uint64_t)(int64_t)(int32_t)LJ_TISNUM);
+    emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
+    emit_load64ofs(as, tmp, fr.reg, ofs);
+  } else if (irt_isaddr(t)) {
     Reg tmp = ra_scratch(as, allow);
     asm_s390x_guard_log(as, "vload_addr", ir, CC_NE, ofs, 0);
     asm_guardcc(as, CC_NE);
@@ -3044,24 +3077,26 @@ dotypecheck:
     emit_load64ofs(as, tmp, fr.reg, ofs);
   }
   if (ra_hasreg(dest)) {
-	  if (irt_isaddr(t) || irt_ispri(t)) {
-	    emit_load64ofs(as, dest, fr.reg, ofs);
-	  } else if (irt_isint(t) || irt_isu32(t)) {
-	  if (asm_s390x_varg_dump_enabled() && asm_s390x_is_varg_vload(as, ir)) {
-	      CCallInfo ci;
-	      ci.func = (ASMFunction)lj_trace_s390x_varg_probe;
-	      ci.flags = CCI_NOFPRCLOBBER;
-	      asm_setupresult(as, ir, &ci);
-	      emit_call(as, RID_R14, (void *)ci.func);
-	      emit_loadi(as, REGARG_FIRSTGPR+1, ofs);
-	      if (REGARG_FIRSTGPR != fr.reg)
-		emit_movrr(as, ir, REGARG_FIRSTGPR, fr.reg);
-	    } else {
-	      emit_loadu32ofs(as, dest, fr.reg, asm_s390x_vload_intofs(as, ir, ofs));
-	    }
-	  }
-	}
-	asm_emitfuseahuref(as, ir, &fr);
+    if (irt_isnum(t)) {
+      emit_loadofs(as, ir, dest, fr.reg, ofs);
+    } else if (irt_isaddr(t) || irt_ispri(t)) {
+      emit_load64ofs(as, dest, fr.reg, ofs);
+    } else if (irt_isint(t) || irt_isu32(t)) {
+      if (asm_s390x_varg_dump_enabled() && asm_s390x_is_varg_vload(as, ir)) {
+	CCallInfo ci;
+	ci.func = (ASMFunction)lj_trace_s390x_varg_probe;
+	ci.flags = CCI_NOFPRCLOBBER;
+	asm_setupresult(as, ir, &ci);
+	emit_call(as, RID_R14, (void *)ci.func);
+	emit_loadi(as, REGARG_FIRSTGPR+1, ofs);
+	if (REGARG_FIRSTGPR != fr.reg)
+	  emit_movrr(as, ir, REGARG_FIRSTGPR, fr.reg);
+      } else {
+	emit_loadu32ofs(as, dest, fr.reg, asm_s390x_vload_intofs(as, ir, ofs));
+      }
+    }
+  }
+  asm_emitfuseahuref(as, ir, &fr);
 }
 
 static void asm_href(ASMState *as, IRIns *ir, IROp merge)
@@ -3695,10 +3730,10 @@ static void asm_cnew(ASMState *as, IRIns *ir)
   asm_setupresult(as, ir, ci);  /* GCcdata * */
 
   if (ir->o == IR_CNEWI) {
-    RegSet allow = rset_exclude(
-	rset_exclude(rset_exclude(RSET_GPR, RID_RET), RID_TMP), RID_R1);
-    Reg src = irref_isk(ir->op2) ? ra_allock(as, ir->op2, allow) :
-				   ra_alloc1(as, ir->op2, allow);
+    RegSet allow = RSET_GPR_CALL_NOB;
+    Reg src = irref_isk(ir->op2) ?
+	      ra_allock(as, (intptr_t)asm_cnewi_k64val(as, ir->op2), allow) :
+	      ra_alloc1(as, ir->op2, allow);
     lj_assertA(sz == 4 || sz == 8, "bad CNEWI size %d", sz);
     if (sz == 8)
       emit_store64ofs(as, src, RID_RET, sizeof(GCcdata));
@@ -3794,7 +3829,7 @@ static void asm_conv(ASMState *as, IRIns *ir)
 
 static void asm_strto(ASMState *as, IRIns *ir)
 {
-  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_strscan_num];
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_strscan_num_cache];
   IRRef args[2];
   int32_t ofs = 0;
   Reg tmp;

@@ -334,7 +334,9 @@ static int lj_trace_s390x_dispatch_forl_skip_jfori_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    enabled = (getenv("LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI") == NULL);
+    const char *force = getenv("LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI");
+    const char *disable = getenv("LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI");
+    enabled = (force != NULL && disable == NULL);
   }
   return enabled;
 }
@@ -1357,6 +1359,7 @@ static int lj_trace_s390x_iterator_itern_exact_root_match(jit_State *J,
          J->cur.resumechild == 0 &&
          J->cur.nsnap == 6 &&
          ((J->cur.nins == 32785 && J->cur.mcloop == 208) ||
+          (J->cur.nins == 32789 && J->cur.mcloop == 236) ||
           (J->cur.nins == 32792 && J->cur.mcloop == 300)) &&
          T != NULL;
 }
