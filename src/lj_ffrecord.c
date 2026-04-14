@@ -537,6 +537,10 @@ static void LJ_FASTCALL recff_getfenv(jit_State *J, RecordFFData *rd)
 
 static void LJ_FASTCALL recff_next(jit_State *J, RecordFFData *rd)
 {
+#if LJ_TARGET_S390X
+  recff_nyiu(J, rd);
+  return;
+#else
   TRef tab = J->base[0];
   if (tref_istab(tab)) {
     RecordIndex ix;
@@ -560,6 +564,7 @@ static void LJ_FASTCALL recff_next(jit_State *J, RecordFFData *rd)
     J->base[0] = ix.key;
     J->base[1] = ix.val;
   }  /* else: Interpreter will throw. */
+#endif
 }
 
 /* -- Math library fast functions ----------------------------------------- */

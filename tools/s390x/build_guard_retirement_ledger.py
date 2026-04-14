@@ -46,13 +46,13 @@ class GateMeta:
 META: dict[str, GateMeta] = {
     "LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI": GateMeta(
         group="dispatch",
-        kind="default-on opt-out",
-        classification="bake-in/env-cleanup candidate",
+        kind="opt-in diagnostic trace-control guard",
+        classification="retired source guard",
         owner="trace/dispatch",
         protected_rows=("dispatch_trace/numeric_loop",),
         opt_out=("LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI",),
-        evidence="Dispatch opt-out is a retained causality guard; disabling reproduces the known numeric_loop failure.",
-        next_step="Keep source default-on; later remove from RETAINED_BASELINE_ENV only after matrix tooling no longer needs the explicit env marker.",
+        evidence="Current retained-env proof showed the old opt-out failure is stale and the default-on source route-around was suppressing official dispatch_trace compilation.",
+        next_step="Keep this out of RETAINED_BASELINE_ENV and leave it opt-in only for diagnostics unless a fresh dispatch truth pack proves the old seam regressed.",
     ),
     "LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN": GateMeta(
         group="dispatch",

@@ -1,13 +1,15 @@
 # s390x Performance Status
 
-Last updated: 2026-04-12 18:48 PDT
+Last updated: 2026-04-14 09:10 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
 - Current runtime/code source point for this checkpoint:
-  `210ac773 Close s390x asm profiler stub`, including the retained
+  current WIP over `5814717c Retire stale dispatch cooldown env`, including
+  the retained iterator hash-payload recorder fix described below plus the
   safe constant-bounded `bit.tobit` `MULOV` narrowing candidate, the retained
   cdata mixed-width backend closure, the retained
+  STRTO short-string parse-cache helper closure, the retained
   route-around reducer, static-stop be-pack, localized be-pack
   promotion-core guard splits, iterator/vararg guardrails, remote oracle
   matrix coverage, the loop-body guarded `MULOV` exit-state fix, the cdata
@@ -23,6 +25,112 @@ Last updated: 2026-04-12 18:48 PDT
   removed from the canonical retained env after neutral `kdz` A/B and a
   `kdz1` tie-break. The dispatch source diagnostic remains available, but
   current retained runs no longer require the env-valued cooldown.
+- Current vararg cleanup note:
+  `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1` has also been removed from
+  the canonical retained env after current `kdz` opt-out/control and `zkd0`
+  confirmation showed no protected-row regression. The source matcher remains
+  available for diagnostic opt-in use; it is no longer part of the default
+  retained performance contract.
+- Current backend correctness note:
+  a post-cleanup full retained-env rerank exposed an intermittent
+  `ffi_fixed_call_pressure/gpr_pressure` correctness failure in the s390x
+  `IR_CNEWI` path. The retained fix in `asm_cnew()` now materializes constant
+  cdata payload values, not constant IR refs, and keeps the payload source in
+  the call-preserved non-BASE GPR set across `lj_mem_newgco`. `kdz`
+  `/tmp/kdz-retained-jitter-20260414070305/summary.md` and `zkd0`
+  `/tmp/zkd0-retained-jitter-20260414071206/summary.md` pass focused FFI
+  pressure A/B; the exact 100-run `kdz` retained-env stress loop also passed.
+- Previous post-`CNEWI` rerank note:
+  `/tmp/kdz-retained-jitter-20260414070532/summary.md` was the full
+  retained-env matrix immediately after the `CNEWI` fix. FFI pressure was green
+  (`gpr_pressure/hot 0.0105x`, `0/3` red). The only material-looking residual
+  is `iterator_table/pairs_sum/hot`, but focused rerun
+  `/tmp/kdz-retained-jitter-20260414070752/summary.md` shows it is
+  process-order sensitive: JIT-first passes are red while JOFF-first passes
+  are neutral. Trace-meta confirms the exact iterator proto-NOJIT path still
+  engages in both cases, so this is the next attribution lane, not a safe
+  source patch yet.
+- Current dispatch source-retirement note:
+  the old exact `dispatch_trace` `FORL` skip / proto-NOJIT source guard is now
+  retired from the default path, not just from the retained env marker. The
+  guard is opt-in via `LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI` and still honors
+  `LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI`; the current canonical
+  retained env leaves it off. Proof:
+  `artifacts/s390x/truth-packs/20260414-072114-kdz-retained_baseline-dispatch-truth-pack/summary.md`
+  showed the official chunk was suppressed by the exact source route-around
+  while the same focused loop body compiled at `0.07x..0.13x` versus `-joff`.
+- Current backend acceleration note:
+  s390x now supports numeric `IR_ALOAD`/`IR_HLOAD`/`IR_ULOAD`/`IR_VLOAD` in
+  `asm_ahuvload()`. The proof came
+  from the next STRTO acceleration bound: a numeric-table sibling previously
+  aborted on `NYI: cannot assemble IR instruction 66` (`IR_ALOAD`), then
+  compiled with `num ALOAD` in the loop after the backend closure. New matrix
+  coverage in `be_helpers/num_aload_loop` reads `0.0822x..0.0837x` on `kdz`
+  (`/tmp/kdz-retained-jitter-20260414080313/summary.md`) and
+  `0.0897x..0.1106x` on `zkd0`
+  (`/tmp/zkd0-retained-jitter-20260414080629/summary.md`) versus `-joff`.
+  The follow-up adjacent-load sweep compiled dynamic hash `num HLOAD`, mutable
+  upvalue `num ULOAD`, and retained vararg-shape `num VLOAD`; the broadened
+  jit_be guardrail passed on `kdz` as `NUM_AHUVLOAD_TEST_OK`. Existing helper,
+  iterator, mixed, vararg, and dispatch guardrails stayed clean/in band in the
+  focused screens.
+- Latest retained-env matrix:
+  `/tmp/kdz-retained-jitter-20260414081234/summary.md` is the current full
+  `kdz` rerank after numeric `ALOAD` coverage. It keeps the branch in the fast
+  band; the new `be_helpers/num_aload_loop/hot` row is `0.0822x`, `0.0839x`,
+  and `0.0833x` across the three passes. Remaining red-looking rows are small
+  iterator/mixed/vararg noise and do not name a new source target.
+- Focused residual rerank:
+  the top near-parity residuals were rerun densely on `kdz` after the
+  adjacent numeric-load sweep. Iterator collapsed to noise/neutral in
+  `/tmp/kdz-retained-jitter-20260414082735` (`pairs_sum/hot` median
+  `0.9663x`, `pairs_array_sum/hot` median `1.0027x` with only `+0.000016s`).
+  Mixed-noffi stayed a small residual in
+  `/tmp/kdz-retained-jitter-20260414082945` (`mixed_loop/hot` median
+  `1.0204x`, `+0.000073s`, with one outlier). Vararg stayed tiny/noisy in
+  `/tmp/kdz-retained-jitter-20260414083158` (`sum_loop/hot` median `1.0082x`,
+  `+0.000047s`, `retconst_loop/hot` median green, and `retlast_loop/hot`
+  still `0.0459x`). No current source patch is justified from these rows.
+  The next non-noisy acceleration item was STRTO parse-cache design debt:
+  literal `tonumber()` folded to constants, but mutable table-loaded strings
+  still required the `str ALOAD -> num STRTO` helper path.
+- Current STRTO acceleration note:
+  the mutable table-string STRTO path now has a retained s390x-only short
+  string parse cache. The first per-`global_State` cache design was rejected
+  because it broke the s390x dispatch-relative layout during `buildvm`; the
+  retained implementation keeps the helper ABI unchanged and adds
+  `lj_strscan_num_cache()` with a thread-local validated short-string cache.
+  `kdz` `/tmp/kdz-retained-jitter-20260414085612/summary.md` moved
+  `be_helpers/strto_loop/hot` to `0.1358x..0.2891x` versus `-joff`, while the
+  same-binary opt-out
+  `LUAJIT_S390X_DISABLE_STRSCAN_NUM_CACHE=1` in
+  `/tmp/kdz-retained-jitter-20260414085754/summary.md` restored the old
+  `0.3991x..0.4381x` band. `zkd0`
+  `/tmp/zkd0-retained-jitter-20260414090701/summary.md` confirmed
+  `0.0876x..0.2807x`, and the zkd0 opt-out
+  `/tmp/zkd0-retained-jitter-20260414090833/summary.md` fell back to
+  `0.3250x..0.5073x`. Adjacent helper rows stayed fast, and focused kdz
+  iterator, vararg, mixed-noffi, and dispatch screens stayed in band.
+- Post-STRTO retained-env matrix:
+  `/tmp/kdz-retained-jitter-20260414091220/summary.md` is the current full
+  `kdz` rerank after the STRTO cache. It keeps the branch in the fast band and
+  does not name a material red official-row blocker. STRTO remains accelerated
+  at `0.1338x`, `0.1390x`, and `0.2537x`. The red-looking rows are small
+  parity/noise residuals (`mixed_noffi` around `1.004x..1.014x`,
+  `vararg_paths/sum_loop` around `0.997x..1.009x`, and iterator array deltas in
+  the tens of microseconds). The next acceleration queue should rank by
+  absolute remaining JIT time; the largest non-parked candidate is
+  `lower_frame_same_callsite/lua_abs_same_callsite` at about `0.00235s` JIT
+  and `0.156x` versus `-joff`.
+- Lower-frame follow-up:
+  `/tmp/kdz-retained-jitter-20260414091510/summary.md` confirmed the lower-frame
+  row is stable, and `/tmp/kdz-lower-frame-lua-abs-20260414/summary.md` showed
+  it is compiled-body dominated. The first signed-integer `SLOAD` narrowing
+  attempt fixed a reduced loop-carried side-exit correctness probe, but it
+  materially regressed protected official rows (`mixed_noffi`, vararg
+  `retlast_loop`, lower-frame, and helper rows), so it was backed out. Keep
+  GC64 signed integer `SLOAD` default-on until a mechanism-specific correctness
+  repair preserves the retained floors.
 - Post-`MULOV` retained-env rerank:
   `/tmp/kdz-retained-jitter-20260412104303` ran the full retained matrix on
   `kdz` (`samples=5`, `warmup=2`, three alternating passes). Focused
@@ -913,7 +1021,6 @@ Current frontier after the post-promotion stabilization pass:
   - `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ=1`
   - `LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET=1`
   - `LUAJIT_S390X_SUM_LOOP_FORL_BLACKLIST=1`
-  - `LUAJIT_S390X_VARARG_SIBLING_FORL_BLACKLIST=1`
   - `LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE=1`
   - `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT=1`
   - `LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE=1`
@@ -5096,3 +5203,86 @@ localized-helper carried-`total` lane
   is still slightly better retained; and `MIXED_FFI_FORL_PROTO_NOJIT` remains a
   safety rail because mixed-noffi was worse with it unset on both `kdz` and
   `zkd0`.
+
+## 2026-04-13  Iterator Hash Payload Unlock
+
+- The official iterator hash row had one remaining broad-guard debt seam:
+  hash traversal leaves `ix.key == 0` because the visible key TValue stays in
+  the frame, but `rec_itern()` treated that as a nil/leave transition instead
+  of a hash payload transition. The retained fix is now default-on for s390x,
+  with diagnostic opt-out `LUAJIT_S390X_DISABLE_ITERN_HASH_PAYLOAD=1`.
+- The exact iterator-table matcher was restamped for the new official hash
+  root shape `(nins=32789, mcloop=236)`, next to the existing exact root
+  shapes. The broad iterator root blacklist remains in place for non-exact
+  iterator shapes.
+- Trusted `kdz` retained-env A/B:
+  - default final source:
+    `/tmp/kdz-itern-hashpayload-final-iterator-s5-20260413.stdout`
+    reports `pairs_sum/hot 0.004105` and `pairs_array_sum/hot 0.003696`
+  - diagnostic opt-out:
+    `/tmp/kdz-itern-hashpayload-disabled-iterator-s7-20260413.stdout`
+    reports `pairs_sum/hot 0.010577` and `pairs_array_sum/hot 0.003688`
+  - sibling `mixed_noffi` stayed clean/slightly better in the same A/B:
+    `0.003828` default versus `0.003947` opt-out
+- `zkd0` confirmation:
+  `/tmp/zkd0-itern-hashpayload-final-iterator-s5-20260413.stdout` reports
+  `pairs_sum/hot 0.007341` and `pairs_array_sum/hot 0.004531`, materially
+  better than the previous zkd0 diagnostic opt-out control
+  (`pairs_sum/hot 0.014177`) while keeping `pairs_loop.lua` passing.
+- Guardrails:
+  kdz passed ADD/SUB overflow, numeric ops, compiled vararg, `pairs_loop`,
+  `vararg_paths`, retained-env dispatch, FFI/cdata sibling rows, and the mixed
+  exact probes. The unrelated `mod_hotexit_stress.lua` result mismatch still
+  reproduces without iterator opt-outs and is tracked separately.
+- Current iterator queue:
+  official `iterator_table` hash payload is now unlocked. Do not remove the
+  broad iterator root blacklist globally yet; the next iterator debt item is a
+  non-exact-root safety proof that can justify narrowing the fallback rather
+  than deleting it.
+- Follow-up broad-root opt-out:
+  current-source `kdz` smoke with `LUAJIT_S390X_DISABLE_ITERATOR_ROOT_BLACKLIST=1`
+  was no longer catastrophic after the hash-payload fix, but `zkd0` did not
+  retain it: `mixed_noffi/mixed_loop/hot` moved to `0.005707` under the
+  opt-out versus `0.004249` default confirmation. Keep the broad fallback
+  default-on until a narrower non-exact-root mechanism is proven.
+- Exact iterator rail removal remains closed:
+  full unguarded iterator tracing after the hash-payload fix is correct but
+  much slower (`pairs_sum/hot 0.130675`, `pairs_array_sum/hot 0.134029`).
+  The mechanism is `trace 2 exit 1` returning to root `BC_ITERN` and producing
+  about `719997` exits plus repeated `LLEAVE`/`LINNER` abort attempts. Existing
+  descendant and loop-desc toggles, plus removing the root-1 replay pair, all
+  stayed in the bad band. Keep the exact iterator proto-NOJIT/blacklist rails
+  until a new root-exit side-trace mechanism replaces that storm.
+
+## 2026-04-13  Post-Iterator Retained Rerank
+
+- Current retained matrix artifact:
+  `/tmp/kdz-retained-jitter-post-itern-hashpayload-20260413082518/summary.md`.
+  This was run on `kdz` after reverting the failed iterator terminal root-link
+  proof and keeping only the retained hash-payload source fix, iterator
+  matcher restamp, and retained-env cleanup.
+- Current regression queue:
+  empty. The rerank does not name a material official-row blocker. The largest
+  red-looking medians are small residuals:
+  `mixed_noffi/mixed_loop/hot 1.0136x`, `vararg_paths/sum_loop/hot 1.0153x`,
+  `vararg_paths/retconst_loop/hot 1.0489x` on a sub-millisecond row,
+  `iterator_table/pairs_array_sum/hot 1.0152x`, and
+  `dispatch_trace/side_exit_loop/hot 1.0139x`. Their absolute deltas are in
+  the small/noise band, not a source-change signal.
+- Iterator status:
+  `iterator_table/pairs_sum/hot` is median green at `0.9656x` with one noisy
+  red pass. The exact hash-payload route is therefore retained as a win, and
+  the remaining iterator work is guard-mechanism debt rather than a current
+  matrix blocker.
+- Acceleration status:
+  the higher-time rows are now strongly accelerated rather than merely at
+  parity: `ffi_cdata/mixed_width_loop/hot 0.0094x`,
+  `ffi_fixed_call_pressure/gpr_pressure/hot 0.0116x`,
+  `mixed_ffi/mixed_ffi_loop/hot 0.0673x`, `numeric_ops/fp_mod_loop/hot
+  0.1237x`, `be_helpers/strto_loop/hot 0.4250x`, and the promotion-core
+  reducer rows stay in their fast bands.
+- Next source-change rule:
+  do not patch from the current small ratios. The next source lane needs a
+  new dense official-row A/B with material absolute time, or a mechanism proof
+  for safely replacing the retained iterator terminal leave guard. The known
+  invalid root-link proof and VM instruction-shuffle proofs are closed.

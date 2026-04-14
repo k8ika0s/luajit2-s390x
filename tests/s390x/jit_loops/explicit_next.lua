@@ -26,3 +26,15 @@ for i = 1, 100 do
 end
 
 t.eq(total, 5050, "explicit next total")
+
+local array = { 10, 20, 30 }
+local array_total = 0
+for _ = 1, 1000 do
+  local key, value = next(array, nil)
+  while key do
+    array_total = array_total + key + value
+    key, value = next(array, key)
+  end
+end
+
+t.eq(array_total, 66000, "explicit next array successor total")
