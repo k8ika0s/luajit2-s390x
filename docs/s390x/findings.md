@@ -32920,3 +32920,60 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `prefix_eq_loop/hot 0.0701x`, and `string_key_lookup_loop/hot 0.1325x`.
   Focused classifications all show tiny exit/guard activity (`TEXIT_COUNT 1`)
   rather than a current correctness blocker.
+
+## 2026-04-15: string byte guarded-ADDOV AR proof closed
+
+- Candidate:
+  tried an opt-in backend proof for the largest string-heavy JIT row,
+  `string_heavy/byte_scan_loop/hot`. The proof matched guarded integer
+  `ADDOV` where either operand was a `u8 XLOAD` from `string.byte`, then used a
+  32-bit `AR` overflow guard with post-guard sign normalization. The generic
+  guarded `ADDOV` path remained unchanged when the proof env was off.
+- Mechanism:
+  on kdz, `LUAJIT_S390X_STRING_U8_ADDOV_AR=1` engaged exactly on the two hot
+  byte-accumulator sites in the focused reducer:
+  `curins=27` and `curins=38`. The focused result stayed exact:
+  `RESULT 144992760`, `TRACE_ABORT 0`, and `TEXIT_COUNT 1`.
+- Performance:
+  same-binary kdz A/B with the full retained env and five alternating passes
+  was consistently slower than control:
+  control medians `0.007822`, `0.007816`, `0.007800`, `0.007791`, `0.007811`;
+  `AR` proof medians `0.008442`, `0.008613`, `0.008432`, `0.008448`,
+  `0.008420`.
+- Closure:
+  remove the proof source and keep this as a closed local opcode-substitution
+  lane. The current string byte row is already strongly JIT-positive, and its
+  remaining cost is not solved by replacing the retained guarded equality
+  `ADDOV` sequence with a local 32-bit `AR` guard.
+
+## 2026-04-15: acceleration truth-pack Lua traceir crash repaired for iterator/lower-frame
+
+- Problem:
+  current lower-frame and iterator focused reducers produced complete `-jdump`
+  IR/mcode artifacts, then crashed in the Lua-side `jit.util.traceir()` tail of
+  the generic trace-count helper. This was the same instrumentation class as
+  the string-heavy crash repaired earlier, not a runtime source regression.
+- Fix:
+  [tools/s390x/build_acceleration_truth_pack.py](../../tools/s390x/build_acceleration_truth_pack.py)
+  now sets `S390X_ACCEL_SKIP_LUA_TRACEIR` for `lower_frame_lua_abs` and
+  `iterator_pairs_loop_chain`. The separate `-jdump` path remains the source of
+  IR/snapshot/mcode details.
+- Validation:
+  repaired kdz iterator safety pack
+  `artifacts/s390x/truth-packs/20260415-082807-kdz-iterator_safety-accel-truth-pack/summary.md`
+  completes with `REMOTE_RC 0`. The focused iterator reducer is correct
+  (`RESULT 5050`) and quiet (`TRACE_START 2`, `TRACE_STOP 1`, `TRACE_ABORT 0`,
+  `TEXIT_COUNT 1`). Official rows stay near the retained noise band:
+  `pairs_sum/hot` swung `0.7606x, 1.0852x`, `pairs_array_sum/hot ~1.007x`,
+  and `mixed_noffi/hot ~1.002x`.
+- Lower-frame current read:
+  repaired kdz lower-frame pack
+  `artifacts/s390x/truth-packs/20260415-082939-kdz-lower_frame_body-accel-truth-pack/summary.md`
+  completes with `REMOTE_RC 0`. `lua_abs_same_callsite/hot` remains strongly
+  accelerated (`~0.161x`, median JIT `0.002440s` versus `0.015123s -joff`) and
+  the focused reducer is quiet (`TRACE_START 3`, `TRACE_STOP 2`,
+  `TRACE_ABORT 0`, `TEXIT_COUNT 1`).
+- Queue impact:
+  no source-change target is reopened from these reads. Lower-frame `%17` stays
+  closed until a new range/recurrence contract appears, and iterator remains
+  mechanism-debt work rather than a current official-row regression.

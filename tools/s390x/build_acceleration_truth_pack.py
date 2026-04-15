@@ -204,6 +204,7 @@ local tab = {}
 for i = 1, 100 do
   tab["a" .. i] = i
 end
+_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 local function run(_)
   local total = 0
   for key in pairs(tab) do
@@ -338,6 +339,7 @@ end)
 """,
     "lower_frame_lua_abs": LUA_COMMON
     + """\
+_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 local function run_lua_abs()
   local total = 0
   for i = 1, 80000 do
