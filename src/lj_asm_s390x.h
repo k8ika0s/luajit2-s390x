@@ -1349,12 +1349,6 @@ static int asm_gencall_sload(ASMState *as, Reg gpr, IRRef ref)
 
 /* -- Shared NYI helpers -------------------------------------------------- */
 
-static LJ_NORET LJ_NOINLINE void asm_s390x_nyi(ASMState *as)
-{
-  setintV(&as->J->errinfo, -1);
-  lj_trace_err_info(as->J, LJ_TRERR_NYIIR);
-}
-
 static LJ_NORET LJ_NOINLINE void asm_s390x_nyi_tag(ASMState *as, int32_t tag)
 {
   setintV(&as->J->errinfo, tag);
@@ -1643,27 +1637,6 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
     if ((sn & SNAP_NORESTORE))
       continue;
 
-    /* If the same ref already exists in a no-restore slot, duplicate the
-    ** live stack TValue instead of rebuilding it from potentially stale
-    ** reg/spill state. This matches the root-exit shadow-slot pattern seen
-    ** on s390x loop resumes.
-    */
-    if (!(sn & SNAP_KEYINDEX)) {
-      MSize m;
-      for (m = 0; m < n; m++) {
-        SnapEntry srcsn = map[m];
-        if ((srcsn & SNAP_NORESTORE) && snap_ref(srcsn) == ref &&
-            !(srcsn & SNAP_KEYINDEX)) {
-          int32_t srcofs = 8 * ((int32_t)snap_slot(srcsn) - 1 - LJ_FR2);
-          Reg tmp = ra_scratch(as, rset_exclude(RSET_GPR, RID_BASE));
-          emit_store64ofs(as, tmp, RID_BASE, ofs);
-          emit_load64ofs(as, tmp, RID_BASE, srcofs);
-          checkmclim(as);
-          goto nextslot;
-        }
-      }
-    }
-
     if (asm_s390x_stack_restore_log_enabled()) {
       fprintf(stderr,
 	      "S390X_STACK_RESTORE trace=%u snapno=%u slot=%u ref=%u op=%u type=%u key=%u norestore=%u ofs=%d\n",
@@ -1695,8 +1668,6 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
       asm_tvstore64(as, RID_BASE, ofs, ref);
     }
     checkmclim(as);
-  nextslot:
-    ;
   }
 }
 
@@ -2042,6 +2013,7 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   IRIns *lir, *rir = NULL;
   int cc;
   int cmp32u;
+  int cmp32s;
   int imm16_signed;
   lj_assertA(irt_isint(ir->t) || irt_isu32(ir->t) || irt_isaddr(ir->t) ||
 	     irt_isu8(ir->t) || irt_isp32(ir->t),
@@ -2057,17 +2029,29 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
   asm_guardcc(as, cc & 15);
   imm16_signed = irref_isk(rref) && !(cc & CC_UNSIGNED) && !irt_isaddr(ir->t) &&
-		 checki16(IR(rref)->i);
+			 checki16(IR(rref)->i);
   if (imm16_signed) {
+    cmp_left = left;
+    cmp32s = irt_isinteger(ir->t);
+    if (cmp32s)
+      cmp_left = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
     asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
-    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, RID_NONE, 1);
-    emit_u32(as, S390X_INS_RI(S390XI_CGHI, left, IR(rref)->i));
+    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, RID_NONE, 1);
+    emit_u32(as, S390X_INS_RI(S390XI_CGHI, cmp_left, IR(rref)->i));
+    if (cmp32s)
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_left, left));
     return;
   }
   if (irref_isk(rref) && !(cc & CC_UNSIGNED) && !irt_isaddr(ir->t)) {
+    cmp_left = left;
+    cmp32s = irt_isinteger(ir->t);
+    if (cmp32s)
+      cmp_left = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
     asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
-    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, RID_NONE, 1);
-    emit_u48_pad8(as, S390X_INS_RIL(S390XI_CGFI, left, IR(rref)->i));
+    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, RID_NONE, 1);
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_CGFI, cmp_left, IR(rref)->i));
+    if (cmp32s)
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_left, left));
     return;
   }
   if (irref_isk(rref)) {
@@ -2079,10 +2063,11 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   cmp32u = (cc & CC_UNSIGNED) &&
 	   (irt_isu32(ir->t) || irt_isp32(ir->t) || irt_isu8(ir->t) ||
 	    irt_isu16(ir->t));
+  cmp32s = !(cc & CC_UNSIGNED) && irt_isinteger(ir->t);
   asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, cmp32u, 0);
   cmp_left = left;
   cmp_right = right;
-  if (cmp32u) {
+  if (cmp32u || cmp32s) {
     RegSet allow = rset_exclude(RSET_GPR_NOB, left);
     if (!irref_isk(rref))
       allow = rset_exclude(allow, right);
@@ -2094,11 +2079,15 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   }
   asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, cmp_right, 0);
   emit_u32(as, S390X_INS_RXE((cc & CC_UNSIGNED) ? S390XI_CLGR : S390XI_CGR,
-			     cmp_left, cmp_right));
+				     cmp_left, cmp_right));
   if (cmp32u) {
     if (!irref_isk(rref))
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, cmp_right, right));
     emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, cmp_left, left));
+  } else if (cmp32s) {
+    if (!irref_isk(rref))
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_right, right));
+    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_left, left));
   }
 }
 
@@ -2322,8 +2311,9 @@ static void asm_retf(ASMState *as, IRIns *ir)
 
 static void asm_equal(ASMState *as, IRIns *ir)
 {
-  Reg left, right;
+  Reg left, right, cmp_left, cmp_right;
   IRIns *lir, *rir = NULL;
+  int cmp32s;
   if (irt_isfp(ir->t)) {
     asm_s390x_nyi_ir(as, ir);
     return;
@@ -2338,8 +2328,20 @@ static void asm_equal(ASMState *as, IRIns *ir)
   else
     right = ra_alloc1_nobase(as, ir->op2, rset_exclude(RSET_GPR_NOB, left), -204);
   asm_s390x_low32cmp_log(as, "equal", ir->o, ir->op1, ir->op2, lir, rir, 0, 0);
+  cmp32s = irt_isinteger(ir->t);
+  cmp_left = left;
+  cmp_right = right;
+  if (cmp32s) {
+    RegSet allow = rset_exclude(rset_exclude(RSET_GPR_NOB, left), right);
+    cmp_left = ra_scratch(as, allow);
+    cmp_right = ra_scratch(as, rset_exclude(allow, cmp_left));
+  }
   asm_guardcc(as, ir->o == IR_EQ ? CC_NE : CC_EQ);
-  emit_u32(as, S390X_INS_RXE(S390XI_CGR, left, right));
+  emit_u32(as, S390X_INS_RXE(S390XI_CGR, cmp_left, cmp_right));
+  if (cmp32s) {
+    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_right, right));
+    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_left, left));
+  }
 }
 static void asm_bnorm32(ASMState *as, IRIns *ir, Reg dest)
 {
@@ -2507,9 +2509,8 @@ static void asm_sub(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
     Reg dest = ra_dest(as, ir, RSET_FPR);
-    Reg lr = ra_alloc2(as, ir, RSET_FPR);
-    Reg left = lr & 255;
-    Reg right = lr >> 8;
+    Reg left = ra_hintalloc(as, ir->op1, dest, RSET_FPR);
+    Reg right = ra_alloc1(as, ir->op2, rset_exclude(RSET_FPR, dest));
     emit_u32(as, S390X_INS_RXE(S390XI_SDBR, dest, right));
     asm_s390x_fpleft(as, ir, dest, left);
     return;
@@ -2991,6 +2992,20 @@ static int32_t asm_s390x_vload_intofs(ASMState *as, IRIns *ir, int32_t ofs)
   return ofs + (LJ_BE ? 4 : 0);
 }
 
+static int asm_s390x_hload_dynamic_str_href_int_typecheck(ASMState *as,
+							  IRIns *ir)
+{
+  IRIns *href, *key;
+  UNUSED(as);
+  if (!(ir->o == IR_HLOAD && irt_isint(ir->t)) || irref_isk(ir->op1))
+    return 0;
+  href = IR(ir->op1);
+  if (href->o != IR_HREF || irref_isk(href->op2))
+    return 0;
+  key = IR(href->op2);
+  return irt_isstr(key->t);
+}
+
 static void asm_ahuvload(ASMState *as, IRIns *ir)
 {
   int32_t ofs = 0;
@@ -3075,6 +3090,20 @@ dotypecheck:
     emit_loadu64(as, expected, irt_isnil(t) ? ~(uint64_t)0 :
       (uint64_t)(~((int64_t)~irt_toitype(t) << 47)));
     emit_load64ofs(as, tmp, fr.reg, ofs);
+  } else if (asm_s390x_hload_dynamic_str_href_int_typecheck(as, ir)) {
+    Reg tmp = ra_scratch(as, allow);
+    Reg expected = ra_scratch(as, rset_exclude(allow, tmp));
+    asm_s390x_guard_log(as, "hload_str_href_int", ir, CC_NE, ofs, 0);
+    asm_guardcc(as, CC_NE);
+    emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
+    if (LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()) {
+      emit_loadu64(as, expected, (uint64_t)(int64_t)(int32_t)LJ_TISNUM);
+      emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
+    } else {
+      emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM >> 15));
+      emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
+    }
+    emit_load64ofs(as, tmp, fr.reg, ofs);
   }
   if (ra_hasreg(dest)) {
     if (irt_isnum(t)) {
@@ -3104,8 +3133,19 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
   const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_tab_get];
   IRRef args[3];
   IRIns *gir = NULL;
+  IRIns *irkey = IR(ir->op2);
   Reg expected = RID_NONE;
   RegSet allow;
+  if (merge == 0 && irt_isstr(irkey->t)) {
+    const CCallInfo *cistr = &lj_ir_callinfo[IRCALL_lj_tab_getstr_jit];
+    IRRef sargs[3];
+    sargs[0] = ASMREF_L;     /* lua_State * */
+    sargs[1] = ir->op1;      /* GCtab * */
+    sargs[2] = ir->op2;      /* GCstr * */
+    asm_setupresult(as, ir, cistr);  /* cTValue * */
+    asm_gencall(as, cistr, sargs);
+    return;
+  }
   args[0] = ASMREF_L;     /* lua_State * */
   args[1] = ir->op1;      /* GCtab * */
   args[2] = ASMREF_TMP1;  /* cTValue *key */
@@ -3366,8 +3406,8 @@ static void asm_fload(ASMState *as, IRIns *ir)
   }
 
   if (ir->op1 == REF_NIL) {  /* FLOAD from GG_State with offset. */
-    base = RID_GL;
-    ofs = (ir->op2 << 2) - GG_OFS(g);
+    base = RID_DISPATCH;
+    ofs = (ir->op2 << 2) - GG_OFS(dispatch);
   } else {
     base = ra_alloc1_nobase(as, ir->op1, rset_exclude(RSET_GPR_NOB, dest), -221);
     ofs = field_ofs[ir->op2];

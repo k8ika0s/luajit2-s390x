@@ -153,6 +153,7 @@ typedef struct CCallInfo {
 #define IRCALLDEF(_) \
   _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
   _(ANY,	lj_str_find,		4,   N, PGC, 0) \
+  _(ANY,	lj_str_equal,		3,   N, INT, 0) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \
   _(ANY,	lj_strscan_num_cache,	2,  FN, INT, 0) \
@@ -189,6 +190,7 @@ typedef struct CCallInfo {
   _(ANY,	lj_tab_clear,		1,  FS, NIL, 0) \
   _(ANY,	lj_tab_newkey,		3,   S, PGC, CCI_L|CCI_T) \
   _(ANY,	lj_tab_getstr,		2,  FL, PTR, 0) \
+  _(ANY,	lj_tab_getstr_jit,	3,  FL, PTR, CCI_L) \
   _(ANY,	lj_tab_get,		3,  FL, PTR, CCI_L) \
   _(ANY,	lj_tab_keyindex,	2,  FL, INT, 0) \
   _(ANY,	lj_vm_next,		2,  FL, PTR, 0) \

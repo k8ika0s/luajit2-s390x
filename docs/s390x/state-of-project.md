@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-14 09:10 PDT
+Last updated: 2026-04-15 07:55 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -38,6 +38,22 @@ It is intentionally current-state only. Historical experiment detail lives in
   intermittent `ffi_fixed_call_pressure/gpr_pressure` bad `uint64_t(0)`
   payload seen during retained-env matrix runs. Focused `kdz` and `zkd0` FFI
   pressure A/B now pass, and the exact `kdz` 100-run stress loop passed.
+- Current restamp:
+  current WIP over `9ffba341` has the 2026-04-15 exact iterator/mixed matcher
+  restamp plus the dynamic string-key `HREF` integer `HLOAD` typecheck. The
+  restamp restores current official `iterator_table` `BC_ITERN` shapes and the
+  current official `mixed_noffi` `BC_ITERL` shape to their exact guarded paths
+  before the broad iterator fallback. The HLOAD fix closes
+  `tests/s390x/jit_be/string_key_href.lua`, specifically the dynamic string-key
+  miss path `(map[key] or 0)`, without broadening generic table-load behavior.
+- Current retained matrix:
+  `/tmp/kdz-retained-jitter-post-hload-20260415074738/summary.md` is the
+  authoritative kdz full retained-env rerank after this restamp. It names no
+  material red official-row blocker. Remaining red medians are small/noisy:
+  `vararg_paths/sum_loop/hot 1.0246x`, `mixed_noffi/mixed_loop/hot 1.0167x`,
+  and `vararg_paths/retconst_loop/hot 1.0095x`; iterator is back at
+  parity/noise. kdz1 confirmed the focused restamp direction; zkd0 perf was
+  noisy in this tranche but passed focused correctness.
 - The previous post-`CNEWI` full retained-env matrix was
   `/tmp/kdz-retained-jitter-20260414070532/summary.md`. It kept the branch in
   the fast band and did not name a broad regression. Its next study lane was
@@ -1322,6 +1338,48 @@ interpretation.
   promotion-core reducer rows are all strongly faster than `-joff`. Continue
   looking for new acceleration opportunities, but require a named compiled-body
   or runtime handoff payer before changing source.
+- Lower-frame/W32/string-heavy tranche:
+  current `kdz` truth packs reconfirm lower-frame as stable compiled-body work
+  (`lua_abs_same_callsite/hot 0.1574x`) and low32/W32 rows as already deeply
+  accelerated (`0.0117x..0.0130x`). A stricter exact `%17` MLR candidate
+  engaged but was not retainable, so no backend source change is carried from
+  that proof. W32 boundary reductions exposed real correctness debt in
+  guard-consuming bitop chains, but the shallow fuse/scratch-routing proofs did
+  not fix the full reducer and were removed. New `string_heavy` perf coverage
+  is probe-only: byte scan, concat, and miss-find are JIT-fast; prefix substring
+  equality is a red probe; manual substring search and string-key lookup expose
+  unsafe JIT shapes and are interpreter-pinned until fixed. A generic
+  prefix-equality `lj_str_find` helper proof was exact but slower; the narrower
+  direct `lj_str_equal` rewrite is retained as a small kdz win for
+  `prefix_eq_loop/hot` (`~0.00808s..0.00826s` default-on versus
+  `~0.00808s..0.00843s` opt-out).
+  The post-helper string-heavy truth pack keeps prefix equality as the only red
+  official string-heavy probe (`1.4049x`, `TEXIT_COUNT 32000`), while
+  `manual_find_loop/hot` and `string_key_lookup_loop/hot` are now green/noise.
+  The follow-up `GG_State FLOAD` dispatch-base backend fix closes that prefix
+  row: the post-fix truth pack
+  [20260414-173913-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-173913-kdz-string_heavy-accel-truth-pack/summary.md)
+  reports `prefix_eq_loop/hot 0.0674x` (`0.000401s` JIT versus
+  `0.005957s -joff`), with the rest of the family green/noise or accelerated.
+  Keep `string_heavy` as probe coverage until the focused classifier scripts
+  are repaired; they now segfault after the official row is fixed, even though
+  the official benchmark and guardrails pass.
+- Post-fix rerank:
+  `/tmp/kdz-retained-jitter-20260414174257/summary.md` keeps the regression
+  queue empty. The only apparent red rows are small/noisy or intentionally
+  routed: `iterator_table/pairs_sum/hot` is a `+0.00012s..+0.00015s` residual
+  with one green pass, and `vararg_paths`, `mixed_noffi`, and
+  `iterator_table/pairs_array_sum` sit near parity/noise.
+- Post-string-key follow-up:
+  the subsequent dynamic string-key `HREF` fix supersedes the earlier
+  string-heavy pinned-row note. `manual_find_loop/hot` is now unpinned and runs
+  in the `~0.006s` JIT band versus `~0.050s -joff`; dynamic string-key lookup
+  is also unpinned and runs in the `~0.00040s` JIT band versus
+  `~0.0026s -joff`, with a new `jit_be/string_key_href.lua` hit/miss
+  correctness guard. The next acceleration lane is therefore not a
+  string-heavy matrix-regression fix. The remaining high-value mechanism debt
+  is the known iterator terminal handoff / broad non-exact iterator fallback,
+  or a newly named low-level payer from the next dense rerank.
 
 ## Where To Look Next
 

@@ -23,21 +23,24 @@ from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BENCH_FILE = "tests/s390x/perf/iterator_table.lua"
-HOST_LABELS = ("kdz", "zkd0")
+HOST_LABELS = ("kdz", "kdz1", "zkd0")
 DEFAULT_SAMPLES = 9
 DEFAULT_WARMUP = 2
 DEFAULT_PIN_CORE = 0
 REMOTE_ROOT = "/root/luajit2-s390x"
 AUTHORITATIVE_REPOS = {
     "kdz": f"{REMOTE_ROOT}/canon/repo",
+    "kdz1": f"{REMOTE_ROOT}/canon/repo",
     "zkd0": f"{REMOTE_ROOT}/canon/repo",
 }
 AUTHORITATIVE_RUNS = {
     "kdz": f"{REMOTE_ROOT}/runs",
+    "kdz1": f"{REMOTE_ROOT}/runs",
     "zkd0": f"{REMOTE_ROOT}/runs",
 }
 AUTHORITATIVE_ARCHIVES = {
     "kdz": f"{REMOTE_ROOT}/archive",
+    "kdz1": f"{REMOTE_ROOT}/archive",
     "zkd0": f"{REMOTE_ROOT}/archive",
 }
 AUTHORITATIVE_HASH_PATHS = [

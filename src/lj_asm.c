@@ -251,14 +251,6 @@ static int lj_asm_s390x_badra_log_enabled(void)
   return enabled;
 }
 
-static int lj_asm_s390x_badra_ignore_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BADRA_IGNORE") != NULL);
-  return enabled;
-}
-
 static void lj_asm_s390x_ra_trace(const char *phase, ASMState *as, IRRef ref,
 				  Reg reg, RegSet allow, int32_t spill)
 {
@@ -1161,11 +1153,6 @@ static void ra_rename(ASMState *as, Reg down, Reg up)
   ra_rename_(as, down, up, 1);
 }
 
-static void ra_rename_nosnap(ASMState *as, Reg down, Reg up)
-{
-  ra_rename_(as, down, up, 0);
-}
-
 /* Pick a destination register (marked as free).
 ** Caveat: allow is ignored if there's already a destination register.
 ** Use ra_destreg() to get a specific register.
@@ -1537,6 +1524,7 @@ static int32_t asm_stack_adjust(ASMState *as)
   return sps_scale(sps_align(as->evenspill));
 }
 
+#if !LJ_TARGET_S390X
 /* Must match with hash*() in lj_tab.c. */
 static uint32_t ir_khash(ASMState *as, IRIns *ir)
 {
@@ -1561,6 +1549,7 @@ static uint32_t ir_khash(ASMState *as, IRIns *ir)
   }
   return hashrot(lo, hi);
 }
+#endif
 
 /* -- Allocations --------------------------------------------------------- */
 
@@ -1949,7 +1938,7 @@ static void asm_phi_shuffle(ASMState *as)
 	if (ra_hasreg(left)) {
 	  lj_asm_s390x_phi_log("rename", as, irl, as->phireg[r], 0, r, left,
 			       RID_NONE);
-	  ra_rename_nosnap(as, left, r);
+	  ra_rename(as, left, r);
 	  checkmclim(as);
 	}
       }

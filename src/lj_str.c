@@ -68,6 +68,11 @@ const char *lj_str_find(const char *s, const char *p, MSize slen, MSize plen)
   return NULL;
 }
 
+int lj_str_equal(const char *a, const char *b, MSize len)
+{
+  return memcmp(a, b, len) == 0;
+}
+
 /* Check whether a string has a pattern matching character. */
 int lj_str_haspattern(GCstr *s)
 {
@@ -403,4 +408,3 @@ void LJ_FASTCALL lj_str_init(lua_State *L)
   g->str.seed = lj_prng_u64(&g->prng);
   lj_str_resize(L, LJ_MIN_STRTAB-1);
 }
-

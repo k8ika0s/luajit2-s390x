@@ -553,7 +553,7 @@ static int snap_s390x_restore_pref_reg_enabled(void)
   static int enabled = -1;
   if (enabled == -1) {
     const char *s = getenv("LUAJIT_S390X_RESTORE_PREF_REG");
-    enabled = s ? (atoi(s) != 0) : 1;
+    enabled = s ? (atoi(s) != 0) : 0;
   }
   return enabled;
 }
@@ -994,21 +994,6 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
 			    IRRef ref, TValue *o)
 {
   IRIns *ir = &T->ir[ref];
-#if LJ_TARGET_S390X
-  if (J->parent == 1 && !irref_isk(ref) && irt_isinteger(ir->t) &&
-      ir->o != IR_PHI) {
-    IRIns *phi;
-    for (phi = &T->ir[REF_FIRST]; phi < &T->ir[T->nins]; phi++) {
-      if (phi->o != IR_PHI)
-        continue;
-      if (phi->op1 == ref && irt_type(phi->t) == irt_type(ir->t)) {
-	ref = (IRRef)(phi - T->ir);
-	ir = phi;
-	break;
-      }
-    }
-  }
-#endif
   IRType1 t = ir->t;
   RegSP rs = ir->prev;
   RegSP orig_rs = rs, renamed_rs = rs;
@@ -1029,9 +1014,6 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
 #if LJ_TARGET_S390X
   if (irt_isinteger(t) && ra_hasspill(regsp_spill(rs)) &&
       !ra_noreg(regsp_reg(rs)) && regsp_reg(rs) != RID_SP &&
-      !(J->parent == 1 && J->exitno == 1 &&
-        ir->o == IR_SLOAD && (ir->op2 & IRSLOAD_INHERIT)) &&
-      !(J->parent == 1 && J->exitno == 5 && ir->o == IR_ADDOV) &&
       snap_s390x_restore_pref_reg_enabled()) {
     rs = REGSP(regsp_reg(rs), SPS_NONE);
     pref_applied = 1;
@@ -1344,7 +1326,6 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
       TValue *o = &frame[snap_slot(sn)];
       IRRef ref = snap_ref(sn);
       IRIns *ir = &T->ir[ref];
-      MSize j;
 #if LJ_TARGET_S390X
       if (snap_s390x_unsink_log_enabled()) {
 	fprintf(stderr,
@@ -1354,14 +1335,9 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 		(unsigned int)ir->r, (unsigned int)ir->prev,
 		(unsigned int)((sn & SNAP_NORESTORE) != 0));
       }
-      for (j = 0; j < n; j++) {
-	if ((map[j] & SNAP_NORESTORE) && snap_ref(map[j]) == ref) {
-	  copyTV(L, o, &frame[snap_slot(map[j])]);
-	  goto dupslot;
-	}
-      }
 #endif
       if (snap_restore_sunkalloc(T, snapno, ir)) {
+	MSize j;
 	for (j = 0; j < n; j++)
 	  if (snap_ref(map[j]) == ref) {  /* De-duplicate sunk allocations. */
 	    copyTV(L, o, &frame[snap_slot(map[j])]);

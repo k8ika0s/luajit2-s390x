@@ -38,6 +38,7 @@ BENCH_FILES: dict[str, str] = {
     "numeric_ops": "tests/s390x/perf/numeric_ops.lua",
     "promotion_core_static_stop": "tests/s390x/perf/promotion_core_static_stop.lua",
     "route_around_reducers": "tests/s390x/perf/route_around_reducers.lua",
+    "string_heavy": "tests/s390x/perf/string_heavy.lua",
     "vararg_paths": "tests/s390x/perf/vararg_paths.lua",
 }
 ORACLE_BENCH_FAMILIES = {

@@ -465,6 +465,12 @@ cTValue *lj_tab_getstr(GCtab *t, const GCstr *key)
   return NULL;
 }
 
+cTValue *lj_tab_getstr_jit(lua_State *L, GCtab *t, const GCstr *key)
+{
+  cTValue *tv = lj_tab_getstr(t, key);
+  return tv ? tv : niltv(L);
+}
+
 cTValue *lj_tab_get(lua_State *L, GCtab *t, cTValue *key)
 {
   if (tvisstr(key)) {
