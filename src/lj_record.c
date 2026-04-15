@@ -390,6 +390,73 @@ static TRef getcurrf(jit_State *J)
   return sloadt(J, -1-LJ_FR2, IRT_FUNC, IRSLOAD_READONLY);
 }
 
+#if LJ_TARGET_S390X
+static int lj_record_s390x_string_sub_eq_memcmp_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled < 0)
+    enabled = (getenv("LUAJIT_S390X_DISABLE_STRING_SUB_EQ_MEMCMP") == NULL);
+  return enabled;
+}
+
+static TRef lj_record_s390x_ref_tref(jit_State *J, IRRef ref)
+{
+  return TREF(ref, irt_t(IR(ref)->t));
+}
+
+static int lj_record_s390x_string_sub_eq_memcmp(jit_State *J, TRef a, TRef b,
+						cTValue *av, cTValue *bv,
+						int diff)
+{
+  TRef snew, other;
+  IRIns *snewir, *strrefir;
+  TRef sptr, slen, olen, optr, eq;
+  GCstr *snewstr, *otherstr;
+
+  if (!lj_record_s390x_string_sub_eq_memcmp_enabled() ||
+      !tvisstr(av) || !tvisstr(bv))
+    return 0;
+
+  if (!tref_isk(a) && IR(tref_ref(a))->o == IR_SNEW) {
+    snew = a;
+    other = b;
+    snewstr = strV(av);
+    otherstr = strV(bv);
+  } else if (!tref_isk(b) && IR(tref_ref(b))->o == IR_SNEW) {
+    snew = b;
+    other = a;
+    snewstr = strV(bv);
+    otherstr = strV(av);
+  } else {
+    return 0;
+  }
+
+  if (!tref_isstr(other) ||
+      (!tref_isk(other) && IR(tref_ref(other))->o == IR_SNEW))
+    return 0;
+
+  snewir = IR(tref_ref(snew));
+  strrefir = IR(snewir->op1);
+  if (strrefir->o != IR_STRREF)
+    return 0;
+
+  sptr = lj_record_s390x_ref_tref(J, snewir->op1);
+  slen = lj_record_s390x_ref_tref(J, snewir->op2);
+  olen = emitir(IRTI(IR_FLOAD), other, IRFL_STR_LEN);
+
+  if (diff && snewstr->len != otherstr->len) {
+    emitir(IRTGI(IR_NE), slen, olen);
+    return 1;
+  }
+
+  emitir(IRTGI(IR_EQ), slen, olen);
+  optr = emitir(IRT(IR_STRREF, IRT_PGC), other, lj_ir_kint(J, 0));
+  eq = lj_ir_call(J, IRCALL_lj_str_equal, sptr, optr, slen);
+  emitir(IRTGI(diff ? IR_EQ : IR_NE), eq, lj_ir_kint(J, 0));
+  return 1;
+}
+#endif
+
 /* Compare for raw object equality.
 ** Returns 0 if the objects are the same.
 ** Returns 1 if they are different, but the same type.
@@ -413,6 +480,11 @@ int lj_record_objcmp(jit_State *J, TRef a, TRef b, cTValue *av, cTValue *bv)
 	return 2;  /* Two different types are never equal. */
       }
     }
+#if LJ_TARGET_S390X
+    if (ta == IRT_STR && tb == IRT_STR &&
+	lj_record_s390x_string_sub_eq_memcmp(J, a, b, av, bv, diff))
+      return diff;
+#endif
     emitir(IRTG(diff ? IR_NE : IR_EQ, ta), a, b);
   }
   return diff;
@@ -900,13 +972,6 @@ static int lj_record_s390x_recloop_focus_enabled(void)
   return enabled;
 }
 
-static int lj_record_s390x_is_itern_follow_op(BCOp op)
-{
-  return op == BC_ITERL || op == BC_IITERL || op == BC_JITERL ||
-	 op == BC_LOOP || op == BC_ILOOP || op == BC_JLOOP ||
-	 op == BC_JMP;
-}
-
 static int lj_record_s390x_no_extra_loop_cont_stub_enabled(void)
 {
   static int enabled = -1;
@@ -1261,7 +1326,7 @@ static void lj_record_s390x_side_focus_log(jit_State *J, const char *site,
     snapcount = snap->count;
     snapnent = snap->nent;
     snapref = snap->ref;
-    snappc = snap_pc(&map[snap->nent]);
+    snappc = snap_pc((SnapEntry *)&map[snap->nent]);
     snapop = (unsigned int)(snappc ? bc_op(*snappc) : 0);
     for (i = 0; i < snap->nent; i++) {
       SnapEntry sn = map[i];
@@ -3101,6 +3166,16 @@ static void rec_tsetm(jit_State *J, BCReg ra, BCReg rn, int32_t i)
 
 /* -- Upvalue access ------------------------------------------------------ */
 
+#if LJ_TARGET_S390X
+static int rec_s390x_small_table_len_const_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled < 0)
+    enabled = (getenv("LUAJIT_S390X_DISABLE_SMALL_TABLE_LEN_CONST") == NULL);
+  return enabled;
+}
+#endif
+
 /* Check whether upvalue is immutable and ok to constify. */
 static int rec_upvalue_constify(jit_State *J, GCupval *uvp)
 {
@@ -3858,8 +3933,24 @@ void lj_record_ins(jit_State *J)
   case BC_LEN:
     if (tref_isstr(rc))
       rc = emitir(IRTI(IR_FLOAD), rc, IRFL_STR_LEN);
-    else if (!LJ_52 && tref_istab(rc))
-      rc = emitir(IRTI(IR_ALEN), rc, TREF_NIL);
+    else if (!LJ_52 && tref_istab(rc)) {
+      TRef alen = emitir(IRTI(IR_ALEN), rc, TREF_NIL);
+#if LJ_TARGET_S390X
+      if (rec_s390x_small_table_len_const_enabled() && tvistab(rcv)) {
+	GCtab *t = tabV(rcv);
+	MSize len = lj_tab_len(t);
+	if (len > 0 && len <= 8 && t->hmask == 0) {
+	  emitir(IRTGI(IR_EQ), alen, lj_ir_kint(J, (int32_t)len));
+	  rc = lj_ir_kint(J, (int32_t)len);
+	} else {
+	  rc = alen;
+	}
+      } else
+#endif
+      {
+	rc = alen;
+      }
+    }
     else
       rc = rec_mm_len(J, rc, rcv);
     break;
@@ -4239,8 +4330,14 @@ static const BCIns *rec_setup_root(jit_State *J)
     J->bc_min = pc;
     break;
   case BC_ITERN:
-    lj_assertJ(lj_record_s390x_is_itern_follow_op(bc_op(pc[1])),
-	       "no resumable loop op after ITERN");
+#ifdef LUA_USE_ASSERT
+    {
+      BCOp op = bc_op(pc[1]);
+      lj_assertJ(op == BC_ITERL || op == BC_IITERL || op == BC_JITERL ||
+		 op == BC_LOOP || op == BC_ILOOP || op == BC_JLOOP ||
+		 op == BC_JMP, "no resumable loop op after ITERN");
+    }
+#endif
     J->maxslot = ra;
     J->bc_extent = (MSize)(-bc_j(pc[1]))*sizeof(BCIns);
     J->bc_min = pc+2 + bc_j(pc[1]);

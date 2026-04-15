@@ -421,14 +421,6 @@ static int lj_trace_s390x_loopdesc_root_resumechild_enabled(void)
   return enabled;
 }
 
-static int lj_trace_s390x_loopdesc_root_exec_link_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_LOOPDESC_ROOT_EXEC_LINK") != NULL);
-  return enabled;
-}
-
 static int lj_trace_s390x_jloop_owner_static_reenter_enabled(void)
 {
   static int enabled = -1;
@@ -1132,7 +1124,7 @@ static int lj_trace_s390x_mixed_noffi_iterl_blacklist_match(jit_State *J,
          J->cur.topslot == 14 &&
          J->cur.spadjust == 8 &&
          J->cur.nsnap == 2 &&
-         J->cur.nins == 32792 &&
+         (J->cur.nins == 32792 || J->cur.nins == 32794) &&
          J->cur.mcloop == 360 &&
          T != NULL;
 }
@@ -1360,7 +1352,11 @@ static int lj_trace_s390x_iterator_itern_exact_root_match(jit_State *J,
          J->cur.nsnap == 6 &&
          ((J->cur.nins == 32785 && J->cur.mcloop == 208) ||
           (J->cur.nins == 32789 && J->cur.mcloop == 236) ||
-          (J->cur.nins == 32792 && J->cur.mcloop == 300)) &&
+          (J->cur.nins == 32790 && J->cur.mcloop == 236) ||
+          (J->cur.nins == 32789 && J->cur.mcloop == 264) ||
+          (J->cur.nins == 32792 && J->cur.mcloop == 300) ||
+          (J->cur.nins == 32793 && J->cur.mcloop == 300) ||
+          (J->cur.nins == 32792 && J->cur.mcloop == 328)) &&
          T != NULL;
 }
 
@@ -2563,46 +2559,6 @@ static uint32_t lj_trace_s390x_guard_mark(uintptr_t dispatch)
 #endif
 }
 
-static void lj_trace_s390x_dump_ptr_bias(FILE *out, const char *label, uintptr_t p)
-{
-#if LJ_TARGET_S390X
-  const uint8_t *q = (const uint8_t *)p;
-  int i;
-  fprintf(out, " %s", label);
-  if (!p) {
-    fprintf(out, "=<null>");
-    return;
-  }
-  for (i = 0; i < 8; i++) {
-    uint32_t v = lj_trace_s390x_load_be32(q + i);
-    fprintf(out, " +%d=%u/0x%08x", i, (unsigned int)v, (unsigned int)v);
-  }
-#else
-  UNUSED(out); UNUSED(label); UNUSED(p);
-#endif
-}
-
-static void lj_trace_s390x_dump_stride_bias(FILE *out, const char *label,
-					    uintptr_t p, int bias)
-{
-#if LJ_TARGET_S390X
-  static const int slots[] = { -24, -16, -8, 0, 8, 16, 24 };
-  int i;
-  fprintf(out, " %s", label);
-  if (!p) {
-    fprintf(out, "=<null>");
-    return;
-  }
-  for (i = 0; i < (int)(sizeof(slots) / sizeof(slots[0])); i++) {
-    const uint8_t *q = (const uint8_t *)(p + slots[i] + bias);
-    uint32_t v = lj_trace_s390x_load_be32(q);
-    fprintf(out, " %d:%u/0x%08x", slots[i], (unsigned int)v, (unsigned int)v);
-  }
-#else
-  UNUSED(out); UNUSED(label); UNUSED(p); UNUSED(bias);
-#endif
-}
-
 static void lj_trace_s390x_dump_snapmap(FILE *out, const char *label,
 					const GCtrace *T, ExitNo exitno)
 {
@@ -2794,14 +2750,7 @@ static void lj_trace_s390x_exit_log(const char *phase, jit_State *J,
 		(unsigned long long)ex->gpr[RID_DISPATCH],
 		(unsigned long long)ex->gpr[RID_R11],
 		(unsigned long long)ex->gpr[RID_R12]);
-	fprintf(stderr, "\n");
-	lj_trace_s390x_dump_ptr_u32(stderr, "r3ptr", (uintptr_t)ex->gpr[RID_R3]);
-	lj_trace_s390x_dump_tvalue_pair(stderr, "r3tv", (uintptr_t)ex->gpr[RID_R3]);
-	lj_trace_s390x_dump_stride_bias(stderr, "r3+4", (uintptr_t)ex->gpr[RID_R3], 4);
-	lj_trace_s390x_dump_dispatch_tmptv(stderr,
-					   (uintptr_t)ex->gpr[RID_DISPATCH],
-					   (uintptr_t)ex->gpr[RID_R3]);
-	fprintf(stderr, "\n");
+		fprintf(stderr, "\n");
       } else {
 	fprintf(stderr,
 		"S390X_EXIT phase=%s trace=%u exit=%u pc=%p op=%u snapcount=%u snapref=%u snapnent=%u state=%u lr=%p pcreg=%p mcofs=%ld guardmark=%#x f0=%g f1=%g f2=%g f3=%g f4=%g f12=%g f14=%g f15=%g r2=%#llx r3=%#llx r4=%#llx r5=%#llx r6=%#llx r7=%#llx r8=%#llx r9=%#llx r10=%#llx r11=%#llx r12=%#llx\n",
@@ -2862,13 +2811,7 @@ static void lj_trace_s390x_exit_log(const char *phase, jit_State *J,
 		  slotdelta,
 		  (unsigned int)maxexit);
 	}
-	lj_trace_s390x_dump_ptr_u32(stderr, "r3ptr", (uintptr_t)ex->gpr[RID_R3]);
-	lj_trace_s390x_dump_tvalue_pair(stderr, "r3tv", (uintptr_t)ex->gpr[RID_R3]);
-	lj_trace_s390x_dump_stride_bias(stderr, "r3+4", (uintptr_t)ex->gpr[RID_R3], 4);
-	lj_trace_s390x_dump_dispatch_tmptv(stderr,
-					   (uintptr_t)ex->gpr[RID_DISPATCH],
-					   (uintptr_t)ex->gpr[RID_R3]);
-	fprintf(stderr, "\n");
+		fprintf(stderr, "\n");
       }
       if (J->parent == 1 && J->exitno == 4) {
 	fprintf(stderr,
@@ -2895,7 +2838,7 @@ static void lj_trace_s390x_exit_log(const char *phase, jit_State *J,
     if (CT && exitno < CT->nsnap) {
       const SnapShot *snap = &CT->snap[exitno];
       const SnapEntry *map = &CT->snapmap[snap->mapofs];
-      const BCIns *snappc = snap_pc(&map[snap->nent]);
+      const BCIns *snappc = snap_pc((SnapEntry *)&map[snap->nent]);
       MSize i;
       fprintf(stderr, "S390X_EXIT_SNAP trace=%u exit=%u snappc=%p snapop=%u",
 	      (unsigned int)J->parent, (unsigned int)exitno,

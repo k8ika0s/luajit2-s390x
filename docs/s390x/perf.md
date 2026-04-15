@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-14 09:10 PDT
+Last updated: 2026-04-15 07:55 PDT
 
 ## Post-Guardrail Retained Checkpoint
 
@@ -40,6 +40,24 @@ Last updated: 2026-04-14 09:10 PDT
   `/tmp/kdz-retained-jitter-20260414070305/summary.md` and `zkd0`
   `/tmp/zkd0-retained-jitter-20260414071206/summary.md` pass focused FFI
   pressure A/B; the exact 100-run `kdz` retained-env stress loop also passed.
+- Current matcher/correctness restamp:
+  current WIP over `9ffba341` has the 2026-04-15 exact matcher restamps and
+  dynamic string-key `HREF` integer `HLOAD` typecheck. The restamp keeps the
+  exact iterator `BC_ITERN` proto-NOJIT path ahead of the broad iterator root
+  fallback for current `nins/mcloop` shapes, and keeps the exact mixed-noffi
+  `BC_ITERL` route-around ahead of the broad fallback for the current
+  `nins=32794/mcloop=360` shape. The HLOAD fix closes the
+  `string_key_href.lua` miss-path correctness guardrail without broadening
+  generic table-load behavior.
+- Latest retained-env matrix:
+  `/tmp/kdz-retained-jitter-post-hload-20260415074738/summary.md` is the
+  current full `kdz` rerank after the restamps and HLOAD typecheck
+  (`samples=5`, `warmup=2`, three alternating passes). It names no material
+  red official-row blocker. The only red medians are tiny/noisy:
+  `vararg_paths/sum_loop/hot 1.0246x`, `mixed_noffi/mixed_loop/hot 1.0167x`,
+  and `vararg_paths/retconst_loop/hot 1.0095x`. Iterator is back in the
+  parity/noise band (`pairs_sum/hot 0.9969x`, `pairs_array_sum/hot 0.9945x`),
+  and `string_heavy` is strongly JIT-positive across all rows.
 - Previous post-`CNEWI` rerank note:
   `/tmp/kdz-retained-jitter-20260414070532/summary.md` was the full
   retained-env matrix immediately after the `CNEWI` fix. FFI pressure was green
@@ -557,7 +575,7 @@ This is the current retained matrix for the stable carried workloads. If a
 workload belongs to the carried suite, it should have one row here even if the
 number is ugly.
 
-Base source: `/tmp/kdz-retained-jitter-20260412085621`, full retained env,
+Base source: `/tmp/kdz-retained-jitter-post-hload-20260415074738`, full retained env,
 all known `probe_retained_jitter.py` families, `S390X_PERF_SAMPLES=5`,
 `S390X_PERF_WARMUP=2`, three alternating passes. Selected retained-win rows
 are restamped from their later focused or full-matrix artifacts, including
@@ -567,28 +585,28 @@ Oracle-backed FFI rows are included via a native remote
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004437` | `0.004129` | `+0.000308`, `1.0004x` | `kdz` | `2026-04-12 08:58 PDT` | exact iterator guard path retained; one noisy pass, median at parity |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003683` | `0.003668` | `+0.000015`, `1.0055x` | `kdz` | `2026-04-12 08:58 PDT` | exact iterator guard path retained; median near parity |
-| `mixed_loop/hot` | `mixed_noffi` | `0.003867` | `0.003807` | `+0.000060`, `1.0171x` | `kdz` | `2026-04-12 08:58 PDT` | exact mixed `BC_ITERL` ordering retained; tiny residual only |
+| `pairs_sum/hot` | `iterator_table` | `0.004376` | `0.004285` | `-0.000013`, `0.9969x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003665` | `0.003666` | `-0.000021`, `0.9945x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
+| `mixed_loop/hot` | `mixed_noffi` | `0.003840` | `0.003777` | `+0.000063`, `1.0167x` | `kdz` | `2026-04-15 07:49 PDT` | exact mixed `BC_ITERL` matcher restamped before broad iterator fallback; tiny residual only |
 | `mixed_ffi_loop/hot` | `mixed_ffi` | `0.000824` | `0.012084` | `-0.011260`, `0.0682x` | `kdz` | `2026-04-12 08:58 PDT` | compiled fast band after guardrail promotions |
 | `number_helper_loop/hot` | `be_helpers` | `0.000075` | `0.002288` | `-0.002213`, `0.0328x` | `kdz` | `2026-04-12 12:32 PDT` | retained safe `bit.tobit` constant-bounded `MULOV` narrowing |
 | `be_pack_loop/hot` | `be_helpers` | `0.000247` | `0.018806` | `-0.018559`, `0.0131x` | `kdz` | `2026-04-12 08:58 PDT` | exact be-pack root allowed to compile |
-| `strto_loop/hot` | `be_helpers` | `0.003479` | `0.008361` | `-0.004882`, `0.4170x` | `kdz` | `2026-04-12 08:58 PDT` | STRTO backend row green |
+| `strto_loop/hot` | `be_helpers` | `0.000645` | `0.008222` | `-0.007577`, `0.0804x` | `kdz` | `2026-04-15 07:49 PDT` | retained STRTO short-string cache fast band |
 | `direct_abs/hot` | `ffi_calls` | `0.000282` | `0.010242` | `-0.009960`, `0.0275x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
 | `stored_abs/hot` | `ffi_calls` | `0.000281` | `0.007012` | `-0.006731`, `0.0401x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
 | `mix_bits/hot` | `bitops_mix` | `0.000024` | `0.002181` | `-0.002157`, `0.0110x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
 | `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000027` | `0.002176` | `-0.002149`, `0.0124x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
 | `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000026` | `0.002031` | `-0.002005`, `0.0128x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
-| `numeric_loop/hot` | `dispatch_trace` | `0.002206` | `0.002197` | `+0.000009`, `1.0023x` | `kdz` | `2026-04-12 08:58 PDT` | dispatch route-around retained; parity |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.004612` | `0.004654` | `-0.000042`, `0.9916x` | `kdz` | `2026-04-12 08:58 PDT` | dispatch side-exit row green |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.005724` | `0.005709` | `+0.000015`, `1.0030x` | `kdz` | `2026-04-12 08:58 PDT` | dispatch hotexit row parity |
+| `numeric_loop/hot` | `dispatch_trace` | `0.000278` | `0.002204` | `-0.001926`, `0.1261x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch row compiled fast under current retained env |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.000542` | `0.004639` | `-0.004097`, `0.1168x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch side-exit row compiled fast |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.000732` | `0.005714` | `-0.004982`, `0.1281x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch hotexit row compiled fast |
 | `max_loop/hot` | `numeric_ops` | `0.000176` | `0.002608` | `-0.002432`, `0.0675x` | `kdz` | `2026-04-12 08:58 PDT` | exact max body side-trace allow retained |
 | `pair_loop/hot` | `ffi_cdata` | `0.000056` | `0.017314` | `-0.017258`, `0.0033x` | `kdz` | `2026-04-12 08:58 PDT` | obsolete cdata FORL guard retired; compiled fast band |
 | `mixed_width_loop/hot` | `ffi_cdata` | `0.000271` | `0.028213` | `-0.027942`, `0.0095x` | `kdz` | `2026-04-12 11:36 PDT` | retained cdata mixed-width `MOD` / narrow-`XSTORE` closure |
 | `buffer_fref_loop/hot` | `ffi_cdata` | `0.000273` | `0.004959` | `-0.004686`, `0.0551x` | `kdz` | `2026-04-12 13:50 PDT` | retained integer MIN plus BUFHDR backend closure |
-| `sum_loop/hot` | `vararg_paths` | `0.004328` | `0.004329` | `-0.000001`, `1.0002x` | `kdz` | `2026-04-12 08:58 PDT` | vararg sum row parity under full retained env |
-| `retlast_loop/hot` | `vararg_paths` | `0.002050` | `0.001975` | `+0.000075`, `1.0169x` | `kdz` | `2026-04-12 08:58 PDT` | tiny/noisy residual only |
-| `retconst_loop/hot` | `vararg_paths` | `0.000548` | `0.000554` | `-0.000006`, `0.9734x` | `kdz` | `2026-04-12 08:58 PDT` | retconst row green |
+| `sum_loop/hot` | `vararg_paths` | `0.004414` | `0.004312` | `+0.000106`, `1.0246x` | `kdz` | `2026-04-15 07:49 PDT` | small/noisy residual only; no material payer |
+| `retlast_loop/hot` | `vararg_paths` | `0.000105` | `0.001976` | `-0.001871`, `0.0531x` | `kdz` | `2026-04-15 07:49 PDT` | retained fast row |
+| `retconst_loop/hot` | `vararg_paths` | `0.000533` | `0.000530` | `+0.000005`, `1.0095x` | `kdz` | `2026-04-15 07:49 PDT` | tiny/noisy residual only |
 | `gpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.000260` | `0.024619` | `-0.024359`, `0.0106x` | `kdz` | `2026-04-12 11:05 PDT` | retained 64-bit integer `FLOAD` closure |
 | `fpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.000266` | `0.011621` | `-0.011355`, `0.0229x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fast band |
 | `small_u32_call/hot` | `ffi_fixed_struct_calls` | `0.000416` | `0.010782` | `-0.010366`, `0.0390x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
@@ -603,6 +621,9 @@ Oracle-backed FFI rows are included via a native remote
 | `small_u64_take7/hot` | `ffi_fixed_struct_calls` | `0.000947` | `0.023701` | `-0.022754`, `0.0400x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
 | `one_double_take6/hot` | `ffi_fixed_struct_calls` | `0.000383` | `0.018252` | `-0.017869`, `0.0210x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
 | `one_double_take7/hot` | `ffi_fixed_struct_calls` | `0.000726` | `0.021625` | `-0.020899`, `0.0336x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
+| `manual_find_loop/hot` | `string_heavy` | `0.006677` | `0.048661` | `-0.042001`, `0.1376x` | `kdz` | `2026-04-15 07:49 PDT` | new string-heavy coverage; JIT-positive |
+| `byte_scan_loop/hot` | `string_heavy` | `0.007759` | `0.073722` | `-0.065930`, `0.1053x` | `kdz` | `2026-04-15 07:49 PDT` | new string-heavy coverage; JIT-positive |
+| `string_key_lookup_loop/hot` | `string_heavy` | `0.000342` | `0.002601` | `-0.002259`, `0.1315x` | `kdz` | `2026-04-15 07:49 PDT` | dynamic string-key HREF/HLOAD guardrail retained |
 
 ## Pinned Recurring Workloads
 
@@ -616,13 +637,13 @@ shrink.
 
 | Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004437` | `0.004129` | `+0.000308`, `1.0004x` | `kdz` | `2026-04-12 08:58 PDT` | exact root-`BC_ITERN` proto-NOJIT path retained; one noisy pass, median at parity |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003683` | `0.003668` | `+0.000015`, `1.0055x` | `kdz` | `2026-04-12 08:58 PDT` | exact root-`BC_ITERN` proto-NOJIT path retained; median near parity |
-| `mixed_loop/hot` | `mixed_noffi` | `0.003867` | `0.003807` | `+0.000060`, `1.0171x` | `kdz` | `2026-04-12 08:58 PDT` | exact mixed `BC_ITERL` blacklist still runs before broad iterator fallback; tiny residual only |
-| `numeric_loop/hot` | `dispatch_trace` | `0.002206` | `0.002197` | `+0.000009`, `1.0023x` | `kdz` | `2026-04-12 08:58 PDT` | exact dispatch route-around retained; parity |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.004612` | `0.004654` | `-0.000042`, `0.9916x` | `kdz` | `2026-04-12 08:58 PDT` | exact dispatch route-around retained; green |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.005724` | `0.005709` | `+0.000015`, `1.0030x` | `kdz` | `2026-04-12 08:58 PDT` | exact dispatch route-around retained; parity |
-| `sum_loop/hot` | `vararg_paths` | `0.004328` | `0.004329` | `-0.000001`, `1.0002x` | `kdz` | `2026-04-12 08:58 PDT` | vararg sum row at parity under full retained env |
+| `pairs_sum/hot` | `iterator_table` | `0.004376` | `0.004285` | `-0.000013`, `0.9969x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
+| `pairs_array_sum/hot` | `iterator_table` | `0.003665` | `0.003666` | `-0.000021`, `0.9945x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
+| `mixed_loop/hot` | `mixed_noffi` | `0.003840` | `0.003777` | `+0.000063`, `1.0167x` | `kdz` | `2026-04-15 07:49 PDT` | exact mixed `BC_ITERL` matcher restamped before broad iterator fallback; tiny residual only |
+| `numeric_loop/hot` | `dispatch_trace` | `0.000278` | `0.002204` | `-0.001926`, `0.1261x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch row compiled fast under current retained env |
+| `side_exit_loop/hot` | `dispatch_trace` | `0.000542` | `0.004639` | `-0.004097`, `0.1168x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch side-exit row compiled fast |
+| `hotexit_loop/hot` | `dispatch_trace` | `0.000732` | `0.005714` | `-0.004982`, `0.1281x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch hotexit row compiled fast |
+| `sum_loop/hot` | `vararg_paths` | `0.004414` | `0.004312` | `+0.000106`, `1.0246x` | `kdz` | `2026-04-15 07:49 PDT` | small/noisy residual only; no material payer |
 
 ### Regression And Control Workloads
 
@@ -5286,3 +5307,75 @@ localized-helper carried-`total` lane
   new dense official-row A/B with material absolute time, or a mechanism proof
   for safely replacing the retained iterator terminal leave guard. The known
   invalid root-link proof and VM instruction-shuffle proofs are closed.
+
+## 2026-04-14 Lower-Frame And String-Heavy Coverage
+
+- Current lower-frame acceleration read:
+  [20260414-112041-kdz-lower_frame_body-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-112041-kdz-lower_frame_body-accel-truth-pack/summary.md)
+  keeps `lower_frame_same_callsite/lua_abs_same_callsite/hot` stable at
+  `0.1574x`. A narrower exact `%17` MLR candidate engaged but was
+  noise-equivalent to control and grew mcode, so it was backed out.
+- Current W32_HOME read:
+  [20260414-112322-kdz-low32_home-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-112322-kdz-low32_home-accel-truth-pack/summary.md)
+  keeps the official low32 rows deeply accelerated (`0.0117x..0.0130x`).
+  Boundary reductions exposed real low32 guard-chain correctness debt, but the
+  attempted shallow `BAND != 0` fuse and broader scratch-routing variants did
+  not fix the full reducer. No source is retained from W32_HOME; it remains a
+  correctness design lane, not a current perf patch.
+- New probe-only coverage:
+  [tests/s390x/perf/string_heavy.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/string_heavy.lua)
+  is wired into the retained-jitter tooling as `string_heavy`, but it is not a
+  default gate. First hot-only `kdz` read
+  `/tmp/kdz-retained-jitter-20260414115358/summary.md` shows JIT wins for
+  `byte_scan_loop`, `concat_slice_loop`, and `miss_find_loop`, a red
+  `prefix_eq_loop` probe (`1.4780x`), and interpreter-pinned safety rows for
+  manual substring search and string-key lookup. A temporary prefix-equality
+  helper/fold was exact but too small (`~1.44x..1.46x`) and was removed.
+- Focused string-heavy truth pack:
+  [20260414-130127-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-130127-kdz-string_heavy-accel-truth-pack/summary.md)
+  keeps `prefix_eq_loop/hot` as the only red official probe (`1.4573x`) and
+  classifies it as exit-dominated (`TEXIT_COUNT 32000`). Unpinned manual-find
+  and string-key lookup reducers time out, so they remain safety debt rather
+  than speed rows. The generic `lj_str_find` substring-equality rewrite was
+  exact but slower and was removed; a narrower direct `lj_str_equal` rewrite is
+  retained as a small prefix-row acceleration. kdz focused A/B after preserving
+  normal C-call clobbering:
+  default-on `prefix_eq_loop/hot` `0.008258s`, `0.008081s`, `0.008256s`
+  versus opt-out `0.008347s`, `0.008082s`, `0.008432s`. This does not close
+  the string-heavy lane; the remaining larger payer is still the
+  table/modulo/exit body around the prefix selector.
+- Post-helper truth pack:
+  [20260414-170058-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-170058-kdz-string_heavy-accel-truth-pack/summary.md)
+  keeps `prefix_eq_loop/hot` as the only red official string-heavy probe
+  (`1.4049x`, JIT `0.008239s` versus `-joff 0.005866s`). The previously
+  interpreter-pinned official `manual_find_loop/hot` and
+  `string_key_lookup_loop/hot` are green/noise under this truth pack, so they
+  are no longer immediate string-heavy blockers.
+- Post-`GG_State FLOAD` fix:
+  [20260414-173913-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-173913-kdz-string_heavy-accel-truth-pack/summary.md)
+  flips the remaining string-heavy red probe green. `prefix_eq_loop/hot` is now
+  `0.0674x` (`0.000401s` JIT versus `0.005957s -joff`) after lowering
+  `IR_FLOAD REF_NIL` through the fixed dispatch base. The rest of the family is
+  green/noise or accelerated: `manual_find_loop/hot 0.9934x`,
+  `string_key_lookup_loop/hot 0.9981x`, `byte_scan_loop/hot 0.1026x`,
+  `concat_slice_loop/hot 0.1227x`, and `miss_find_loop/hot 0.2621x`.
+- Post-fix full rerank:
+  `/tmp/kdz-retained-jitter-20260414174257/summary.md` keeps the regression
+  queue empty. The largest red-looking rows are not source-change signals:
+  `iterator_table/pairs_sum/hot 1.0292x` is small/noisy with `-joff` jitter,
+  `string_heavy/manual_find_loop/hot 1.0226x` is the intentionally
+  interpreter-pinned safety row, and `vararg_paths`, `mixed_noffi`, and
+  `iterator_table/pairs_array_sum` are all in the `~1.00x..1.01x` band.
+- Post-string-key `HREF` fix:
+  `/tmp/kdz-retained-jitter-20260414190218/summary.md` supersedes the earlier
+  pinned-row read. `manual_find_loop/hot` is no longer interpreter-pinned and
+  runs around `0.0061s..0.0076s` versus `0.049s..0.051s -joff`.
+  `string_key_lookup_loop/hot` is now covered by a direct dynamic string-key
+  `HREF` helper plus a narrow miss-side PHI restore guard, running around
+  `0.00040s..0.00042s` versus `0.00256s..0.00260s -joff`. kdz1 confirmed the
+  same band in `/tmp/kdz1-retained-jitter-20260414190734/summary.md`, and zkd0
+  confirmed the same direction in
+  `/tmp/zkd0-retained-jitter-20260414190927/summary.md`. Iterator siblings stay
+  parity/noise on kdz/kdz1; zkd0 iterator remains noisy and should be treated
+  as a confirmation-risk host rather than a source-change signal without a
+  repeated mechanism difference.

@@ -32,7 +32,7 @@ ARTIFACTS_ROOT = ROOT / "artifacts" / "s390x"
 REMOTE_BASE = "/root/luajit2-s390x"
 REMOTE_REPO_NAME = "repo"
 REMOTE_ARTIFACTS_NAME = "artifacts"
-HOSTS = ("kdz", "zkd0")
+HOSTS = ("kdz", "kdz1", "zkd0")
 LATEST_LINK = ARTIFACTS_ROOT / "latest"
 
 PURE_LUA_T_FILES = [
@@ -165,6 +165,13 @@ PERF_FAMILY_METADATA = {
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Mixed Lua + FFI workload.",
+    },
+    "string_heavy": {
+        "default_gate": False,
+        "promotion_order": 9,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "String compare/search/scan and string-key lookup workload.",
     },
 }
 
@@ -484,7 +491,7 @@ class Context:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the native s390x bring-up loop.")
-    parser.add_argument("--host", choices=("auto", "kdz", "zkd0"), default="auto")
+    parser.add_argument("--host", choices=("auto", "kdz", "kdz1", "zkd0"), default="auto")
     parser.add_argument("--stage", choices=tuple(STAGE_ORDER), required=True)
     parser.add_argument("--suite", choices=("all", *SUITES), default="all")
     parser.add_argument("--compiler", choices=("gcc", "clang", "both"), default="gcc")

@@ -35,6 +35,7 @@ HASH_STAMP_PATHS = list(
             "tests/s390x/perf/iterator_table.lua",
             "tests/s390x/perf/be_helpers.lua",
             "tests/s390x/perf/be_helpers_localized.lua",
+            "tests/s390x/perf/string_heavy.lua",
             "tests/s390x/jit_be/mulov_overflow_guard.lua",
             "tests/s390x/jit_loops/pairs_loop.lua",
         ]
@@ -376,6 +377,122 @@ run_with_counters("string_scan_strto_cache", 64000, run, function(result)
   end
 end)
 """,
+    "string_heavy_manual_find": LUA_COMMON
+    + """\
+local search_texts = {
+  "alpha-bravo-charlie-delta-echo",
+  "foxtrot-golf-hotel-india-juliet",
+  "kilo-lima-mike-november-oscar",
+  "papa-quebec-romeo-sierra-tango",
+}
+local search_needles = { "alpha", "hotel", "november", "tango", "zulu" }
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    local haystack = search_texts[(i - 1) % #search_texts + 1]
+    local needle = search_needles[(i - 1) % #search_needles + 1]
+    local needle_len = #needle
+    local needle_first = string.byte(needle, 1)
+    local pos = 0
+    for j = 1, #haystack do
+      if string.byte(haystack, j) == needle_first and haystack:sub(j, j + needle_len - 1) == needle then
+        pos = j
+        break
+      end
+    end
+    total = total + pos + #haystack
+  end
+  return total
+end
+local expected = reference_result(run, 32000)
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
+local result = run(32000)
+trace_cap.stop()
+texit_cap.stop()
+print("RESULT_LABEL", "string_heavy_manual_find")
+print("EXPECTED", expected)
+print("RESULT", result)
+print("MISMATCH", result == expected and 0 or 1)
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TRACE_TOTAL", trace_cap.total)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
+emit_traceinfo(64)
+emit_traceir(64)
+""",
+    "string_heavy_prefix_eq": LUA_COMMON
+    + """\
+local prefix_sources = {
+  "alpha-bravo-charlie-delta-echo",
+  "foxtrot-golf-hotel-india-juliet",
+  "kilo-lima-mike-november-oscar",
+  "papa-quebec-romeo-sierra-tango",
+  "string-heavy-benchmark-0123456789-abcdefghijklmnopqrstuvwxyz",
+}
+local prefixes = { "alpha", "foxtrot", "kilo", "papa", "string" }
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    local text = prefix_sources[(i - 1) % #prefix_sources + 1]
+    local prefix = prefixes[(i - 1) % #prefixes + 1]
+    if text:sub(1, #prefix) == prefix then
+      total = total + #prefix
+    else
+      total = total - 1
+    end
+  end
+  return total
+end
+local expected = reference_result(run, 32000)
+run_with_counters("string_heavy_prefix_eq", 32000, run, function(result)
+  testlib.eq(result, expected, "string_heavy_prefix_eq")
+end)
+""",
+    "string_heavy_key_lookup": LUA_COMMON
+    + """\
+local lookup_keys = { "alpha", "bravo", "charlie", "delta", "echo", "foxtrot" }
+local lookup_map = {
+  alpha = 7,
+  bravo = 11,
+  charlie = 13,
+  delta = 17,
+  echo = 19,
+  foxtrot = 23,
+}
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    local key = lookup_keys[(i - 1) % #lookup_keys + 1]
+    total = total + lookup_map[key]
+  end
+  return total
+end
+local expected = reference_result(run, 32000)
+run(20); run(20); run(20)
+local trace_cap = testlib.trace_counter_capture()
+local texit_cap = testlib.texit_counter_capture()
+local result = run(32000)
+trace_cap.stop()
+texit_cap.stop()
+print("RESULT_LABEL", "string_heavy_key_lookup")
+print("EXPECTED", expected)
+print("RESULT", result)
+print("MISMATCH", result == expected and 0 or 1)
+print("TRACE_START", trace_cap.start)
+print("TRACE_STOP", trace_cap.stop_count)
+print("TRACE_ABORT", trace_cap.abort)
+print("TRACE_TOTAL", trace_cap.total)
+print("TEXIT_COUNT", texit_cap.total)
+emit_hist("TRACE_HIST", trace_cap.hist)
+emit_hist("TEXIT_HIST", texit_cap.hist)
+emit_traceinfo(64)
+emit_traceir(64)
+""",
 }
 
 
@@ -415,6 +532,24 @@ TARGETS: dict[str, dict[str, Any]] = {
         "target_rows": [
             "be_helpers/strto_loop/hot",
             "be_helpers/num_aload_loop/hot",
+        ],
+    },
+    "string_heavy": {
+        "summary": "string-heavy manual search, prefix equality, and string-key lookup attribution",
+        "families": ["string_heavy"],
+        "focus": [
+            "string_heavy_manual_find",
+            "string_heavy_prefix_eq",
+            "string_heavy_key_lookup",
+        ],
+        "oracle": False,
+        "target_rows": [
+            "string_heavy/manual_find_loop/hot",
+            "string_heavy/prefix_eq_loop/hot",
+            "string_heavy/string_key_lookup_loop/hot",
+            "string_heavy/byte_scan_loop/hot",
+            "string_heavy/concat_slice_loop/hot",
+            "string_heavy/miss_find_loop/hot",
         ],
     },
     "ffi_cdata_width": {

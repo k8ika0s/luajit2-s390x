@@ -32119,3 +32119,792 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   nonnegative `IR_MOD` input range, or a loop-remainder recurrence transform,
   so lower-frame can get the fast path without slowing unrelated `%17`
   call/vararg bodies.
+
+## 2026-04-14: lower-frame/W32 refresh and string-heavy probe coverage
+
+- Source point:
+  `9ffba341 Expand s390x acceleration truth packs`.
+- Lower-frame refresh:
+  [20260414-112041-kdz-lower_frame_body-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-112041-kdz-lower_frame_body-accel-truth-pack/summary.md)
+  reconfirmed the official `lower_frame_same_callsite/lua_abs_same_callsite/hot`
+  row at median `0.1574x` (`0.002382s` JIT versus `0.015023s -joff`) with the
+  same compiled-body shape: `MOD 17 -> SUBOV +8 -> LT/NE -> SUBOV 0-x -> CONV
+  -> ADD`. Focused counters stayed quiet (`TRACE_ABORT 0`, `TEXIT_COUNT 1`).
+- Narrow `%17` MLR proof:
+  a stricter opt-in candidate targeted only the exact lower-frame Lua `abs`
+  proto and only nonnegative `IR_MOD` sources. The candidate engaged in the
+  official dump: control trace 1 emitted two `DSGR` sites (`b90d0043`) and the
+  opt-in emitted two `MLR` sites (`b9960043`). It was not retainable:
+  same-binary `kdz` retained A/B was noise-equivalent
+  (`/tmp/kdz-retained-jitter-20260414113109/summary.md` candidate median
+  `0.1546x` versus `/tmp/kdz-retained-jitter-20260414113315/summary.md`
+  control median `0.1546x`), while mcode grew from `448` to `480` bytes. The
+  opt-in source was removed. Lower-frame `%17` remains open only for a real
+  recurrence/range-contract mechanism, not another MLR opcode swap.
+- W32/low32 refresh:
+  [20260414-112322-kdz-low32_home-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-112322-kdz-low32_home-accel-truth-pack/summary.md)
+  keeps the official low32 rows in the deeply accelerated band:
+  `bitops_mix/mix_bits/hot 0.0117x`,
+  `logical_chain_tail_add/chain_tail_add/hot 0.0122x`, and
+  `logical_chain_tail_store/chain_tail_store/hot 0.0130x`. The official perf
+  rows are not current payers, but boundary reductions exposed real W32
+  correctness debt in guard-consuming bitop chains. A shallow final `BAND != 0`
+  fuse fixed simple `bit.band(i, 1)` and simple high-bit guards, but it did not
+  fix the complex `mix32` high-bit guard or the full guard/store/call/side-exit
+  boundary reducer. Scratch-routing broader bitop guard chains made accumulator
+  corruption worse. No source was retained; W32 now needs a full
+  PHI/snapshot/guard-state model, not another local fuse.
+- String-heavy coverage:
+  [tests/s390x/perf/string_heavy.lua](../../tests/s390x/perf/string_heavy.lua)
+  is now a probe-only benchmark family with filters
+  `S390X_STRING_HEAVY_WORKLOAD` and `S390X_STRING_HEAVY_SCALE`. It covers
+  byte scanning, prefix substring equality, string-key lookup, allocation-heavy
+  concat/slice work, and explicit miss-path `string.find`.
+- String-heavy first `kdz` hot read:
+  `/tmp/kdz-retained-jitter-20260414115358/summary.md` ran hot rows only
+  (`samples=2`, `warmup=1`, one alternating pass). JIT-fast rows:
+  `byte_scan_loop/hot 0.0978x`, `concat_slice_loop/hot 0.1432x`, and
+  `miss_find_loop/hot 0.3022x`. `prefix_eq_loop/hot` is a real red probe row
+  at `1.4780x`.
+- String-heavy safety notes:
+  two probe rows are intentionally interpreter-pinned for now. A reduced
+  manual substring-search loop returns `n` under JIT instead of the interpreter
+  total (`sum` at `n=32000`: `32000` JIT versus `1051200 -joff`), and the
+  string-key lookup hot row timed out under JIT while `-joff` completed around
+  `0.00257s`. These are correctness/mechanism follow-ups. The benchmark stays
+  out of default gates until those string-heavy JIT shapes are either fixed or
+  explicitly classified.
+- Prefix equality helper proof:
+  a temporary `lj_str_equal_sub()` helper/fold removed the `SNEW` allocation
+  from `text:sub(1, #prefix) == prefix` and improved `prefix_eq_loop/hot` only
+  from roughly `1.478x` to `1.44x..1.46x`. That is not enough to retain, and it
+  did not address the manual search wrong-result or string-key lookup timeout.
+  The helper/fold source was removed. The next string-heavy move should start
+  from trace correctness for the pinned rows or from a deeper string compare
+  lowering, not a one-helper allocation bypass.
+- String-heavy acceleration truth pack:
+  [20260414-130127-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-130127-kdz-string_heavy-accel-truth-pack/summary.md)
+  added structured attribution for the new family. Official hot rows in the
+  one-pass smoke: `manual_find_loop/hot 1.0035x` and
+  `string_key_lookup_loop/hot 1.0089x` are interpreter-pinned parity rows,
+  `byte_scan_loop/hot 0.1005x`, `concat_slice_loop/hot 0.1578x`, and
+  `miss_find_loop/hot 0.3103x` are JIT-fast, and `prefix_eq_loop/hot` remains
+  the only red official probe at `1.4573x`.
+- Focused string-heavy mechanism:
+  unpinned `manual_find` and `string_key_lookup` reducers time out under the
+  trace-count harness, confirming those are safety/classification debts rather
+  than current speed rows. `prefix_eq` is exact but exit-dominated:
+  `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 32000`, all on
+  `exit 0`. The next viable string-heavy source target is therefore the
+  `SNEW`/string-compare exit path for prefix equality, but it needs a real
+  side-exit/string compare mechanism rather than the rejected helper-only fold.
+- Dynamic prefix-equality helper recheck:
+  an opt-in direct `SNEW(ptr,len) == dynamic string` fold was tested with
+  `LUAJIT_S390X_STRING_PREFIX_EQ_HELPER=1`. It removed the visible
+  `STRREF/SNEW/str EQ` sequence from the trace and stayed correct on a mixed
+  match/mismatch smoke, but the official row was neutral
+  (`prefix_eq_loop/hot` control `0.008602`, candidate `0.008559`) and the
+  repeated `TRACE 1 exit 0` pattern remained. The source was removed. This
+  closes direct string-equality helper bypasses for this row; the remaining
+  cost is loop/table/modulo/exit-shape interaction, not just substring
+  allocation.
+- Prefix-only stability check:
+  `/tmp/kdz-string-prefix-only-20260414/summary.md` reran only
+  `string_heavy/prefix_eq_loop/hot` with `samples=7`, `warmup=2`, and five
+  alternating passes. The row is stable red (`1.4732x` median,
+  `1.4450x..1.4926x`, red `5/5`) with a consistent `+0.0026s..+0.0029s`
+  JIT-side delta.
+- Dynamic `ALEN` modulo proof:
+  an opt-in s390x backend attempt (`LUAJIT_S390X_ALEN_MOD_DSGR=1`) inlined
+  dynamic integer `MOD` when the divisor was `IR_ALEN`. It moved the prefix
+  row in the right direction (`/tmp/kdz-string-prefix-alenmod-20260414/summary.md`
+  median `1.3820x`, JIT about `0.00828s` versus baseline `0.00865s`) but was
+  unsafe: the sibling `concat_slice_loop/hot` segfaulted under the same opt-in,
+  even after changing the proof to copy the divisor into the destination
+  scratch register before `DSGR`. The source was removed. This keeps dynamic
+  `IR_MOD` lowering open only as a proper register/PHI-state design, not as a
+  quick `ALEN` divisor special case.
+- Unsigned dynamic `ALEN` modulo proof:
+  a narrower opt-in proof for `MOD(SUBOV(i, 1), ALEN(...))` using unsigned
+  `DLGR` and a zero high half also crashed `concat_slice_loop/hot`. That
+  rejects the quick opcode-family theory: the dynamic-`MOD` blocker is the
+  backend register/state contract under higher string-body pressure, not signed
+  correction alone.
+- Manual substring-search safety reduction:
+  `/tmp/string_manual_one.lua` shows the unpinned manual-find shape is exact
+  for `n=1..3` and times out at `n=4`. The dump shows an inner
+  `string.byte` loop root, an outer `JFORI` trace, then a side trace attempt
+  that aborts with `leaving loop in root trace`. This is a real trace-control
+  safety debt, but not a source patch yet; broad string-loop blacklisting would
+  repeat the guardrail pattern we are trying to replace.
+
+## 2026-04-14: be-number-helper acceleration lane closure
+
+- Truth pack:
+  [20260414-135721-kdz-be_number_helper-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-135721-kdz-be_number_helper-accel-truth-pack/summary.md).
+- Result:
+  current-source `kdz` retained A/B shows no actionable payer.
+  `be_helpers/number_helper_loop/hot` is `0.0330x` over `-joff`
+  (`0.000074s` JIT versus `0.002243s -joff`), and
+  `be_helpers_localized/number_helper_loop_local_tobit/hot` is `0.0547x`
+  (`0.000074s` JIT versus `0.001352s -joff`). Siblings are also green:
+  `strto_loop/hot 0.1383x`, `num_aload_loop/hot 0.0827x`,
+  localized pack `0.0309x`, and `be_pack_loop/hot 0.0132x`.
+- Closure:
+  small helper residuals are closed for the current source point. Do not open a
+  `tobit`/number-helper backend edit without a new official row that is both
+  materially red and repeated under retained-env A/B.
+
+## 2026-04-14: ffi-cdata width acceleration lane closure
+
+- Truth pack:
+  [20260414-140005-kdz-ffi_cdata_width-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-140005-kdz-ffi_cdata_width-accel-truth-pack/summary.md).
+- Result:
+  current-source `kdz` retained A/B does not name a cdata width payer.
+  `ffi_cdata/mixed_width_loop/hot` is `0.0094x` over `-joff`
+  (`0.000266s` JIT versus `0.028255s -joff`), `pair_loop/hot` is `0.0029x`,
+  and `buffer_fref_loop/hot` is `0.0551x`. The focused mixed-width reducer
+  only records one real exit and one abort (`TEXIT_COUNT 1`), not a repeated
+  churn seam.
+- Closure:
+  cdata width `MOD`/narrow `XLOAD`/`XSTORE`/`CONV`/`ADDOV` work is closed for
+  this source point. Keep `pair_loop` and FREF rows as regression coverage; do
+  not open another cdata width backend edit without a fresh material official
+  row.
+
+## 2026-04-14: FFI fixed-call GPR pressure lane closure
+
+- Truth pack:
+  [20260414-140343-kdz-ffi_fixed_gpr-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-140343-kdz-ffi_fixed_gpr-accel-truth-pack/summary.md).
+- Result:
+  current-source `kdz` retained A/B confirms the promoted FFI fixed-call path
+  is already in the compiled fast band. `ffi_fixed_call_pressure/gpr_pressure/hot`
+  is `0.0118x` over `-joff` (`0.000294s` JIT versus `0.024737s -joff`), and
+  `fpr_pressure/hot` is `0.0229x`. The fixed-struct siblings are all green
+  (`0.0210x..0.0400x`) with no red passes.
+- Closure:
+  there is no current FFI GPR call ABI, spill, return-home, or `IR_FLOAD`
+  abort payer to patch. Keep `ffi_fixed_call_pressure` and
+  `ffi_fixed_struct_calls` as regression coverage; reopen only if a future
+  full-env rerank shows a material official-row regression.
+
+## 2026-04-14: iterator safety-debt current-source closure
+
+- Truth pack:
+  [20260414-140626-kdz-iterator_safety-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-140626-kdz-iterator_safety-accel-truth-pack/summary.md).
+- Result:
+  current-source `kdz` retained A/B still does not justify a new iterator guard
+  mutation. `iterator_table/pairs_sum/hot` is only `1.0084x` with one red pass,
+  `pairs_array_sum/hot` is green at `0.9965x`, and
+  `mixed_noffi/mixed_loop/hot` is a small/noisy `1.0113x`. The focused
+  `ITERN/JLOOP/TGETV` reducer is exact and quiet under the retained guard
+  policy (`TRACE_START 2`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 1`).
+- Closure:
+  keep the broad iterator fallback and exact iterator rails in place for this
+  source point. The next iterator source patch still needs a specific terminal
+  `BC_ITERN` leave/restart handoff proof or a new material official-row
+  regression; the current pack does not provide one.
+
+## 2026-04-14: lower-frame and W32_HOME acceleration closures
+
+- Lower-frame truth pack:
+  [20260414-143957-kdz-lower_frame_body-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-143957-kdz-lower_frame_body-accel-truth-pack/summary.md).
+- Lower-frame result:
+  current-source `kdz` retained A/B no longer names `%17`/lua-abs as an
+  acceleration target. `lower_frame_same_callsite/lua_abs_same_callsite/hot`
+  is `0.1581x` over `-joff` across five passes (`0.002417s` JIT versus
+  `0.015175s -joff`), with no red passes. The old generic `%17` MLR lane stays
+  closed; do not reopen lower-frame modulo lowering without a fresh material
+  official-row payer.
+- W32_HOME truth pack:
+  [20260414-144205-kdz-low32_home-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-144205-kdz-low32_home-accel-truth-pack/summary.md).
+- W32_HOME result:
+  low32 rows remain deeply accelerated, not red. `bitops_mix/mix_bits/hot` is
+  `0.0110x`, `logical_chain_tail_add/chain_tail_add/hot` is `0.0118x`, and
+  `logical_chain_tail_store/chain_tail_store/hot` is `0.0130x` over `-joff`.
+  Keep W32_HOME as correctness/boundary coverage, but do not remove
+  `asm_bnorm32()` or change low32 homes without a complete normalization-state
+  proof that covers guards, stores, calls, snapshots, and generic consumers.
+
+## 2026-04-14: string-heavy current-source rerank
+
+- Truth pack:
+  [20260414-144445-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-144445-kdz-string_heavy-accel-truth-pack/summary.md).
+- Official rows:
+  the protected official `manual_find_loop/hot` row is parity/noise
+  (`1.0026x`, red `0/3`) because the benchmark currently forces that unsafe
+  shape interpreted. `byte_scan_loop/hot` is fast (`0.1038x`),
+  `concat_slice_loop/hot` is fast (`0.1602x`), `miss_find_loop/hot` is fast
+  (`0.3141x`), and `string_key_lookup_loop/hot` is parity/noise (`1.0051x`).
+  The one stable red official row is `prefix_eq_loop/hot`: `1.4524x`, red
+  `3/3`, `0.008792s` JIT versus `0.006030s -joff`.
+- Mechanism:
+  `prefix_eq` records one root trace and exits on every iteration:
+  `TRACE_START 1`, `TRACE_STOP 1`, `TRACE_ABORT 0`, `TEXIT_COUNT 32000`,
+  `TEXIT_HIST 1:0=32000`. The trace body is dominated by dynamic array index
+  modulo, string method lookup, `STRREF/SNEW`, and `str EQ`. The direct helper
+  fold that removed visible `SNEW` was neutral, so the next viable string
+  acceleration target is a broader allocation-free prefix-compare contract or
+  a correct dynamic-`MOD` register-state design, not another trace-control
+  toggle.
+- Safety note:
+  unpinned focused `manual_find` and `string_key_lookup` reducers still time
+  out. Existing dormant JLOOP/loopdesc toggles did not recover the manual
+  `n=4` reduction. Treat those as separate trace-control safety debts; do not
+  broaden the official string-heavy guard just to hide the failure.
+- Dynamic-`MOD` follow-up:
+  a stricter opt-in `MOD(SUBOV(i, 1), ALEN(table))` proof using the same
+  fixed `DSGR` register pair discipline as the retained constant-modulo path
+  again moved `prefix_eq_loop/hot` in the right direction in a quick read
+  (`0.008397s`), but still segfaulted `concat_slice_loop/hot`. The source was
+  removed and the remote mirror was rebuilt back to the clean runtime source.
+  This closes quick dynamic-modulo lowering variants for string-heavy; the
+  next attempt needs a real register/PHI/divide-state design or a different
+  allocation-free prefix compare strategy.
+- Slice-helper follow-up:
+  an opt-in recorder-side slice compare helper for `string.sub(...) == prefix`
+  was safe on `prefix_eq`, `concat_slice`, `miss_find`, and `numeric_ops`, but
+  neutral on the official payer (`prefix_eq_loop/hot` stayed around
+  `0.008703s`). The source was removed. This closes a late compare-helper hook
+  as the immediate fix; avoiding `SNEW` after it has already been recorded is
+  not enough to move the row.
+- Table-length specialization follow-up:
+  a guarded small-table `#t` specialization did engage and converted the hot
+  `MOD(SUBOV(i, 1), ALEN(table))` shape into `ALEN`, `EQ alen,+5`, and constant
+  `MOD +5`. On `kdz` this repeatedly improved `prefix_eq_loop/hot`
+  (`0.00809s..0.00827s` default candidate versus `0.00852s..0.00866s` opt-out),
+  and focused correctness/regression probes passed. `zkd0` did not confirm
+  cleanly: one pass favored the candidate and the next reversed with high
+  variance. The newly wired `kdz1` tie-breaker confirmed the `kdz` direction
+  across three passes: default `0.007988s`, `0.008053s`, `0.008084s` versus
+  opt-out `0.008530s`, `0.008801s`, `0.008524s`. Keep the guarded
+  small-table length specialization live; treat `zkd0` as the noisy outlier for
+  this row unless a later retained matrix shows a broader regression.
+- Prefix attribution:
+  reduced variants now split the payer clearly. Hoisting the two upvalue tables
+  into locals moved `prefix_eq` from `0.008709s` to `0.007089s`; removing the
+  modulo-driven cycle moved it to `0.003567s`; flattening `{text,prefix}` pairs
+  moved it to `0.005031s`; and a fixed compare was `0.002894s`. Closing the
+  upvalues before the run did not help (`0.008611s`) and still snapped at
+  `BC_UGET`. The next viable string-heavy source target is not broad
+  trace-control: it is either a safe table-length/index specialization that
+  survives host-pair validation, or an earlier `ffrecord_string_sub` compare
+  specialization that avoids recording `SNEW` in the first place.
+
+## 2026-04-14: kdz1 arbitration rule and revisit queue
+
+- Tooling:
+  `kdz1` is now wired into the tracked mirror helpers as a first-class host
+  label. It uses the same canonical mirror layout as `kdz` and `zkd0`:
+  `/root/luajit2-s390x/canon/repo`, `/root/luajit2-s390x/runs`, and
+  `/root/luajit2-s390x/archive`.
+- Policy correction:
+  do not reject a candidate solely because `zkd0` is negative/noisy after a
+  clean `kdz` win. The corrected rule is symmetric: a single good host does not
+  retain a candidate, and a single bad/noisy host does not kill it. Use `kdz1`
+  as the tie-breaker before closing any kdz-positive/zkd0-negative performance
+  lane.
+- Reopened for kdz1 arbitration:
+  - Small guarded table-length specialization:
+    now confirmed on `kdz` and `kdz1`; keep live unless broader gates regress.
+  - `mixed_noffi` `lj_vm_next` helper-side `hmask` hoist:
+    exactness held and `kdz` moved `mixed_loop/hot` from `0.012967s` to
+    `0.011685s`; `zkd0` rejected it (`0.016388s` versus `0.013432s`). Revisit
+    with `kdz1` before treating the host-divergent closure as final.
+  - `mixed_noffi` `lj_vm_next` helper-side `node` hoist:
+    exactness held and `kdz` moved `mixed_loop/hot` from `0.012967s` to
+    `0.012693s`, while standalone `pairs_only` improved on both hosts; `zkd0`
+    regressed the full mixed row. Revisit after the `hmask` hoist because the
+    mechanism is adjacent but weaker.
+  - Exact mixed root-abort `DONE` / late-`DONE` parking:
+    exactness held and both helped `kdz` (`0.011862s` and `0.012462s` versus
+    control `0.012967s`), but `zkd0` rejected them. Revisit only after the
+    helper-runtime hoist queue, because broad trace-side parking has a higher
+    correctness/topology risk.
+  - Exact `lj_vm_next` returned-value signed-load consumer cut:
+    exactness held and `kdz` reruns stayed promising (`0.012105s` versus
+    controls `0.012868s`/`0.013060s`), but `zkd0` became noisy
+    (`0.014915s`, then `0.019013s`/`0.016337s`). Revisit with the ISA guardrail
+    that `LLGF`/`LGFR` versus signed loads is correctness-sensitive, not a
+    neutral micro-optimization.
+  - Iterator `mcloop=208` exact sibling / route-around:
+    `kdz` was positive but `zkd0` flipped sibling rows between passes. Revisit
+    only if iterator becomes the active payer again; do not spend first
+    arbitration cycles here while iterator rows are near parity.
+  - Broad iterator root fallback opt-out:
+    after the hash-payload fix it was no longer immediately catastrophic on
+    `kdz`, but `zkd0` slowed `mixed_noffi`. Treat as safety debt, not a primary
+    acceleration target; require `pairs_loop`, `mixed_noffi`, and iterator
+    truth-pack proof on all three hosts before narrowing/removing it.
+- Still closed without kdz1 arbitration:
+  candidates that already failed repeated same-host `kdz` A/B are not reopened
+  just because `zkd0` exists. This includes the simple iterator `lj_vm_next_i32`
+  result helper, the iterator `CCI_NOFPRCLOBBER`/register-order probes, the
+  generic lower-frame `%17` MLR path, and the W32/SLOAD narrowing attempt.
+
+## 2026-04-14: kdz1 arbitration of `lj_vm_next` hmask hoist
+
+- Candidate:
+  re-applied the exact helper-side hash-limit hoist in
+  [src/vm_s390x.dasc](../../src/vm_s390x.dasc): load `NEXT_TAB->hmask` once at
+  `lj_vm_next` hash-entry and compare `NEXT_IDX` against the cached register in
+  the hash-walk loop. The retest used `TMPR0/NEXT_KEY` as the cache register to
+  avoid clobbering callee-saved `r6/r7` and to preserve `NEXT_ASIZE` for
+  return-index formation.
+- kdz1 result:
+  exactness passed (`mixedprobe 553416`, `hash_value 3000`,
+  `ipairs_only_probe 576000`), `pairs_loop.lua` passed, and iterator guardrails
+  stayed in band. The candidate did not beat immediate current-source control:
+  candidate `mixed_loop/hot` medians `0.004990s`, `0.005025s`, `0.004989s`;
+  reverted control `0.005007s`, `0.004999s`, `0.004982s`.
+- Closure:
+  the old April `kdz` win does not survive the current post-guardrail floor.
+  Close the `hmask` hoist after kdz1 arbitration; leave the source reverted and
+  continue with the adjacent `node` hoist candidate.
+
+## 2026-04-14: kdz1 arbitration of `lj_vm_next` node hoist
+
+- Candidate:
+  re-applied the adjacent helper-side node-base hoist in
+  [src/vm_s390x.dasc](../../src/vm_s390x.dasc): load `NEXT_TAB->node` once at
+  `lj_vm_next` hash-entry into `TMPR0/NEXT_KEY`, then form per-iteration node
+  addresses from that cached base. The patch preserved the array path and
+  helper result contract.
+- kdz1 result:
+  exactness passed (`mixedprobe 553416`, `hash_value 3000`,
+  `ipairs_only_probe 576000`), `pairs_loop.lua` passed, and iterator guardrails
+  stayed in band. The candidate did not beat the immediate current-source
+  control: candidate `mixed_loop/hot` medians `0.004983s`, `0.005018s`,
+  `0.004985s`; control `0.005007s`, `0.004999s`, `0.004982s`.
+- Closure:
+  like the `hmask` hoist, the old April helper-runtime node-base win is gone on
+  the current floor. Close both direct `lj_vm_next` hash-walk load-hoist
+  candidates after kdz1 arbitration. The next reopened zkd0-only queue item is
+  the exact mixed root-abort `DONE` / late-`DONE` parking family, but it carries
+  higher trace-topology risk than the helper-runtime hoists.
+
+## 2026-04-14: kdz1 arbitration of mixed root-abort `DONE`
+
+- Candidate:
+  reconstructed the historical opt-in
+  `LUAJIT_S390X_MIXED_PAIRS_ROOT_ABORT_DONE=1` and
+  `LUAJIT_S390X_MIXED_PAIRS_ROOT_ABORT_DONE_LATE=1` hooks in
+  [src/lj_trace.c](../../src/lj_trace.c). The hook was scoped to the old
+  official `mixed_noffi.lua` root-abort family: `parent=2`, `exit=1`,
+  parent root trace starting at `BC_ITERN`, `nsnap=6`, `nchild=0`, current
+  side trace starting at `BC_JMP`, and aborting at `BC_JLOOP` with
+  `LJ_TRERR_LLEAVE`/`LJ_TRERR_LINNER`.
+- kdz1 result:
+  exactness passed (`mixedprobe 553416`, `hash_value 3000`,
+  `ipairs_only_probe 576000`). Mechanism logging with
+  `LUAJIT_S390X_TRACE_ABORT_LOG=1` produced no abort records on the current
+  retained hot row, and neither opt-in emitted the historical
+  `S390X_MIXED_PAIRS_ROOT_ABORT_DONE` marker. Same-binary mixed hot medians
+  stayed noise-level:
+  control `0.003816s`/`0.003926s`,
+  immediate `DONE` `0.003899s`/`0.003855s`,
+  late `DONE` `0.003821s`/`0.003979s`.
+- Closure:
+  the old root-abort seam no longer exists on the current post-guardrail floor.
+  The temporary hook was removed and no source change is retained. Continue the
+  zkd0-only arbitration queue with the exact `lj_vm_next` returned-value
+  signed-load consumer cut, treating it as correctness-sensitive ISA work rather
+  than a neutral load swap.
+
+## 2026-04-14: kdz1 arbitration of `lj_vm_next` signed `VLOAD` cut
+
+- Candidate:
+  reconstructed the old opt-in proof for the `IRCALL_lj_vm_next` returned-value
+  consumer in [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h) and
+  [src/lj_emit_s390x.h](../../src/lj_emit_s390x.h): add `LGF` support and, for
+  `int VLOAD #0` directly off `IRCALL_lj_vm_next`, replace the carried
+  `LLGF` plus `LGFR` pair with a single signed 32-bit memory load. The proof
+  stayed opt-in because this is a semantic signed-load contraction, not a
+  neutral spelling change.
+- kdz1 result:
+  exactness passed (`mixedprobe 553416`, `hash_value 3000`,
+  `ipairs_only_probe 576000`). The reconstructed matcher did not fire on the
+  current retained official `mixed_noffi.lua` hot row. Current-source IR logs
+  show only two integer `VLOAD` sites in that row (`curins=13` and `curins=19`),
+  neither matching the old direct `IRCALL_lj_vm_next` returned-value consumer.
+  Same-binary medians stayed noise-level:
+  control `0.003911s`/`0.003908s`,
+  opt-in `0.003875s`/`0.003897s`.
+- Closure:
+  the signed returned-value consumer seam is stale on the current floor. The
+  temporary source was removed and no source change is retained. The remaining
+  zkd0-only rejected lanes with direct mixed relevance are now exhausted or
+  parked behind future iterator reranks; continue from current-source
+  acceleration truth packs rather than reopening stale April mixed seams.
+
+## 2026-04-14: string-heavy dynamic `SNEW == str` rewrite closed
+
+- Candidate:
+  added an opt-in recorder proof in [src/lj_record.c](../../src/lj_record.c)
+  for the official `string_heavy/prefix_eq_loop/hot` shape:
+  `SNEW(STRREF(text, 0), prefix_len) == prefix_ref`. Under
+  `LUAJIT_S390X_STRING_SUB_EQ_FIND=1`, the equality consumer emitted a length
+  guard plus `CALLN lj_str_find` instead of allocating the substring and using a
+  string equality guard.
+- Mechanism:
+  kdz1 IR proved the rewrite engaged on the official row. The carried body
+  changed from `STRREF; SNEW; str EQ` to `STRREF text; STRREF prefix; CALLN
+  lj_str_find; p64 NE NULL` while preserving the surrounding table/modulo and
+  accumulator chain.
+- kdz1 result:
+  correctness smoke passed for `addsub_overflow_guard.lua`,
+  `numeric_ops.lua`, and filtered `string_heavy/prefix_eq_loop/hot`. Same-host
+  A/B did not improve the row: default medians `0.007999s`, `0.008011s`,
+  `0.008196s`; opt-in medians `0.008116s`, `0.008087s`, `0.008169s`.
+- Closure:
+  replacing the substring allocation/equality with the generic C string-search
+  helper is not a speed path for this row. The temporary proof was removed. The
+  remaining prefix workload payer is still the combined table/modulo/exit-shape
+  and string-operation body, not a standalone `SNEW` allocation seam.
+
+## 2026-04-14: retained direct dynamic substring equality helper
+
+- Candidate:
+  replaced the closed generic `lj_str_find` proof with a narrower direct
+  internal equality helper: [src/lj_str.c](../../src/lj_str.c) now exposes
+  `lj_str_equal(ptr, ptr, len)`, and [src/lj_record.c](../../src/lj_record.c)
+  default-enables the s390x equality-consumer rewrite for dynamic
+  `SNEW(STRREF(...), len) == str` shapes. The opt-out is
+  `LUAJIT_S390X_DISABLE_STRING_SUB_EQ_MEMCMP=1`.
+- Mechanism:
+  kdz1 IR shows the official `string_heavy/prefix_eq_loop/hot` body replacing
+  `STRREF; SNEW; str EQ` with `STRREF text; STRREF prefix; CALLN
+  lj_str_equal; int NE 0`. The length guard remains in front of the helper, so
+  different-length false cases still exit through the recorded guard rather
+  than being treated as content equality.
+- kdz result:
+  focused same-host A/B with the helper default-on versus opt-out showed a
+  stable prefix-row win. After keeping the helper as a normal C call rather
+  than marking it `CCI_NOFPRCLOBBER`, the higher-sample check showed default
+  medians `0.008258s`, `0.008081s`, `0.008256s`; opt-out medians
+  `0.008347s`, `0.008082s`, `0.008432s`.
+  Guardrails passed on kdz: `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `pairs_loop.lua`, `compiled_vararg.lua`, filtered/full `string_heavy.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, `iterator_table.lua`, and retained-env
+  `dispatch_trace.lua`.
+- kdz1 / zkd0 status:
+  kdz1 is noise-level but not contrary: default `0.007980s`, `0.008227s`,
+  `0.008187s`; opt-out `0.008035s`, `0.008021s`, `0.008218s`. zkd0 was too
+  noisy for a policy signal on this sub-millisecond probe, with one pass
+  favoring opt-out and one favoring default.
+- Retention:
+  retain the helper as a small string-heavy acceleration and correctness-neutral
+  recorder improvement. It is not the large remaining string win; the larger
+  opportunity is still reducing the table/modulo/exit body around the prefix
+  selector.
+
+## 2026-04-14: inline byte dynamic substring equality closed
+
+- Candidate:
+  tried a lower-level variant of the retained `lj_str_equal` rewrite: for
+  same-length dynamic `SNEW == str` with observed length `<= 8`, emit constant
+  length guards and byte-by-byte `XLOAD` equality guards instead of the C helper.
+- Result:
+  the IR proof engaged, but it specialized to the first observed prefix length
+  (`+4` in the focused run), which adds exits for the other live prefix lengths.
+  kdz focused A/B was neutral-to-slower versus opt-out:
+  inline/default medians `0.008083s`, `0.008217s`, `0.008164s`; opt-out
+  medians `0.008046s`, `0.008091s`, `0.008176s`.
+- Closure:
+  removed the inline byte path and kept the direct `lj_str_equal` helper. A
+  useful inline version would need a multi-length or length-polymorphic body,
+  not a one-length guard expansion.
+
+## 2026-04-14: post-helper string-heavy truth pack
+
+- Artifact:
+  [20260414-170058-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-170058-kdz-string_heavy-accel-truth-pack/summary.md)
+  ran on kdz after the retained direct equality helper.
+- Matrix:
+  `manual_find_loop/hot` is green/noise (`0.9903x`), `string_key_lookup_loop/hot`
+  is green/noise (`0.9845x`), and the JIT-fast rows remain strongly green:
+  `byte_scan_loop/hot 0.0998x`, `concat_slice_loop/hot 0.1237x`,
+  `miss_find_loop/hot 0.2630x`.
+- Remaining payer:
+  `prefix_eq_loop/hot` remains the only red official string-heavy probe:
+  `1.4049x`, median JIT `0.008239s` versus `-joff 0.005866s`.
+  Mechanism remains exit/guard dominated with `TRACE_START 1`, `TRACE_STOP 1`,
+  `TRACE_ABORT 0`, and `TEXIT_COUNT 32000` (`exit 1:0`).
+- Direction:
+  the direct equality helper improves part of the body but does not solve the
+  row. The next viable work is not another substring allocation rewrite; it is
+  reducing the method/table/modulo/exit body or proving that the official
+  prefix row should be interpreter-routed until a proper loop-side mechanism
+  exists.
+
+## 2026-04-14: string method-call exit storm attribution
+
+- Reducer split:
+  on kdz, the official `text:sub(1, #prefix) == prefix` form remains slow at
+  `~0.0082s`, but the semantically equivalent reduced form
+  `local sub = string.sub; sub(text, 1, #prefix) == prefix` runs at
+  `~0.00090s`. The two traces have nearly identical loop IR after the direct
+  equality helper, but their exit behavior differs sharply.
+- Mechanism:
+  `text:sub` records one root trace and exits on `trace 1 exit 0` for every
+  iteration: `TEXIT_COUNT 32000`, `TEXIT_HIST 1:0=32000`. The direct local
+  fast-function call records a loop trace with only one observed trace exit.
+  Bytecode dumps show the method-call form includes `TGETS "sub"` before the
+  `CALL`, then the attempted side trace from the root exit aborts as
+  `leaving loop in root trace`.
+- Closed candidate:
+  an exact recorder attempt to constify the `string.sub` method table lookup
+  did engage and removed the second-level `"sub"` `HREFK/HLOAD` from the IR,
+  but it did not reduce `TEXIT_COUNT` and was slightly worse than opt-out on
+  the official row (`0.008087s` default versus `0.008012s` opt-out in the
+  focused kdz read). The temporary candidate was removed.
+- Closed follow-up:
+  an exact `MM_index` table constification for string method lookup also
+  engaged (`tab EQ {string table}` after the metatable `__index` load), but it
+  left the same `trace 1 exit 0` storm in place (`TEXIT_COUNT 32000`) and was
+  neutral on kdz (`0.008106s` default versus `0.008136s` opt-out). The temporary
+  candidate was removed. This confirms the live seam is not the string base
+  table lookup itself.
+- Direction:
+  the remaining high-upside string target is not method lookup constification.
+  It is the method-call root exit/link path for `TGETS -> CALL string.sub` loops
+  or a lower-level loop-side mechanism that makes the method-call form execute
+  like the direct fast-function call.
+
+## 2026-04-14: retained GG_State `FLOAD` dispatch-base fix
+
+- Root cause:
+  the string-heavy prefix red row was not caused by `string.sub` call lowering
+  or by the `SNEW == str` equality helper. A reduced lookup-only loop,
+  `text.sub == string.sub`, reproduced the same storm: `TEXIT_COUNT 32000`,
+  `TEXIT_HIST 1:0=32000`, and `~0.00466s` on kdz. The equivalent table forms
+  (`string_tab.sub`, cached `getmetatable("").__index.sub`) ran in the
+  `~0.00052s` band with only one observed exit.
+- Mechanism:
+  the unique bad IR was primitive string base-metatable lookup:
+  `tab FLOAD nil #188`, then `HREFK "__index"`, then `"sub"`. Ordinary table
+  lookup was already fast, and constifying either the method function or the
+  `__index` table did not remove the storm. This isolated the bug to backend
+  lowering of `IR_FLOAD` from `REF_NIL`/`GG_State`, not to method-call frame
+  handling.
+- Fix:
+  [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h) now lowers `IR_FLOAD` from
+  `REF_NIL` through the fixed `RID_DISPATCH` base with
+  `GG_OFS(dispatch)`, matching the stable interpreter dispatch-base contract,
+  instead of relying on `RID_GL` plus `GG_OFS(g)`.
+- kdz proof:
+  immediate reverted control restored the red row:
+  `string_heavy/prefix_eq_loop/hot 0.008121s`; the candidate rerun was
+  `0.000403s`. The lookup reducer dropped from `TEXIT_COUNT 32000` to `1`.
+  Iterator/dispatch siblings stayed in band in the same A/B:
+  control `iterator_table/pairs_sum/hot 0.004311s`,
+  candidate `0.004491s`; control `dispatch_trace/numeric_loop/hot 0.000155s`,
+  candidate `0.000154s`.
+- Host confirmation:
+  kdz1 confirmed the mechanism and sibling safety:
+  `method_lookup TEXIT_COUNT 1`, `prefix_eq_loop/hot 0.000402s`,
+  `iterator_table/pairs_sum/hot 0.004259s`, and dispatch rows in band. zkd0 was
+  noisy but directional: `prefix_eq_loop/hot 0.000706s` with broad iterator and
+  dispatch rows still completing.
+- Truth pack:
+  [20260414-173913-kdz-string_heavy-accel-truth-pack](../../artifacts/s390x/truth-packs/20260414-173913-kdz-string_heavy-accel-truth-pack/summary.md)
+  shows the official string-heavy matrix fully green after the fix:
+  `prefix_eq_loop/hot 0.0674x` (`0.000401s` JIT versus `0.005957s -joff`),
+  `manual_find_loop/hot 0.9934x`, `string_key_lookup_loop/hot 0.9981x`,
+  `byte_scan_loop/hot 0.1026x`, `concat_slice_loop/hot 0.1227x`, and
+  `miss_find_loop/hot 0.2621x`.
+- Guardrails:
+  kdz passed `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `mulov_overflow_guard.lua`, `compiled_vararg.lua`, `pairs_loop.lua`,
+  full `string_heavy.lua`, `vararg_paths.lua`, `mixed_noffi.lua`,
+  `iterator_table.lua`, retained-env `dispatch_trace.lua`, `ffi_calls.lua`,
+  `ffi_cdata.lua`, and `mixed_ffi.lua`.
+- Follow-up:
+  the acceleration truth pack's focused classifier scripts now segfault with
+  `REMOTE_RC 139` after the official row is fixed. This is instrumentation debt
+  in the ad hoc reducers, not a release blocker: the official benchmark and
+  correctness/perf guardrails pass. Rework the classifier before using it for
+  further string-heavy attribution.
+
+## 2026-04-14: post-`GG_State FLOAD` retained-env rerank
+
+- Artifact:
+  `/tmp/kdz-retained-jitter-20260414174257/summary.md` ran on kdz with
+  `samples=5`, `warmup=2`, and three alternating passes after the dispatch-base
+  `IR_FLOAD REF_NIL` fix.
+- Matrix result:
+  no material branch-level regression blocker remains. The red-looking top
+  rows are small or noisy:
+  `iterator_table/pairs_sum/hot` median `1.0292x` with deltas
+  `+0.000124s`, `+0.000147s`, then a green pass as `-joff` jittered;
+  `string_heavy/manual_find_loop/hot` median `1.0226x` with an intentionally
+  interpreted/pinned shape; `vararg_paths/sum_loop/hot` median `1.0083x`;
+  `mixed_noffi/mixed_loop/hot` median `1.0044x`;
+  `iterator_table/pairs_array_sum/hot` median `1.0038x`.
+- String-heavy after the fix:
+  `prefix_eq_loop/hot` is now a strong JIT win in the full matrix too:
+  median `0.0691x`, `0.000401s..0.000410s` JIT versus
+  `0.005787s..0.005885s -joff`. This closes the former red string prefix row.
+- Acceleration posture:
+  the remaining high-time parity rows are now route/safety choices rather than
+  accidental backend regressions. The largest is `string_heavy/manual_find_loop`
+  around `0.049s`, currently interpreter-pinned because the unpinned reducer has
+  known wrong-result/timeout behavior. The next performance work should either
+  build the real string manual-search trace-safety mechanism or move back to
+  iterator terminal handoff debt; do not patch from the small `~1.02x` matrix
+  residuals alone.
+
+## 2026-04-14: retained dynamic string-key `HREF` helper and miss restore fix
+
+- Mechanism:
+  after the `GG_State FLOAD` fix, the old `manual_find_loop` safety failure no
+  longer reproduced on the official row. Unpinned manual search was exact
+  through `32000` hot iterations. The remaining unsafe string-heavy row was
+  dynamic string-key table lookup. Hits required a real string-key `HREF`
+  backend path, and misses required the integer `HLOAD` guard to exit and
+  restore loop PHIs correctly.
+- Fix:
+  [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h) now lowers dynamic
+  string-key `IR_HREF` through a direct `lj_tab_getstr_jit(L, tab, key)` helper
+  that returns `niltv(L)` on miss, instead of building a temporary TValue key
+  for the generic table lookup helper. Integer `HLOAD` typechecks are not
+  enabled globally; they are default-on only for loads fed by a dynamic
+  string-key `HREF`, with `LUAJIT_S390X_VLOAD_INT_TYPECHECK=1` left as a
+  proof-only broad switch. [src/lj_asm.c](../../src/lj_asm.c) also narrows the
+  PHI-spill restore protection to loops containing guarded integer `HLOAD`s
+  from dynamic string-key `HREF`s. The old broad
+  `LUAJIT_S390X_HLOAD_GUARD_PHI_SPILL=1` path remains opt-in for debugging.
+- Correctness proof:
+  a new jit-be guardrail
+  [tests/s390x/jit_be/string_key_href.lua](../../tests/s390x/jit_be/string_key_href.lua)
+  covers both dynamic string-key hit accumulation and `(map[key] or 0)` miss
+  accumulation. kdz, kdz1, and zkd0 all passed this test plus ADD/SUB overflow,
+  MULOV overflow, numeric ops, `pairs_loop.lua`, and `compiled_vararg.lua`.
+  The mixed exact probes on kdz stayed clean:
+  `/tmp/mixedprobe.lua -> RESULT 553416`, `/tmp/hash_value.lua -> HASH_VALUE
+  3000`, and `/tmp/ipairs_only_probe.lua -> RESULT 576000`.
+- Performance proof:
+  `string_heavy` is now fully JIT-on for the official rows. kdz retained-env
+  three-pass read `/tmp/kdz-retained-jitter-20260414190218/summary.md` shows
+  `manual_find_loop/hot` around `0.0061s..0.0076s` versus `0.049s..0.051s
+  -joff`, and `string_key_lookup_loop/hot` around `0.00040s..0.00042s` versus
+  `0.00256s..0.00260s -joff`. kdz1 confirmed the same band in
+  `/tmp/kdz1-retained-jitter-20260414190734/summary.md`; zkd0 confirmed the
+  same direction in `/tmp/zkd0-retained-jitter-20260414190927/summary.md`.
+- Iterator sibling safety:
+  the first broad integer `HLOAD` typecheck proof regressed
+  `iterator_table`, so it was not retained. After narrowing the typecheck and
+  PHI-spill policy to dynamic string-key `HREF`, kdz iterator returned to the
+  parity/noise band: `/tmp/kdz-retained-jitter-20260414190119/summary.md`
+  median passes were mixed/noisy, and `/tmp/kdz-retained-jitter-20260414185811`
+  showed `pairs_sum/hot 0.004365` and `pairs_array_sum/hot 0.003732`. kdz1 was
+  cleanly neutral (`pairs_sum/hot 0.004260`, `pairs_array_sum/hot 0.003658`).
+  zkd0 remains noisy on iterator (`/tmp/zkd0-retained-jitter-20260414191034`),
+  but the trace shape is still the retained exact path (`nins=32789`,
+  `mcloop=236`) and the three-pass run was not a consistent mechanism veto.
+- Guardrail note:
+  the full `jit_loops/*.lua` sweep still trips the existing
+  `iterator_trace_shape.lua` bounded-trace assertion on kdz. This is the known
+  non-exact iterator terminal handoff debt, not the string-key `HREF` helper:
+  `pairs_loop.lua` passes, official `iterator_table` is retained-env
+  parity/noise, and the failing trace logs show the broad non-exact iterator
+  fallback path. Do not broaden the iterator proto-NOJIT rail here; generic
+  proto parks are already recorded as unsafe.
+
+## 2026-04-14: W32/low32 state contract correctness closure
+
+- Mechanism:
+  the low32/W32 exploration exposed real semantic-state debt rather than a
+  simple missed optimization. Values produced by 32-bit bitop-style operations
+  may remain in low32 state across a narrow PHI family, but the backend and
+  exit restore path must normalize before signed guards/equality, calls,
+  stores, generic numeric consumers, and snapshot-visible exits. The failure
+  mode was not fixed physical register pinning; it was stale state escaping
+  through side exits and signed compare consumers.
+- Fix:
+  [src/vm_s390x.dasc](../../src/vm_s390x.dasc) now builds `ExitState` below the
+  current on-trace stack pointer so `ex->spill[]` aliases live trace spills,
+  while preserving original `r0`/`r1` before using `TMPR1` as the `ExitState`
+  base. [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h) routes PHI renames
+  through the normal snapshot-aware rename path, fixes numeric FP `SUB`
+  allocation overlap, and sign-normalizes integer compare/equality operands
+  with `LGFR` before signed `CGR`/immediate compares. [src/lj_snap.c](../../src/lj_snap.c)
+  defaults the stale s390x preferred-register snapshot restore proof path off
+  and removes the broad duplicate `SNAP_NORESTORE` slot copy fallback.
+- Guardrail:
+  [tests/s390x/jit_be/low32_home_contract.lua](../../tests/s390x/jit_be/low32_home_contract.lua)
+  now covers the active contract: low32 carry state, signed compare boundary,
+  Lua call argument boundary, table store/load boundary, snapshot exit restore,
+  and generic numeric conversion. Reduced kdz stress also passed base,
+  compare, call, store, exit, and generic reducer modes plus same-branch,
+  then-branch, else-branch, two-Lua-call, and nested-Lua-branch shapes.
+- Validation:
+  delivered hashes on both kdz and zkd0 included
+  `src/lj_asm_s390x.h -> 4ea7dbb20ba78ec060e780c2fea9358c8a8b2452a5df670a74420cbc9ac4874a`,
+  `src/lj_snap.c -> 7869fb01deef8d53acc8ce9728f882a45a3bf1b0285ad91d9a2ba530415ba1e9`,
+  `src/vm_s390x.dasc -> 02d3776f7c1282edce6cafc6427a393347bbec52e032ad4c83a19285f6a6a511`,
+  and
+  `tests/s390x/jit_be/low32_home_contract.lua -> 1da289f2700de946c784b228b8bff501a45b1afae15ad91aed27b2fe6e5b13de`.
+  kdz and zkd0 both passed `low32_home_contract.lua`, ADD/SUB overflow,
+  MULOV overflow, numeric ops, `mod_int_trace.lua`, `pairs_loop.lua`,
+  `compiled_vararg.lua`, `vararg_paths.lua`, `mixed_noffi.lua`,
+  `iterator_table.lua`, and retained-env `dispatch_trace.lua`. kdz mixed exact
+  probes stayed clean: `/tmp/mixedprobe.lua -> RESULT 553416`,
+  `/tmp/hash_value.lua -> HASH_VALUE 3000`, and
+  `/tmp/ipairs_only_probe.lua -> RESULT 576000`.
+
+## 2026-04-15: Iterator/mixed matcher restamp and dynamic string-key HLOAD guard
+
+- Trigger:
+  the post-low32 retained matrix briefly reopened `iterator_table` and
+  `mixed_noffi` because current generated trace shapes had drifted past the
+  exact retained matchers. Focused kdz trace-meta showed the official iterator
+  roots were `BC_ITERN` shapes with `nsnap=6`, `nins=32790/mcloop=236` and
+  `nins=32793/mcloop=300`, falling through to the broad iterator root
+  blacklist instead of the exact proto-NOJIT path. The official mixed row was
+  likewise caught by the broad iterator fallback at `BC_ITERL`, `nsnap=2`,
+  `nins=32794`, `mcloop=360`.
+- Fix:
+  [src/lj_trace.c](../../src/lj_trace.c) now accepts those current exact
+  iterator `BC_ITERN` shapes and the current exact mixed-noffi `BC_ITERL`
+  shape without broadening the guarded families. The broad iterator blacklist
+  remains the fallback for unsafe non-exact iterator roots and `pairs_loop`.
+- Follow-up correctness:
+  the restamp exposed a backend correctness gap in dynamic string-key table
+  lookup coverage. [tests/s390x/jit_be/string_key_href.lua](../../tests/s390x/jit_be/string_key_href.lua)
+  failed on the `(map[key] or 0)` miss path because integer `IR_HLOAD` from a
+  dynamic string-key `IR_HREF` could consume a nil payload as an integer rather
+  than guarding out to the fallback. [src/lj_asm_s390x.h](../../src/lj_asm_s390x.h)
+  now emits a narrow int typecheck only for `IR_HLOAD int` fed by dynamic
+  string-key `IR_HREF`. The s390x backward emission order is preserved:
+  runtime execution is load, tag extract, expected-tag materialization,
+  compare, then guard branch.
+- Validation:
+  delivered kdz hashes were `src/lj_asm_s390x.h ->
+  3394e5fb7ebd8ed27f0a0752f3b4562ae16f97ec738d2439492bb1737a212396` and
+  `src/lj_trace.c ->
+  0655b8c3060d3b642cee2c7be5102efd83deb719801127e2758728296ab80568`.
+  kdz passed `low32_home_contract.lua`, `string_key_href.lua`, ADD/SUB
+  overflow, MULOV overflow, numeric ops, `pairs_loop.lua`, `compiled_vararg.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, `iterator_table.lua`, and retained-env
+  `dispatch_trace.lua`. zkd0 passed the focused correctness screen for
+  `string_key_href.lua`, `mixed_noffi.lua`, `iterator_table.lua`, and
+  `pairs_loop.lua`.
+- Performance:
+  focused kdz retained-env A/B
+  `/tmp/kdz-post-hload-restamp-20260415074119/summary.md` restored
+  `mixed_noffi/mixed_loop/hot` to parity and kept `pairs_array_sum/hot` at
+  parity; `pairs_sum/hot` remained small/noisy. kdz1 tie-break
+  `/tmp/kdz1-post-hload-restamp-20260415074235/summary.md` confirmed
+  mixed-noffi parity and string-heavy acceleration, but also showed iterator
+  run-order noise. zkd0 perf
+  `/tmp/zkd0-post-hload-restamp-20260415074426/summary.md` was too noisy to
+  use as a retention signal, but its correctness guardrails passed.
+- Current rerank:
+  the current-source full kdz retained-env matrix is
+  `/tmp/kdz-retained-jitter-post-hload-20260415074738/summary.md`. It names no
+  material red official-row blocker. Top red medians are tiny/noisy:
+  `vararg_paths/sum_loop/hot 1.0246x`, `mixed_noffi/mixed_loop/hot 1.0167x`,
+  and `vararg_paths/retconst_loop/hot 1.0095x`. Iterator is back in the
+  parity/noise band (`pairs_sum/hot 0.9969x`, `pairs_array_sum/hot 0.9945x`).
+  The new `string_heavy` coverage is strongly accelerated across all rows.

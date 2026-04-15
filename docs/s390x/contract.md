@@ -67,8 +67,13 @@ current partial port before enabling JIT.
   backends: register sets, fixed registers, scratch policy, spill policy,
   exit-stub spacing, and any required return-pair metadata.
 - `vm_record`, `vm_next`, exit handling, stitch and re-entry, loop opcodes,
-  compiled vararg support, profiler hooks, and FFI callback return are required
-  runtime paths for a complete JIT port.
+  profiler hooks, and FFI callback return are required runtime paths for a
+  complete JIT port.
+- Compiled vararg `BC_JFUNCV` is an explicit peer-parity exception, not an
+  s390x-specific completion blocker. The peer VM backends also leave compiled
+  vararg functions NYI, and the recorder asserts that `BC_JFUNCV` cannot become
+  hot under current hotcall semantics. Keep it visible in coverage as a
+  cross-architecture parked NYI unless that shared recorder/VM contract changes.
 
 ## Known Contradictions Resolved
 
