@@ -48,6 +48,7 @@ local testlib = dofile("tests/s390x/helpers/testlib.lua")
 testlib.enable_repo_jit_modules()
 local jit = require("jit")
 jit.opt.start("hotloop=1", "hotexit=2")
+_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 
 local function emit_hist(label, buckets)
   local keys = {}
@@ -204,7 +205,6 @@ local tab = {}
 for i = 1, 100 do
   tab["a" .. i] = i
 end
-_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 local function run(_)
   local total = 0
   for key in pairs(tab) do
@@ -339,7 +339,6 @@ end)
 """,
     "lower_frame_lua_abs": LUA_COMMON
     + """\
-_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 local function run_lua_abs()
   local total = 0
   for i = 1, 80000 do
@@ -440,7 +439,6 @@ local prefix_sources = {
   "string-heavy-benchmark-0123456789-abcdefghijklmnopqrstuvwxyz",
 }
 local prefixes = { "alpha", "foxtrot", "kilo", "papa", "string" }
-_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -466,7 +464,6 @@ local scan_texts = {
   "LUAJIT-s390x-string-scan-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
   "search-find-byte-prefix-compare-lookup",
 }
-_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 local function run(n)
   local total = 0
   for i = 1, n do
