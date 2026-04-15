@@ -32908,3 +32908,15 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   and `vararg_paths/retconst_loop/hot 1.0095x`. Iterator is back in the
   parity/noise band (`pairs_sum/hot 0.9969x`, `pairs_array_sum/hot 0.9945x`).
   The new `string_heavy` coverage is strongly accelerated across all rows.
+- String-heavy truth-pack repair:
+  the first focused string-heavy mechanism pack crashed because Lua-side
+  `jit.util.traceir()` is unsafe on the current stitched string traces. The
+  acceleration truth-pack now skips Lua-side `traceir()` for string-heavy focus
+  scripts and relies on the separate `-jdump` path for IR/mcode. It also adds
+  focused `byte_scan_loop` attribution, since that is the largest official
+  string-heavy JIT row. The repaired pack
+  `/tmp/kdz-string-heavy-truth-byte-20260415080854/summary.md` runs cleanly:
+  `manual_find_loop/hot 0.1378x`, `byte_scan_loop/hot 0.1046x`,
+  `prefix_eq_loop/hot 0.0701x`, and `string_key_lookup_loop/hot 0.1325x`.
+  Focused classifications all show tiny exit/guard activity (`TEXIT_COUNT 1`)
+  rather than a current correctness blocker.

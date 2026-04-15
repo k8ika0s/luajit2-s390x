@@ -130,7 +130,9 @@ local function run_with_counters(label, iterations, run, validate)
   emit_hist("TRACE_HIST", trace_cap.hist)
   emit_hist("TEXIT_HIST", texit_cap.hist)
   emit_traceinfo(64)
-  emit_traceir(64)
+  if not _G.S390X_ACCEL_SKIP_LUA_TRACEIR then
+    emit_traceir(64)
+  end
 end
 
 local function reference_result(run, iterations)
@@ -423,7 +425,8 @@ print("TEXIT_COUNT", texit_cap.total)
 emit_hist("TRACE_HIST", trace_cap.hist)
 emit_hist("TEXIT_HIST", texit_cap.hist)
 emit_traceinfo(64)
-emit_traceir(64)
+-- Lua-side jit.util.traceir() is unsafe for current string-heavy stitched
+-- traces on s390x; the separate -jdump path carries the IR/mcode artifact.
 """,
     "string_heavy_prefix_eq": LUA_COMMON
     + """\
@@ -435,6 +438,7 @@ local prefix_sources = {
   "string-heavy-benchmark-0123456789-abcdefghijklmnopqrstuvwxyz",
 }
 local prefixes = { "alpha", "foxtrot", "kilo", "papa", "string" }
+_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
 local function run(n)
   local total = 0
   for i = 1, n do
@@ -451,6 +455,29 @@ end
 local expected = reference_result(run, 32000)
 run_with_counters("string_heavy_prefix_eq", 32000, run, function(result)
   testlib.eq(result, expected, "string_heavy_prefix_eq")
+end)
+""",
+    "string_heavy_byte_scan": LUA_COMMON
+    + """\
+local scan_texts = {
+  "string-heavy-benchmark-0123456789-abcdefghijklmnopqrstuvwxyz",
+  "LUAJIT-s390x-string-scan-ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  "search-find-byte-prefix-compare-lookup",
+}
+_G.S390X_ACCEL_SKIP_LUA_TRACEIR = true
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    local text = scan_texts[(i - 1) % #scan_texts + 1]
+    for j = 1, #text do
+      total = total + string.byte(text, j)
+    end
+  end
+  return total
+end
+local expected = reference_result(run, 32000)
+run_with_counters("string_heavy_byte_scan", 32000, run, function(result)
+  testlib.eq(result, expected, "string_heavy_byte_scan")
 end)
 """,
     "string_heavy_key_lookup": LUA_COMMON
@@ -491,7 +518,8 @@ print("TEXIT_COUNT", texit_cap.total)
 emit_hist("TRACE_HIST", trace_cap.hist)
 emit_hist("TEXIT_HIST", texit_cap.hist)
 emit_traceinfo(64)
-emit_traceir(64)
+-- Lua-side jit.util.traceir() is unsafe for current string-heavy stitched
+-- traces on s390x; the separate -jdump path carries the IR/mcode artifact.
 """,
 }
 
@@ -535,11 +563,12 @@ TARGETS: dict[str, dict[str, Any]] = {
         ],
     },
     "string_heavy": {
-        "summary": "string-heavy manual search, prefix equality, and string-key lookup attribution",
+        "summary": "string-heavy manual search, byte scan, prefix equality, and string-key lookup attribution",
         "families": ["string_heavy"],
         "focus": [
             "string_heavy_manual_find",
             "string_heavy_prefix_eq",
+            "string_heavy_byte_scan",
             "string_heavy_key_lookup",
         ],
         "oracle": False,
