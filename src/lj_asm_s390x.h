@@ -589,6 +589,19 @@ static void asm_s390x_bnorm_log(ASMState *as, IRIns *ir, Reg dest)
 	  int32home_candidate);
 }
 
+static int asm_s390x_bnorm_can_carry(ASMState *as, IRIns *ir)
+{
+  int safe_bitop_uses, unsafe_bitop_uses, intarith_uses, other_uses;
+  int guard_uses, first_use_op, first_nonbitop_use_op;
+  if (!asm_s390x_is_bitop_op(ir->o) || !(irt_isinteger(ir->t) || irt_isu32(ir->t)))
+    return 0;
+  asm_s390x_bnorm_use_counts(as, ir, &safe_bitop_uses, &unsafe_bitop_uses,
+			     &intarith_uses, &other_uses, &guard_uses,
+			     &first_use_op, &first_nonbitop_use_op);
+  return safe_bitop_uses > 0 && unsafe_bitop_uses == 0 &&
+	 intarith_uses == 0 && other_uses == 0 && guard_uses == 0;
+}
+
 static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
 				Reg dest, Reg left, Reg right, int rightisk)
 {
@@ -2348,6 +2361,8 @@ static void asm_bnorm32(ASMState *as, IRIns *ir, Reg dest)
   if (asm_s390x_is_bitop_op(ir->o))
     asm_s390x_low32home_log(as, "bnorm", ir);
   asm_s390x_bnorm_log(as, ir, dest);
+  if (asm_s390x_bnorm_can_carry(as, ir))
+    return;
   if (irt_isu32(ir->t))
     emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, dest));
   else
@@ -2363,6 +2378,12 @@ static void asm_bitop_logic(ASMState *as, IRIns *ir, uint32_t op)
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -230);
   asm_s390x_bitop_log(as, "logic", ir, dest, left, right, irref_isk(ir->op2));
   asm_bnorm32(as, ir, dest);
+  if (!irt_is64(ir->t)) {
+    uint32_t op32 = op == S390XI_NGR ? S390XI_NRK :
+		    op == S390XI_OGR ? S390XI_ORK : S390XI_XRK;
+    emit_u32(as, S390X_INS_RRF_M(op32, dest, right, left));
+    return;
+  }
   if (dest == left) {
     emit_u32(as, S390X_INS_RXE(op, dest, right));
   } else if (op == S390XI_NGR) {
@@ -2381,10 +2402,13 @@ static void asm_bnot(ASMState *as, IRIns *ir)
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -233);
   asm_s390x_bitop_log(as, "bnot", ir, dest, left, right, 0);
   asm_bnorm32(as, ir, dest);
-  if (dest == left)
+  if (!irt_is64(ir->t)) {
+    emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, right, left));
+  } else if (dest == left) {
     emit_u32(as, S390X_INS_RXE(S390XI_XGR, dest, right));
-  else
+  } else {
     emit_u32(as, S390X_INS_RRF_M(S390XI_XGRK, dest, right, left));
+  }
   emit_loadu64(as, right, ~(uint64_t)0);
 }
 
