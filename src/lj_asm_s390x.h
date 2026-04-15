@@ -2465,13 +2465,12 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     uint64_t immop;
     int32_t sh = IR(ir->op2)->i & 31;
     asm_s390x_bitop_log(as, "shiftk", ir, dest, left, RID_NONE, 1);
-    if (op == S390XI_SRLK) {
-      emit_shiftimm(as, S390XI_SRLG, dest, dest, sh);
-      emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
+    if (!irt_is64(ir->t)) {
+      asm_bnorm32(as, ir, dest);
+      emit_shiftimm(as, op, dest, left, sh);
       return;
     }
-    immop = (op == S390XI_SLLK) ? S390XI_SLLG :
-	    (irt_is64(ir->t) ? S390XI_SRAG : S390XI_SRAK);
+    immop = (op == S390XI_SLLK) ? S390XI_SLLG : S390XI_SRAG;
     emit_shiftimm(as, immop, dest, left, sh);
     return;
   } else {
