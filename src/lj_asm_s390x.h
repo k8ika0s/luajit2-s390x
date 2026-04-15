@@ -589,11 +589,30 @@ static void asm_s390x_bnorm_log(ASMState *as, IRIns *ir, Reg dest)
 	  int32home_candidate);
 }
 
+static int asm_s390x_only_used_by(ASMState *as, IRIns *ir, IROp op)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int uses = 0;
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (irt_isguard(use->t) || use->o != op)
+      return 0;
+    uses++;
+  }
+  return uses > 0;
+}
+
 static int asm_s390x_bnorm_can_carry(ASMState *as, IRIns *ir)
 {
   int safe_bitop_uses, unsafe_bitop_uses, intarith_uses, other_uses;
   int guard_uses, first_use_op, first_nonbitop_use_op;
-  if (!asm_s390x_is_bitop_op(ir->o) || !(irt_isinteger(ir->t) || irt_isu32(ir->t)))
+  if (!(irt_isinteger(ir->t) || irt_isu32(ir->t)))
+    return 0;
+  if (ir->o == IR_NEG)
+    return asm_s390x_only_used_by(as, ir, IR_BSAR);
+  if (!asm_s390x_is_bitop_op(ir->o))
     return 0;
   asm_s390x_bnorm_use_counts(as, ir, &safe_bitop_uses, &unsafe_bitop_uses,
 			     &intarith_uses, &other_uses, &guard_uses,
@@ -2451,7 +2470,8 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
       return;
     }
-    immop = (op == S390XI_SLLK) ? S390XI_SLLG : S390XI_SRAG;
+    immop = (op == S390XI_SLLK) ? S390XI_SLLG :
+	    (irt_is64(ir->t) ? S390XI_SRAG : S390XI_SRAK);
     emit_shiftimm(as, immop, dest, left, sh);
     return;
   } else {
