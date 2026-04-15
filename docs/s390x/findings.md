@@ -32977,3 +32977,77 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   no source-change target is reopened from these reads. Lower-frame `%17` stays
   closed until a new range/recurrence contract appears, and iterator remains
   mechanism-debt work rather than a current official-row regression.
+
+## 2026-04-15: string-heavy standard-library constification proof closed
+
+- Candidate:
+  tested `string_heavy` standard-library lookup constification for the two
+  largest high-time rows. The opt-in proof targeted only
+  `@tests/s390x/perf/string_heavy.lua` and the repeated `GGET string` plus
+  `TGETS byte/sub/find` chains. The unguarded version returned constant
+  library table/function refs directly; the semantic-safe version still
+  emitted table/function mutation guards before returning constants.
+- Mechanism:
+  unguarded constification engaged on the official `manual_find_loop/hot` row
+  and removed a large recorded lookup chain. On kdz with trace meta enabled,
+  trace 1 shrank from `nins=32811`, `szmcode=848`, `mcloop=668` to
+  `nins=32798`, `szmcode=552`, `mcloop=372`; trace 2 shrank from
+  `nins=32823`, `szmcode=1508` to `nins=32811`, `szmcode=1224`.
+- Performance:
+  the unsafe proof was materially faster on the trusted hosts:
+  kdz `manual_find_loop/hot` improved from `~0.00666-0.00668s` to
+  `~0.00620-0.00623s`, and `byte_scan_loop/hot` from `~0.00775s` to
+  `~0.00759s`. kdz1 confirmed the same direction: `manual_find_loop/hot`
+  control `~0.00668-0.00671s` versus candidate `~0.00625-0.00627s`, and
+  `byte_scan_loop/hot` control `~0.00775-0.00778s` versus candidate
+  `~0.00758-0.00761s`. zkd0 was noisy but did not show a clear correctness
+  failure.
+- Closure:
+  the only clearly faster form was semantically unsafe because it assumes the
+  global `string` table and `string.byte/sub/find` entries are immutable for
+  the chunk. The guarded form preserved mutation semantics but lost the gain:
+  kdz `manual_find_loop/hot` was `~0.00674-0.00677s`, slightly worse than the
+  retained control, and `byte_scan_loop/hot` was neutral/noisy. The proof
+  source was removed. Do not retain a standard-library constification shortcut
+  unless a future design keeps mutation guards cheap enough to preserve the
+  measured unguarded body-size win.
+
+## 2026-04-15: acceleration truth-pack traceir hardening and green low-level rerank
+
+- Tooling:
+  [tools/s390x/build_acceleration_truth_pack.py](../../tools/s390x/build_acceleration_truth_pack.py)
+  now disables Lua-side `jit.util.traceir()` inside focused reducers by
+  default. The repeated segfault class happened after successful trace
+  recording and after `-jdump=ism` had already captured IR/mcode. The separate
+  dump path remains authoritative for mechanism analysis; the Lua-side
+  traceinfo path still provides counters and trace topology.
+- FFI fixed-call GPR lane:
+  current kdz truth pack
+  `artifacts/s390x/truth-packs/20260415-085611-kdz-ffi_fixed_gpr-accel-truth-pack/summary.md`
+  names no active source target. `ffi_fixed_call_pressure/gpr_pressure/hot`
+  is already deeply accelerated (`~0.01x..0.02x` versus `-joff`),
+  `fpr_pressure/hot` is likewise green, and fixed-struct siblings are green.
+  The focused reducer is now clean (`REMOTE_RC 0`, `TRACE_ABORT 0`,
+  `TEXIT_COUNT 1`).
+- FFI cdata mixed-width lane:
+  current kdz truth pack
+  `artifacts/s390x/truth-packs/20260415-090033-kdz-ffi_cdata_width-accel-truth-pack/summary.md`
+  names no active source target. `mixed_width_loop/hot` is `~0.0088x`,
+  `pair_loop/hot` is `~0.0032x`, and `buffer_fref_loop/hot` is `~0.055x`
+  versus `-joff`. The focused reducer is quiet (`REMOTE_RC 0`,
+  `TRACE_ABORT 0`, `TEXIT_COUNT 1`).
+- Number-helper lane:
+  current kdz truth pack
+  `artifacts/s390x/truth-packs/20260415-090527-kdz-be_number_helper-accel-truth-pack/summary.md`
+  also names no source target. `be_helpers/number_helper_loop/hot` is
+  `~0.058x` and the localized `bit.tobit` row is `~0.092x` versus `-joff`.
+  The focused generic reducer is quiet (`TRACE_ABORT 0`, `TEXIT_COUNT 1`);
+  the localized reducer has one known trace abort but remains strongly green.
+- Queue impact:
+  the current low-level acceleration rerank has not found a material red
+  official row in FFI call pressure, FFI cdata width, string-heavy byte/math
+  opcode substitution, or number helpers. The remaining acceleration work
+  should return to mechanism debt rather than micro-optimizing green rows:
+  iterator safety debt, a correctness-safe string-library lookup design, or a
+  new higher-sample retained-env matrix to identify a larger absolute runtime
+  payer.
