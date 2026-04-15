@@ -2429,9 +2429,6 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     }
     immop = (op == S390XI_SLLK) ? S390XI_SLLG : S390XI_SRAG;
     emit_shiftimm(as, immop, dest, left, sh);
-    if (dest != left)
-      emit_movrr(as, ir, dest, left);
-    asm_bnorm32(as, ir, dest);
     return;
   } else {
     Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -239);
