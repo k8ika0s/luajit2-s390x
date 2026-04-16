@@ -593,6 +593,48 @@ TRef lj_opt_narrow_arith(jit_State *J, TRef rb, TRef rc,
 }
 
 /* Narrowing of unary minus operator. */
+#if LJ_TARGET_S390X
+static int narrow_s390x_scev_ref_offset(jit_State *J, IRRef ref, int64_t *ofsp)
+{
+  int64_t ofs = 0;
+
+  for (;;) {
+    IRIns *ir;
+    if (ref == J->scev.idx) {
+      *ofsp = ofs;
+      return 1;
+    }
+    if (irref_isk(ref))
+      return 0;
+    ir = IR(ref);
+    if ((ir->o == IR_ADD || ir->o == IR_ADDOV) &&
+	irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+      ofs += IR(ir->op2)->i;
+      ref = ir->op1;
+      continue;
+    }
+    if ((ir->o == IR_SUB || ir->o == IR_SUBOV) &&
+	irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+      ofs -= IR(ir->op2)->i;
+      ref = ir->op1;
+      continue;
+    }
+    return 0;
+  }
+}
+
+static int narrow_s390x_scev_nonzero(jit_State *J, TRef tr)
+{
+  int64_t ofs;
+  if (J->scev.idx == REF_NIL || !J->scev.dir ||
+      J->scev.start == REF_NIL || !irref_isk(J->scev.start))
+    return 0;
+  if (!narrow_s390x_scev_ref_offset(J, tref_ref(tr), &ofs))
+    return 0;
+  return (int64_t)IR(J->scev.start)->i + ofs > 0;
+}
+#endif
+
 TRef lj_opt_narrow_unm(jit_State *J, TRef rc, TValue *vc)
 {
   rc = conv_str_tonum(J, rc, vc);
@@ -600,6 +642,9 @@ TRef lj_opt_narrow_unm(jit_State *J, TRef rc, TValue *vc)
     uint32_t k = (uint32_t)numberVint(vc);
     if (k != 0 && k != 0x80000000u) {
       TRef zero = lj_ir_kint(J, 0);
+#if LJ_TARGET_S390X
+      if (!narrow_s390x_scev_nonzero(J, rc))
+#endif
       emitir(IRTGI(IR_NE), rc, zero);
       return emitir(IRTGI(IR_SUBOV), zero, rc);
     }
