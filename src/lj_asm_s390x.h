@@ -622,6 +622,61 @@ static int asm_s390x_only_used_by_reg_add(ASMState *as, IRIns *ir)
   return uses > 0;
 }
 
+static int asm_s390x_hload_fun_equal_info(ASMState *as, IRIns *ir,
+					  IRIns **hrefkp,
+					  int32_t *ofsp, uint64_t *kp)
+{
+  IRIns *hload, *hrefk, *kref;
+  int32_t ofs;
+  if (ir->o != IR_EQ && ir->o != IR_NE)
+    return 0;
+  if (!irref_isk(ir->op2))
+    return 0;
+  hload = IR(ir->op1);
+  kref = IR(ir->op2);
+  if (hload->o != IR_HLOAD || kref->o != IR_KGC)
+    return 0;
+  if (irt_type(hload->t) != IRT_FUNC || irt_type(kref->t) != IRT_FUNC)
+    return 0;
+  if (!ra_noreg(hload->r) || !mayfuse(as, ir->op1))
+    return 0;
+  if (irref_isk(hload->op1))
+    return 0;
+  hrefk = IR(hload->op1);
+  if (hrefk->o != IR_HREFK)
+    return 0;
+  ofs = (int32_t)(IR(hrefk->op2)->op2 * sizeof(Node));
+  if (!checki20(ofs))
+    return 0;
+  *hrefkp = hrefk;
+  *ofsp = ofs;
+  *kp = ((uint64_t)irt_toitype(kref->t) << 47) |
+	(uint64_t)(uintptr_t)ir_kgc(kref);
+  return 1;
+}
+
+static int asm_s390x_hload_fun_equal_elided(ASMState *as, IRIns *ir)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int uses = 0;
+  if (ir->o != IR_HLOAD || irt_type(ir->t) != IRT_FUNC || ra_used(ir))
+    return 0;
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    IRIns *hrefk;
+    int32_t ofs;
+    uint64_t k;
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (use->op1 != ref ||
+	!asm_s390x_hload_fun_equal_info(as, use, &hrefk, &ofs, &k))
+      return 0;
+    UNUSED(hrefk); UNUSED(ofs); UNUSED(k);
+    uses++;
+  }
+  return uses > 0;
+}
+
 static int asm_s390x_bnorm_can_carry(ASMState *as, IRIns *ir)
 {
   int safe_bitop_uses, unsafe_bitop_uses, intarith_uses, other_uses;
@@ -2459,6 +2514,19 @@ static void asm_equal(ASMState *as, IRIns *ir)
   lir = IR(ir->op1);
   if (!irref_isk(ir->op2))
     rir = IR(ir->op2);
+  if (irref_isk(ir->op2)) {
+    IRIns *hrefk;
+    int32_t ofs;
+    uint64_t k;
+    if (asm_s390x_hload_fun_equal_info(as, ir, &hrefk, &ofs, &k)) {
+      Reg node = ra_alloc1_nobase(as, hrefk->op1, RSET_GPR_NOB, -203);
+      Reg expected = ra_allock(as, (intptr_t)k,
+			       rset_exclude(RSET_GPR_NOB, node));
+      asm_guardcc(as, ir->o == IR_EQ ? CC_NE : CC_EQ);
+      emit_u48_pad8(as, S390X_INS_RXY(S390XI_CG, expected, 0, node, ofs));
+      return;
+    }
+  }
   left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -203);
   if (irt_isinteger(ir->t) && irref_isk(ir->op2) &&
       asm_kintptr(as, ir->op2) == 0) {
@@ -3215,6 +3283,8 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   RegSet allow = RSET_GPR_NOB;
 
   lj_assertA(!(ir->o == IR_VLOAD && 8 * ir->op2 < 0), "bad VLOAD offset");
+  if (asm_s390x_hload_fun_equal_elided(as, ir))
+    return;
 
   if (ra_used(ir)) {
     if (!(irt_isnum(t) || irt_isint(t) || irt_isu32(t) ||
