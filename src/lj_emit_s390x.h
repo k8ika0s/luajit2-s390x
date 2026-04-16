@@ -80,6 +80,10 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390X_INS_RIE_D(op, r1, r3, imm) \
   ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
    (((uint64_t)(r3) & 15u) << 32) | (((uint64_t)(imm) & 0xffffu) << 16))
+#define S390X_INS_RIE_B(op, r1, r2, m3, imm) \
+  ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
+   (((uint64_t)(r2) & 15u) << 32) | (((uint64_t)(imm) & 0xffffu) << 16) | \
+   (((uint64_t)(m3) & 15u) << 12))
 #define S390X_INS_BRC(cc, disp) \
   ((uint32_t)0xa7040000u | (((uint32_t)(cc) & 15u) << 20) | \
    (uint16_t)(disp))
@@ -103,12 +107,16 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_LGFR	0xb9140000u
 #define S390XI_LLGFR	0xb9160000u
 #define S390XI_LRVR	0xb91f0000u
+#define S390XI_LCGFR	0xb9130000u
 #define S390XI_CDBR	0xb3190000u
 #define S390XI_ADBR	0xb31a0000u
 #define S390XI_SDBR	0xb31b0000u
 #define S390XI_MDBR	0xb31c0000u
 #define S390XI_DDBR	0xb31d0000u
 #define S390XI_LPDBR	0xb3100000u
+#define S390XI_LCDBR	0xb3130000u
+#define S390XI_SQDBR	0xb3150000u
+#define S390XI_FIDBRA	0xb35f0000u
 #define S390XI_CDFBR	0xb3950000u
 #define S390XI_CFDBR	0xb3990000u
 #define S390XI_CDGBR	0xb3a50000u
@@ -118,12 +126,17 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_DR	0x1d00u
 #define S390XI_DSGR	0xb90d0000u
 #define S390XI_DLGR	0xb9870000u
+#define S390XI_MLGR	0xb9860000u
 #define S390XI_MSGFR	0xb91c0000u
 #define S390XI_CGR	0xb9200000u
 #define S390XI_CLGR	0xb9210000u
+#define S390XI_CGRJ	0xec0000000064ull
+#define S390XI_CRJ	0xec0000000076ull
 #define S390XI_LGHI	0xa7090000u
 #define S390XI_AGHI	0xa70b0000u
 #define S390XI_CGHI	0xa70f0000u
+#define S390XI_TMLL	0xa7010000u
+#define S390XI_MSGFI	0xc20000000000ull
 #define S390XI_AGFI	0xc20800000000ull
 #define S390XI_CGFI	0xc20c00000000ull
 #define S390XI_AGR	0xb9080000u
@@ -136,6 +149,8 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_XGRK	0xb9e70000u
 #define S390XI_AGRK	0xb9e80000u
 #define S390XI_SGRK	0xb9e90000u
+#define S390XI_ARK	0xb9f80000u
+#define S390XI_SRK	0xb9f90000u
 #define S390XI_LOCGR	0xb9e20000u
 #define S390XI_AGHIK	0xec00000000d9ull
 #define S390XI_LG	0xe30000000004ull
@@ -165,6 +180,11 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_SRLK	0xeb00000000deull
 #define S390XI_SLLK	0xeb00000000dfull
 #define S390XI_LDR	0x2800u
+
+#define S390X_INS_RRF_E(op, r1, m3, r2, m4) \
+  ((uint32_t)(op) | (((uint32_t)(m3) & 15u) << 12) | \
+   (((uint32_t)(m4) & 15u) << 8) | (((uint32_t)(r1) & 15u) << 4) | \
+   ((uint32_t)(r2) & 15u))
 
 /* Prefer rematerialization of BASE/L from global_State over spills. */
 #define emit_canremat(ref)	((ref) <= REF_BASE)
