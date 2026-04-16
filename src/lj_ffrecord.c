@@ -850,12 +850,101 @@ static TRef recff_string_start(jit_State *J, GCstr *s, int32_t *st, TRef tr,
     emitir(IRTGI(IR_EQ), tr, tr0);
     tr = tr0;
   } else {
-    tr = emitir(IRTGI(IR_ADDOV), tr, lj_ir_kint(J, -1));
-    emitir(IRTGI(IR_GE), tr, tr0);
+    emitir(IRTGI(IR_GT), tr, tr0);
+    tr = emitir(IRTI(IR_ADD), tr, lj_ir_kint(J, -1));
     start--;
   }
   *st = start;
   return tr;
+}
+
+static int recff_positive_step(cTValue *o)
+{
+  if (tvisint(o))
+    return intV(o) > 0;
+  if (tvisnum(o))
+    return numV(o) > 0;
+  return 0;
+}
+
+static int recff_is_forl_op(BCOp op)
+{
+  return op == BC_FORL || op == BC_IFORL || op == BC_JFORL;
+}
+
+typedef struct RecffStringByteFor {
+  TRef stop;
+} RecffStringByteFor;
+
+static int recff_string_byte_for_info(jit_State *J, TRef trstart,
+				      RecffStringByteFor *info)
+{
+  TValue *frame = J->L->base - 1;
+  const BCIns *callpc, *startpc, *endpc, *pc;
+  GCproto *pt = J->pt;
+  BCIns callins, movins;
+  BCReg arg0slot, arg1slot, idxslot, forbase = BCMAX_A;
+  ptrdiff_t stoprel, steprel, extrel;
+
+  if (!pt && frame_islua(frame)) {
+    TValue *pframe = frame_prevl(frame);
+    if (isluafunc(frame_func(frame)))
+      pt = funcproto(frame_func(frame));
+    else if (isluafunc(frame_func(pframe)))
+      pt = funcproto(frame_func(pframe));
+  }
+  if (J->parent != 0 || !pt || !frame_islua(frame))
+    return 0;
+
+  startpc = proto_bc(pt);
+  endpc = startpc + pt->sizebc;
+  callpc = frame_pc(frame) - 1;
+  if (callpc < startpc || callpc >= endpc)
+    return 0;
+  callins = *callpc;
+  if (bc_op(callins) != BC_CALL || bc_c(callins) != 3)
+    return 0;
+
+  arg0slot = (BCReg)(bc_a(callins) + 1 + LJ_FR2);
+  arg1slot = (BCReg)(arg0slot + 1);
+  if (callpc < startpc + 2)
+    return 0;
+  movins = callpc[-1];
+  if (bc_op(movins) != BC_MOV || bc_a(movins) != arg1slot)
+    return 0;
+  idxslot = bc_d(movins);
+
+  pc = callpc - 2;
+  while (pc >= startpc && callpc - pc <= 32) {
+    BCOp op = bc_op(*pc);
+    if ((op == BC_FORI || op == BC_JFORI) &&
+	bc_a(*pc) + FORL_EXT == idxslot) {
+      forbase = bc_a(*pc);
+      break;
+    }
+    if (pc == startpc)
+      break;
+    pc--;
+  }
+  if (forbase == BCMAX_A)
+    return 0;
+
+  for (pc = callpc + 1; pc < endpc && pc - callpc <= 40; pc++) {
+    if (recff_is_forl_op(bc_op(*pc)) && bc_a(*pc) == forbase)
+      break;
+  }
+  if (pc >= endpc || pc - callpc > 40)
+    return 0;
+
+  stoprel = (ptrdiff_t)(forbase + FORL_STOP) - arg0slot;
+  steprel = (ptrdiff_t)(forbase + FORL_STEP) - arg0slot;
+  extrel = (ptrdiff_t)(forbase + FORL_EXT) - arg0slot;
+  if (J->base[extrel] != trstart || !J->base[stoprel] ||
+      !recff_positive_step(&J->L->base[steprel]))
+    return 0;
+
+  info->stop = J->base[stoprel];
+  return 1;
 }
 
 /* Handle string.byte (rd->data = 0) and string.sub (rd->data = 1). */
@@ -864,9 +953,12 @@ static void LJ_FASTCALL recff_string_range(jit_State *J, RecordFFData *rd)
   TRef trstr = lj_ir_tostr(J, J->base[0]);
   TRef trlen = emitir(IRTI(IR_FLOAD), trstr, IRFL_STR_LEN);
   TRef tr0 = lj_ir_kint(J, 0);
-  TRef trstart, trend;
+  TRef trstart, trend, forstop = 0;
+  RecffStringByteFor forinfo;
+  int byte_noend = 0;
   GCstr *str = argv2str(J, &rd->argv[0]);
   int32_t start, end;
+  memset(&forinfo, 0, sizeof(forinfo));
   if (rd->data) {  /* string.sub(str, start [,end]) */
     start = argv2int(J, &rd->argv[1]);
     trstart = lj_opt_narrow_toint(J, J->base[1]);
@@ -892,21 +984,34 @@ static void LJ_FASTCALL recff_string_range(jit_State *J, RecordFFData *rd)
     } else {
       trend = trstart;
       end = start;
+      byte_noend = 1;
     }
   }
+  if (!rd->data && byte_noend && recff_string_byte_for_info(J, trstart, &forinfo))
+    forstop = forinfo.stop;
   if (end < 0) {
     emitir(IRTGI(IR_LT), trend, tr0);
     trend = emitir(IRTI(IR_ADD), emitir(IRTI(IR_ADD), trlen, trend),
 		   lj_ir_kint(J, 1));
     end = end+(int32_t)str->len+1;
   } else if ((MSize)end <= str->len) {
-    emitir(IRTGI(IR_ULE), trend, trlen);
+    if (forstop) {
+      if (!J->loopref)
+	emitir(IRTGI(IR_ULE), forstop, trlen);
+    } else {
+      emitir(IRTGI(IR_ULE), trend, trlen);
+    }
   } else {
     emitir(IRTGI(IR_GT), trend, trlen);
     end = (int32_t)str->len;
     trend = trlen;
   }
-  trstart = recff_string_start(J, str, &start, trstart, trlen, tr0);
+  if (forstop && J->loopref) {
+    trstart = emitir(IRTI(IR_ADD), trstart, lj_ir_kint(J, -1));
+    start--;
+  } else {
+    trstart = recff_string_start(J, str, &start, trstart, trlen, tr0);
+  }
   if (rd->data) {  /* Return string.sub result. */
     if (start <= end) {
       /* Also handle empty range here, to avoid extra traces. */
@@ -921,8 +1026,15 @@ static void LJ_FASTCALL recff_string_range(jit_State *J, RecordFFData *rd)
   } else {  /* Return string.byte result(s). */
     if (start < end) {
       ptrdiff_t i, len = end - start;
-      TRef trslen = emitir(IRTGI(IR_SUBOV), trend, trstart);
-      emitir(IRTGI(IR_EQ), trslen, lj_ir_kint(J, (int32_t)len));
+      if (byte_noend && len == 1) {
+	TRef tmp = emitir(IRT(IR_STRREF, IRT_PGC), trstr, trstart);
+	J->base[0] = emitir(IRT(IR_XLOAD, IRT_U8), tmp, IRXLOAD_READONLY);
+	rd->nres = 1;
+	return;
+      } else {
+	TRef trslen = emitir(IRTGI(IR_SUBOV), trend, trstart);
+	emitir(IRTGI(IR_EQ), trslen, lj_ir_kint(J, (int32_t)len));
+      }
       if (J->baseslot + len > LJ_MAX_JSLOTS)
 	lj_trace_err_info(J, LJ_TRERR_STACKOV);
       rd->nres = len;

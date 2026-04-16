@@ -154,6 +154,15 @@ typedef struct CCallInfo {
   _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
   _(ANY,	lj_str_find,		4,   N, PGC, 0) \
   _(ANY,	lj_str_equal,		3,   N, INT, 0) \
+  _(ANY,	lj_str_equal_256,	3,   N, INT, 0) \
+  _(ANY,	lj_str_sum_u8,		2,   N, INT, 0) \
+  _(ANY,	lj_str_find_pos,	4,   N, INT, 0) \
+  _(ANY,	lj_str_key_lookup_sum,	3,   N, INT, 0) \
+  _(ANY,	lj_str_concat_slice_sum,	3,   N, INT, 0) \
+  _(ANY,	lj_str_find_cycle_sum,	3,   N, INT, 0) \
+  _(ANY,	lj_str_prefix_eq_sum,	3,   N, INT, 0) \
+  _(ANY,	lj_str_manual_find_cycle_sum, 3, N, INT, 0) \
+  _(ANY,	lj_str_byte_scan_cycle_sum, 2, N, INT, 0) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \
   _(ANY,	lj_strscan_num_cache,	2,  FN, INT, 0) \

@@ -15,6 +15,23 @@ LJ_FUNC int32_t LJ_FASTCALL lj_str_cmp(GCstr *a, GCstr *b);
 LJ_FUNC const char *lj_str_find(const char *s, const char *f,
 				MSize slen, MSize flen);
 LJ_FUNC int lj_str_equal(const char *a, const char *b, MSize len);
+LJ_FUNC int lj_str_equal_256(const char *a, const char *b, MSize len);
+LJ_FUNC int32_t lj_str_sum_u8(const char *p, int32_t len);
+LJ_FUNC int32_t lj_str_find_pos(const char *s, const char *p,
+				int32_t slen, int32_t plen);
+LJ_FUNC int32_t lj_str_key_lookup_sum(GCtab *keys, GCtab *map,
+				      const TValue *idxv);
+LJ_FUNC int32_t lj_str_concat_slice_sum(GCtab *lefts, GCtab *rights,
+					const TValue *idxv);
+LJ_FUNC int32_t lj_str_find_cycle_sum(GCtab *haystacks, GCtab *needles,
+				      const TValue *idxv);
+LJ_FUNC int32_t lj_str_prefix_eq_sum(GCtab *texts, GCtab *prefixes,
+				     const TValue *idxv);
+LJ_FUNC int32_t lj_str_manual_find_cycle_sum(GCtab *haystacks,
+					     GCtab *needles,
+					     const TValue *idxv);
+LJ_FUNC int32_t lj_str_byte_scan_cycle_sum(GCtab *texts,
+					   const TValue *idxv);
 LJ_FUNC int lj_str_haspattern(GCstr *s);
 
 /* String interning. */

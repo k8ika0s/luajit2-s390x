@@ -59,6 +59,10 @@ static void emit_u48_at(MCode *p, uint64_t ins)
   ((uint32_t)(op) | (((uint32_t)(r1) & 15u) << 20) | \
    (((uint32_t)(x2) & 15u) << 16) | (((uint32_t)(b2) & 15u) << 12) | \
    ((uint32_t)(disp) & 0xfffu))
+#define S390X_INS_SS(op, len, b1, d1, b2, d2) \
+  ((uint64_t)(op) | (((uint64_t)(len) & 0xffu) << 32) | \
+   (((uint64_t)(b1) & 15u) << 28) | (((uint64_t)(d1) & 0xfffu) << 16) | \
+   (((uint64_t)(b2) & 15u) << 12) | ((uint64_t)(d2) & 0xfffu))
 static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 {
   uint32_t udisp = (uint32_t)disp & 0xfffffu;
@@ -147,6 +151,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_AGFI	0xc20800000000ull
 #define S390XI_CFI	0xc20d00000000ull
 #define S390XI_CGFI	0xc20c00000000ull
+#define S390XI_EXRL	0xc60000000000ull
 #define S390XI_AGR	0xb9080000u
 #define S390XI_OGR	0xb9810000u
 #define S390XI_SGR	0xb9090000u
@@ -180,6 +185,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_STY	0xe30000000050ull
 #define S390XI_STEY	0xed0000000066ull
 #define S390XI_STDY	0xed0000000067ull
+#define S390XI_CLC	0xd50000000000ull
 #define S390XI_TM	0x91000000u
 #define S390XI_NI	0x94000000u
 #define S390XI_IIHF	0xc00800000000ull
@@ -277,6 +283,12 @@ static void emit_loadu8ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
 {
   lj_assertA(checki20(ofs), "s390x load8 offset out of range");
   emit_u48_pad8(as, S390X_INS_RXY(S390XI_LLGC, r, 0, base, ofs));
+}
+
+static void emit_loadu8idxofs(ASMState *as, Reg r, Reg idx, Reg base, int32_t ofs)
+{
+  lj_assertA(checki20(ofs), "s390x load8 offset out of range");
+  emit_u48_pad8(as, S390X_INS_RXY(S390XI_LLGC, r, idx, base, ofs));
 }
 
 static void emit_loadi16ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
@@ -417,6 +429,15 @@ static void emit_condbranch(ASMState *as, S390XCC cc, MCode *target)
   lj_assertA((delta & 1) == 0, "unaligned branch target");
   lj_assertA(checki16((int32_t)(delta >> 1)), "s390x branch target out of range");
   emit_u32(as, S390X_INS_BRC(cc, (int32_t)(delta >> 1)));
+}
+
+static void emit_exrl(ASMState *as, Reg r, MCode *target)
+{
+  uint8_t *p = (uint8_t *)as->mcp - 8;
+  ptrdiff_t delta = (char *)target - (char *)p;
+  lj_assertA((delta & 1) == 0, "unaligned EXRL target");
+  lj_assertA(checki32((int64_t)(delta >> 1)), "s390x EXRL target out of range");
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_EXRL, r, (int32_t)(delta >> 1)));
 }
 
 static void emit_call(ASMState *as, Reg rlink, void *target)
