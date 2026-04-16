@@ -703,6 +703,10 @@
 #define LJ_TARGET_UNALIGNED	0
 #endif
 
+#ifndef LJ_TARGET_S390X
+#define LJ_TARGET_S390X		0
+#endif
+
 #ifndef LJ_PAGESIZE
 #define LJ_PAGESIZE		4096
 #endif
