@@ -847,6 +847,24 @@ static int asm_s390x_add_low32home_only(ASMState *as, IRIns *ir)
   return (add_uses | phi_uses) != 0 && other_uses == 0 && guard_uses == 0;
 }
 
+static int asm_s390x_addk_low32home_only(ASMState *as, IRIns *ir)
+{
+  IRIns *lir;
+  int add_uses, phi_uses, other_uses, guard_uses;
+  int first_use_op, first_noncarry_use_op;
+  if (irt_isguard(ir->t) || !irt_isinteger(ir->t) || !irref_isk(ir->op2))
+    return 0;
+  lir = IR(ir->op1);
+  if (!asm_s390x_is_low32home_source_op(lir->o))
+    return 0;
+  asm_s390x_addhome_use_counts(as, ir, &add_uses, &phi_uses, &other_uses,
+			       &guard_uses, &first_use_op,
+			       &first_noncarry_use_op);
+  UNUSED(first_use_op);
+  UNUSED(first_noncarry_use_op);
+  return (add_uses | phi_uses) != 0 && other_uses == 0 && guard_uses == 0;
+}
+
 static int asm_s390x_ref_feeds_bitop(ASMState *as, IRRef ref)
 {
   IRIns *ir = IR(ref);
@@ -2388,7 +2406,8 @@ static void asm_add(ASMState *as, IRIns *ir)
 	  asm_s390x_guard_log(as, "addov_k", ir, CC_OF, 0, k);
 	  asm_guardcc(as, CC_OF);
 	}
-	if (bnorm && !asm_s390x_addk1_bitop_loop_carry(as, ir))
+	if (bnorm && !asm_s390x_addk1_bitop_loop_carry(as, ir) &&
+	    !asm_s390x_addk_low32home_only(as, ir))
 	  asm_bnorm32(as, ir, dest);
 	if (!irt_isguard(ir->t) && dest != left)
 	  emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AGHIK, dest, left, k));
