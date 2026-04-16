@@ -105,6 +105,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_LRVGR	0xb90f0000u
 #define S390XI_LGFR	0xb9140000u
 #define S390XI_LLGFR	0xb9160000u
+#define S390XI_LLGCR	0xb9840000u
 #define S390XI_LRVR	0xb91f0000u
 #define S390XI_CDBR	0xb3190000u
 #define S390XI_ADBR	0xb31a0000u
@@ -132,6 +133,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CGHI	0xa70f0000u
 #define S390XI_AGFI	0xc20800000000ull
 #define S390XI_CGFI	0xc20c00000000ull
+#define S390XI_CLGFI	0xc20e00000000ull
 #define S390XI_AGR	0xb9080000u
 #define S390XI_AGFR	0xb9180000u
 #define S390XI_OGR	0xb9810000u

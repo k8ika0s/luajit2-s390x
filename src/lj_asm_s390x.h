@@ -2194,6 +2194,14 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   cc = asm_compmap[op];
   left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
   asm_guardcc(as, cc & 15);
+  if (irref_isk(rref) && (cc & CC_UNSIGNED) && irt_isaddr(ir->t) &&
+      (uint64_t)asm_kintptr(as, rref) <= (uint64_t)~(uint32_t)0) {
+    asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
+    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, RID_NONE, 1);
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_CLGFI, left,
+				    (uint32_t)asm_kintptr(as, rref)));
+    return;
+  }
   imm16_signed = irref_isk(rref) && !(cc & CC_UNSIGNED) && !irt_isaddr(ir->t) &&
 			 checki16(IR(rref)->i);
   if (imm16_signed) {
@@ -2657,6 +2665,15 @@ static void asm_bswap(ASMState *as, IRIns *ir)
 
 static void asm_band(ASMState *as, IRIns *ir)
 {
+  if (!irt_is64(ir->t) && irref_isk(ir->op2) &&
+      asm_kintptr(as, ir->op2) == 255) {
+    Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -230);
+    Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -231);
+    asm_s390x_bitop_log(as, "band_u8", ir, dest, left, RID_NONE, 1);
+    asm_s390x_bnorm_log(as, ir, dest);
+    emit_u32(as, S390X_INS_RXE(S390XI_LLGCR, dest, left));
+    return;
+  }
   asm_bitop_logic(as, ir, S390XI_NGR);
 }
 
