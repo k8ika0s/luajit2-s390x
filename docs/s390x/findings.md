@@ -33800,3 +33800,60 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   at small scale with `1.0000x`, i.e. parity/noise. Keep performance work in
   acceleration mode: prioritize high-time and cross-architecture disadvantage
   rows, not guardrail rollback or a JIT-on blocker.
+
+## 2026-04-16: PHI loop recurrence branch merged into WIP
+
+- Integration:
+  merged `origin/k8ika0s/s390x-phi-loop-form` into
+  `k8ika0s/s390x-bringup-wip` as merge commit `5975950c`. The promoted source
+  commit is `85b9758d Improve s390x PHI loop recurrence codegen`.
+- Scope:
+  retained the PHI branch's guarded range-strip path in `src/lj_opt_loop.c`,
+  demanded-lowbits simplification, low32/compare/add backend forms, and the
+  new `tests/s390x/jit_be/demanded_lowbits_loop.lua` guardrail. The merge kept
+  the existing WIP numeric-op and vararg/iterator correctness work.
+- Merge-time correctness finding:
+  the new demanded-lowbits test exposed an existing s390x `BSWAP` loop-PHI
+  correctness gap on both the current WIP base and the PHI promotion branch in
+  isolation: negative loop-carried inputs under `bit.bswap(i) & mask` could
+  silently use the nonnegative trace body. The merge resolves this by adding a
+  narrow backend guard in `asm_bswap()` for non-constant 32-bit inputs: the
+  trace exits on negative dynamic inputs before the nonnegative `BSWAP`
+  lowering continues.
+- kdz1 mirror validation:
+  synced through the tracked canonical mirror, rebuilt cleanly in `src/`, and
+  verified `src/lj_asm_s390x.h`
+  `31cb2250a1c773e0419da197bce9390e21b43224f921f5fe1ee43463b95c01e2` and
+  `src/lj_opt_loop.c`
+  `0621f0440dfd356b1209269aee2aaa14995b33342c3b82a0ecd2b5805f6b65a4`.
+- Focused validation:
+  passed `pure_lua/arithmetic.lua`, `jit_core/basic_trace.lua`,
+  `jit_core/bitops_trace.lua`, `jit_be/low32_home_contract.lua`,
+  `jit_be/demanded_lowbits_loop.lua`, `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `jit_core/profile_loop.lua`,
+  `jit_loops/hotexit_update_trace.lua`, `jit_loops/vararg_correctness.lua`,
+  `jit_loops/compiled_vararg.lua`, `perf/logic_add_phi_noboundary.lua`,
+  `perf/int_add_phi_only.lua`, and `perf/bitops_mix.lua` on `kdz1`.
+- Focused perf read from validation:
+  `logic_add_phi_noboundary/hot 0.000019`, `int_add_phi_only/hot 0.000004`,
+  and `bitops_mix/mix_bits/hot 0.000013`.
+- Full comparison:
+  the post-merge matrix artifacts are
+  `artifacts/s390x/s390x-kdz1-20260416T194254Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T194254Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z` using the prior comparison
+  format reference `artifacts/s390x/compare-kdz1-ka0s01-20260415T195449Z`.
+  The run emitted `2160` s390x benchmark records, `360` comparison rows, and
+  `0` s390x failures across GCC/Clang, JIT-on/`-joff`, and three alternating
+  passes.
+- Matrix read:
+  the regression queue remains clean. The generated summary names only
+  `gcc iterator_table/pairs_sum/hot` as slower than `-joff`, at `1.0506x`
+  (`0.004422s` vs `0.004209s`). PHI-focused rows remain accelerated:
+  `gcc logic_add_phi_noboundary/hot 0.000019` (`97.842x` over `-joff`),
+  `gcc int_add_phi_only/hot 0.000004` (`5.250x`), and
+  `gcc bitops_mix/mix_bits/hot 0.000014` (`128.143x`).
+- Decision:
+  retain the PHI merge plus the `BSWAP` negative-input guard. Continue
+  performance work from the post-PHI artifact as acceleration/rerank work, not
+  as a failed-promotion cleanup.

@@ -1,6 +1,48 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 11:30 PDT
+Last updated: 2026-04-16 13:05 PDT
+
+## 2026-04-16 PHI Loop Recurrence Promotion
+
+- Current code source point for this checkpoint:
+  `5975950c Merge remote-tracking branch 'origin/k8ika0s/s390x-phi-loop-form'`
+  into `k8ika0s/s390x-bringup-wip`. The promoted payload is
+  `85b9758d Improve s390x PHI loop recurrence codegen`, merged on top of the
+  numeric-op lowering checkpoint.
+- kdz1 promotion validation:
+  the tracked canonical mirror was synced and rebuilt cleanly in `src/`. The
+  focused PHI/correctness suite passed, including the new
+  `tests/s390x/jit_be/demanded_lowbits_loop.lua`, overflow guardrails, vararg
+  loop guardrails, and PHI-focused perf probes.
+- Merge-time correctness note:
+  the new demanded-lowbits test exposed an existing negative `BSWAP` loop-PHI
+  correctness hole. The retained merge adds a narrow `asm_bswap()` guard for
+  non-constant 32-bit inputs so negative dynamic inputs exit instead of using
+  the nonnegative trace body.
+- Focused kdz1 perf read during validation:
+  `logic_add_phi_noboundary/hot 0.000019`, `int_add_phi_only/hot 0.000004`,
+  and `bitops_mix/mix_bits/hot 0.000013`.
+- Full s390x/x86 comparison artifact:
+  `artifacts/s390x/s390x-kdz1-20260416T194254Z` with companion comparison
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T194254Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z` using the prior comparison
+  format reference `artifacts/s390x/compare-kdz1-ka0s01-20260415T195449Z`.
+  The run covered 23 benchmark files, GCC and Clang, JIT-on and `-joff`, 3
+  alternating passes, and emitted `2160` benchmark records, `360` comparison
+  rows, and `0` s390x failures.
+- Post-PHI matrix posture:
+  the regression queue remains clean. The generated summary names only one
+  s390x JIT-on row slower than `-joff`: `gcc iterator_table/pairs_sum/hot`
+  at `1.0506x` (`0.004422s` vs `0.004209s`). Treat this as a focused rerank
+  signal, not a failed promotion.
+- Post-PHI hot-row checks:
+  `gcc logic_add_phi_noboundary/hot 0.000019` (`97.842x` over `-joff`),
+  `gcc int_add_phi_only/hot 0.000004` (`5.250x`), and
+  `gcc bitops_mix/mix_bits/hot 0.000014` (`128.143x`). Current largest
+  absolute JIT-on rows are string-heavy coverage (`byte_scan_loop/hot`
+  `0.005815`, `manual_find_loop/hot 0.005582`), then `mixed_noffi/hot`
+  `0.003556`, `iterator_table/pairs_sum/hot 0.002927`, and
+  `iterator_table/pairs_array_sum/hot 0.002778`.
 
 ## 2026-04-16 Numeric-Ops Lowering Promotion
 

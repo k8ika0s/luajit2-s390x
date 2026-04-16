@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 11:30 PDT
+Last updated: 2026-04-16 13:05 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,31 +8,39 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- Current WIP source point is `6545469e Improve s390x numeric op lowering`.
-  This fast-forward promotion from `origin/k8ika0s/numeric-ops-lowering`
-  retains the current guardrail/correctness floor and adds the latest s390x
-  numeric backend lowering work in `src/lj_asm_s390x.h`,
-  `src/lj_emit_s390x.h`, and `src/lj_target_s390x.h`.
-- kdz1 merge validation passed from the tracked mirror after a clean `src/`
-  rebuild: all `tests/s390x/jit_be/*.lua` files passed with
-  `jit_be_err_lines=0`, and the 61-sample `numeric_ops` read matched the
-  integration handoff band (`abs_loop/hot 0.000107`, `fp_mod_loop/hot
-  0.000289`, `min_loop/hot 0.000080`, `max_loop/hot 0.000123`).
-- Latest full comparison:
-  `artifacts/s390x/s390x-kdz1-20260416T181755Z` and
-  `artifacts/s390x/compare-kdz1-ka0s01-20260416T181755Z`. This run produced
-  `2160` s390x benchmark records and `0` s390x failures across GCC/Clang,
-  JIT-on/`-joff`, and three alternating passes. The new numeric lowering is
-  a clear acceleration win versus the previous `20260416T171113Z` artifact:
-  `abs_loop/hot` is roughly `8.6x` faster than before, `fp_mod_loop/hot`
-  roughly `1.9x`, `min_loop/hot` roughly `1.9x`, and `max_loop/hot` roughly
-  `1.45x`.
+- Current WIP source point is `5975950c`, the merge of
+  `origin/k8ika0s/s390x-phi-loop-form` on top of the numeric-op lowering WIP.
+  This retains the current guardrail/correctness floor, the numeric backend
+  lowering work, and the promoted PHI loop recurrence codegen work.
+- kdz1 PHI merge validation passed from the tracked mirror after a clean
+  `src/` rebuild. The suite covered arithmetic/basic/bitop traces, low32 home,
+  the new demanded-lowbits loop guardrail, ADD/SUB and MUL overflow guards,
+  profile/hotexit loops, vararg correctness, compiled vararg, and PHI-focused
+  perf probes. Focused hot rows read `logic_add_phi_noboundary 0.000019`,
+  `int_add_phi_only 0.000004`, and `bitops_mix 0.000013`.
+- The PHI merge also closes an exposed existing correctness hole: negative
+  loop-carried inputs to `bit.bswap()` under low-bit masks now exit through a
+  narrow `asm_bswap()` guard instead of silently using a nonnegative trace body.
+- Latest completed full comparison:
+  `artifacts/s390x/s390x-kdz1-20260416T194254Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T194254Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`. This run produced `2160`
+  s390x benchmark records, `360` comparison rows, and `0` s390x failures
+  across GCC/Clang, JIT-on/`-joff`, and three alternating passes.
+- The post-PHI matrix keeps the branch in the retained fast band. The only
+  JIT-on slower-than-`-joff` row named by the generated summary is
+  `gcc iterator_table/pairs_sum/hot` at `1.0506x` (`0.004422s` vs
+  `0.004209s`). Current PHI/low32 hot rows are healthy:
+  `gcc logic_add_phi_noboundary/hot 0.000019`, `gcc int_add_phi_only/hot
+  0.000004`, and `gcc bitops_mix/mix_bits/hot 0.000014`.
 - Current queue:
-  there is still no material s390x JIT-on versus `-joff` regression blocker
-  in the full matrix. Next work should continue as acceleration work from
-  high-time/cross-architecture disadvantage rows, with iterator/mixed/vararg
-  guardrails kept intact unless a fresh truth pack names a concrete safe
-  mechanism.
+  there is still no material s390x JIT-on versus `-joff` regression blocker.
+  Continue as acceleration work from high-time and cross-architecture
+  disadvantage rows. The current high-time s390x JIT-on candidates are
+  `string_heavy/byte_scan_loop`, `string_heavy/manual_find_loop`,
+  `mixed_noffi/mixed_loop`, and the iterator hot rows. Keep iterator,
+  mixed, and vararg guardrails intact unless a fresh truth pack names a
+  concrete safe mechanism.
 
 - The retained floor carried into this checkpoint includes the prior WIP over
   `5814717c Retire stale dispatch cooldown env`, plus the retained
