@@ -2733,6 +2733,63 @@ static void asm_bor(ASMState *as, IRIns *ir)
   asm_bitop_logic(as, ir, S390XI_OGR);
 }
 
+static int asm_bxor_brol_pair(ASMState *as, IRIns *ir)
+{
+  IRRef accref = 0;
+  IRIns *outerrot, *innerxor, *innerrot;
+  Reg src, dest, rot1, rot2;
+  RegSet allow;
+  int32_t outersh, innersh;
+  int found;
+
+  if (irt_is64(ir->t))
+    return 0;
+  found = mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+	  (outerrot = IR(ir->op1))->o == IR_BROL && ra_noreg(outerrot->r) &&
+	  mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+	  (innerxor = IR(ir->op2))->o == IR_BXOR && ra_noreg(innerxor->r);
+  if (!found)
+    found = mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+	    (outerrot = IR(ir->op2))->o == IR_BROL && ra_noreg(outerrot->r) &&
+	    mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+	    (innerxor = IR(ir->op1))->o == IR_BXOR && ra_noreg(innerxor->r);
+  if (!found)
+    return 0;
+
+  if (mayfuse(as, innerxor->op1) && !irref_isk(innerxor->op1) &&
+      (innerrot = IR(innerxor->op1))->o == IR_BROL && ra_noreg(innerrot->r)) {
+    accref = innerxor->op2;
+  } else if (mayfuse(as, innerxor->op2) && !irref_isk(innerxor->op2) &&
+	     (innerrot = IR(innerxor->op2))->o == IR_BROL &&
+	     ra_noreg(innerrot->r)) {
+    accref = innerxor->op1;
+  } else {
+    return 0;
+  }
+
+  if (!irref_isk(outerrot->op2) || !irref_isk(innerrot->op2) ||
+      outerrot->op1 != innerrot->op1)
+    return 0;
+  outersh = IR(outerrot->op2)->i & 31;
+  innersh = IR(innerrot->op2)->i & 31;
+  if (outersh == 0 || innersh == 0)
+    return 0;
+
+  src = ra_alloc1_nobase(as, outerrot->op1, RSET_GPR_NOB, -242);
+  dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, src), -230);
+  allow = rset_exclude(rset_exclude(RSET_GPR_NOB, src), dest);
+  rot1 = ra_scratch(as, allow);
+  rot2 = ra_scratch(as, rset_exclude(allow, rot1));
+  asm_s390x_bitop_log(as, "bxor_brol_pair", ir, dest, rot1, rot2, 0);
+  asm_bnorm32(as, ir, dest);
+  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, rot2, dest));
+  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, rot1, dest));
+  emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, rot2, src, 0, outersh));
+  emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, rot1, src, 0, innersh));
+  ra_leftov(as, dest, accref);
+  return 1;
+}
+
 static void asm_bxor(ASMState *as, IRIns *ir)
 {
   IRRef shiftref = 0, otherref = 0;
@@ -2740,6 +2797,8 @@ static void asm_bxor(ASMState *as, IRIns *ir)
   int32_t sh;
 
   if (asm_bxor_bnot(as, ir))
+    return;
+  if (asm_bxor_brol_pair(as, ir))
     return;
   if (!irt_is64(ir->t)) {
     if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
