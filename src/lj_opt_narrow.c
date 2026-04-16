@@ -593,6 +593,25 @@ TRef lj_opt_narrow_arith(jit_State *J, TRef rb, TRef rc,
 }
 
 /* Narrowing of unary minus operator. */
+/* Exact loop proof: the induction value stays strictly on one side of zero. */
+static int narrow_forl_nonzero(jit_State *J, IRRef ref)
+{
+  IRRef start;
+  int64_t ofs = 0;
+  IRIns *ir = IR(ref);
+  if (ir->o == IR_ADD && irref_isk(ir->op2)) {
+    ofs = (int64_t)IR(ir->op2)->i;
+    ref = ir->op1;
+  }
+  if (ref != J->scev.idx || !irt_isint(J->scev.t))
+    return 0;
+  start = J->scev.start;
+  if (!start || IR(start)->o != IR_KINT)
+    return 0;
+  ofs += (int64_t)IR(start)->i;
+  return J->scev.dir ? ofs > 0 : ofs < 0;
+}
+
 TRef lj_opt_narrow_unm(jit_State *J, TRef rc, TValue *vc)
 {
   rc = conv_str_tonum(J, rc, vc);
@@ -600,7 +619,8 @@ TRef lj_opt_narrow_unm(jit_State *J, TRef rc, TValue *vc)
     uint32_t k = (uint32_t)numberVint(vc);
     if (k != 0 && k != 0x80000000u) {
       TRef zero = lj_ir_kint(J, 0);
-      emitir(IRTGI(IR_NE), rc, zero);
+      if (!narrow_forl_nonzero(J, tref_ref(rc)))
+        emitir(IRTGI(IR_NE), rc, zero);
       return emitir(IRTGI(IR_SUBOV), zero, rc);
     }
     rc = emitir(IRTN(IR_CONV), rc, IRCONV_NUM_INT);

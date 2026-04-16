@@ -32,6 +32,24 @@ static void emit_u48_pad8(ASMState *as, uint64_t ins)
   as->mcp = (MCode *)p;
 }
 
+static void emit_u48_pair(ASMState *as, uint64_t first, uint64_t second)
+{
+  uint8_t *p = (uint8_t *)as->mcp - 12;
+  p[0] = (uint8_t)(first >> 40);
+  p[1] = (uint8_t)(first >> 32);
+  p[2] = (uint8_t)(first >> 24);
+  p[3] = (uint8_t)(first >> 16);
+  p[4] = (uint8_t)(first >> 8);
+  p[5] = (uint8_t)first;
+  p[6] = (uint8_t)(second >> 40);
+  p[7] = (uint8_t)(second >> 32);
+  p[8] = (uint8_t)(second >> 24);
+  p[9] = (uint8_t)(second >> 16);
+  p[10] = (uint8_t)(second >> 8);
+  p[11] = (uint8_t)second;
+  as->mcp = (MCode *)p;
+}
+
 static void emit_u48_at(MCode *p, uint64_t ins)
 {
   uint8_t *q = (uint8_t *)p;
@@ -220,9 +238,12 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
     emit_loadi(as, r, (int32_t)u64);
     return;
   }
-  if (hi != 0)
-    emit_u48_pad8(as, S390X_INS_RIL(S390XI_IIHF, r, hi));
-  emit_u48_pad8(as, S390X_INS_RIL(S390XI_LLILF, r, lo));
+  if (hi != 0) {
+    emit_u48_pair(as, S390X_INS_RIL(S390XI_LLILF, r, lo),
+		  S390X_INS_RIL(S390XI_IIHF, r, hi));
+  } else {
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_LLILF, r, lo));
+  }
 }
 
 static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)

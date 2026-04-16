@@ -2879,8 +2879,8 @@ static int asm_bxor_brol_pair(ASMState *as, IRIns *ir)
   asm_bnorm32(as, ir, dest);
   emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, rot2, dest));
   emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, rot1, dest));
-  emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, rot2, src, 0, outersh));
-  emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, rot1, src, 0, innersh));
+  emit_u48_pair(as, S390X_INS_RSYB(S390XI_RLL, rot1, src, 0, innersh),
+		S390X_INS_RSYB(S390XI_RLL, rot2, src, 0, outersh));
   ra_leftov(as, dest, accref);
   return 1;
 }
