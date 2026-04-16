@@ -2794,12 +2794,77 @@ static void asm_band(ASMState *as, IRIns *ir)
   asm_bitop_logic(as, ir, S390XI_NGR);
 }
 
+static int asm_bor_seed_byte_shift(ASMState *as, IRIns *ir)
+{
+  IRRef bxorref = 0, bshlref = 0;
+  IRIns *bshr, *bxor, *band, *bshl;
+  IRRef srcref;
+  Reg src, dest;
+  int32_t shr, shl;
+
+  if (irt_is64(ir->t))
+    return 0;
+  if (mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+      (bshr = IR(ir->op1))->o == IR_BSHR && ra_noreg(bshr->r)) {
+    bxorref = ir->op2;
+  } else if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+	     (bshr = IR(ir->op2))->o == IR_BSHR && ra_noreg(bshr->r)) {
+    bxorref = ir->op1;
+  } else {
+    return 0;
+  }
+
+  if (irref_isk(bxorref) || !mayfuse(as, bxorref))
+    return 0;
+  bxor = IR(bxorref);
+  if (bxor->o != IR_BXOR || !ra_noreg(bxor->r))
+    return 0;
+  if (mayfuse(as, bxor->op1) && !irref_isk(bxor->op1) &&
+      (band = IR(bxor->op1))->o == IR_BAND && ra_noreg(band->r)) {
+    bshlref = bxor->op2;
+  } else if (mayfuse(as, bxor->op2) && !irref_isk(bxor->op2) &&
+	     (band = IR(bxor->op2))->o == IR_BAND && ra_noreg(band->r)) {
+    bshlref = bxor->op1;
+  } else {
+    return 0;
+  }
+
+  if (irref_isk(bshlref) || !mayfuse(as, bshlref))
+    return 0;
+  bshl = IR(bshlref);
+  if (bshl->o != IR_BSHL || !ra_noreg(bshl->r))
+    return 0;
+  if (!irref_isk(band->op2) || asm_kintptr(as, band->op2) != 255 ||
+      !irref_isk(bshr->op2) || !irref_isk(bshl->op2) ||
+      irref_isk(band->op1) || irref_isk(bshr->op1) || irref_isk(bshl->op1) ||
+      band->op1 != bshr->op1 || band->op1 != bshl->op1)
+    return 0;
+
+  shr = IR(bshr->op2)->i & 31;
+  shl = IR(bshl->op2)->i & 31;
+  if (shr <= 0 || shl <= 0)
+    return 0;
+
+  srcref = band->op1;
+  src = ra_alloc1_nobase(as, srcref, RSET_GPR_NOB, -232);
+  dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, src), -230);
+  asm_s390x_bitop_log(as, "bor_seed_byte_shift", ir, dest, src, RID_NONE, 0);
+  asm_bnorm32(as, ir, dest);
+  emit_u48_pair(as, S390X_INS_RIE_F(S390XI_RXSBG, dest, src, 32, 63 - shl, shl),
+		S390X_INS_RIE_F(S390XI_ROSBG, dest, src, 32 + shr, 63,
+				(-shr) & 63));
+  emit_u32(as, S390X_INS_RXE(S390XI_LLGCR, dest, src));
+  return 1;
+}
+
 static void asm_bor(ASMState *as, IRIns *ir)
 {
   IRRef shiftref = 0, otherref = 0;
   IRIns *shift;
   int32_t sh;
 
+  if (asm_bor_seed_byte_shift(as, ir))
+    return;
   if (!irt_is64(ir->t)) {
     if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
 	(shift = IR(ir->op2))->o == IR_BSHR && ra_noreg(shift->r)) {

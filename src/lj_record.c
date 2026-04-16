@@ -3201,6 +3201,28 @@ static int rec_upvalue_constify(jit_State *J, GCupval *uvp)
   return 0;
 }
 
+#if LJ_TARGET_S390X
+static TRef rec_s390x_specialize_table_upvalue_owner(jit_State *J, TRef fn,
+						     GCupval *uvp, TRef val)
+{
+  /* Enables exact GCupval* CSE for shared table upvalues across sibling funcs. */
+  if (val == 0 && !tref_isk(fn) && tvistab(uvval(uvp))) {
+    TRef kfunc;
+    if (J->pt->flags >= PROTO_CLC_POLY)
+      return fn;
+    kfunc = lj_ir_kfunc(J, J->fn);
+    emitir(IRTG(IR_EQ, IRT_FUNC), fn, kfunc);
+#if LJ_FR2
+    J->base[-2] = kfunc;
+#else
+    J->base[-1] = kfunc | TREF_FRAME;
+#endif
+    return kfunc;
+  }
+  return fn;
+}
+#endif
+
 /* Record upvalue load/store. */
 static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val)
 {
@@ -3228,6 +3250,9 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val)
       return tr;
   }
 noconstify:
+#if LJ_TARGET_S390X
+  fn = rec_s390x_specialize_table_upvalue_owner(J, fn, uvp, val);
+#endif
   /* Note: this effectively limits LJ_MAX_UPVAL to 127. */
   uv = (uv << 8) | (hashrot(uvp->dhash, uvp->dhash + HASH_BIAS) & 0xff);
   if (!uvp->closed) {
