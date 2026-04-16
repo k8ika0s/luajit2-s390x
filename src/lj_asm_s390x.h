@@ -604,6 +604,24 @@ static int asm_s390x_only_used_by(ASMState *as, IRIns *ir, IROp op)
   return uses > 0;
 }
 
+static int asm_s390x_only_used_by_reg_add(ASMState *as, IRIns *ir)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int uses = 0;
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (irt_isguard(use->t) || use->o != IR_ADD)
+      return 0;
+    if ((use->op1 == ref && irref_isk(use->op2)) ||
+	(use->op2 == ref && irref_isk(use->op1)))
+      return 0;
+    uses++;
+  }
+  return uses > 0;
+}
+
 static int asm_s390x_bnorm_can_carry(ASMState *as, IRIns *ir)
 {
   int safe_bitop_uses, unsafe_bitop_uses, intarith_uses, other_uses;
@@ -614,6 +632,8 @@ static int asm_s390x_bnorm_can_carry(ASMState *as, IRIns *ir)
     return asm_s390x_only_used_by(as, ir, IR_BSAR);
   if (!asm_s390x_is_bitop_op(ir->o))
     return 0;
+  if (asm_s390x_only_used_by_reg_add(as, ir))
+    return 1;
   asm_s390x_bnorm_use_counts(as, ir, &safe_bitop_uses, &unsafe_bitop_uses,
 			     &intarith_uses, &other_uses, &guard_uses,
 			     &first_use_op, &first_nonbitop_use_op);
@@ -2097,6 +2117,11 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
 	    irt_isu16(ir->t));
   cmp32s = !(cc & CC_UNSIGNED) && irt_isinteger(ir->t);
   asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, cmp32u, 0);
+  if (op == IR_LE && cmp32s && !irref_isk(rref)) {
+    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, right, 0);
+    emit_u16_pad4(as, S390X_INS_RR(S390XI_CR, left, right));
+    return;
+  }
   cmp_left = left;
   cmp_right = right;
   if (cmp32u || cmp32s) {
@@ -2163,6 +2188,24 @@ static void asm_add(ASMState *as, IRIns *ir)
   }
   asm_s390x_addhome_log(as, ir);
   asm_s390x_low32home_log(as, "add", ir);
+  if (!irt_isguard(ir->t) && irt_isinteger(ir->t) && !irref_isk(ir->op2)) {
+    IRIns *lir = IR(ir->op1);
+    IRIns *rir = IR(ir->op2);
+    if (asm_s390x_is_bitop_op(lir->o) || asm_s390x_is_bitop_op(rir->o)) {
+      IRRef addref = asm_s390x_is_bitop_op(lir->o) ? ir->op1 : ir->op2;
+      IRRef baseref = addref == ir->op1 ? ir->op2 : ir->op1;
+      Reg addend, base;
+      addend = ra_alloc1_nobase(as, addref, rset_exclude(RSET_GPR_NOB, dest),
+				-232);
+      base = ra_hintalloc_nobase(as, baseref, dest,
+				 rset_exclude(RSET_GPR_NOB, addend), -231);
+      asm_bnorm32(as, ir, dest);
+      emit_u32(as, S390X_INS_RXE(S390XI_AGFR, dest, addend));
+      if (dest != base)
+	emit_movrr(as, ir, dest, base);
+      return;
+    }
+  }
   left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
   if (irref_isk(ir->op2)) {
     int32_t k = (int32_t)asm_kintptr(as, ir->op2);
@@ -2354,6 +2397,14 @@ static void asm_equal(ASMState *as, IRIns *ir)
   if (!irref_isk(ir->op2))
     rir = IR(ir->op2);
   left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -203);
+  if (irt_isinteger(ir->t) && irref_isk(ir->op2) &&
+      asm_kintptr(as, ir->op2) == 0) {
+    asm_s390x_low32cmp_log(as, "equal", ir->o, ir->op1, ir->op2,
+			   lir, rir, 0, 1);
+    asm_guardcc(as, ir->o == IR_EQ ? CC_NE : CC_EQ);
+    emit_u16_pad4(as, S390X_INS_RR(S390XI_LTR, left, left));
+    return;
+  }
   if (irref_isk(ir->op2))
     right = ra_allock(as, asm_kintptr(as, ir->op2),
 		      rset_exclude(RSET_GPR_NOB, left));
@@ -2467,6 +2518,12 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     asm_s390x_bitop_log(as, "shiftk", ir, dest, left, RID_NONE, 1);
     if (!irt_is64(ir->t)) {
       asm_bnorm32(as, ir, dest);
+      if (dest == left) {
+	uint32_t shortop = op == S390XI_SLLK ? S390XI_SLL :
+			   op == S390XI_SRLK ? S390XI_SRL : S390XI_SRA;
+	emit_u32(as, S390X_INS_RX(shortop, dest, 0, 0, sh));
+	return;
+      }
       emit_shiftimm(as, op, dest, left, sh);
       return;
     }
@@ -2804,6 +2861,12 @@ static void asm_neg(ASMState *as, IRIns *ir)
 
   dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -243);
   left = ra_alloc1_nobase(as, ir->op1, rset_exclude(RSET_GPR_NOB, dest), -244);
+
+  if (!irt_is64(ir->t) && !irt_isguard(ir->t) && irt_isinteger(ir->t)) {
+    asm_bnorm32(as, ir, dest);
+    emit_u16_pad4(as, S390X_INS_RR(S390XI_LCR, dest, left));
+    return;
+  }
 
   if (!irt_is64(ir->t))
     asm_bnorm32(as, ir, dest);
