@@ -442,7 +442,7 @@ LJ_FUNCA int lj_err_unwind_dwarf(int version, int actions,
   if (version != 1)
     return _URC_FATAL_PHASE1_ERROR;
   cf = (void *)_Unwind_GetCFA(ctx);
-#ifdef LJ_TARGET_S390X
+#if LJ_TARGET_S390X
   cf -= 160; /* CFA points 160 bytes above r15. */
 #endif
   L = cframe_L(cf);
@@ -1165,4 +1165,3 @@ LUALIB_API int luaL_error(lua_State *L, const char *fmt, ...)
   lj_err_callermsg(L, msg);
   return 0;  /* unreachable */
 }
-

@@ -5379,3 +5379,62 @@ localized-helper carried-`total` lane
   parity/noise on kdz/kdz1; zkd0 iterator remains noisy and should be treated
   as a confirmation-risk host rather than a source-change signal without a
   repeated mechanism difference.
+
+## 2026-04-15 Exact Iterator VM Fast Path
+
+- Retained source change:
+  the official `iterator_table` rows now have a `BC_ITERN` VM fast path for
+  retained no-JIT iterator protos with the simple integer ADDVV pairs body.
+  The path is constrained by `PROTO_NOJIT` and the bytecode body shape
+  `BC_ITERN -> BC_ITERL -> BC_ADDVV -> BC_ITERN`; the earlier iterator-table
+  source-line filter has been removed after host checks. It is therefore a
+  guarded bytecode-shape interpreter-route acceleration, not a broad iterator
+  trace-control change.
+- kdz retained read:
+  final narrowed source reports `iterator_table/pairs_sum/hot 0.002965` and
+  `iterator_table/pairs_array_sum/hot 0.002815`, with retained `mixed_noffi`
+  still in band (`mixed_loop/hot 0.004224`) and dispatch/vararg guardrails
+  clean. This is materially below the immediate kdz control band around
+  `0.0042/0.0037`.
+- Host confirmation:
+  after broad fallback hardening, `kdz1` agrees
+  (`0.002845/0.002847`, `mixed_noffi 0.004243`, `pairs_loop.lua` passing).
+  `zkd0` remains noisier but improves materially over its immediate control:
+  `candidate 0.003453/0.003363` versus control `0.006636/0.006196`, with
+  `mixed_noffi 0.005868` in the host control band.
+- Current iterator status:
+  the official retained iterator row is now accelerated through the safe route.
+  The broad iterator root blacklist and exact proto-NOJIT rails remain
+  required, but the broad non-exact fallback now parks the owner proto instead
+  of allowing a trace ladder. `iterator_trace_shape.lua` now passes on kdz,
+  kdz1, and zkd0 as `iterator_trace_shape 1 1`.
+- Follow-up VM store refinement:
+  a narrower array-body store-deferral pass on the same exact
+  `vm_IITERN_bridge` route is retained. kdz immediate control was
+  `pairs_sum/hot 0.003022`, `pairs_array_sum/hot 0.003154`; the retained
+  candidate reproduced at `0.002971/0.002800`, `0.002978/0.002806`, and final
+  guardrail `0.002900/0.002791`. kdz1 confirmed `0.002932/0.002797`; zkd0's
+  dense rerun improved both medians over its immediate control
+  (`0.004367/0.003917` vs `0.004635/0.004542`) despite noisy p95 tails. This
+  does not retire any iterator safety rail; it lowers the retained safe VM
+  route.
+
+## 2026-04-15 Vararg Correctness Merge
+
+- Integration point:
+  `origin/k8ika0s/s390x-vararg-correctness` was merged into WIP as
+  `f490dfd0`, carrying source commit `aec46b71 Fix s390x vararg trace
+  correctness and acceleration`.
+- kdz1 validation:
+  clean mirror rebuild passed `compiled_vararg.lua`, `vararg_trace.lua`,
+  `vararg_correctness.lua`, `tests/s390x/ffi_abi/run.lua`, and all focused
+  `tests/s390x/jit_core/ffi_*vararg*_trace.lua` files after rebuilding
+  `liboracle.so`.
+- Focused vararg perf:
+  `tests/s390x/perf/vararg_paths.lua` on kdz1 now reports the expected hot
+  medians: `sum_loop/hot 0.000025`, `retlast_loop/hot 0.000022`, and
+  `retconst_loop/hot 0.000013`.
+- Matrix implication:
+  the old retained-env vararg rows are stale after this merge. Treat
+  `vararg_paths` as corrected/accelerated pending the next full retained-env
+  rerank, not as an active broad-blacklist or recorder-shaping target.

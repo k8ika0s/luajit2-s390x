@@ -113,8 +113,32 @@ local function append_jsonl(record)
   if not fh then
     error("unable to open perf output: " .. tostring(err))
   end
-  fh:write(encode_json(record), "\n")
+  fh:write(
+    "{",
+    "\"bench_file\":", encode_json(record.bench_file),
+    ",\"correct\":", encode_json(record.correct),
+    ",\"family\":", encode_json(record.family),
+    ",\"iterations\":", encode_json(record.iterations),
+    ",\"measured_samples\":", encode_json(record.measured_samples),
+    ",\"median_runtime_sec\":", encode_json(record.median_runtime_sec),
+    ",\"p95_runtime_sec\":", encode_json(record.p95_runtime_sec),
+    ",\"result\":", encode_json(record.result),
+    ",\"samples_sec\":", encode_json(record.samples_sec),
+    ",\"scale\":", encode_json(record.scale),
+    ",\"warmup_iterations\":", encode_json(record.warmup_iterations),
+    ",\"warmup_runs\":", encode_json(record.warmup_runs),
+    ",\"workload\":", encode_json(record.workload),
+    "}\n"
+  )
   fh:close()
+end
+
+do
+  local ok_jit, jit = pcall(require, "jit")
+  if ok_jit then
+    jit.off(encode_json, true)
+    jit.off(append_jsonl, true)
+  end
 end
 
 function M.configure_jit()
@@ -189,7 +213,7 @@ function M.run_suite(spec)
         p95_runtime_sec = percentile(samples, 0.95),
         samples_sec = samples,
         correct = true,
-        result = final_result,
+        result = tostring(final_result),
       }
     )
     io.stdout:write(
@@ -202,6 +226,13 @@ function M.run_suite(spec)
         percentile(samples, 0.95)
       )
     )
+  end
+end
+
+do
+  local ok_jit, jit = pcall(require, "jit")
+  if ok_jit then
+    jit.off(M.run_suite)
   end
 end
 

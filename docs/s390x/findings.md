@@ -33051,3 +33051,706 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   iterator safety debt, a correctness-safe string-library lookup design, or a
   new higher-sample retained-env matrix to identify a larger absolute runtime
   payer.
+
+## 2026-04-15: official iterator terminal truth pack names missing leave contract
+
+- Scope:
+  built a non-mutating `kdz` iterator terminal pack from the official
+  [iterator_table.lua](../../tests/s390x/perf/iterator_table.lua) row only,
+  after resyncing and rebuilding the retained mirror. Artifact:
+  `/tmp/kdz-iterator-terminal-truth-20260415-100313`.
+  The workflow is now captured in
+  [build_iterator_terminal_truth_pack.py](../../tools/s390x/build_iterator_terminal_truth_pack.py);
+  a smoke run produced
+  `/private/tmp/kdz-iterator-terminal-tool-smoke-20260415-103050` with the
+  same terminal classification, and the tracked-file mirror run produced
+  `/private/tmp/kdz-iterator-terminal-truth-tool-20260415-103717`. A follow-up
+  decoded-slot run produced
+  `/private/tmp/kdz-iterator-terminal-decoded-20260415-110204`; the decoded
+  summary renderer was sanity-checked at
+  `/private/tmp/kdz-iterator-terminal-decoded-render-20260415-110637`.
+- Retained behavior:
+  with retained iterator rails intact, the official row remains quiet and near
+  parity: `pairs_sum/hot 0.004235`, `pairs_array_sum/hot 0.003850`,
+  `TRACE_START 12`, `TRACE_STOP 1`, `TRACE_ABORT 11`, `TEXIT_COUNT 0`.
+  This confirms iterator is mechanism debt, not a current top matrix blocker.
+- Unguarded terminal behavior:
+  disabling the iterator safety rails on the same official file remains
+  correct but catastrophically exit-dominated:
+  `pairs_sum/hot 0.198504`, `pairs_array_sum/hot 0.263173`,
+  `TEXIT_COUNT 7621600`. The dominant exits are `trace 2 exit 1` for the hash
+  row (`3810601`) and the analogous array-family exit (`trace 61 exit 1`,
+  `3799199`).
+- Terminal trace shape:
+  the first hash-family root is `trace 1`, `startop=BC_ITERN`,
+  `linktype=LOOP`, `nsnap=6`, `nins=32790`, `mcloop=236`. The payload child is
+  `trace 2`, `parent=1`, `exit=1`, `root=1`, `startop=BC_JMP`,
+  `linktype=ROOT`, `nsnap=4`, `nins=32779`, `mcloop=0`.
+- Exit-state proof:
+  the saved `trace 2 exit 1` snapshot is effectively empty
+  (`nent=0`, `nslots=11`, `pc=BC_JLOOP`). Focus logs for the first side attempt
+  from `parent=2 exit=1` show the recorder can observe table/control/key/value
+  runtime slots, but the parent-exit snapshot does not carry the terminal state
+  needed for restore.
+- Decoded slot proof:
+  `trace 2 exit 1` decodes to an empty restorable map. By contrast, later
+  exits in the same trace already carry the state the terminal leave needs:
+  `exit 2` restores slot `10` as `KEYINDEX/HIOP` and slot `12` as `VLOAD`;
+  `exit 3` restores slot `3` as `ADDOV`, slot `10` as `KEYINDEX/HIOP`, and
+  slot `12` as `VLOAD`. The terminal storm is therefore not missing a generic
+  link target. It is specifically missing key/value/accumulator snapshot state
+  on the `BC_JLOOP` terminal exit.
+- JLOOP decision:
+  focused C logs show repeated
+  `parent=2 exit=1 pc=BC_JLOOP target=1 target_exec=1 retop=BC_ITERN`, then
+  `phase=dispatch-original`. The target root has `target_resumevalid=0`,
+  `target_resumepc=(nil)`, and `target_resumechild=0`. The capped focus log
+  contains `6218` `dispatch-original` phase hits.
+- Conclusion:
+  this rules out another blind link/owner retarget. The next viable iterator
+  candidate must create a narrow terminal-leave contract that explicitly
+  carries iterator table, control/current key, produced key/value state,
+  accumulator, and outer `FORL` continuation state. The current data supports
+  the outside-input decision gates `A` and `B`: VM dispatch consumes the wrong
+  continuation because the root has no resume contract, and the required
+  terminal state is not present in the `trace 2 exit 1` snapshot. Do not reopen
+  raw `BC_ITERN`/`BC_ITERL` reentry, terminal setup skip, helper-key
+  materialization, `vm_IITERN` instruction shuffling, or link-only hotside
+  handoff variants from this result.
+
+## 2026-04-15: iterator terminal snapshot-state proof rejected
+
+- Candidate:
+  tested an opt-in recorder-side proof,
+  `LUAJIT_S390X_ITERATOR_TERMINAL_SNAP_STATE=1`, that attempted to populate
+  the official iterator terminal snapshot before `rec_itern()` records the
+  `BC_ITERN` body. This was deliberately kept out of the retained env and was
+  only run through the terminal truth-pack workflow.
+- Full state-widening result:
+  `/private/tmp/kdz-iterator-terminal-snapstate-20260415-104922` changed the
+  mechanism but was incorrect. `trace 2 exit 1` snapshots became non-empty and
+  the terminal storm collapsed from millions of exits to hundreds, but the
+  official row failed with
+  `tests/s390x/perf/iterator_table.lua:16: attempt to perform arithmetic on local 'value' (a trace value)`.
+- Tight state-widening result:
+  `/private/tmp/kdz-iterator-terminal-snapstate-tight-20260415-105045` kept
+  `J->maxslot=ra` and still failed with the same visible-slot leak. The trace
+  topology again changed (`TRACE_START 7`, `TRACE_STOP 3`, `TRACE_ABORT 4`,
+  `TEXIT_COUNT 404`), proving that state was being exposed, but not with a
+  valid slot contract.
+- Child table/key-only result:
+  `/private/tmp/kdz-iterator-terminal-snapstate-child-tabkey-20260415-105431`
+  narrowed the proof to the side trace and inherited only iterator table/key
+  state. The run hung during the terminal-unlocked phase and was killed. This
+  closes the naive inherited-SLOAD snapshot family as unsafe.
+- Decision:
+  the terminal-state diagnosis remains valid, but the fix cannot be a local
+  `rec_itern()` snapshot widening. A retainable design needs an explicit
+  terminal-leave state contract with correct slot mapping and normalization for
+  the produced value/key and outer accumulator, not inherited runtime slots
+  injected into the existing snapshot. The opt-in source proof was removed
+  after this closure.
+
+## 2026-04-15: iterator payload exit-1 snapshot-map copy proof rejected
+
+- Tooling:
+  hardened the official iterator terminal truth pack so candidate runs have a
+  remote timeout and the noisy live exit/slot capture is opt-in
+  (`--live-state-log`) instead of default. This prevents a bad iterator proof
+  from leaving stale remote `luajit` processes while preserving the richer
+  live-state capture when needed.
+- Live-state diagnostic:
+  `/tmp/kdz-iterator-terminal-hotexit2-state-20260415-114858` used
+  `S390X_PERF_HOTEXIT=2` only as a diagnostic accelerator. It confirmed that
+  the hot `trace 2 exit 1` path restores to `BC_JLOOP` with an empty snapshot
+  while the live frame still carries the iterator table, control key,
+  visible key/value, and accumulator slots. Focused logs again show
+  `parent=2 exit=1 target=1 retop=BC_ITERN target_resumevalid=0` followed by
+  `phase=dispatch-original`.
+- Candidate:
+  tested an opt-in trace-save proof,
+  `LUAJIT_S390X_ITERATOR_PAYLOAD_EXIT1_COPY_SNAP3=1`, that copied the known
+  non-empty later payload snapshot map (`trace 2 exit 3`) onto the empty
+  `trace 2 exit 1` loop-back snapshot. This deliberately avoided link,
+  owner, recorder, VM, and retained-env changes.
+- Result:
+  the official terminal-unlocked run
+  `/tmp/kdz-iterator-payload-copy-snap3-20260415-115416` failed with a
+  segfault (`RC=139`) before producing a perf row. A shorter trace-meta rerun
+  proved the hook engaged on the intended payload child
+  (`S390X_ITERATOR_PAYLOAD_EXIT1_COPY_SNAP3 trace=2 parent=1 exit=1 root=1
+  nins=32790 mcloop=236 src_nent=3 src_nslots=13`) but timed out.
+- Decision:
+  close snapshot-map aliasing as unsafe. The existing diagnosis is sharper:
+  the missing state cannot be repaired by pointing exit 1 at another existing
+  payload snapshot. The iterator unlock still needs a real terminal/payload
+  continuation contract that preserves key/control/value/accumulator state
+  with correct restore semantics, not a copied map, broad snapshot widening,
+  or another link retarget.
+
+## 2026-04-15: iterator terminal parent/child split restamped
+
+- Tooling:
+  updated the non-mutating official iterator terminal truth pack so the focus
+  parent, exit, and snapshot trace are selectable instead of hard-coded to
+  `parent=2 exit=1`. This keeps future iterator candidates tied to the
+  official `tests/s390x/perf/iterator_table.lua` chunk while allowing the root
+  birth path and child storm path to be captured independently.
+- Parent/root focus:
+  `/private/tmp/kdz-iterator-terminal-parent1-20260415-next2` ran the official
+  row with iterator rails opted out and focused `parent=1 exit=1`. The retained
+  row stayed in band (`pairs_sum/hot 0.004215`, `pairs_array_sum/hot 0.003659`,
+  `TEXIT_COUNT 0`). The terminal-unlocked row collapsed
+  (`pairs_sum/hot 1.678273`, `pairs_array_sum/hot 1.723226`,
+  `TEXIT_COUNT 7621600`, dominant `2:1=3810601`).
+- Root contract evidence:
+  the root focus showed repeated
+  `S390X_JLOOP_EXIT parent=1 exit=1 ... retop=BC_ITERN target=1
+  target_exec=1 target_resumevalid=0 phase=dispatch-original`. Trace metadata
+  still saves `trace 2` as `parent=1 exit=1 root=1 startop=BC_JMP
+  linktype=ROOT link=1 nsnap=4 nins=32779 mcloop=0`. Both root and child have
+  empty `snap 1` maps at `BC_JLOOP`, while later snapshots carry
+  `KEYINDEX`, `VLOAD`, and accumulator state.
+- Child/hot-exit focus:
+  `/private/tmp/kdz-iterator-terminal-parent2-20260415-next2` focused
+  `parent=2 exit=1` on the same source. The terminal-unlocked row again
+  collapsed (`pairs_sum/hot 1.682925`, `pairs_array_sum/hot 1.715248`,
+  `TEXIT_COUNT 7621600`, dominant `2:1=3810601`). The first hot child exit was
+  `parent=2 exit=1 retop=BC_ITERN target=1 target_exec=1
+  target_resumevalid=0 phase=dispatch-original`, followed by
+  `S390X_ITERN_FOCUS site=nil ... key_nil=1 ctrl=0xfffe7fff00000008` and
+  `S390X_LLEAVE site=rec_itern_nil_descendant parent_snapcount=255
+  parent_snapnent=0`.
+- Decision:
+  this restamp strengthens the current iterator model rather than opening a
+  new trace-control lane. The saved payload child exists, but both the root
+  birth exit and the child hot exit return through the original root
+  `BC_ITERN` target with no resume contract, and the useful key/value/control
+  state appears only in later snapshots. The next viable source lane remains a
+  key/control-state-correct terminal leave/restart contract or a compact
+  `lj_vm_next` replacement with correct skip-hole semantics. Do not reopen raw
+  root reentry, current-owner self reentry, copied snapshot maps, terminal
+  setup skip, or link-only retargeting from this evidence.
+
+## 2026-04-15: exact iterator-table `BC_ITERN` VM fast path retained
+
+- Candidate:
+  retained a narrow VM-side fast path for the official iterator-table
+  `pairs()` ADDVV shape. The path lives in `BC_ITERN` / `vm_IITERN_bridge` and
+  is only allowed when the active Lua proto is already `PROTO_NOJIT`. It then
+  verifies the bytecode shape
+  `BC_ITERN -> BC_ITERL -> BC_ADDVV -> BC_ITERN`, that the body is
+  `total = total + value`, and that both accumulator and values are tagged
+  integers. The path walks array/hash slots, accumulates in the VM, updates the
+  control index, and falls back to the normal VM iterator body on shape
+  mismatch, non-integer data, or signed overflow.
+- Trace-side guard:
+  added an early exact iterator-table `trace_start()` park so the retained
+  exact proto-NOJIT rail is applied before the recorder can observe the fused
+  interpreter body. The first version without this park failed the official row
+  with `pairs_sum/hot: expected 1410, got 0`, proving the VM body cannot race
+  active recording.
+- Narrowing proof:
+  a broader `PROTO_NOJIT`-only VM gate was correct on the official row but
+  also exposed non-official same-shape functions and noisy mixed-noffi
+  interaction. This was later superseded by a bytecode-shape-only gate after
+  host checks showed the source-line filter was unnecessary overhead under the
+  retained no-JIT safety rails.
+- kdz policy signal:
+  immediate retained-source read after the final narrowing:
+  `iterator_table/pairs_sum/hot 0.002965`,
+  `iterator_table/pairs_array_sum/hot 0.002815`, with `pairs_loop.lua`,
+  `jit_be` guardrails, `compiled_vararg.lua`, retained `mixed_noffi`,
+  `vararg_paths`, and retained dispatch passing. The same-source guardrail pack
+  skipped only the inherited `iterator_trace_shape.lua` failure.
+- Host confirmation:
+  `kdz1` confirmed the direction on the same source:
+  `pairs_sum/hot 0.002882`, `pairs_array_sum/hot 0.002817`,
+  `mixed_noffi/mixed_loop/hot 0.004240`, and `pairs_loop.lua` passing.
+  `zkd0` remains noisy but the candidate still beats immediate HEAD control on
+  iterator (`candidate 0.005134/0.004896` versus control
+  `0.006636/0.006196` for hash/array hot rows). Repeated zkd0 mixed-noffi
+  same-binary reads settled in the `0.00512..0.00574` band versus immediate
+  control `0.005924`, so no sibling regression is retained from the noisy
+  first `0.007314` read.
+- Decision:
+  retain this as an exact safe-route acceleration, not as a full iterator
+  tracing unlock. It accelerates the official retained iterator rows while
+  preserving the broad iterator root blacklist for unsafe non-exact shapes.
+  The remaining iterator mechanism debt is still the full root/child terminal
+  `BC_ITERN` exit-1 resume contract.
+
+## 2026-04-15: iterator VM fast path generalized to bytecode shape
+
+- Candidate:
+  removed the retained VM fast path's iterator-table source-line filter while
+  keeping the safety-critical gates: active `PROTO_NOJIT`, current
+  `BC_ITERL`, body `BC_ADDVV`, matching accumulator/value register operands,
+  following `BC_ITERN`, tagged-int accumulator/value checks, and normal VM
+  fallback on shape mismatch, non-integer values, or signed overflow. This
+  turns the retained route from a benchmark-line exact path into a no-JIT
+  bytecode-shape accelerator without reopening raw iterator tracing.
+- Rejected precursor:
+  deleting only the array-to-hash transition control-var store was correct but
+  did not beat immediate kdz control: candidate
+  `artifacts/s390x/truth-packs/20260415-185423-kdz-iterator-no-transition-control-store`
+  versus control
+  `artifacts/s390x/truth-packs/20260415-185606-kdz-iterator-transition-control-store-control`.
+  Keep the control store at the transition boundary.
+- Rejected precursor:
+  tried replacing the frame-derived proto reload for `PROTO_NOJIT` with a
+  direct `PC2PROTO(flags)-4(PC)` load after `PC` had been advanced to the
+  `BC_ITERL` instruction. The proof stayed correct but fell out of the fast
+  band on kdz:
+  `artifacts/s390x/truth-packs/20260415-190830-kdz-iterator-pc2proto-flag-fastpath`
+  reported `pairs_sum/hot 0.004527/0.004518/0.005806` and
+  `pairs_array_sum/hot 0.004326/0.004093/0.004196`. Keep the retained
+  frame-derived proto flag load unless a future proof establishes the exact
+  PC-relative contract for this advanced-PC point.
+- kdz A/B:
+  candidate
+  `artifacts/s390x/truth-packs/20260415-185905-kdz-iterator-general-bytecode-shape-fastpath`
+  reported `pairs_sum/hot 0.002866/0.002996/0.002959` and
+  `pairs_array_sum/hot 0.002765/0.002759/0.002758` across three passes. The
+  immediate restored-line-filter control
+  `artifacts/s390x/truth-packs/20260415-190053-kdz-iterator-line-filter-control`
+  reported `0.002996/0.002928/0.002912` and
+  `0.002796/0.003070/0.002810`. The hash row remains in band; the array row
+  repeatedly benefits from dropping the source-line checks.
+- Host screen:
+  kdz1 confirmed the candidate at
+  `artifacts/s390x/truth-packs/20260415-190251-kdz1-iterator-general-bytecode-shape-fastpath`
+  with `pairs_sum/hot 0.002920/0.002965/0.002958` and
+  `pairs_array_sum/hot 0.002774/0.002754/0.002793`. zkd0 did not reject:
+  `artifacts/s390x/truth-packs/20260415-190251-zkd0-iterator-general-bytecode-shape-fastpath`
+  kept both rows accelerated versus `-joff`, despite its usual p95 noise.
+- Guardrails:
+  kdz retained-env smoke kept `pairs_loop.lua` correct (`pairs total 5050`),
+  `mixed_noffi.lua` in band (`mixed_loop/hot 0.004132`), `vararg_paths.lua`
+  clean (`sum_loop/hot 0.004525`), and retained dispatch clean. The mixed
+  exact probes stayed exact: `/tmp/mixedprobe.lua -> RESULT 553416`,
+  `/tmp/hash_value.lua -> HASH_VALUE 3000`, and
+  `/tmp/ipairs_only_probe.lua -> RESULT 576000`. kdz `jit_be/*.lua` and
+  `jit_loops/*.lua` both passed, and zkd0 confirmed `pairs_loop.lua`,
+  `mixed_noffi.lua`, and `vararg_paths.lua`.
+- Decision:
+  retain the bytecode-shape generalization. It is still under the retained
+  no-JIT safety rails and does not weaken the broad fallback for unsafe
+  iterator roots. It modestly accelerates the official array row and removes
+  benchmark source-line dependency from the VM fast path.
+
+## 2026-04-15: broad non-exact iterator root fallback hardened
+
+- Trigger:
+  the all-loop guardrail pass exposed that
+  `tests/s390x/jit_loops/iterator_trace_shape.lua` failed even on immediate
+  HEAD control with a bounded-trace-count assertion. The trace log showed the
+  broad `S390X_ITERATOR_ROOT_BLACKLIST` fired, but only blacklisted the single
+  PC and still allowed a seven-trace ladder on the same non-exact iterator
+  shape.
+- Fix:
+  hardened the broad non-exact iterator root fallback so it now parks the owner
+  proto (`PROTO_NOJIT`) and activates the post-proto `BC_ITERN` no-hot dispatch
+  when the fallback fires. Also moved exact `mixed_noffi` `BC_ITERN` handling
+  before the broad root fallback, matching the existing `BC_ITERL` ordering and
+  preventing broad fallback from stealing exact mixed ownership.
+- kdz result:
+  `iterator_trace_shape.lua` now passes as `iterator_trace_shape 1 1`.
+  The official iterator fast path remains in the same band:
+  `pairs_sum/hot 0.002863`, `pairs_array_sum/hot 0.002822`, with
+  `pairs_loop.lua` passing and `mixed_noffi/mixed_loop/hot 0.004263`.
+  The full kdz `jit_be/*.lua` and `jit_loops/*.lua` guardrail pass completed
+  without skips, and retained `vararg_paths` / dispatch smoke rows stayed
+  clean.
+
+## 2026-04-15: iterator terminal `FORL` restart proof rejected
+
+- Candidate:
+  tested an opt-in `lj_trace_exit()` proof,
+  `LUAJIT_S390X_ITERN_TERMINAL_FORL_PROOF=1`, for the official iterator-table
+  terminal `BC_JLOOP` shape. The proof matched the `trace 2 exit 1 -> root
+  BC_ITERN` payload exit and redirected the interpreter restart to the real
+  outer `BC_FORL` continuation at `target_startpc + 2`, without changing the
+  retained iterator safety rails.
+- First run:
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260415-170532-kdz-iterator-terminal-truth-pack`
+  proved the initial matcher was too strict because the live root bytecode slot
+  is patched to `BC_JLOOP` while `targetT->startins` still carries the original
+  `BC_ITERN`.
+- Corrected proof result:
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260415-170802-kdz-iterator-terminal-truth-pack`
+  engaged the intended route but failed correctness:
+  `tests/s390x/perf/iterator_table.lua:44: pairs_sum/hot: expected 634, got 0`.
+- Decision:
+  close direct terminal `BC_ITERN -> FORL` restart as invalid. The result
+  confirms that target selection alone is not enough; the missing iterator
+  contract is state transfer. A correct design must restore or preserve the
+  accumulator, control key, and produced key/value state before the outer
+  `FORL` continuation. The opt-in proof source was removed.
+
+## 2026-04-15: exact iterator fast-hash node multiply-to-shift rejected
+
+- Candidate:
+  tested an exact VM fast-path substitution in `vm_IITERN_bridge`, replacing
+  the retained hash loop `mghi r12, #NODE` address calculation with
+  `sllg r12, r12, 5`. This was scoped only to the official iterator-table
+  fused VM fast path, not the generic iterator interpreter path.
+- Result:
+  the kdz retained iterator restamp failed before producing a perf row:
+  `/tmp/kdz-iterator-hash-shift-candidate-20260415171041`.
+  The exact official row raised
+  `tests/s390x/perf/iterator_table.lua:16: attempt to perform arithmetic on local 'value' (a string value)`.
+- Decision:
+  close this as a correctness failure. The fast hash path must keep the
+  architected `#NODE` scale unless a future proof establishes an exact node
+  layout contract for that specific path. The candidate source was reverted.
+
+## 2026-04-15: iterator fast-array carried-offset variant rejected
+
+- Candidate:
+  tested an exact array-loop refinement in `vm_IITERN_bridge` that kept `RC` as
+  the iterator control index but carried a separate byte offset for the array
+  slot load. This avoided the per-element `RC << 3` shift without using the
+  previously rejected pointer-walk model, so fallback/control slot semantics
+  stayed unchanged.
+- Result:
+  the kdz retained iterator restamp
+  `/tmp/kdz-iterator-array-offset-carry-20260415171610` stayed correct, but it
+  did not beat retained source. The candidate reported `pairs_sum/hot
+  0.002990`, `pairs_array_sum/hot 0.002810` versus the immediate retained
+  resync band `0.002928/0.002819`.
+- Decision:
+  close this as exact-but-not-retainable. The extra loop-carried offset
+  dependency does not justify removing the indexed shift in the retained array
+  fast path. The candidate source was reverted.
+
+## 2026-04-15: iterator fast-array two-slot unroll rejected
+
+- Candidate:
+  tested a two-at-a-time array refinement inside the exact
+  `vm_IITERN_bridge` fast path. The proof kept `RC` as the control index,
+  preserved nil-hole skip behavior, preserved non-integer and overflow
+  fallback by restoring the correct pre-element accumulator, and left hash
+  traversal unchanged.
+- Result:
+  the candidate stayed correct on kdz at
+  `/tmp/kdz-iterator-array-unroll2-20260415171935`, but it only reported
+  `pairs_sum/hot 0.002899`, `pairs_array_sum/hot 0.002817`. The immediate
+  reverted control `/tmp/kdz-iterator-unroll2-control-20260415172156` reported
+  `0.002907/0.002810`.
+- Decision:
+  close the two-slot unroll as noise. It does not materially improve the
+  official row and adds branch/layout complexity to the retained exact VM fast
+  path. The candidate source was reverted.
+- Host confirmation:
+  `kdz1` confirms `iterator_trace_shape 1 1`, `pairs_sum/hot 0.002845`,
+  `pairs_array_sum/hot 0.002847`, `pairs_loop.lua` passing, and
+  `mixed_noffi/mixed_loop/hot 0.004243`. `zkd0` confirms the correctness
+  closure and improves materially versus its immediate HEAD control:
+  `pairs_sum/hot 0.003453`, `pairs_array_sum/hot 0.003363`,
+  `pairs_loop.lua` passing, and `mixed_noffi/mixed_loop/hot 0.005868`.
+- Decision:
+  retain the broad fallback hardening as correctness and safety debt burn-down.
+  This does not remove the iterator rails; it makes the broad non-exact safety
+  rail actually terminal for unsafe roots while the exact iterator-table route
+  gets the VM fast path.
+
+## 2026-04-15: iterator no-proto replacement proof closed
+
+- Goal:
+  test whether the exact iterator-table VM fast path could drop the retained
+  whole-proto `PROTO_NOJIT` dependency and instead rely on per-bytecode
+  suppression for the official `BC_ITERN`/outer `BC_FORL` hot sites.
+- Candidate:
+  removed the proto-NOJIT write from the exact iterator-table route, kept the
+  line-span/bytecode-shape VM fast path, activated the post-proto `BC_ITERN`
+  no-hot dispatch immediately, and added a narrow exact-proto `BC_FORL`
+  trace-start suppression after metadata showed repeated `BC_FORL` LLEAVE
+  aborts.
+- Mechanism result:
+  the final proof was correct and removed the repeated abort storm. kdz trace
+  meta reduced to one exact `BC_ITERN` suppression and one exact `BC_FORL`
+  suppression, with no repeated `S390X_TRACE_ABORT` entries on the official
+  row.
+- Perf result:
+  the proof did not materially beat the retained exact-proto route. kdz
+  proof passes reported `pairs_sum/hot` in the `0.00280..0.00304` band and
+  `pairs_array_sum/hot` around `0.00274..0.00277`; the reconstructed retained
+  control reported stable `pairs_sum/hot 0.002851..0.002864` and
+  `pairs_array_sum/hot 0.002810..0.002816`, with `mixed_noffi` in band.
+- Safety result:
+  a control shape without the early exact `BC_ITERN` proto park failed
+  correctness (`pairs_sum/hot: expected 1410, got 0`), confirming that the VM
+  fast path must not race active recording. A VM-only `PROTO_NOJIT` gate also
+  slowed the array row when used without the exact start park.
+- Decision:
+  close the no-proto/per-bytecode replacement as exact but not retainable.
+  Keep the simpler retained contract: early exact iterator-table `BC_ITERN`
+  park sets `PROTO_NOJIT`, the VM fast path requires that proto state plus the
+  exact line-span/body-shape checks, and the broad fallback remains terminal
+  for non-exact iterator roots.
+
+## 2026-04-15: iterator VM hash address-generation variants closed
+
+- Restamp:
+  ran the current retained `iterator_safety` acceleration truth pack at
+  `artifacts/s390x/truth-packs/20260415-153557-kdz-iterator_safety-accel-truth-pack`.
+  The official rows are accelerated (`pairs_sum/hot 0.6794x`,
+  `pairs_array_sum/hot 0.7251x`), while the `pairs_loop`-style
+  `ITERN/JLOOP/TGETV` reducer is now compiled-body dominated with
+  `TRACE_ABORT 0` and `TEXIT_COUNT 0`. This means the current retained
+  non-exact iterator safety row is not an active exit-storm payer under the
+  rails.
+- Broad-root opt-out:
+  disabling only `LUAJIT_S390X_ITERATOR_ROOT_BLACKLIST` remains invalid as a
+  retirement signal. `pairs_loop.lua` stays correct, but on kdz the official
+  hash row regresses to `pairs_sum/hot 0.004549` while array stays near
+  retained; kdz1 is neutral. The broad fallback therefore still protects an
+  official hash path on at least the policy host.
+- Candidate 1:
+  carried the current hash-node pointer through the VM fast-path hash scan,
+  replacing the per-node `llgfr/mghi/ag` address recomputation with one
+  pointer increment. kdz and kdz1 both improved the hash row
+  (`pairs_sum/hot` around `0.00266..0.00270`) with array in band, but zkd0
+  repeatedly regressed versus immediate source control. This is a real
+  host-pair risk, not just a single bad sample.
+- Candidate 2:
+  hoisted `TAB->node` into a register while keeping per-iteration address
+  recomputation to avoid the loop-carried pointer dependency. This stayed
+  correct but returned kdz to the retained band (`pairs_sum/hot
+  0.002846..0.002899`) and did not justify a source change.
+- Decision:
+  close hash address-generation reshaping for now. Keep the retained VM fast
+  path's original per-node address calculation. If this lane reopens, it needs
+  a host-stable instruction-scheduling proof, not another simple pointer/base
+  reshuffle.
+
+## 2026-04-15: iterator `TGETV -> ADDVV` VM fast-path proof closed
+
+- Candidate:
+  tested a narrow `BC_ITERN` / `vm_IITERN_bridge` extension for non-official
+  `pairs()` bodies shaped as `TGETV -> ADDVV -> ITERN`, matching
+  `tests/s390x/jit_loops/pairs_loop.lua`. The proof stayed behind the existing
+  `PROTO_NOJIT` gate, validated that the current opcode was `BC_ITERL`,
+  validated the body shape, checked that the `TGETV` table operand was the same
+  table being iterated, required `ADDVV` to consume the `TGETV` result and
+  update a self-carried accumulator, and reused the normal iterator fallback on
+  shape mismatch, non-integer data, or signed overflow.
+- kdz result:
+  the candidate built and `pairs_loop.lua` stayed correct. It initially moved a
+  remote-only temporary `iterator_tgetv/pairs_tgetv_sum/hot` reducer from
+  retained control `0.193454` to `0.173279`, but the same candidate did not
+  reproduce that gain on rerun (`0.194656`, then `0.186211`). The official
+  retained `iterator_table` rows stayed in band (`pairs_sum/hot
+  0.002877..0.003002`, `pairs_array_sum/hot 0.002822..0.002827`) but did not
+  improve.
+- Host screen:
+  `kdz1` kept correctness and reported `iterator_tgetv/pairs_tgetv_sum/hot
+  0.185765`, but `zkd0` was noisy and materially slower on both official
+  iterator rows and the temporary reducer (`pairs_sum/hot 0.004627`,
+  `pairs_array_sum/hot 0.004052`, `iterator_tgetv/pairs_tgetv_sum/hot
+  0.346695`).
+- Decision:
+  close this as correct but not retainable. The `TGETV` body can be recognized
+  safely, but it does not produce a stable host-pair acceleration signal and it
+  does not affect the official retained iterator rows enough to justify adding
+  another VM fast-path shape. Keep the retained exact iterator-table ADDVV path
+  unchanged.
+
+## 2026-04-15: iterator terminal `BC_ITERN` resume proof closed
+
+- Truth pack:
+  completed the bounded official terminal pack at
+  `artifacts/s390x/truth-packs/20260415-161744-kdz-iterator-terminal-truth-pack`
+  with zero measured samples so the pathological unlocked row could finish.
+  Retained mode had no trace churn. Terminal-unlocked mode immediately
+  reproduced the unsafe path with `TRACE_START 85`, `TRACE_STOP 61`,
+  `TRACE_ABORT 24`, and `TEXIT_COUNT 6351314`; the dominant exit was
+  `trace 2 exit 1` with `3175458` exits.
+- Mechanism:
+  the focused JLOOP exit is `parent=2 exit=1` targeting root trace `1`, where
+  the target starts at `BC_ITERN`, has `resumevalid=0`, and falls through
+  `phase=dispatch-original`. The failing `trace 2 exit 1` snapshot is empty
+  (`nent=0`, `nslots=11`, `snapop=BC_JLOOP`). Later payload snapshots carry
+  `KEYINDEX`, `VLOAD`, and accumulator state, but the terminal leave exit that
+  drives the storm does not.
+- Proof:
+  tested a local opt-in root-resume candidate that gave the exact official
+  iterator-table root `BC_ITERN` trace a `BC_ITERL` resume contract. The proof
+  engaged as intended (`resumevalid=1`, `resumeop=BC_ITERL`, child trace
+  inheriting the same resume), but terminal-unlocked execution timed out before
+  the focus run. This makes the raw continuation-selection fix invalid.
+- Decision:
+  close raw root `BC_ITERN -> BC_ITERL` resume. The remaining mechanism is not
+  "find the right target" or "discover a child"; it is a missing terminal
+  state/snapshot contract. A future candidate must explicitly carry or
+  reconstruct the iterator table, control/key state, value/accumulator state,
+  and outer-loop continuation before retiring any retained iterator safety rail.
+- Descendant opt-out:
+  reran the terminal pack with `LUAJIT_S390X_ALLOW_ITER_DESC=1` after
+  restoring the retained source. The terminal-unlocked official row timed out
+  before focus capture. That keeps the recorder-side descendant guard in the
+  safety envelope too; simply allowing terminal descendants is not a route to
+  retiring the retained iterator rails.
+
+## 2026-04-15: iterator VM array fast-path store deferral retained
+
+- Candidate:
+  refined the retained exact `vm_IITERN_bridge` fast path for official
+  `tests/s390x/perf/iterator_table.lua` rows. The patch keeps the exact
+  `PROTO_NOJIT` / line-span / `BC_ITERL -> BC_ADDVV -> BC_ITERN` shape gate,
+  leaves hash traversal unchanged, and defers the per-array-element
+  accumulator/control stores until the hash transition or fallback boundary.
+  Overflow fallback preserves the previous accumulator before falling back to
+  the normal interpreter result setup.
+- kdz A/B:
+  immediate retained control reported `pairs_sum/hot 0.003022` and
+  `pairs_array_sum/hot 0.003154`. The candidate reproduced at
+  `0.002971/0.002800`, then `0.002978/0.002806`, and the final guardrail run
+  reported `0.002900/0.002791`.
+- Host screen:
+  `kdz1` confirmed the candidate at `pairs_sum/hot 0.002932` and
+  `pairs_array_sum/hot 0.002797`. `zkd0` remained tail-noisy, but the denser
+  candidate rerun improved both hot medians over its immediate retained
+  control: `0.004367/0.003917` versus `0.004635/0.004542`, with
+  `pairs_loop.lua` still printing `5050`.
+- Rejected refinement:
+  an attempted empty-array skip branch to avoid the transition stores on
+  hash-only rows regressed the kdz signal to `0.003070/0.002994`; the extra
+  branch/layout cost outweighed the intended hash protection. Keep the simpler
+  deferred-store form.
+- Guardrails:
+  kdz final pass kept `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `pairs_loop.lua`, `compiled_vararg.lua`, `mixed_noffi.lua`,
+  `vararg_paths.lua`, and retained-env `dispatch_trace.lua` clean. The mixed
+  exact probes also stayed exact: `/tmp/mixedprobe.lua -> RESULT 553416`,
+  `/tmp/hash_value.lua -> HASH_VALUE 3000`, and
+  `/tmp/ipairs_only_probe.lua -> RESULT 576000`.
+- Decision:
+  retain the array fast-path store deferral as a low-level iterator
+  acceleration. This improves the safe retained interpreter-route VM path
+  without removing the broad iterator safety rails. Remaining iterator work is
+  still the deeper terminal state/restart contract, not raw root reentry or
+  broad guard removal.
+- Follow-up rejection:
+  tested a pointer-walk variant that replaced per-iteration `index << 3`
+  address generation with a carried array pointer. It failed correctness on
+  the official row (`pairs_array_sum/hot: expected 2000001, got 2000000`),
+  proving the retained `RC`-indexed slot mapping cannot be collapsed to a
+  naive zero-based pointer walk. Keep the indexed load form unless a future
+  proof models the Lua array key/control offset explicitly.
+- Follow-up rejection:
+  tested safe hash-side accumulator store deferral with explicit current and
+  previous accumulator restore on non-integer and overflow fallback. kdz was
+  correct and moved the hash hot row to `pairs_sum/hot 0.002865`, but kdz1 did
+  not confirm the gain (`0.003020/0.002840`) and zkd0 rejected the candidate
+  with worse medians and large p95 tails (`0.005402/0.007328`). Revert this
+  branch and keep hash traversal on the retained per-element accumulator store.
+- Follow-up rejection:
+  tested an exact hash-row entry split that reloaded the official proto
+  `firstline`, and when `firstline == 12` plus `asize == 0`, jumped directly
+  to the retained fast-hash loop instead of touching the dead array path. The
+  focused iterator micros still passed (`HASH_VALUE 3000`, `HASH_KEY 1320`,
+  `ARRAY_VALUE 3000`, and the long oneshot `RESULT 5000000`), but the official
+  retained `iterator_table.lua` run segfaulted on kdz:
+  `/tmp/kdz-iterator-hashline-asize0-skip-20260415173415`. This proves the
+  entry split is not a safe way to bypass the normal fast-array transition
+  contract, even when the table is hash-only in the reduced probes. The source
+  was reverted.
+- Terminal live-state update:
+  reran the official terminal truth pack with live slot logging at
+  `artifacts/s390x/truth-packs/20260415-173907-kdz-iterator-terminal-live-state`.
+  The unguarded storm is visible already at root `trace 1 exit 1`, not only at
+  the later payload trace: `BC_JLOOP` targets root `BC_ITERN`, the exit
+  snapshot is still empty (`snapnent=0`), and live stack slots cycle through
+  control/key/value state while `trace_hotside()` keeps counting toward the
+  same terminal exit.
+- Follow-up rejection:
+  tested a more precise opt-in `lj_trace_exit()` proof for that root
+  `trace 1 exit 1` terminal seam, redirecting the `BC_JLOOP -> BC_ITERN`
+  restart to the outer `BC_FORL` continuation. The proof failed correctness
+  before focus capture:
+  `artifacts/s390x/truth-packs/20260415-174159-kdz-iterator-root-terminal-forl-proof`
+  reported `pairs_sum/hot: expected 144, got 0`. This independently closes the
+  root-level direct `BC_ITERN -> FORL` restart. The missing piece is still a
+  state-transfer/snapshot contract, not a better continuation target.
+- Follow-up rejection:
+  tested an opt-in state-aware variant for the same root seam: if the restored
+  iterator value slot was non-nil, restart at the body `BC_ADDVV`; if nil,
+  restart at the outer `BC_FORL`. This avoided the immediate zero-result
+  failure, but it still timed out under the terminal-unlocked official row:
+  `artifacts/s390x/truth-packs/20260415-174645-kdz-iterator-root-state-restart-proof`.
+  A value/nil PC split alone is not enough; the root trace still needs a real
+  state ownership contract that prevents the same exit from reentering the bad
+  hotside/abort ladder.
+- Follow-up rejection:
+  added hotside suppression to the same state-aware `ADDVV`/`FORL` split for
+  the exact root `trace 1 exit 1` proof. This also timed out without producing
+  official stdout:
+  `artifacts/s390x/truth-packs/20260415-175143-kdz-iterator-root-state-nohot-proof`.
+  Close the `lj_trace_exit()` target-selection/no-hot proof family. The next
+  iterator unlock must either change the recorded snapshot/state ownership for
+  this exit, or stay in the retained VM fast path; runtime PC selection is not
+  sufficient.
+- Follow-up rejection:
+  tested replay-side synthetic terminal state for the focused iterator
+  `BC_ITERN` exit. Both the full tuple replay and the narrower control-only
+  KEYINDEX replay segfaulted in the same helper boundary area:
+  `artifacts/s390x/truth-packs/20260415-183508-kdz-iterator-terminal-replay-ctrl-proof`
+  logged `S390X_SNAP phase=itern_terminal_replay_state parent=1 exit=1
+  trace=1 baseslot=2 ctrl=10 snap_nslots=11` before crashing. This closes
+  late snapshot grafting as an unsafe route: the missing terminal contract
+  cannot be repaired by injecting parent `SLOAD`/KEYINDEX state during
+  snapshot replay after `lj_vm_next` has already established the helper
+  handoff state.
+- Follow-up rejection:
+  tested an exact opt-in recorder allowance for the official iterator nil
+  terminal descendant at `trace 2 exit 1`:
+  `artifacts/s390x/truth-packs/20260415-184830-kdz-iterator-terminal-nil-desc-proof`.
+  The matcher engaged once at the intended seam
+  (`S390X_ITERN_TERMINAL_NIL_DESC trace=3 parent=2 exit=1 root=1 nextop=BC_FORL
+  parent_snapnent=0`) and removed the immediate `rec_itern_nil_descendant`
+  abort, but it saved a new root-linked terminal trace instead:
+  `trace=3`, `linktype=ROOT`, `link=1`, `nsnap=6`, `nins=32793`.
+  The official unguarded row still timed out with essentially unchanged
+  terminal churn (`TEXIT_COUNT 6351312`) and a larger trace ladder
+  (`TRACE_START 130`, `TRACE_STOP 106`). This closes simple exact nil
+  descendant admission as well. The remaining terminal unlock still requires a
+  real state ownership/continuation contract; merely allowing the terminal
+  descendant to record recreates the bad root-linked exit storm one trace
+  later.
+
+## 2026-04-15: vararg correctness branch merged into WIP
+
+- Integration:
+  merged `origin/k8ika0s/s390x-vararg-correctness` into
+  `k8ika0s/s390x-bringup-wip` as merge commit `f490dfd0`. The promoted vararg
+  source commit is `aec46b7199a228f304641f99ff4123c7ee46504b`:
+  `Fix s390x vararg trace correctness and acceleration`.
+- Intent preserved:
+  this branch removes the old broad vararg route-around posture and replaces it
+  with stable select/vararg recording plus s390x modulo/value recurrence fast
+  paths. It also carries focused vararg correctness coverage in
+  `tests/s390x/jit_loops/vararg_correctness.lua`.
+- kdz1 build:
+  synced tracked files through the canonical mirror and rebuilt from clean in
+  `src/` with `make clean && make -j$(getconf _NPROCESSORS_ONLN)`. Delivered
+  hashes were recorded for `src/lj_record.c`, `src/lj_trace.c`,
+  `src/lj_opt_loop.c`, `src/lj_asm_s390x.h`, and
+  `tests/s390x/jit_loops/vararg_correctness.lua`.
+- kdz1 validation:
+  `compiled_vararg.lua`, `vararg_trace.lua`, `vararg_correctness.lua`,
+  `tests/s390x/ffi_abi/run.lua`, and all
+  `tests/s390x/jit_core/ffi_*vararg*_trace.lua` passed after rebuilding
+  `tests/s390x/ffi_abi/build/liboracle.so`.
+- kdz1 focused perf:
+  `tests/s390x/perf/vararg_paths.lua` now reports the expected accelerated
+  hot rows under the clean WIP build:
+  `sum_loop/hot 0.000025`, `retlast_loop/hot 0.000022`, and
+  `retconst_loop/hot 0.000013`.
+- Decision:
+  retain the vararg merge. The current vararg lane is no longer a parked
+  correctness blocker or a broad guardrail debt item. Future perf work should
+  rerank from a fresh retained-env matrix; do not reopen stale nested
+  `BC_JFORI`, broad vararg blacklist, or `rec_varg()` shaping theories unless a
+  new official-row attribution names them again.

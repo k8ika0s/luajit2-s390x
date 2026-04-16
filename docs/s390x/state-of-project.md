@@ -1380,6 +1380,43 @@ interpretation.
   string-heavy matrix-regression fix. The remaining high-value mechanism debt
   is the known iterator terminal handoff / broad non-exact iterator fallback,
   or a newly named low-level payer from the next dense rerank.
+- Exact iterator VM fast path:
+  the official retained `iterator_table` rows now have a narrow VM-side
+  `BC_ITERN` fast path under the existing no-JIT safety rail. The path is now
+  gated by active `PROTO_NOJIT` plus the verified
+  `BC_ITERL -> BC_ADDVV -> BC_ITERN` body shape, not by iterator-table source
+  line spans. kdz reports `pairs_sum/hot` in the `0.00286..0.00299` band and
+  `pairs_array_sum/hot` in the `0.00275..0.00276` candidate band; kdz1
+  confirms `0.00292..0.00296/0.00275..0.00279`, and zkd0 keeps both rows
+  accelerated. This is retained as a bytecode-shape VM acceleration under the
+  safety rails, not a broad iterator tracing unlock.
+- Iterator VM store refinement:
+  the exact VM route now also defers array-body accumulator/control stores
+  until the hash transition or fallback boundary. This keeps the same safety
+  gates and leaves hash traversal unchanged. kdz retained control
+  `0.003022/0.003154` moved to final guardrail `0.002900/0.002791`; kdz1
+  confirmed `0.002932/0.002797`; zkd0's dense rerun improved over immediate
+  control (`0.004367/0.003917` vs `0.004635/0.004542`). The empty-array branch
+  variant was rejected on kdz (`0.003070/0.002994`).
+- Vararg merge:
+  WIP now includes `f490dfd0`, merging the narrow
+  `k8ika0s/s390x-vararg-correctness` branch. The promoted source commit
+  `aec46b71` fixes vararg trace correctness and accelerates the official
+  `vararg_paths` rows without broad vararg blacklists or benchmark-specific
+  gates. kdz1 clean-rebuild validation passed compiled Lua vararg tests, FFI
+  vararg traces, `ffi_abi/run.lua`, and `vararg_paths.lua`; focused hot medians
+  are now `sum_loop 0.000025`, `retlast_loop 0.000022`, and
+  `retconst_loop 0.000013`. The next full retained-env rerank should replace
+  any stale pre-merge vararg matrix rows.
+- Current iterator debt:
+  keep broad iterator root fallback and exact proto-NOJIT rails. The broad
+  fallback now parks non-exact iterator root protos and closes
+  `tests/s390x/jit_loops/iterator_trace_shape.lua` on kdz, kdz1, and zkd0
+  (`iterator_trace_shape 1 1`). The remaining iterator mechanism debt is the
+  deeper terminal `BC_ITERN` resume/continuation contract for eventually
+  replacing rails, not another raw reentry, link-retarget attempt, or
+  no-proto/per-bytecode suppression variant. The no-proto proof was exact but
+  not retainable versus the simpler retained exact-proto VM fast path.
 
 ## Where To Look Next
 
