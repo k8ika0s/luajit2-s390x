@@ -33754,3 +33754,49 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   rerank from a fresh retained-env matrix; do not reopen stale nested
   `BC_JFORI`, broad vararg blacklist, or `rec_varg()` shaping theories unless a
   new official-row attribution names them again.
+
+## 2026-04-16: numeric-ops lowering branch merged into WIP
+
+- Integration:
+  fast-forwarded `k8ika0s/s390x-bringup-wip` from `915694d4` to
+  `6545469e Improve s390x numeric op lowering` from
+  `origin/k8ika0s/numeric-ops-lowering`. The promoted source change is exactly
+  the numeric backend lowering tranche in `src/lj_asm_s390x.h`,
+  `src/lj_emit_s390x.h`, and `src/lj_target_s390x.h`.
+- Mirror validation:
+  synced tracked files to `kdz1:/root/luajit2-s390x/canon/repo` and
+  hash-verified the changed backend files:
+  `src/lj_asm_s390x.h`
+  `05716a915f0421d28bec7f8561b98d870d365cdd750897f38e1052fb9ec69f05`,
+  `src/lj_emit_s390x.h`
+  `005ac1a401b3f5ec24729cda85038a118b917b8e553f53db4fde21be62f78455`,
+  and `src/lj_target_s390x.h`
+  `5848e9d8582fdce4e74bcc0e682ef46e671117c2d18ace33c45a3fa6626e966a`.
+- Focused correctness:
+  clean remote `src/` rebuild passed every `tests/s390x/jit_be/*.lua` file with
+  `jit_be_err_lines=0`.
+- Focused performance:
+  `S390X_PERF_SAMPLES=61 tests/s390x/perf/numeric_ops.lua` on `kdz1` reported
+  `abs_loop/hot 0.000107`, `div_loop/hot 0.000186`,
+  `fp_mod_loop/hot 0.000289`, `sqrt_loop/hot 0.000227`,
+  `min_loop/hot 0.000080`, and `max_loop/hot 0.000123`.
+- Full comparison:
+  the new retained matrix artifacts are
+  `artifacts/s390x/s390x-kdz1-20260416T181755Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T181755Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z` using the prior comparison
+  format reference `artifacts/s390x/compare-kdz1-ka0s01-20260415T195449Z`.
+  The run emitted `2160` s390x benchmark records, `360` comparison rows, and
+  `0` s390x failures.
+- Numeric impact versus the immediately prior kdz1 artifact
+  `artifacts/s390x/s390x-kdz1-20260416T171113Z`:
+  `abs_loop/hot` improved to `0.115x..0.116x` of prior runtime,
+  `fp_mod_loop/hot` to `0.516x..0.518x`, `min_loop/hot` to
+  `0.507x..0.516x`, and `max_loop/hot` to `0.682x..0.689x` across
+  Clang/GCC. `div_loop` and `sqrt_loop` stayed in band.
+- Matrix posture:
+  the full generated summary names no material s390x JIT-on regression
+  against `-joff`; its only slower row is `gcc int_add_phi_only/add_phi_only`
+  at small scale with `1.0000x`, i.e. parity/noise. Keep performance work in
+  acceleration mode: prioritize high-time and cross-architecture disadvantage
+  rows, not guardrail rollback or a JIT-on blocker.
