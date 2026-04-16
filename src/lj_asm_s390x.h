@@ -773,6 +773,25 @@ static void asm_s390x_addhome_log(ASMState *as, IRIns *ir)
 	  carry_candidate);
 }
 
+static int asm_s390x_add_low32home_only(ASMState *as, IRIns *ir)
+{
+  IRIns *lir, *rir = NULL;
+  int add_uses, phi_uses, other_uses, guard_uses;
+  int first_use_op, first_noncarry_use_op;
+  if (irt_isguard(ir->t) || !irt_isinteger(ir->t) || irref_isk(ir->op2))
+    return 0;
+  lir = IR(ir->op1);
+  rir = IR(ir->op2);
+  if (!asm_s390x_is_bitop_op(lir->o) && !asm_s390x_is_bitop_op(rir->o))
+    return 0;
+  asm_s390x_addhome_use_counts(as, ir, &add_uses, &phi_uses, &other_uses,
+			       &guard_uses, &first_use_op,
+			       &first_noncarry_use_op);
+  UNUSED(first_use_op);
+  UNUSED(first_noncarry_use_op);
+  return (add_uses | phi_uses) != 0 && other_uses == 0 && guard_uses == 0;
+}
+
 static int asm_s390x_ref_feeds_bitop(ASMState *as, IRRef ref)
 {
   IRIns *ir = IR(ref);
@@ -2239,6 +2258,10 @@ static void asm_add(ASMState *as, IRIns *ir)
 				-232);
       base = ra_hintalloc_nobase(as, baseref, dest,
 				 rset_exclude(RSET_GPR_NOB, addend), -231);
+      if (asm_s390x_add_low32home_only(as, ir)) {
+	emit_u32(as, S390X_INS_RRF_M(S390XI_ARK, dest, addend, base));
+	return;
+      }
       asm_bnorm32(as, ir, dest);
       emit_u32(as, S390X_INS_RXE(S390XI_AGFR, dest, addend));
       if (dest != base)
