@@ -1,11 +1,44 @@
 # s390x Performance Status
 
-Last updated: 2026-04-15 07:55 PDT
+Last updated: 2026-04-16 11:30 PDT
+
+## 2026-04-16 Numeric-Ops Lowering Promotion
+
+- Current code source point for this checkpoint:
+  `6545469e Improve s390x numeric op lowering`, fast-forwarded from
+  `origin/k8ika0s/numeric-ops-lowering` onto `k8ika0s/s390x-bringup-wip`.
+  The promoted backend changes are limited to `src/lj_asm_s390x.h`,
+  `src/lj_emit_s390x.h`, and `src/lj_target_s390x.h`.
+- kdz1 promotion validation:
+  the tracked canonical mirror was synced and hash-verified for the three
+  changed backend files, rebuilt cleanly in `src/`, and passed every
+  `tests/s390x/jit_be/*.lua` file with `jit_be_err_lines=0`.
+- Focused 61-sample `numeric_ops` validation on kdz1:
+  `abs_loop/hot 0.000107`, `div_loop/hot 0.000186`,
+  `fp_mod_loop/hot 0.000289`, `sqrt_loop/hot 0.000227`,
+  `min_loop/hot 0.000080`, and `max_loop/hot 0.000123`.
+- Full s390x/x86 comparison artifact:
+  `artifacts/s390x/s390x-kdz1-20260416T181755Z` with companion comparison
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T181755Z`. The run covered
+  23 benchmark files, GCC and Clang, JIT-on and `-joff`, 3 alternating passes,
+  and emitted `2160` benchmark records with `0` s390x failures.
+- Numeric-op impact versus the prior kdz1 artifact
+  `artifacts/s390x/s390x-kdz1-20260416T171113Z`:
+  `abs_loop/hot` is about `0.115x..0.116x` of the previous runtime,
+  `fp_mod_loop/hot` about `0.516x..0.518x`, `min_loop/hot` about
+  `0.507x..0.516x`, and `max_loop/hot` about `0.682x..0.689x` across
+  Clang/GCC. `div_loop` and `sqrt_loop` remain in the previous band.
+- Matrix posture after this promotion:
+  the regression queue remains empty for s390x JIT-on versus `-joff`.
+  The only row listed as slower than `-joff` in the generated summary is
+  `gcc int_add_phi_only/add_phi_only/small` at `1.0000x`, i.e. parity/noise.
+  Acceleration work should continue from high-time or cross-architecture
+  disadvantage rows, not from a JIT-on regression blocker.
 
 ## Post-Guardrail Retained Checkpoint
 
-- Current runtime/code source point for this checkpoint:
-  current WIP over `5814717c Retire stale dispatch cooldown env`, including
+- Prior retained floor carried into this checkpoint:
+  WIP over `5814717c Retire stale dispatch cooldown env`, including
   the retained iterator hash-payload recorder fix described below plus the
   safe constant-bounded `bit.tobit` `MULOV` narrowing candidate, the retained
   cdata mixed-width backend closure, the retained
