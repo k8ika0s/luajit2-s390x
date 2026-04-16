@@ -33908,3 +33908,41 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   absolute runtimes. The largest current s390x JIT-on rows are
   `string_heavy/byte_scan_loop/hot`, `string_heavy/manual_find_loop/hot`,
   `mixed_noffi/mixed_loop/hot`, and the iterator hot rows.
+
+## 2026-04-16: post-string matrix correction
+
+- Correction:
+  `artifacts/s390x/s390x-kdz1-20260416T204353Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T204353Z` are stale-source
+  artifacts for the string/memscan merge. They were generated from a snapshot
+  of `HEAD` before the staged string payload was committed, while the canonical
+  mirror validation had the staged source. This made the full matrix understate
+  the string wins even though the focused mirror run was fast.
+- Verified cause:
+  the corrected committed-head artifact repo at
+  `kdz1:/root/luajit2-s390x-s390x/s390x-kdz1-20260416T211330Z/repo` has the
+  retained string source hashes:
+  `src/lj_record.c`
+  `76d635001057a7267a2ad3b96da99da7d6e6776d77e73b04d548ecfe4a4cbbda`,
+  `src/lj_str.c`
+  `f1a47babcd6dd7dab2ba212e1a5c3bc7cf694161bec5d9bcb6151ba33acf07b6`,
+  `src/lj_asm_s390x.h`
+  `500ccaed2780c464390f7ff0095665cab912a593c52ec3538d2538e1c301c682`, and
+  `src/lj_ircall.h`
+  `cfa97c0c43678c3fd78ed54d25685f30d552ccb264008b1e73650a91f9af1922`.
+- Corrected matrix:
+  `artifacts/s390x/s390x-kdz1-20260416T211330Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T211330Z` supersede the stale
+  artifact. The corrected run emitted `2160` benchmark records, `360`
+  comparison rows, and `0` s390x failures. The generated summary names no
+  s390x JIT-on row slower than `-joff`.
+- String read:
+  the expected retained string acceleration is restored in the full matrix:
+  `string_heavy/byte_scan_loop/hot` is at the timer floor,
+  `manual_find_loop/hot` is `0.002191` GCC / `0.002165` Clang, and
+  `concat_slice_loop/hot` is at the timer floor. The string family rollup is
+  `614.666x` GCC / `889.853x` Clang JIT-on speedup versus s390x `-joff`.
+- Process note:
+  do not publish future full matrix docs from staged-but-uncommitted payloads.
+  The artifact snapshot path must be committed source or an explicitly named
+  dirty-source diagnostic artifact.
