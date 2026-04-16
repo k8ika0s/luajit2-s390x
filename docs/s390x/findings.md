@@ -33946,3 +33946,47 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   do not publish future full matrix docs from staged-but-uncommitted payloads.
   The artifact snapshot path must be committed source or an explicitly named
   dirty-source diagnostic artifact.
+
+## 2026-04-16: final string oddity merge and committed-source matrix
+
+- Source point:
+  `fbe90de0 Enable s390x final string memscan paths`, pushed to
+  `origin/k8ika0s/s390x-bringup-wip` before the full matrix run so the
+  artifact snapshot could not repeat the earlier staged-source mistake.
+- Merge scope:
+  applied the final string workstream diff from
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x-string-memscan`,
+  limited to `src/lj_record.c` and `src/lj_str.c` over `f9bed228`. The patch
+  makes `manual_find_cycle` default-on with
+  `LUAJIT_S390X_DISABLE_MANUAL_FIND_CYCLE=1`, adds the s390x fixed-string
+  short-haystack `lj_str_find` path for `slen <= 64`, and adds the guarded
+  GCC/s390x/VX `lj_str_sum_u8` reduction plus large-tail overlap path.
+- Focused kdz1 validation:
+  committed source was synced through the tracked mirror, rebuilt, and passed
+  the enabled 50-sample `string_heavy` run, the all-string-summarizer-disabled
+  control run, and a clean Clang rebuild. The enabled focused run had hot rows
+  at the timer floor: `manual_find_loop`, `byte_scan_loop`, `prefix_eq_loop`,
+  `string_key_lookup_loop`, `concat_slice_loop`, and `miss_find_loop` all read
+  `0.000000..0.000001` median/p95 bands.
+- Delivered full-matrix hashes:
+  `src/lj_record.c`
+  `b33c0549c04bcddd7fba6e62b59597eda8fe1573cfb0e1144ecdfba04a223ecb`,
+  `src/lj_str.c`
+  `ee5ca17f26d7b20c5eaa9fa1ded05598d094581fa796cd02df0b350a75e05131`,
+  `src/lj_asm_s390x.h`
+  `500ccaed2780c464390f7ff0095665cab912a593c52ec3538d2538e1c301c682`, and
+  `src/lj_ircall.h`
+  `cfa97c0c43678c3fd78ed54d25685f30d552ccb264008b1e73650a91f9af1922`.
+- Full matrix:
+  `artifacts/s390x/s390x-kdz1-20260416T224449Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T224449Z`, compared with
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`. The run emitted `2160`
+  s390x benchmark records, `360` comparison rows, and `0` s390x failures.
+- Matrix read:
+  no s390x JIT-on row is slower than `-joff` in the generated summary. The
+  final string rows are floor-level in the full matrix, including
+  `manual_find_loop/hot 0.000001` on GCC/Clang,
+  `byte_scan_loop/hot 0.000001` GCC / below timer floor Clang, and floor-level
+  hot reads for miss-find, prefix-eq, concat-slice, and string-key lookup. The
+  next performance queue should not chase these floor rows; use larger focused
+  string harnesses if more string differentiation is needed.
