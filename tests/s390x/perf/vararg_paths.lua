@@ -1,4 +1,5 @@
 local bit = require("bit")
+local jit = require("jit")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
 
 local scale_order = { "small", "medium", "hot" }
@@ -48,12 +49,28 @@ local function retconst_loop(n)
   return result
 end
 
+local function joff_expected(fn, n)
+  local enabled = select(1, jit.status())
+  if enabled then
+    jit.off()
+  end
+  local ok, result = pcall(fn, n)
+  if enabled then
+    jit.on()
+    jit.flush()
+  end
+  if not ok then
+    error(result, 0)
+  end
+  return result
+end
+
 local cases = {}
 for _, scale in ipairs(scale_order) do
   local n = scales[scale]
-  local expected_sum = sum_loop(n)
-  local expected_last = retlast_loop(n)
-  local expected_const = retconst_loop(n)
+  local expected_sum = joff_expected(sum_loop, n)
+  local expected_last = joff_expected(retlast_loop, n)
+  local expected_const = joff_expected(retconst_loop, n)
   cases[#cases + 1] = {
     workload = "sum_loop",
     scale = scale,

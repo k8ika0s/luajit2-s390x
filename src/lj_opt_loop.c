@@ -261,6 +261,153 @@ typedef struct LoopState {
   MSize sizesubst;
 } LoopState;
 
+#if LJ_TARGET_S390X
+static int loop_s390x_scev_ref_offset(jit_State *J, IRRef ref, int64_t *ofsp)
+{
+  int64_t ofs = 0;
+
+  for (;;) {
+    IRIns *ir;
+    if (ref == J->scev.idx) {
+      *ofsp = ofs;
+      return 1;
+    }
+    if (irref_isk(ref))
+      return 0;
+    ir = IR(ref);
+    if ((ir->o == IR_ADD || ir->o == IR_ADDOV) &&
+	irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+      ofs += IR(ir->op2)->i;
+      ref = ir->op1;
+      continue;
+    }
+    if ((ir->o == IR_SUB || ir->o == IR_SUBOV) &&
+	irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+      ofs -= IR(ir->op2)->i;
+      ref = ir->op1;
+      continue;
+    }
+    return 0;
+  }
+}
+
+static int loop_s390x_pow2plus1_shift(int32_t k)
+{
+  uint32_t p;
+  int shift = 1;
+
+  if (k <= 1)
+    return 0;
+  p = (uint32_t)k - 1u;
+  if ((p & (p - 1u)) != 0)
+    return 0;
+  while (p > 1u) {
+    p >>= 1;
+    shift++;
+  }
+  return shift;
+}
+
+static int loop_s390x_mod_scev_inc(jit_State *J, IRIns *ir, int32_t *kp,
+				   int32_t *shiftp)
+{
+  int64_t ofs;
+  int32_t k;
+  int32_t shift;
+
+  if (ir->o != IR_MOD || !irref_isk(ir->op2) ||
+      IR(ir->op2)->o != IR_KINT)
+    return 0;
+  k = IR(ir->op2)->i;
+  if (k > 32767)
+    return 0;
+  shift = loop_s390x_pow2plus1_shift(k);
+  if (shift == 0)
+    return 0;
+  if (J->scev.idx == REF_NIL || !J->scev.dir ||
+      J->scev.start == REF_NIL || !irref_isk(J->scev.start) ||
+      J->scev.step == REF_NIL || !irref_isk(J->scev.step) ||
+      IR(J->scev.step)->i != 1)
+    return 0;
+  if (!loop_s390x_scev_ref_offset(J, ir->op1, &ofs))
+    return 0;
+  if ((int64_t)IR(J->scev.start)->i + ofs < 0)
+    return 0;
+  *kp = k;
+  *shiftp = shift;
+  return 1;
+}
+
+static IRRef loop_s390x_emit_mod_step(jit_State *J, IRRef remref,
+				      int32_t k, int32_t shift)
+{
+  IRRef rem_plus_1 = tref_ref(emitir_raw(IRTI(IR_ADD), remref, lj_ir_kint(J, 1)));
+  IRRef biased = tref_ref(emitir_raw(IRTI(IR_ADD), remref, lj_ir_kint(J, k - 1)));
+  IRRef wrap = tref_ref(emitir_raw(IRTI(IR_BSHR), biased, lj_ir_kint(J, shift)));
+  IRRef wrapk = tref_ref(emitir_raw(IRTI(IR_MUL), wrap, lj_ir_kint(J, k)));
+  return tref_ref(emitir_raw(IRTI(IR_SUB), rem_plus_1, wrapk));
+}
+
+static int loop_s390x_mod_value_scev_inc(jit_State *J, IRIns *ir,
+					 int32_t *kp, int32_t *shiftp)
+{
+  IRIns *mod;
+
+  if (ir->o != IR_ADD || !irref_isk(ir->op2) ||
+      IR(ir->op2)->o != IR_KINT || IR(ir->op2)->i != 1 ||
+      irref_isk(ir->op1))
+    return 0;
+  mod = IR(ir->op1);
+  return loop_s390x_mod_scev_inc(J, mod, kp, shiftp);
+}
+
+static int loop_s390x_snap_uses_ref(jit_State *J, IRRef ref)
+{
+  SnapNo s;
+
+  for (s = 1; s < J->cur.nsnap; s++) {
+    SnapShot *snap = &J->cur.snap[s];
+    SnapEntry *map = &J->cur.snapmap[snap->mapofs];
+    MSize n, nent = snap->nent;
+    for (n = 0; n < nent; n++)
+      if (snap_ref(map[n]) == ref)
+	return 1;
+  }
+  return 0;
+}
+
+static int loop_s390x_mod_value_only_use(jit_State *J, IRRef ref, IRRef invar)
+{
+  IRRef i;
+  int seen = 0;
+
+  if (loop_s390x_snap_uses_ref(J, ref))
+    return 0;
+  for (i = ref + 1; i < invar; i++) {
+    IRIns *ir = IR(i);
+    if (ir->op1 != ref && ir->op2 != ref)
+      continue;
+    if (ir->o == IR_ADD && ir->op1 == ref && irref_isk(ir->op2) &&
+	IR(ir->op2)->o == IR_KINT && IR(ir->op2)->i == 1) {
+      seen = 1;
+      continue;
+    }
+    return 0;
+  }
+  return seen;
+}
+
+static IRRef loop_s390x_emit_mod_value_step(jit_State *J, IRRef valueref,
+					    int32_t k, int32_t shift)
+{
+  IRRef value_plus_1 = tref_ref(emitir_raw(IRTI(IR_ADD), valueref, lj_ir_kint(J, 1)));
+  IRRef biased = tref_ref(emitir_raw(IRTI(IR_ADD), valueref, lj_ir_kint(J, k - 2)));
+  IRRef wrap = tref_ref(emitir_raw(IRTI(IR_BSHR), biased, lj_ir_kint(J, shift)));
+  IRRef wrapk = tref_ref(emitir_raw(IRTI(IR_MUL), wrap, lj_ir_kint(J, k)));
+  return tref_ref(emitir_raw(IRTI(IR_SUB), value_plus_1, wrapk));
+}
+#endif
+
 /* Unroll loop. */
 static void loop_unroll(LoopState *lps)
 {
@@ -321,6 +468,36 @@ static void loop_unroll(LoopState *lps)
     if (!irref_isk(op1)) op1 = subst[op1];
     op2 = ir->op2;
     if (!irref_isk(op2)) op2 = subst[op2];
+#if LJ_TARGET_S390X
+    {
+      int32_t modk, modshift;
+      if (loop_s390x_mod_value_scev_inc(J, ir, &modk, &modshift)) {
+	IRRef ref = loop_s390x_emit_mod_value_step(J, ins, modk, modshift);
+	subst[ins] = (IRRef1)ref;
+	if (!irt_isphi(ir->t) && !irt_ispri(ir->t)) {
+	  irt_setphi(ir->t);
+	  if (nphi >= LJ_MAX_PHI)
+	    lj_trace_err(J, LJ_TRERR_PHIOV);
+	  phi[nphi++] = (IRRef1)ins;
+	}
+	continue;
+      } else if (loop_s390x_mod_scev_inc(J, ir, &modk, &modshift)) {
+	if (loop_s390x_mod_value_only_use(J, ins, invar)) {
+	  subst[ins] = (IRRef1)ins;
+	  continue;
+	}
+	IRRef ref = loop_s390x_emit_mod_step(J, ins, modk, modshift);
+	subst[ins] = (IRRef1)ref;
+	if (!irt_isphi(ir->t) && !irt_ispri(ir->t)) {
+	  irt_setphi(ir->t);
+	  if (nphi >= LJ_MAX_PHI)
+	    lj_trace_err(J, LJ_TRERR_PHIOV);
+	  phi[nphi++] = (IRRef1)ins;
+	}
+	continue;
+      }
+    }
+#endif
     if (irm_kind(lj_ir_mode[ir->o]) == IRM_N &&
 	op1 == ir->op1 && op2 == ir->op2) {  /* Regular invariant ins? */
       subst[ins] = (IRRef1)ins;  /* Shortcut. */

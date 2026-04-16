@@ -50,6 +50,9 @@ static void emit_u48_at(MCode *p, uint64_t ins)
 #define S390X_INS_RRF_M(op, r1, m3, r2) \
   ((uint32_t)(op) | (((uint32_t)(m3) & 15u) << 12) | \
    (((uint32_t)(r1) & 15u) << 4) | ((uint32_t)(r2) & 15u))
+#define S390X_INS_RR(op, r1, r2) \
+  ((uint16_t)(op) | (((uint16_t)(r1) & 15u) << 4) | \
+   ((uint16_t)(r2) & 15u))
 #define S390X_INS_RI(op, r, imm) \
   ((uint32_t)(op) | (((uint32_t)(r) & 15u) << 20) | (uint16_t)(imm))
 #define S390X_INS_RX(op, r1, x2, b2, disp) \
@@ -112,6 +115,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CGDBR	0xb3a90000u
 #define S390XI_LDGR	0xb3c10000u
 #define S390XI_LGDR	0xb3cd0000u
+#define S390XI_DR	0x1d00u
 #define S390XI_DSGR	0xb90d0000u
 #define S390XI_DLGR	0xb9870000u
 #define S390XI_MSGFR	0xb91c0000u
@@ -132,6 +136,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_XGRK	0xb9e70000u
 #define S390XI_AGRK	0xb9e80000u
 #define S390XI_SGRK	0xb9e90000u
+#define S390XI_LOCGR	0xb9e20000u
 #define S390XI_AGHIK	0xec00000000d9ull
 #define S390XI_LG	0xe30000000004ull
 #define S390XI_LLGF	0xe30000000016ull

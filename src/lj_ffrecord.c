@@ -334,6 +334,57 @@ int32_t lj_ffrecord_select_mode(jit_State *J, TRef tr, TValue *tv)
   }
 }
 
+#if LJ_TARGET_S390X
+static int recff_s390x_select_progression(jit_State *J, RecordFFData *rd,
+					  TRef tr)
+{
+  ptrdiff_t n = (ptrdiff_t)J->maxslot;
+  ptrdiff_t i;
+  int32_t first = 0, step = 0;
+
+  if (results_wanted(J) != 1 || n <= 1)
+    return 0;
+  for (i = 1; i < n; i++) {
+    TRef arg = J->base[i];
+    int32_t v;
+    if (!tref_isk(arg) || !tref_isinteger(arg))
+      return 0;
+    v = IR(tref_ref(arg))->i;
+    if (i == 1) {
+      first = v;
+    } else if (i == 2) {
+      int64_t delta = (int64_t)v - (int64_t)first;
+      if (delta < INT32_MIN || delta > INT32_MAX)
+	return 0;
+      step = (int32_t)delta;
+    } else {
+      int64_t expect = (int64_t)first + (int64_t)(i - 1) * (int64_t)step;
+      if (expect < INT32_MIN || expect > INT32_MAX ||
+	  v != (int32_t)expect)
+	return 0;
+    }
+  }
+  if (!tref_isinteger(tr)) {
+    if (!tref_isnumber(tr))
+      return 0;
+    tr = emitir(IRTGI(IR_CONV), tr, IRCONV_INT_NUM|IRCONV_CHECK);
+  }
+  emitir(IRTGI(IR_GE), tr, lj_ir_kint(J, 1));
+  emitir(IRTGI(IR_LT), tr, lj_ir_kint(J, (int32_t)n));
+  rd->nres = 1;
+  if (n == 2 || step == 0) {
+    J->base[0] = lj_ir_kint(J, first);
+  } else if (step == 1 && first == 1) {
+    J->base[0] = tr;
+  } else {
+    TRef ofs = emitir(IRTGI(IR_ADDOV), tr, lj_ir_kint(J, -1));
+    TRef scaled = emitir(IRTGI(IR_MULOV), ofs, lj_ir_kint(J, step));
+    J->base[0] = emitir(IRTGI(IR_ADDOV), scaled, lj_ir_kint(J, first));
+  }
+  return 1;
+}
+#endif
+
 static void LJ_FASTCALL recff_select(jit_State *J, RecordFFData *rd)
 {
   TRef tr = J->base[0];
@@ -352,6 +403,10 @@ static void LJ_FASTCALL recff_select(jit_State *J, RecordFFData *rd)
 	  J->base[i] = J->base[start+i];
       }  /* else: Interpreter will throw. */
     } else {
+#if LJ_TARGET_S390X
+      if (recff_s390x_select_progression(J, rd, tr))
+	return;
+#endif
       recff_nyiu(J, rd);
       return;
     }
