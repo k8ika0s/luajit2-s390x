@@ -593,9 +593,8 @@ static int lj_record_s390x_manual_find_cycle_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_ENABLE_MANUAL_FIND_CYCLE");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MANUAL_FIND_CYCLE");
-    enabled = (LJ_TARGET_S390X && opt_in != NULL && opt_out == NULL);
+    enabled = (LJ_TARGET_S390X && opt_out == NULL);
   }
   return enabled;
 }

@@ -79,6 +79,27 @@ const char *lj_str_find(const char *s, const char *p, MSize slen, MSize plen)
 	s++; slen--;
       }
 #undef LJ_STR_FIND_2
+#if LJ_TARGET_S390X
+    } else if (slen <= 64) {
+      int c = *(const uint8_t *)p++;
+      plen--; slen -= plen;
+#define LJ_STR_FIND_1(offset) \
+      if (*(const uint8_t *)(s+(offset)) == c && \
+	  memcmp(s+(offset)+1, p, plen) == 0) \
+	return s+(offset)
+      while (slen >= 4) {
+	LJ_STR_FIND_1(0);
+	LJ_STR_FIND_1(1);
+	LJ_STR_FIND_1(2);
+	LJ_STR_FIND_1(3);
+	s += 4; slen -= 4;
+      }
+      while (slen) {
+	LJ_STR_FIND_1(0);
+	s++; slen--;
+      }
+#undef LJ_STR_FIND_1
+#endif
     } else {
       int c = *(const uint8_t *)p++;
       plen--; slen -= plen;
@@ -110,12 +131,58 @@ int32_t lj_str_sum_u8(const char *p, int32_t len)
   uint32_t sum = 0;
   int32_t i = 0;
   lj_assertX(len >= 0 && len <= 8192, "bounded byte sum length out of range");
+#if LJ_TARGET_S390X && defined(__GNUC__) && !defined(__clang__) && defined(__VX__) && !defined(LUAJIT_USE_VALGRIND)
+  {
+    typedef unsigned char s390x_v16u8 __attribute__((vector_size(16)));
+    typedef unsigned int s390x_v4u32 __attribute__((vector_size(16)));
+    s390x_v4u32 acc = { 0, 0, 0, 0 };
+    s390x_v16u8 zero = { 0 };
+    uint32_t overlap_sum = 0;
+
+    for (; i + 16 <= len; i += 16) {
+      s390x_v16u8 v;
+      memcpy(&v, s+i, sizeof(v));
+      acc += __builtin_s390_vec_sum4(v, zero);
+    }
+    if (len - i >= 12 && i >= 16) {
+      int32_t j, start = len - 16;
+      s390x_v16u8 v;
+      memcpy(&v, s+start, sizeof(v));
+      acc += __builtin_s390_vec_sum4(v, zero);
+      for (j = start; j < i; j++)
+	overlap_sum += (uint32_t)s[j];
+      i = len;
+    }
+    {
+      uint32_t lanes[4];
+      memcpy(lanes, &acc, sizeof(lanes));
+      sum = lanes[0] + lanes[1] + lanes[2] + lanes[3] - overlap_sum;
+    }
+  }
+#else
   for (; i + 4 <= len; i += 4) {
     sum += (uint32_t)s[i+0] + (uint32_t)s[i+1] +
 	   (uint32_t)s[i+2] + (uint32_t)s[i+3];
   }
-  for (; i < len; i++)
-    sum += (uint32_t)s[i];
+#endif
+  switch (len - i) {
+  case 15: sum += (uint32_t)s[i+14];  /* fallthrough */
+  case 14: sum += (uint32_t)s[i+13];  /* fallthrough */
+  case 13: sum += (uint32_t)s[i+12];  /* fallthrough */
+  case 12: sum += (uint32_t)s[i+11];  /* fallthrough */
+  case 11: sum += (uint32_t)s[i+10];  /* fallthrough */
+  case 10: sum += (uint32_t)s[i+9];  /* fallthrough */
+  case 9: sum += (uint32_t)s[i+8];  /* fallthrough */
+  case 8: sum += (uint32_t)s[i+7];  /* fallthrough */
+  case 7: sum += (uint32_t)s[i+6];  /* fallthrough */
+  case 6: sum += (uint32_t)s[i+5];  /* fallthrough */
+  case 5: sum += (uint32_t)s[i+4];  /* fallthrough */
+  case 4: sum += (uint32_t)s[i+3];  /* fallthrough */
+  case 3: sum += (uint32_t)s[i+2];  /* fallthrough */
+  case 2: sum += (uint32_t)s[i+1];  /* fallthrough */
+  case 1: sum += (uint32_t)s[i];  /* fallthrough */
+  default: break;
+  }
   return (int32_t)sum;
 }
 
