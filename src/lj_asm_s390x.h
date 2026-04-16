@@ -2701,13 +2701,71 @@ static void asm_band(ASMState *as, IRIns *ir)
 
 static void asm_bor(ASMState *as, IRIns *ir)
 {
+  IRRef shiftref = 0, otherref = 0;
+  IRIns *shift;
+  int32_t sh;
+
+  if (!irt_is64(ir->t)) {
+    if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+	(shift = IR(ir->op2))->o == IR_BSHR && ra_noreg(shift->r)) {
+      shiftref = ir->op2;
+      otherref = ir->op1;
+    } else if (mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+	       (shift = IR(ir->op1))->o == IR_BSHR && ra_noreg(shift->r)) {
+      shiftref = ir->op1;
+      otherref = ir->op2;
+    }
+    if (shiftref && irref_isk(shift->op2) && !irref_isk(shift->op1)) {
+      sh = IR(shift->op2)->i & 31;
+      if (sh > 0) {
+	Reg src = ra_alloc1_nobase(as, shift->op1, RSET_GPR_NOB, -232);
+	Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, src),
+				  -230);
+	asm_s390x_bitop_log(as, "bor_bshr_rosbg", ir, dest, src, RID_NONE, 0);
+	asm_bnorm32(as, ir, dest);
+	emit_u48_pad8(as, S390X_INS_RIE_F(S390XI_ROSBG, dest, src,
+					  32 + sh, 63, (-sh) & 63));
+	ra_leftov(as, dest, otherref);
+	return;
+      }
+    }
+  }
   asm_bitop_logic(as, ir, S390XI_OGR);
 }
 
 static void asm_bxor(ASMState *as, IRIns *ir)
 {
+  IRRef shiftref = 0, otherref = 0;
+  IRIns *shift;
+  int32_t sh;
+
   if (asm_bxor_bnot(as, ir))
     return;
+  if (!irt_is64(ir->t)) {
+    if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+	(shift = IR(ir->op2))->o == IR_BSHL && ra_noreg(shift->r)) {
+      shiftref = ir->op2;
+      otherref = ir->op1;
+    } else if (mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+	       (shift = IR(ir->op1))->o == IR_BSHL && ra_noreg(shift->r)) {
+      shiftref = ir->op1;
+      otherref = ir->op2;
+    }
+    if (shiftref && irref_isk(shift->op2) && !irref_isk(shift->op1)) {
+      sh = IR(shift->op2)->i & 31;
+      if (sh > 0) {
+	Reg src = ra_alloc1_nobase(as, shift->op1, RSET_GPR_NOB, -232);
+	Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, src),
+				  -230);
+	asm_s390x_bitop_log(as, "bxor_bshl_rxsbg", ir, dest, src, RID_NONE, 0);
+	asm_bnorm32(as, ir, dest);
+	emit_u48_pad8(as, S390X_INS_RIE_F(S390XI_RXSBG, dest, src,
+					  32, 63 - sh, sh));
+	ra_leftov(as, dest, otherref);
+	return;
+      }
+    }
+  }
   asm_bitop_logic(as, ir, S390XI_XGR);
 }
 
