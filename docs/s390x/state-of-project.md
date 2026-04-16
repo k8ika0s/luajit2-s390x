@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 14:25 PDT
+Last updated: 2026-04-16 14:36 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,10 +8,10 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- Current WIP source point is the string/memscan promotion payload applied over
-  `fdb8e4e802049fe0d90a2ac589e80c9fca96d51f`. This retains the current
-  guardrail/correctness floor, numeric backend lowering, PHI loop recurrence
-  codegen, and the default-enabled string/memscan helper work.
+- Current WIP source point is
+  `2a1baa17 Retain s390x string memscan acceleration`. This retains the
+  current guardrail/correctness floor, numeric backend lowering, PHI loop
+  recurrence codegen, and the default-enabled string/memscan helper work.
 - kdz1 string merge validation passed from the tracked mirror after a clean
   `src/` rebuild. The required focused run
   `S390X_PERF_SAMPLES=20 S390X_PERF_WARMUP=5 ./src/luajit tests/s390x/perf/string_heavy.lua`
@@ -19,26 +19,28 @@ It is intentionally current-state only. Historical experiment detail lives in
   explicit opt-in `LUAJIT_S390X_ENABLE_MANUAL_FIND_CYCLE=1` and is not a
   shipped default optimization.
 - Latest completed full comparison:
-  `artifacts/s390x/s390x-kdz1-20260416T204353Z` and
-  `artifacts/s390x/compare-kdz1-ka0s01-20260416T204353Z`, compared against
+  `artifacts/s390x/s390x-kdz1-20260416T211330Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T211330Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`. This run produced `2160`
   s390x benchmark records, `360` comparison rows, and `0` s390x failures
   across GCC/Clang, JIT-on/`-joff`, and three alternating passes.
-- The post-string matrix keeps the branch in the retained fast band. The only
-  JIT-on slower-than-`-joff` rows named by the generated summary are
-  `gcc large_immediates/add_large/small` and
-  `gcc large_immediates/add_large/medium`, both tiny absolute-time rows.
-  Current string-heavy hot rows remain strongly JIT-positive:
-  `gcc byte_scan_loop/hot 0.005753` (`12.773x`), `gcc manual_find_loop/hot
-  0.005598` (`8.753x`), and `gcc concat_slice_loop/hot 0.001168` (`8.667x`).
+- The post-string matrix keeps the branch in the retained fast band. The
+  generated summary names no s390x JIT-on row slower than `-joff`. The
+  previous `T204353Z` full matrix was a stale-source artifact generated before
+  the string payload was committed; it is superseded by `T211330Z`. Current
+  string-heavy hot rows are back in the expected band:
+  `byte_scan_loop/hot` is at the timer floor, `gcc manual_find_loop/hot
+  0.002191` (`22.326x`), `clang manual_find_loop/hot 0.002165` (`23.661x`),
+  and `concat_slice_loop/hot` is also at the timer floor.
 - Current queue:
   there is still no material s390x JIT-on versus `-joff` regression blocker.
   Continue as acceleration work from high-time and cross-architecture
   disadvantage rows. The current high-time s390x JIT-on candidates are
-  `string_heavy/byte_scan_loop`, `string_heavy/manual_find_loop`,
-  `mixed_noffi/mixed_loop`, and the iterator hot rows. Keep iterator,
-  mixed, and vararg guardrails intact unless a fresh truth pack names a
-  concrete safe mechanism.
+  `mixed_noffi/mixed_loop`, the iterator hot rows,
+  `string_heavy/manual_find_loop`, and
+  `lower_frame_same_callsite/lua_abs_same_callsite`. Keep iterator, mixed, and
+  vararg guardrails intact unless a fresh truth pack names a concrete safe
+  mechanism.
 
 - The retained floor carried into this checkpoint includes the prior WIP over
   `5814717c Retire stale dispatch cooldown env`, plus the retained
