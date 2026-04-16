@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 13:13 PDT
+Last updated: 2026-04-16 14:25 PDT
 
 ## Current Matrix
 
@@ -9,66 +9,69 @@ retained-env matrix artifact supersedes the previous one. Historical checkpoint
 notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
-- Current code source point: `5975950c`, the PHI loop recurrence merge.
-- Current docs checkpoint before this cleanup: `d48b352e`.
+- Current code source point: string/memscan promotion payload over
+  `fdb8e4e8`, retained by this checkpoint.
 - Current s390x artifact:
-  `artifacts/s390x/s390x-kdz1-20260416T194254Z`.
+  `artifacts/s390x/s390x-kdz1-20260416T204353Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-kdz1-ka0s01-20260416T194254Z`, compared against
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T204353Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health: `2160` s390x benchmark records, `360` comparison rows,
   `0` s390x failures, GCC/Clang, JIT-on/`-joff`, three alternating passes.
 - Regression read: no material JIT-on regression blocker. The generated
-  summary names only `gcc iterator_table/pairs_sum/hot` as slower than
-  `-joff`, at `1.0506x` (`0.004422s` vs `0.004209s`).
+  summary names only `gcc large_immediates/add_large/small` and
+  `gcc large_immediates/add_large/medium` as slower than `-joff`; both are
+  tiny absolute-time rows (`0.000021s` and `0.000082s`).
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `dispatch_trace` | `numeric_loop/hot` | `0.000312` | `0.002201` | `7.054x` | `0.000321` | `6.645x` |
-| `dispatch_trace` | `side_exit_loop/hot` | `0.000481` | `0.004687` | `9.744x` | `0.000467` | `8.062x` |
-| `dispatch_trace` | `hotexit_loop/hot` | `0.000734` | `0.005682` | `7.741x` | `0.000697` | `7.594x` |
-| `iterator_table` | `pairs_sum/hot` | `0.002927` | `0.004209` | `1.438x` | `0.002842` | `1.523x` |
-| `iterator_table` | `pairs_array_sum/hot` | `0.002778` | `0.003839` | `1.382x` | `0.003019` | `1.266x` |
-| `mixed_noffi` | `mixed_loop/hot` | `0.003556` | `0.004119` | `1.158x` | `0.003560` | `1.163x` |
-| `vararg_paths` | `sum_loop/hot` | `0.000025` | `0.004388` | `175.520x` | `0.000025` | `168.440x` |
-| `vararg_paths` | `retlast_loop/hot` | `0.000025` | `0.002078` | `83.120x` | `0.000025` | `79.240x` |
-| `vararg_paths` | `retconst_loop/hot` | `0.000010` | `0.000592` | `59.200x` | `0.000010` | `55.400x` |
-| `mixed_ffi` | `mixed_ffi_loop/hot` | `0.000100` | `0.012154` | `121.540x` | `0.000099` | `130.747x` |
-| `ffi_cdata` | `pair_loop/hot` | `0.000044` | `0.017253` | `392.114x` | `0.000044` | `402.205x` |
-| `ffi_cdata` | `mixed_width_loop/hot` | `0.000247` | `0.028074` | `113.660x` | `0.000241` | `118.033x` |
-| `ffi_cdata` | `buffer_fref_loop/hot` | `0.000248` | `0.005073` | `20.456x` | `0.000237` | `21.376x` |
-| `ffi_calls` | `direct_abs/hot` | `0.000248` | `0.010339` | `41.690x` | `0.000187` | `54.545x` |
-| `ffi_calls` | `stored_abs/hot` | `0.000247` | `0.007063` | `28.595x` | `0.000187` | `36.684x` |
-| `ffi_fixed_call_pressure` | `gpr_pressure/hot` | `0.000259` | `0.024555` | `94.807x` | `0.000362` | `67.688x` |
-| `ffi_fixed_call_pressure` | `fpr_pressure/hot` | `0.000253` | `0.011647` | `46.036x` | `0.000292` | `40.003x` |
-| `ffi_fixed_struct_calls` | `one_double_take6/hot` | `0.000381` | `0.018334` | `48.121x` | `0.000424` | `42.743x` |
-| `ffi_fixed_struct_calls` | `small_u64_take7/hot` | `0.000931` | `0.023504` | `25.246x` | `0.000888` | `27.512x` |
-| `be_helpers` | `strto_loop/hot` | `0.000724` | `0.008219` | `11.352x` | `0.000660` | `12.583x` |
-| `be_helpers` | `number_helper_loop/hot` | `0.000105` | `0.002280` | `21.714x` | `0.000105` | `20.781x` |
-| `be_helpers` | `num_aload_loop/hot` | `0.000111` | `0.003948` | `35.568x` | `0.000111` | `32.883x` |
-| `numeric_ops` | `abs_loop/hot` | `0.000108` | `0.003981` | `36.861x` | `0.000106` | `36.802x` |
-| `numeric_ops` | `div_loop/hot` | `0.000187` | `0.002292` | `12.257x` | `0.000186` | `11.462x` |
-| `numeric_ops` | `fp_mod_loop/hot` | `0.000287` | `0.004615` | `16.080x` | `0.000288` | `15.236x` |
-| `numeric_ops` | `min_loop/hot` | `0.000080` | `0.002418` | `30.225x` | `0.000078` | `31.500x` |
-| `numeric_ops` | `max_loop/hot` | `0.000123` | `0.002629` | `21.374x` | `0.000121` | `21.545x` |
-| `numeric_ops` | `sqrt_loop/hot` | `0.000226` | `0.003454` | `15.283x` | `0.000225` | `15.307x` |
-| `bitops_mix` | `mix_bits/hot` | `0.000014` | `0.001794` | `128.143x` | `0.000014` | `131.500x` |
-| `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000019` | `0.001859` | `97.842x` | `0.000020` | `93.500x` |
-| `int_add_phi_only` | `add_phi_only/hot` | `0.000004` | `0.000021` | `5.250x` | `0.000004` | `5.250x` |
-| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.002073` | `0.015125` | `7.296x` | `0.002046` | `7.248x` |
-| `string_heavy` | `byte_scan_loop/hot` | `0.005815` | `0.073674` | `12.670x` | `0.005591` | `13.768x` |
-| `string_heavy` | `manual_find_loop/hot` | `0.005582` | `0.048956` | `8.770x` | `0.005758` | `8.857x` |
-| `string_heavy` | `miss_find_loop/hot` | `0.001769` | `0.007265` | `4.107x` | `0.002525` | `3.152x` |
-| `string_heavy` | `concat_slice_loop/hot` | `0.001181` | `0.010074` | `8.530x` | `0.001328` | `7.650x` |
-| `string_heavy` | `string_key_lookup_loop/hot` | `0.000329` | `0.002581` | `7.845x` | `0.000339` | `6.767x` |
+| `dispatch_trace` | `numeric_loop/hot` | `0.000315` | `0.002199` | `6.981x` | `0.000314` | `6.783x` |
+| `dispatch_trace` | `side_exit_loop/hot` | `0.000462` | `0.004708` | `10.190x` | `0.000473` | `7.981x` |
+| `dispatch_trace` | `hotexit_loop/hot` | `0.000701` | `0.005712` | `8.148x` | `0.000693` | `7.580x` |
+| `iterator_table` | `pairs_sum/hot` | `0.002910` | `0.005262` | `1.808x` | `0.002931` | `1.526x` |
+| `iterator_table` | `pairs_array_sum/hot` | `0.002787` | `0.004091` | `1.468x` | `0.002914` | `1.310x` |
+| `mixed_noffi` | `mixed_loop/hot` | `0.003591` | `0.004183` | `1.165x` | `0.003563` | `1.153x` |
+| `vararg_paths` | `sum_loop/hot` | `0.000025` | `0.004392` | `175.680x` | `0.000025` | `168.000x` |
+| `vararg_paths` | `retlast_loop/hot` | `0.000025` | `0.002066` | `82.640x` | `0.000025` | `80.160x` |
+| `vararg_paths` | `retconst_loop/hot` | `0.000010` | `0.000548` | `54.800x` | `0.000010` | `56.700x` |
+| `mixed_ffi` | `mixed_ffi_loop/hot` | `0.000099` | `0.012231` | `123.545x` | `0.000100` | `129.180x` |
+| `ffi_cdata` | `pair_loop/hot` | `0.000044` | `0.017227` | `391.523x` | `0.000044` | `403.909x` |
+| `ffi_cdata` | `mixed_width_loop/hot` | `0.000241` | `0.028428` | `117.959x` | `0.000241` | `119.149x` |
+| `ffi_cdata` | `buffer_fref_loop/hot` | `0.000252` | `0.005154` | `20.452x` | `0.000240` | `21.179x` |
+| `ffi_calls` | `direct_abs/hot` | `0.000187` | `0.010232` | `54.717x` | `0.000188` | `54.250x` |
+| `ffi_calls` | `stored_abs/hot` | `0.000187` | `0.007028` | `37.583x` | `0.000187` | `36.824x` |
+| `ffi_fixed_call_pressure` | `gpr_pressure/hot` | `0.000260` | `0.024890` | `95.731x` | `0.000359` | `68.643x` |
+| `ffi_fixed_call_pressure` | `fpr_pressure/hot` | `0.000252` | `0.011800` | `46.825x` | `0.000291` | `40.471x` |
+| `ffi_fixed_struct_calls` | `one_double_take6/hot` | `0.000382` | `0.018395` | `48.154x` | `0.000429` | `43.156x` |
+| `ffi_fixed_struct_calls` | `small_u64_take7/hot` | `0.000933` | `0.023609` | `25.304x` | `0.000889` | `27.324x` |
+| `be_helpers` | `strto_loop/hot` | `0.000721` | `0.008195` | `11.366x` | `0.001836` | `4.445x` |
+| `be_helpers` | `number_helper_loop/hot` | `0.000105` | `0.002286` | `21.771x` | `0.000105` | `21.067x` |
+| `be_helpers` | `num_aload_loop/hot` | `0.000111` | `0.003932` | `35.423x` | `0.000111` | `33.414x` |
+| `numeric_ops` | `abs_loop/hot` | `0.000108` | `0.004059` | `37.583x` | `0.000106` | `36.811x` |
+| `numeric_ops` | `div_loop/hot` | `0.000187` | `0.002294` | `12.267x` | `0.000186` | `11.495x` |
+| `numeric_ops` | `fp_mod_loop/hot` | `0.000285` | `0.004607` | `16.165x` | `0.000283` | `15.686x` |
+| `numeric_ops` | `min_loop/hot` | `0.000080` | `0.002484` | `31.050x` | `0.000079` | `31.519x` |
+| `numeric_ops` | `max_loop/hot` | `0.000125` | `0.002646` | `21.168x` | `0.000121` | `21.149x` |
+| `numeric_ops` | `sqrt_loop/hot` | `0.000228` | `0.003553` | `15.583x` | `0.000225` | `15.338x` |
+| `large_immediates` | `add_large/medium` | `0.000052` | `0.000056` | `1.077x` | `0.000052` | `1.058x` |
+| `large_immediates` | `add_large/hot` | `0.000016` | `0.000139` | `8.688x` | `0.000016` | `8.688x` |
+| `bitops_mix` | `mix_bits/hot` | `0.000014` | `0.001769` | `126.357x` | `0.000014` | `135.643x` |
+| `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000019` | `0.001927` | `101.421x` | `0.000020` | `92.950x` |
+| `int_add_phi_only` | `add_phi_only/hot` | `0.000005` | `0.000021` | `4.200x` | `0.000004` | `5.250x` |
+| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.002027` | `0.015088` | `7.444x` | `0.002105` | `6.858x` |
+| `string_heavy` | `byte_scan_loop/hot` | `0.005753` | `0.073481` | `12.773x` | `0.005654` | `13.602x` |
+| `string_heavy` | `manual_find_loop/hot` | `0.005598` | `0.048998` | `8.753x` | `0.005762` | `8.829x` |
+| `string_heavy` | `miss_find_loop/hot` | `0.001773` | `0.007317` | `4.127x` | `0.002525` | `3.118x` |
+| `string_heavy` | `concat_slice_loop/hot` | `0.001168` | `0.010123` | `8.667x` | `0.001221` | `8.214x` |
+| `string_heavy` | `string_key_lookup_loop/hot` | `0.000330` | `0.002579` | `7.815x` | `0.000337` | `6.875x` |
 
 ## Current Queue
 
 - Regression queue: empty. Do not patch from noise-level red rows without a
   repeated official-row mechanism.
-- Rerank watch: `iterator_table/pairs_sum/hot` is the only generated-summary
-  red row, but the delta is small (`+0.000213s` on GCC in the summary read).
-  Treat it as a focused truth-pack candidate, not a broad rollback target.
+- Rerank watch: `large_immediates/add_large` small/medium is the only
+  generated-summary red family, but the absolute times are tiny. Treat it as a
+  backend parity micro-lane, not a branch blocker.
 - Acceleration queue by absolute JIT time: `string_heavy/byte_scan_loop`,
   `string_heavy/manual_find_loop`, `mixed_noffi/mixed_loop`,
   `iterator_table/pairs_sum`, `iterator_table/pairs_array_sum`,
@@ -79,6 +82,41 @@ notes and experiment logs belong below this section or in
   than s390x `-joff`.
 
 ## Checkpoint Notes
+
+## 2026-04-16 String/Memscan Promotion
+
+- Current code source point for this checkpoint:
+  string/memscan promotion payload applied over
+  `fdb8e4e802049fe0d90a2ac589e80c9fca96d51f`, retaining the default-enabled
+  string helpers while keeping the manual whole-loop `manual_find_cycle`
+  shortcut parked behind `LUAJIT_S390X_ENABLE_MANUAL_FIND_CYCLE=1`.
+- Scope:
+  imported the string/memscan workstream payload for `src/lj_str.c`,
+  `src/lj_str.h`, `src/lj_ircall.h`, `src/lj_record.c`,
+  `src/lj_ffrecord.c`, `src/lj_emit_s390x.h`, and the safe string-related
+  backend additions in `src/lj_asm_s390x.h`. Conflict resolution preserved the
+  current WIP arithmetic, PHI, low32, and overflow contracts rather than
+  accepting older backend variants from the string workstream.
+- kdz1 focused validation:
+  the tracked canonical mirror was synced and rebuilt cleanly in `src/`. The
+  required string run passed:
+  `S390X_PERF_SAMPLES=20 S390X_PERF_WARMUP=5 ./src/luajit tests/s390x/perf/string_heavy.lua`.
+  Focused medians included `manual_find_loop/hot 0.002196`,
+  `manual_find_loop/medium 0.000546`, and `manual_find_loop/small 0.000136`.
+- Full s390x/x86 comparison artifact:
+  `artifacts/s390x/s390x-kdz1-20260416T204353Z` with companion comparison
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T204353Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`. The run covered 23
+  benchmark files, GCC and Clang, JIT-on and `-joff`, 3 alternating passes,
+  and emitted `2160` benchmark records, `360` comparison rows, and `0` s390x
+  failures.
+- Matrix posture:
+  the regression queue remains clean. The generated summary names only
+  `gcc large_immediates/add_large/small` and
+  `gcc large_immediates/add_large/medium` as slower than `-joff`, at tiny
+  absolute runtimes. The largest current JIT-on rows are still
+  `string_heavy/byte_scan_loop/hot`, `string_heavy/manual_find_loop/hot`,
+  `mixed_noffi/mixed_loop/hot`, and the iterator hot rows.
 
 ## 2026-04-16 PHI Loop Recurrence Promotion
 

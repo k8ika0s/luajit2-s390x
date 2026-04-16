@@ -1908,12 +1908,54 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
 
 /* -- Calls and shared helpers ------------------------------------------- */
 
+static int asm_gencall_str_equal_256(ASMState *as, const CCallInfo *ci,
+				     IRRef *args)
+{
+  RegSet workset = RSET_GPR_NOB & ~RID2RSET(RID_RET);
+  Reg wp1, wp2, wlen, p1, p2, len;
+  MCode *l_done, *l_template;
+
+  if (ci != &lj_ir_callinfo[IRCALL_lj_str_equal_256])
+    return 0;
+
+  wp1 = ra_scratch(as, workset);
+  workset = rset_exclude(workset, wp1);
+  wp2 = ra_scratch(as, workset);
+  workset = rset_exclude(workset, wp2);
+  wlen = ra_scratch(as, workset);
+  workset = rset_exclude(workset, wlen);
+
+  p1 = ra_alloc1_nobase(as, args[0], workset, -290);
+  workset = rset_exclude(workset, p1);
+  p2 = ra_alloc1_nobase(as, args[1], workset, -291);
+  workset = rset_exclude(workset, p2);
+  len = ra_alloc1_nobase(as, args[2], workset, -292);
+
+  l_done = emit_label(as);
+  emit_u48_pad8(as, S390X_INS_SS(S390XI_CLC, 0, wp1, 0, wp2, 0));
+  l_template = as->mcp;
+  emit_jmp(as, l_done);
+  emit_loadi(as, RID_RET, 0);
+  emit_condbranch(as, CC_EQ, l_done);
+  emit_exrl(as, wlen, l_template);
+  emit_u32(as, S390X_INS_RI(S390XI_AGHI, wlen, -1));
+  emit_condbranch(as, CC_EQ, l_done);
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, wlen, 0));
+  emit_loadi(as, RID_RET, 1);
+  emit_movrr(as, IR(args[2]), wlen, len);
+  emit_movrr(as, IR(args[1]), wp2, p2);
+  emit_movrr(as, IR(args[0]), wp1, p1);
+  return 1;
+}
+
 static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 {
   uint32_t n, nargs = CCI_XNARGS(ci);
   int32_t spofs = S390X_CALL_SPS_EXTRA * 8;
   Reg gpr = REGARG_FIRSTGPR, fpr = REGARG_FIRSTFPR;
   int direct_call_arg = asm_s390x_direct_call_arg_enabled();
+  if (asm_gencall_str_equal_256(as, ci, args))
+    return;
   asm_s390x_call_log(as, "enter", nargs, args);
   if (ci->func)
     emit_call(as, RID_R14, (void *)ci->func);
@@ -2242,6 +2284,79 @@ static IROp asm_comp_swapop(IROp op)
 
 static int asm_s390x_int_result_normalized(IRIns *ir);
 
+static int asm_s390x_kint_is(ASMState *as, IRRef ref, int32_t k)
+{
+  UNUSED(as);
+  return irref_isk(ref) && IR(ref)->i == k;
+}
+
+static int asm_s390x_is_str_len_ref(ASMState *as, IRRef ref)
+{
+  UNUSED(as);
+  if (irref_isk(ref))
+    return 0;
+  return IR(ref)->o == IR_FLOAD && IR(ref)->op2 == IRFL_STR_LEN;
+}
+
+static int asm_s390x_saw_le_bound(ASMState *as, IRIns *ir, IRRef ref,
+				  int32_t limit)
+{
+  IRIns *scan;
+  UNUSED(as);
+  for (scan = ir-1; scan > IR(REF_BASE); scan--)
+    if (scan->o == IR_LE && scan->op1 == ref &&
+	irref_isk(scan->op2) && IR(scan->op2)->i <= limit)
+      return 1;
+  return 0;
+}
+
+static int asm_s390x_saw_le_ref_to_bounded_stop(ASMState *as, IRIns *ir,
+						IRRef ref)
+{
+  IRIns *scan;
+  for (scan = ir-1; scan > IR(REF_BASE); scan--) {
+    if (scan->o == IR_LE && scan->op1 == ref && !irref_isk(scan->op2) &&
+	asm_s390x_saw_le_bound(as, ir, scan->op2, INT32_MAX-1))
+      return 1;
+  }
+  return 0;
+}
+
+static int asm_s390x_redundant_gt_zero_add1(ASMState *as, IRIns *ir,
+					    IROp op, IRRef lref, IRRef rref)
+{
+  IRIns *lir, *scan;
+  IRRef baseref;
+  int saw_ule_lref = 0, saw_gt_base = 0;
+
+  if (op != IR_GT || !asm_s390x_kint_is(as, rref, 0) || irref_isk(lref))
+    return 0;
+  lir = IR(lref);
+  if (lir->o != IR_ADD)
+    return 0;
+  if (asm_s390x_kint_is(as, lir->op2, 1) && !irref_isk(lir->op1)) {
+    baseref = lir->op1;
+  } else if (asm_s390x_kint_is(as, lir->op1, 1) && !irref_isk(lir->op2)) {
+    baseref = lir->op2;
+  } else {
+    return 0;
+  }
+
+  for (scan = ir-1; scan > IR(REF_BASE); scan--) {
+    if (scan->o == IR_ULE && scan->op1 == lref &&
+	asm_s390x_is_str_len_ref(as, scan->op2))
+      saw_ule_lref = 1;
+    else if (scan->o == IR_GT && scan->op1 == baseref &&
+	     asm_s390x_kint_is(as, scan->op2, 0))
+      saw_gt_base = 1;
+    if (saw_ule_lref && saw_gt_base)
+      return 1;
+  }
+  if (saw_gt_base && asm_s390x_saw_le_ref_to_bounded_stop(as, ir, lref))
+    return 1;
+  return 0;
+}
+
 static void asm_intcomp(ASMState *as, IRIns *ir)
 {
   IROp op = ir->o;
@@ -2264,6 +2379,8 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   if (!irref_isk(rref))
     rir = IR(rref);
   cc = asm_compmap[op];
+  if (asm_s390x_redundant_gt_zero_add1(as, ir, op, lref, rref))
+    return;
   left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
   asm_guardcc(as, cc & 15);
   imm16_signed = irref_isk(rref) && !(cc & CC_UNSIGNED) && !irt_isaddr(ir->t) &&
@@ -4193,6 +4310,63 @@ static void asm_emitfuseahuref(ASMState *as, IRIns *ir,
     emit_movrr(as, ir, fr->reg, fr->idx);
 }
 
+static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
+{
+  IRIns *irkey = IR(ir->op2);
+  RegSet allow = RSET_GPR_NOB;
+  Reg dest, tab, key, sid, tmp, tkey;
+  MCode *l_end, *l_loop, *l_start;
+  ptrdiff_t delta;
+
+  if (merge != 0 || irref_isk(ir->op2) || !irt_isstr(irkey->t) || !ra_used(ir))
+    return 0;
+
+  dest = ra_dest_nobase(as, ir, allow, -216);
+  allow = rset_exclude(allow, dest);
+  tab = ra_alloc1_nobase(as, ir->op1, allow, -217);
+  allow = rset_exclude(allow, tab);
+  key = ra_alloc1_nobase(as, ir->op2, allow, -218);
+  allow = rset_exclude(allow, key);
+  sid = ra_scratch(as, allow);
+  allow = rset_exclude(allow, sid);
+  tmp = ra_scratch(as, allow);
+  allow = rset_exclude(allow, tmp);
+  tkey = ra_scratch(as, allow);
+
+  l_end = emit_label(as);
+  as->invmcp = NULL;
+  emit_loadu64(as, dest, (uintptr_t)niltvg(J2G(as->J)));
+
+  l_loop = --as->mcp;
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, dest, 0));
+  emit_load64ofs(as, dest, dest, (int32_t)offsetof(Node, next));
+
+  emit_condbranch(as, CC_EQ, l_end);
+  emit_u32(as, S390X_INS_RXE(S390XI_CGR, sid, tkey));
+  emit_load64ofs(as, sid, dest, (int32_t)offsetof(Node, key));
+
+  l_start = as->mcp;
+  delta = (char *)l_start - (char *)l_loop;
+  lj_assertA((delta & 1) == 0, "unaligned HREF string loop target");
+  lj_assertA(checki16((int32_t)(delta >> 1)),
+	     "s390x HREF string loop target out of range");
+  *l_loop = S390X_INS_BRC(CC_NE, (int32_t)(delta >> 1));
+
+  emit_u32(as, S390X_INS_RXE(S390XI_AGR, dest, tmp));
+  emit_load64ofs(as, tmp, tab, (int32_t)offsetof(GCtab, node));
+  emit_shiftimm(as, S390XI_SLLG, dest, tmp, 3);
+  emit_u32(as, S390X_INS_RRF_M(S390XI_AGRK, tmp, dest, tmp));
+  emit_shiftimm(as, S390XI_SLLG, tmp, dest, 1);
+  emit_u32(as, S390X_INS_RXE(S390XI_NGR, dest, sid));
+  emit_loadu32ofs(as, sid, key, (int32_t)offsetof(GCstr, sid));
+  emit_loadu32ofs(as, dest, tab, (int32_t)offsetof(GCtab, hmask));
+  emit_u32(as, S390X_INS_RXE(S390XI_OGR, tkey, tmp));
+  emit_loadu64(as, tmp, (uint64_t)irt_toitype(irkey->t) << 47);
+  if (tkey != key)
+    emit_movrr(as, ir, tkey, key);
+  return 1;
+}
+
 static int32_t asm_s390x_vload_intofs(ASMState *as, IRIns *ir, int32_t ofs)
 {
   if (asm_s390x_is_varg_vload(as, ir)) {
@@ -4356,6 +4530,8 @@ static void asm_href(ASMState *as, IRIns *ir, IROp merge)
   IRIns *irkey = IR(ir->op2);
   Reg expected = RID_NONE;
   RegSet allow;
+  if (asm_href_dynamic_str(as, ir, merge))
+    return;
   if (merge == 0 && irt_isstr(irkey->t)) {
     const CCallInfo *cistr = &lj_ir_callinfo[IRCALL_lj_tab_getstr_jit];
     IRRef sargs[3];
@@ -4569,6 +4745,53 @@ static IRRef asm_fusexref_kbase(ASMState *as, IRRef ref, int32_t *ofsp)
   return base;
 }
 
+static int asm_fusestrref_u8xload(ASMState *as, IRIns *ir, Reg dest)
+{
+  IRIns *strref = IR(ir->op1);
+  IRRef idxref;
+  RegSet allow;
+  Reg base, idx = RID_NONE;
+  int32_t ofs = (int32_t)sizeof(GCstr);
+
+  if (!irt_isu8(ir->t) || !mayfuse(as, ir->op1) || strref->o != IR_STRREF)
+    return 0;
+
+  idxref = strref->op2;
+  if (irref_isk(idxref)) {
+    ofs += IR(idxref)->i;
+    idxref = 0;
+  } else {
+    IRIns *idxir = IR(idxref);
+    if (idxir->o == IR_ADD) {
+      if (irref_isk(idxir->op2)) {
+	intptr_t k = asm_kintptr(as, idxir->op2);
+	if (checki20(k)) {
+	  ofs += (int32_t)k;
+	  idxref = idxir->op1;
+	}
+      } else if (irref_isk(idxir->op1)) {
+	intptr_t k = asm_kintptr(as, idxir->op1);
+	if (checki20(k)) {
+	  ofs += (int32_t)k;
+	  idxref = idxir->op2;
+	}
+      }
+    }
+  }
+  if (!checki20(ofs))
+    return 0;
+
+  allow = rset_exclude(RSET_GPR_NOB, dest);
+  base = ra_alloc1_nobase(as, strref->op1, allow, -248);
+  if (idxref) {
+    idx = ra_alloc1_nobase(as, idxref, rset_exclude(allow, base), -249);
+    emit_loadu8idxofs(as, dest, idx, base, ofs);
+  } else {
+    emit_loadu8ofs(as, dest, base, ofs);
+  }
+  return 1;
+}
+
 static void asm_xload(ASMState *as, IRIns *ir)
 {
   RegSet allow;
@@ -4588,6 +4811,8 @@ static void asm_xload(ASMState *as, IRIns *ir)
 
   allow = irt_isfp(ir->t) ? RSET_FPR : RSET_GPR_NOB;
   dest = ra_dest_nobase(as, ir, allow, -247);
+  if (asm_fusestrref_u8xload(as, ir, dest))
+    return;
   if (irt_isfp(ir->t))
     base = ra_alloc1(as, xref, RSET_GPR);
   else

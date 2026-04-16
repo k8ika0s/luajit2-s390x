@@ -33857,3 +33857,54 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   retain the PHI merge plus the `BSWAP` negative-input guard. Continue
   performance work from the post-PHI artifact as acceleration/rerank work, not
   as a failed-promotion cleanup.
+
+## 2026-04-16: string/memscan payload merged into WIP
+
+- Integration:
+  applied the string/memscan workstream payload from
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x-string-memscan`
+  to `k8ika0s/s390x-bringup-wip` over
+  `fdb8e4e802049fe0d90a2ac589e80c9fca96d51f`. The source branch was not a
+  clean one-commit promotion branch; the retained payload was the scoped local
+  diff for `src/lj_str.c`, `src/lj_str.h`, `src/lj_ircall.h`,
+  `src/lj_record.c`, `src/lj_ffrecord.c`, `src/lj_emit_s390x.h`, and
+  `src/lj_asm_s390x.h`.
+- Conflict resolution:
+  `src/lj_record.c` was a pure insertion conflict and retained the string
+  recorder helpers. `src/lj_asm_s390x.h` overlapped newer WIP arithmetic,
+  overflow, PHI, and low32 backend work; conflict resolution preserved current
+  WIP contracts and kept only the safe string backend additions, including the
+  `lj_str_equal_256` call path, dynamic string `HREF` helper path, and
+  xload-related additions. Older string-branch arithmetic variants were not
+  accepted.
+- Manual cycle caveat:
+  the whole-loop `manual_find_cycle` shortcut remains disabled by default.
+  It only engages with `LUAJIT_S390X_ENABLE_MANUAL_FIND_CYCLE=1` and remains
+  parked until its trace-entry semantics are fixed separately.
+- kdz1 mirror validation:
+  the tracked canonical mirror was synced and hash-verified. Delivered hashes:
+  `src/lj_asm_s390x.h`
+  `500ccaed2780c464390f7ff0095665cab912a593c52ec3538d2538e1c301c682`,
+  `src/lj_ircall.h`
+  `cfa97c0c43678c3fd78ed54d25685f30d552ccb264008b1e73650a91f9af1922`,
+  `src/lj_record.c`
+  `76d635001057a7267a2ad3b96da99da7d6e6776d77e73b04d548ecfe4a4cbbda`, and
+  `src/lj_str.c`
+  `f1a47babcd6dd7dab2ba212e1a5c3bc7cf694161bec5d9bcb6151ba33acf07b6`.
+  A clean `make -C src clean && make -C src -j4` build passed on `kdz1`.
+- Focused string validation:
+  `S390X_PERF_SAMPLES=20 S390X_PERF_WARMUP=5 ./src/luajit tests/s390x/perf/string_heavy.lua`
+  passed on `kdz1`. Focused medians included `manual_find_loop/hot 0.002196`,
+  `manual_find_loop/medium 0.000546`, and `manual_find_loop/small 0.000136`.
+- Full matrix:
+  `artifacts/s390x/s390x-kdz1-20260416T204353Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T204353Z` are the current
+  post-string s390x/x86 comparison artifacts. The run emitted `2160` s390x
+  benchmark records, `360` comparison rows, and `0` s390x failures.
+- Matrix read:
+  the branch remains in the retained fast band. The generated summary names
+  only `gcc large_immediates/add_large/small` and
+  `gcc large_immediates/add_large/medium` as slower than `-joff`, both at tiny
+  absolute runtimes. The largest current s390x JIT-on rows are
+  `string_heavy/byte_scan_loop/hot`, `string_heavy/manual_find_loop/hot`,
+  `mixed_noffi/mixed_loop/hot`, and the iterator hot rows.

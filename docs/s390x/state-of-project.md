@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 13:05 PDT
+Last updated: 2026-04-16 14:25 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -8,31 +8,29 @@ It is intentionally current-state only. Historical experiment detail lives in
 
 ## Current State
 
-- Current WIP source point is `5975950c`, the merge of
-  `origin/k8ika0s/s390x-phi-loop-form` on top of the numeric-op lowering WIP.
-  This retains the current guardrail/correctness floor, the numeric backend
-  lowering work, and the promoted PHI loop recurrence codegen work.
-- kdz1 PHI merge validation passed from the tracked mirror after a clean
-  `src/` rebuild. The suite covered arithmetic/basic/bitop traces, low32 home,
-  the new demanded-lowbits loop guardrail, ADD/SUB and MUL overflow guards,
-  profile/hotexit loops, vararg correctness, compiled vararg, and PHI-focused
-  perf probes. Focused hot rows read `logic_add_phi_noboundary 0.000019`,
-  `int_add_phi_only 0.000004`, and `bitops_mix 0.000013`.
-- The PHI merge also closes an exposed existing correctness hole: negative
-  loop-carried inputs to `bit.bswap()` under low-bit masks now exit through a
-  narrow `asm_bswap()` guard instead of silently using a nonnegative trace body.
+- Current WIP source point is the string/memscan promotion payload applied over
+  `fdb8e4e802049fe0d90a2ac589e80c9fca96d51f`. This retains the current
+  guardrail/correctness floor, numeric backend lowering, PHI loop recurrence
+  codegen, and the default-enabled string/memscan helper work.
+- kdz1 string merge validation passed from the tracked mirror after a clean
+  `src/` rebuild. The required focused run
+  `S390X_PERF_SAMPLES=20 S390X_PERF_WARMUP=5 ./src/luajit tests/s390x/perf/string_heavy.lua`
+  passed. The manual whole-loop `manual_find_cycle` path remains parked behind
+  explicit opt-in `LUAJIT_S390X_ENABLE_MANUAL_FIND_CYCLE=1` and is not a
+  shipped default optimization.
 - Latest completed full comparison:
-  `artifacts/s390x/s390x-kdz1-20260416T194254Z` and
-  `artifacts/s390x/compare-kdz1-ka0s01-20260416T194254Z`, compared against
+  `artifacts/s390x/s390x-kdz1-20260416T204353Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T204353Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`. This run produced `2160`
   s390x benchmark records, `360` comparison rows, and `0` s390x failures
   across GCC/Clang, JIT-on/`-joff`, and three alternating passes.
-- The post-PHI matrix keeps the branch in the retained fast band. The only
-  JIT-on slower-than-`-joff` row named by the generated summary is
-  `gcc iterator_table/pairs_sum/hot` at `1.0506x` (`0.004422s` vs
-  `0.004209s`). Current PHI/low32 hot rows are healthy:
-  `gcc logic_add_phi_noboundary/hot 0.000019`, `gcc int_add_phi_only/hot
-  0.000004`, and `gcc bitops_mix/mix_bits/hot 0.000014`.
+- The post-string matrix keeps the branch in the retained fast band. The only
+  JIT-on slower-than-`-joff` rows named by the generated summary are
+  `gcc large_immediates/add_large/small` and
+  `gcc large_immediates/add_large/medium`, both tiny absolute-time rows.
+  Current string-heavy hot rows remain strongly JIT-positive:
+  `gcc byte_scan_loop/hot 0.005753` (`12.773x`), `gcc manual_find_loop/hot
+  0.005598` (`8.753x`), and `gcc concat_slice_loop/hot 0.001168` (`8.667x`).
 - Current queue:
   there is still no material s390x JIT-on versus `-joff` regression blocker.
   Continue as acceleration work from high-time and cross-architecture
