@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 14:36 PDT
+Last updated: 2026-04-16 16:07 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 It is intentionally current-state only. Historical experiment detail lives in
@@ -9,38 +9,39 @@ It is intentionally current-state only. Historical experiment detail lives in
 ## Current State
 
 - Current WIP source point is
-  `2a1baa17 Retain s390x string memscan acceleration`. This retains the
+  `fbe90de0 Enable s390x final string memscan paths`. This retains the
   current guardrail/correctness floor, numeric backend lowering, PHI loop
-  recurrence codegen, and the default-enabled string/memscan helper work.
-- kdz1 string merge validation passed from the tracked mirror after a clean
-  `src/` rebuild. The required focused run
-  `S390X_PERF_SAMPLES=20 S390X_PERF_WARMUP=5 ./src/luajit tests/s390x/perf/string_heavy.lua`
-  passed. The manual whole-loop `manual_find_cycle` path remains parked behind
-  explicit opt-in `LUAJIT_S390X_ENABLE_MANUAL_FIND_CYCLE=1` and is not a
-  shipped default optimization.
+  recurrence codegen, previous string/memscan helper work, and the final
+  default-enabled manual-find / short-haystack / byte-sum string paths.
+- kdz1 final-string validation passed from the tracked mirror after committed
+  source sync: GCC build, enabled 50-sample `string_heavy`, all string
+  summarizers disabled control, and clean Clang rebuild all passed.
 - Latest completed full comparison:
-  `artifacts/s390x/s390x-kdz1-20260416T211330Z` and
-  `artifacts/s390x/compare-kdz1-ka0s01-20260416T211330Z`, compared against
+  `artifacts/s390x/s390x-kdz1-20260416T224449Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T224449Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`. This run produced `2160`
   s390x benchmark records, `360` comparison rows, and `0` s390x failures
   across GCC/Clang, JIT-on/`-joff`, and three alternating passes.
-- The post-string matrix keeps the branch in the retained fast band. The
-  generated summary names no s390x JIT-on row slower than `-joff`. The
-  previous `T204353Z` full matrix was a stale-source artifact generated before
-  the string payload was committed; it is superseded by `T211330Z`. Current
-  string-heavy hot rows are back in the expected band:
-  `byte_scan_loop/hot` is at the timer floor, `gcc manual_find_loop/hot
-  0.002191` (`22.326x`), `clang manual_find_loop/hot 0.002165` (`23.661x`),
-  and `concat_slice_loop/hot` is also at the timer floor.
+- The post-final-string matrix keeps the branch in the retained fast band. The
+  generated summary names no s390x JIT-on row slower than `-joff`. `T224449Z`
+  supersedes `T211330Z` because it includes the final two-file string patch:
+  default-enabled `manual_find_cycle`, short-haystack `lj_str_find`, and
+  guarded GCC/s390x/VX `lj_str_sum_u8`.
+- Current string-heavy hot rows are now at or below the matrix timer floor:
+  `manual_find_loop/hot 0.000001` on GCC and Clang,
+  `byte_scan_loop/hot 0.000001` GCC / below timer floor Clang, and
+  `miss_find_loop`, `concat_slice_loop`, `string_key_lookup_loop`, and
+  `prefix_eq_loop` hot rows also at the floor. Further string acceleration
+  work needs larger focused harnesses; the broad matrix can only record these
+  as floor-level wins.
 - Current queue:
   there is still no material s390x JIT-on versus `-joff` regression blocker.
   Continue as acceleration work from high-time and cross-architecture
   disadvantage rows. The current high-time s390x JIT-on candidates are
-  `mixed_noffi/mixed_loop`, the iterator hot rows,
-  `string_heavy/manual_find_loop`, and
-  `lower_frame_same_callsite/lua_abs_same_callsite`. Keep iterator, mixed, and
-  vararg guardrails intact unless a fresh truth pack names a concrete safe
-  mechanism.
+  `mixed_noffi/mixed_loop`, the iterator hot rows, and
+  `lower_frame_same_callsite/lua_abs_same_callsite`; cross-architecture watch
+  rows include `ffi_fixed_call_pressure/gpr_pressure`, `large_immediates`, and
+  selected `numeric_ops` small/medium rows.
 
 - The retained floor carried into this checkpoint includes the prior WIP over
   `5814717c Retire stale dispatch cooldown env`, plus the retained
