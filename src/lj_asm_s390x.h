@@ -3234,8 +3234,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
       ofs += 8 * ir->op2;
     asm_s390x_ir_log_vload(as, ir, ir->op1, fr.reg, fr.base, fr.idx, dest, ofs);
     if (irt_isaddr(t)) {
-      emit_shiftimm(as, S390XI_SRLG, dest, dest, 17);
-      emit_shiftimm(as, S390XI_SLLG, dest, dest, 17);
+      emit_clear_gc64_tag(as, dest);
     } else if (irt_isint(t)) {
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
     } else if (irt_isu32(t)) {
@@ -3275,12 +3274,16 @@ dotypecheck:
     emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
     emit_load64ofs(as, tmp, fr.reg, ofs);
   } else if (irt_isaddr(t)) {
-    Reg tmp = ra_scratch(as, allow);
+    RegSet tmpallow = ra_hasreg(dest) ? rset_exclude(allow, dest) : allow;
+    Reg tmp = ra_scratch(as, tmpallow);
     asm_s390x_guard_log(as, "vload_addr", ir, CC_NE, ofs, 0);
     asm_guardcc(as, CC_NE);
     emit_u32(as, S390X_INS_RI(S390XI_CGHI, tmp, (int32_t)irt_toitype(t)));
     emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
-    emit_load64ofs(as, tmp, fr.reg, ofs);
+    if (ra_hasreg(dest))
+      emit_movrr(as, ir, tmp, dest);
+    else
+      emit_load64ofs(as, tmp, fr.reg, ofs);
   } else if (irt_ispri(t)) {
     Reg tmp = ra_scratch(as, allow);
     Reg expected = ra_scratch(as, rset_exclude(allow, tmp));

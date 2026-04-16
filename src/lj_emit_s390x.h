@@ -79,6 +79,10 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390X_INS_RIE_D(op, r1, r3, imm) \
   ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
    (((uint64_t)(r3) & 15u) << 32) | (((uint64_t)(imm) & 0xffffu) << 16))
+#define S390X_INS_RIE_F(op, r1, r2, i3, i4, i5) \
+  ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
+   (((uint64_t)(r2) & 15u) << 32) | (((uint64_t)(i3) & 0xffu) << 24) | \
+   (((uint64_t)(i4) & 0xffu) << 16) | (((uint64_t)(i5) & 0xffu) << 8))
 #define S390X_INS_BRC(cc, disp) \
   ((uint32_t)0xa7040000u | (((uint32_t)(cc) & 15u) << 20) | \
    (uint16_t)(disp))
@@ -161,6 +165,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_STDY	0xed0000000067ull
 #define S390XI_TM	0x91000000u
 #define S390XI_NI	0x94000000u
+#define S390XI_RISBG	0xec0000000055ull
 #define S390XI_XILF	0xc00700000000ull
 #define S390XI_IIHF	0xc00800000000ull
 #define S390XI_LLILF	0xc00f00000000ull
@@ -296,6 +301,11 @@ static void emit_shiftimm(ASMState *as, uint64_t op, Reg r1, Reg r3, uint32_t im
 {
   lj_assertA(imm <= 63, "s390x shift immediate out of range");
   emit_u48_pad8(as, S390X_INS_RSYI(op, r1, r3, imm));
+}
+
+static void emit_clear_gc64_tag(ASMState *as, Reg r)
+{
+  emit_u48_pad8(as, S390X_INS_RIE_F(S390XI_RISBG, r, r, 17, 191, 0));
 }
 
 static void emit_getgl_ofs(ASMState *as, Reg r, int32_t ofs)
