@@ -259,9 +259,15 @@ typedef struct LoopState {
   jit_State *J;
   IRRef1 *subst;
   MSize sizesubst;
+#if LJ_TARGET_S390X
+  uint8_t *stripov;
+  MSize sizestripov;
+#endif
 } LoopState;
 
 #if LJ_TARGET_S390X
+static int loop_s390x_has_call(jit_State *J, IRRef invar);
+
 static int loop_s390x_scev_ref_offset(jit_State *J, IRRef ref, int64_t *ofsp)
 {
   int64_t ofs = 0;
@@ -406,6 +412,324 @@ static IRRef loop_s390x_emit_mod_value_step(jit_State *J, IRRef valueref,
   IRRef wrapk = tref_ref(emitir_raw(IRTI(IR_MUL), wrap, lj_ir_kint(J, k)));
   return tref_ref(emitir_raw(IRTI(IR_SUB), value_plus_1, wrapk));
 }
+
+static int loop_s390x_scev_stop_value(jit_State *J, int32_t *stopp)
+{
+  if (J->scev.stop == REF_NIL)
+    return 0;
+  if (irref_isk(J->scev.stop) && IR(J->scev.stop)->o == IR_KINT) {
+    *stopp = IR(J->scev.stop)->i;
+    return 1;
+  }
+  if (J->scev.idx != REF_NIL) {
+    IRIns *idx = IR(J->scev.idx);
+    if (idx->o == IR_SLOAD) {
+      TValue *base = J->L->base - J->baseslot;
+      *stopp = numberVint(&base[idx->op1 + FORL_STOP]);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int loop_s390x_unit_scev_bounds(jit_State *J, int32_t *startp,
+				       int32_t *stopp, int64_t *tripsp)
+{
+  int32_t start, stop;
+  int64_t trips;
+
+  if ((J->pt && (J->pt->flags & PROTO_VARARG)) ||
+      loop_s390x_has_call(J, J->cur.nins) ||
+      J->scev.idx == REF_NIL || !J->scev.dir ||
+      J->scev.start == REF_NIL || !irref_isk(J->scev.start) ||
+      J->scev.step == REF_NIL || !irref_isk(J->scev.step) ||
+      IR(J->scev.step)->i != 1 || !loop_s390x_scev_stop_value(J, &stop))
+    return 0;
+
+  start = IR(J->scev.start)->i;
+  trips = (int64_t)stop - (int64_t)start + 1;
+  if (trips <= 0 || trips > 65535)
+    return 0;
+
+  if (startp) *startp = start;
+  if (stopp) *stopp = stop;
+  if (tripsp) *tripsp = trips;
+  return 1;
+}
+
+static int loop_s390x_lowmask(int32_t k)
+{
+  uint32_t uk = (uint32_t)k;
+  return k >= 0 && (uk & (uk + 1u)) == 0;
+}
+
+static int loop_s390x_ref_nonneg_max(jit_State *J, IRRef ref, int32_t stop,
+				     int64_t *maxp)
+{
+  IRIns *ir;
+  int64_t ofs;
+  int64_t m1, m2;
+
+  if (irref_isk(ref)) {
+    if (IR(ref)->o == IR_KINT && IR(ref)->i >= 0) {
+      *maxp = IR(ref)->i;
+      return 1;
+    }
+    return 0;
+  }
+
+  if (loop_s390x_scev_ref_offset(J, ref, &ofs)) {
+    int64_t minv;
+    if (J->scev.start == REF_NIL || !irref_isk(J->scev.start))
+      return 0;
+    minv = (int64_t)IR(J->scev.start)->i + ofs;
+    if (minv < 0)
+      return 0;
+    *maxp = (int64_t)stop + ofs;
+    return *maxp >= 0 && *maxp <= INT32_MAX;
+  }
+
+  ir = IR(ref);
+  if (ir->o == IR_BAND && irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT &&
+      IR(ir->op2)->i >= 0) {
+    *maxp = IR(ir->op2)->i;
+    return 1;
+  }
+
+  if (ir->o == IR_ADD &&
+      loop_s390x_ref_nonneg_max(J, ir->op1, stop, &m1) &&
+      loop_s390x_ref_nonneg_max(J, ir->op2, stop, &m2) &&
+      m1 + m2 <= INT32_MAX) {
+    *maxp = m1 + m2;
+    return 1;
+  }
+
+  return 0;
+}
+
+static int loop_s390x_bswap_zero_under_mask(jit_State *J, IRIns *ir,
+					    int32_t stop, uint32_t mask)
+{
+  uint32_t bit;
+  int64_t maxv;
+
+  if (ir->o != IR_BSWAP || !loop_s390x_ref_nonneg_max(J, ir->op1, stop, &maxv))
+    return 0;
+
+  for (bit = 0; bit < 32; bit++) {
+    uint32_t srcbit;
+    if ((mask & (1u << bit)) == 0)
+      continue;
+    srcbit = bit < 8 ? bit + 24 : bit < 16 ? bit + 8 :
+	     bit < 24 ? bit - 8 : bit - 24;
+    if (srcbit < 31 && maxv >= (1u << srcbit))
+      return 0;
+  }
+  return 1;
+}
+
+static int loop_s390x_ref_zero_under_mask(jit_State *J, IRRef ref,
+					  int32_t stop, uint32_t mask)
+{
+  if (mask == 0)
+    return 1;
+  if (irref_isk(ref)) {
+    if (IR(ref)->o == IR_KINT)
+      return (((uint32_t)IR(ref)->i) & mask) == 0;
+    return 0;
+  }
+  return loop_s390x_bswap_zero_under_mask(J, IR(ref), stop, mask);
+}
+
+static IRRef loop_s390x_emit_demanded_lowbits(jit_State *J, IRRef ref,
+					      uint32_t mask, IRRef1 *subst,
+					      int32_t stop, int depth)
+{
+  IRIns *ir;
+  IRRef op1, op2;
+
+  if (mask == 0)
+    return lj_ir_kint(J, 0);
+  if (irref_isk(ref) || depth <= 0)
+    return irref_isk(ref) ? ref : subst[ref];
+  if (loop_s390x_ref_zero_under_mask(J, ref, stop, mask))
+    return lj_ir_kint(J, 0);
+
+  ir = IR(ref);
+  switch (ir->o) {
+  case IR_BAND:
+    if (irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+      uint32_t kmask = (uint32_t)IR(ir->op2)->i;
+      if ((kmask & mask) == 0)
+	return lj_ir_kint(J, 0);
+      if ((kmask & mask) == mask)
+	return loop_s390x_emit_demanded_lowbits(J, ir->op1, mask, subst,
+						stop, depth-1);
+    }
+    break;
+  case IR_BOR:
+  case IR_BXOR:
+    if (loop_s390x_ref_zero_under_mask(J, ir->op1, stop, mask))
+      return loop_s390x_emit_demanded_lowbits(J, ir->op2, mask, subst,
+					      stop, depth-1);
+    if (loop_s390x_ref_zero_under_mask(J, ir->op2, stop, mask))
+      return loop_s390x_emit_demanded_lowbits(J, ir->op1, mask, subst,
+					      stop, depth-1);
+    op1 = loop_s390x_emit_demanded_lowbits(J, ir->op1, mask, subst,
+					   stop, depth-1);
+    op2 = loop_s390x_emit_demanded_lowbits(J, ir->op2, mask, subst,
+					   stop, depth-1);
+    if (op1 != subst[ir->op1] || op2 != subst[ir->op2])
+      return tref_ref(emitir(IRT(ir->o, irt_type(ir->t)), op1, op2));
+    break;
+  default:
+    break;
+  }
+
+  return subst[ref];
+}
+
+static int loop_s390x_copy_fold_band(jit_State *J, IRIns *ir, IRRef op1,
+				     IRRef op2, IRRef1 *subst,
+				     int32_t stop, IRRef *refp)
+{
+  int64_t maxv;
+  int32_t k;
+  IRRef simplified;
+
+  if (ir->o != IR_BAND || !irref_isk(ir->op2) || IR(ir->op2)->o != IR_KINT)
+    return 0;
+  k = IR(ir->op2)->i;
+  if (k < 0)
+    return 0;
+
+  if (loop_s390x_lowmask(k) &&
+      loop_s390x_ref_nonneg_max(J, ir->op1, stop, &maxv) && maxv <= k) {
+    *refp = op1;
+    UNUSED(op2);
+    return 1;
+  }
+
+  simplified = loop_s390x_emit_demanded_lowbits(J, ir->op1, (uint32_t)k,
+						subst, stop, 8);
+  if (simplified != op1) {
+    *refp = tref_ref(emitir(IRTI(IR_BAND), simplified, op2));
+    return 1;
+  }
+
+  return 0;
+}
+
+static int loop_s390x_addov_chain_from_acc(jit_State *J, IRRef ref,
+					   int32_t stop, IRRef *rootp,
+					   int64_t *maxp, uint8_t *stripov)
+{
+  IRIns *ir;
+  IRRef root;
+  int64_t chainmax, addmax;
+
+  if (irref_isk(ref))
+    return 0;
+  ir = IR(ref);
+  if (ir->o == IR_SLOAD && irt_isint(ir->t)) {
+    *rootp = ref;
+    *maxp = 0;
+    return 1;
+  }
+  if (ir->o != IR_ADDOV || !irt_isint(ir->t))
+    return 0;
+
+  if (loop_s390x_addov_chain_from_acc(J, ir->op1, stop, &root, &chainmax,
+				      stripov) &&
+      loop_s390x_ref_nonneg_max(J, ir->op2, stop, &addmax) &&
+      chainmax + addmax <= INT32_MAX) {
+    *rootp = root;
+    *maxp = chainmax + addmax;
+    if (stripov)
+      stripov[ref - REF_BIAS] = 1;
+    return 1;
+  }
+
+  if (loop_s390x_addov_chain_from_acc(J, ir->op2, stop, &root, &chainmax,
+				      stripov) &&
+      loop_s390x_ref_nonneg_max(J, ir->op1, stop, &addmax) &&
+      chainmax + addmax <= INT32_MAX) {
+    *rootp = root;
+    *maxp = chainmax + addmax;
+    if (stripov)
+      stripov[ref - REF_BIAS] = 1;
+    return 1;
+  }
+
+  return 0;
+}
+
+static int loop_s390x_ref_has_ir_use(jit_State *J, IRRef ref, IRRef invar)
+{
+  IRRef i;
+  for (i = ref + 1; i < invar; i++) {
+    IRIns *ir = IR(i);
+    if (ir->op1 == ref || ir->op2 == ref)
+      return 1;
+  }
+  return 0;
+}
+
+static int loop_s390x_has_call(jit_State *J, IRRef invar)
+{
+  IRRef i;
+  for (i = REF_FIRST; i < invar; i++) {
+    IROp op = IR(i)->o;
+    if (op >= IR_CALLN && op <= IR_CARG)
+      return 1;
+  }
+  return 0;
+}
+
+static int loop_s390x_guard_stripov_recurrence(jit_State *J, IRRef invar,
+					       uint8_t *stripov)
+{
+  IRRef ins, best = 0, bestroot = 0;
+  int32_t stop;
+  int64_t trips, bestmaxinc = 0;
+
+  if (!loop_s390x_unit_scev_bounds(J, NULL, &stop, &trips) ||
+      loop_s390x_has_call(J, invar))
+    return 0;
+
+  for (ins = REF_FIRST; ins < invar; ins++) {
+    IRIns *ir = IR(ins);
+    IRRef root = 0;
+    int64_t maxinc = 0;
+    if (ir->o != IR_ADDOV || !irt_isint(ir->t))
+      continue;
+    if (loop_s390x_ref_has_ir_use(J, ins, invar))
+      continue;
+    if (!loop_s390x_addov_chain_from_acc(J, ins, stop, &root, &maxinc, NULL))
+      continue;
+    if (maxinc < 200 || maxinc <= bestmaxinc)
+      continue;
+    best = ins;
+    bestroot = root;
+    bestmaxinc = maxinc;
+  }
+
+  if (best) {
+    int64_t maxsum = bestmaxinc * trips;
+    int64_t threshold;
+    if (maxsum <= 0 || maxsum > INT32_MAX)
+      return 0;
+    threshold = (int64_t)INT32_MAX - maxsum;
+    if (!irref_isk(J->scev.stop))
+      emitir(IRTGI(IR_EQ), J->scev.stop, lj_ir_kint(J, stop));
+    emitir(IRTGI(IR_LE), best, lj_ir_kint(J, (int32_t)threshold));
+    loop_s390x_addov_chain_from_acc(J, best, stop, &bestroot, &bestmaxinc,
+				    stripov);
+    return 1;
+  }
+
+  return 0;
+}
 #endif
 
 /* Unroll loop. */
@@ -419,6 +743,10 @@ static void loop_unroll(LoopState *lps)
   SnapShot *osnap, *loopsnap;
   SnapEntry *loopmap, *psentinel;
   IRRef ins, invar;
+#if LJ_TARGET_S390X
+  int s390x_have_bounds = 0;
+  int32_t s390x_stop = 0;
+#endif
 
   /* Allocate substitution table.
   ** Only non-constant refs in [REF_BIAS,invar) are valid indexes.
@@ -428,6 +756,17 @@ static void loop_unroll(LoopState *lps)
   lps->subst = lj_mem_newvec(J->L, lps->sizesubst, IRRef1);
   subst = lps->subst - REF_BIAS;
   subst[REF_BASE] = REF_BASE;
+#if LJ_TARGET_S390X
+  lps->sizestripov = lps->sizesubst;
+  lps->stripov = lj_mem_newvec(J->L, lps->sizestripov, uint8_t);
+  {
+    MSize i;
+    for (i = 0; i < lps->sizestripov; i++)
+      lps->stripov[i] = 0;
+  }
+  loop_s390x_guard_stripov_recurrence(J, invar, lps->stripov);
+  s390x_have_bounds = loop_s390x_unit_scev_bounds(J, NULL, &s390x_stop, NULL);
+#endif
 
   /* LOOP separates the pre-roll from the loop body. */
   emitir_raw(IRTG(IR_LOOP, IRT_NIL), 0, 0);
@@ -498,6 +837,28 @@ static void loop_unroll(LoopState *lps)
       }
     }
 #endif
+#if LJ_TARGET_S390X
+    if (s390x_have_bounds) {
+      IRRef ref;
+      if (loop_s390x_copy_fold_band(J, ir, op1, op2, subst, s390x_stop,
+				    &ref)) {
+	subst[ins] = (IRRef1)ref;
+	continue;
+      }
+    }
+#endif
+    if (
+#if LJ_TARGET_S390X
+	lps->stripov && ins >= REF_BIAS &&
+	lps->stripov[ins - REF_BIAS] && ir->o == IR_ADDOV
+#else
+	0
+#endif
+    ) {
+      IRRef ref = tref_ref(emitir(IRT(IR_ADD, irt_type(ir->t)), op1, op2));
+      subst[ins] = (IRRef1)ref;
+      continue;
+    }
     if (irm_kind(lj_ir_mode[ir->o]) == IRM_N &&
 	op1 == ir->op1 && op2 == ir->op2) {  /* Regular invariant ins? */
       subst[ins] = (IRRef1)ins;  /* Shortcut. */
@@ -599,8 +960,15 @@ int lj_opt_loop(jit_State *J)
   lps.J = J;
   lps.subst = NULL;
   lps.sizesubst = 0;
+#if LJ_TARGET_S390X
+  lps.stripov = NULL;
+  lps.sizestripov = 0;
+#endif
   errcode = lj_vm_cpcall(J->L, NULL, &lps, cploop_opt);
   lj_mem_freevec(J2G(J), lps.subst, lps.sizesubst, IRRef1);
+#if LJ_TARGET_S390X
+  lj_mem_freevec(J2G(J), lps.stripov, lps.sizestripov, uint8_t);
+#endif
   if (LJ_UNLIKELY(errcode)) {
     lua_State *L = J->L;
     if (errcode == LUA_ERRRUN && tvisnumber(L->top-1)) {  /* Trace error? */

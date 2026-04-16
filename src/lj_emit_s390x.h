@@ -102,10 +102,15 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
   ((uint32_t)(op) | (((uint32_t)(imm) & 0xffu) << 16) | \
    (((uint32_t)(b1) & 15u) << 12) | ((uint32_t)(disp) & 0xfffu))
 
+#define S390XI_CR	0x1900u
+#define S390XI_LCR	0x1300u
+#define S390XI_LTR	0x1200u
 #define S390XI_LGR	0xb9040000u
 #define S390XI_LRVGR	0xb90f0000u
 #define S390XI_LGFR	0xb9140000u
 #define S390XI_LLGFR	0xb9160000u
+#define S390XI_LLGCR	0xb9840000u
+#define S390XI_LLGHR	0xb9850000u
 #define S390XI_LRVR	0xb91f0000u
 #define S390XI_LCGFR	0xb9130000u
 #define S390XI_CDBR	0xb3190000u
@@ -132,12 +137,15 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CLGR	0xb9210000u
 #define S390XI_CGRJ	0xec0000000064ull
 #define S390XI_CRJ	0xec0000000076ull
+#define S390XI_CGFR	0xb9300000u
 #define S390XI_LGHI	0xa7090000u
 #define S390XI_AGHI	0xa70b0000u
+#define S390XI_CHI	0xa70e0000u
 #define S390XI_CGHI	0xa70f0000u
 #define S390XI_TMLL	0xa7010000u
 #define S390XI_MSGFI	0xc20000000000ull
 #define S390XI_AGFI	0xc20800000000ull
+#define S390XI_CFI	0xc20d00000000ull
 #define S390XI_CGFI	0xc20c00000000ull
 #define S390XI_AGR	0xb9080000u
 #define S390XI_OGR	0xb9810000u
@@ -147,11 +155,15 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_NGRK	0xb9e40000u
 #define S390XI_OGRK	0xb9e60000u
 #define S390XI_XGRK	0xb9e70000u
-#define S390XI_AGRK	0xb9e80000u
-#define S390XI_SGRK	0xb9e90000u
+#define S390XI_NRK	0xb9f40000u
+#define S390XI_ORK	0xb9f60000u
+#define S390XI_XRK	0xb9f70000u
 #define S390XI_ARK	0xb9f80000u
 #define S390XI_SRK	0xb9f90000u
+#define S390XI_AGRK	0xb9e80000u
+#define S390XI_SGRK	0xb9e90000u
 #define S390XI_LOCGR	0xb9e20000u
+#define S390XI_AHIK	0xec00000000d8ull
 #define S390XI_AGHIK	0xec00000000d9ull
 #define S390XI_LG	0xe30000000004ull
 #define S390XI_LLGF	0xe30000000016ull
@@ -175,6 +187,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_SRAG	0xeb000000000aull
 #define S390XI_SRLG	0xeb000000000cull
 #define S390XI_SLLG	0xeb000000000dull
+#define S390XI_SRA	0x8a000000u
 #define S390XI_RLL	0xeb000000001dull
 #define S390XI_SRAK	0xeb00000000dcull
 #define S390XI_SRLK	0xeb00000000deull
