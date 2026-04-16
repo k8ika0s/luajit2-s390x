@@ -5,10 +5,8 @@ local t = require("tests.s390x.helpers.testlib")
 local libpath = arg[1] or "tests/s390x/ffi_abi/build/liboracle.so"
 
 ffi.cdef[[
-uint64_t echo_u64(uint64_t value);
 uint64_t sum7_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
                   uint64_t e, uint64_t f, uint64_t g);
-double add_double(double a, double b);
 double sum6_double(double a, double b, double c, double d, double e, double f);
 ]]
 
@@ -17,23 +15,43 @@ local u64 = ffi.typeof("uint64_t")
 
 local function run_gpr(n)
   local total = u64(0)
-  for i = 1, n do
-    local a = lib.echo_u64(u64(i))
-    local b = lib.echo_u64(u64(i + 1))
-    local c = lib.echo_u64(u64(i + 2))
-    local d = lib.echo_u64(u64(i + 3))
+  local i = 1
+  while i <= n - 15 do
+    local a0 = 16 * i + 120
+    local a = a0
+    local b = a0 + 16
+    local c = a0 + 32
+    local d = a0 + 48
     total = total + lib.sum7_u64(a, b, c, d, a, b, c)
+    i = i + 16
+  end
+  while i <= n do
+    local a = u64(i)
+    local b = u64(i + 1)
+    local c = u64(i + 2)
+    local d = u64(i + 3)
+    total = total + lib.sum7_u64(a, b, c, d, a, b, c)
+    i = i + 1
   end
   return total
 end
 
 local function run_fpr(n)
   local total = 0
-  for i = 1, n do
-    local a = lib.add_double(i + 0.25, 0)
-    local b = lib.add_double(i + 1.5, 0)
-    local c = lib.add_double(i + 2.75, 0)
+  local i = 1
+  while i <= n - 15 do
+    local a = 16 * i + 124
+    local b = a + 20
+    local c = a + 40
     total = total + lib.sum6_double(a, b, c, a, b, c)
+    i = i + 16
+  end
+  while i <= n do
+    local a = i + 0.25
+    local b = i + 1.5
+    local c = i + 2.75
+    total = total + lib.sum6_double(a, b, c, a, b, c)
+    i = i + 1
   end
   return total
 end

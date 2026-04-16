@@ -131,9 +131,8 @@ static int asm_s390x_direct_call_arg_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_DIRECT_CALL_ARG");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_DIRECT_CALL_ARG");
-    enabled = (opt_in != NULL && opt_out == NULL);
+    enabled = (opt_out == NULL);
   }
   return enabled;
 }
