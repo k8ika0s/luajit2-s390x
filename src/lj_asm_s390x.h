@@ -2171,6 +2171,26 @@ static IROp asm_comp_swapop(IROp op)
   }
 }
 
+static int asm_s390x_redundant_loop_ugt(ASMState *as, IRIns *ir,
+					IRRef lref, IRRef rref)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *prior;
+  uint64_t k;
+  if (ref <= as->loopref || ir->o != IR_UGT || !irt_isguard(ir->t))
+    return 0;
+  if (lref >= as->loopref || !irref_isk(rref))
+    return 0;
+  k = (uint64_t)asm_kintptr(as, rref);
+  for (prior = IR(as->loopref-1); prior > IR(REF_BASE); prior--) {
+    if (prior->o == IR_UGT && irt_isguard(prior->t) &&
+	prior->op1 == lref && irref_isk(prior->op2) &&
+	(uint64_t)asm_kintptr(as, prior->op2) >= k)
+      return 1;
+  }
+  return 0;
+}
+
 static void asm_intcomp(ASMState *as, IRIns *ir)
 {
   IROp op = ir->o;
@@ -2192,6 +2212,8 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   if (!irref_isk(rref))
     rir = IR(rref);
   cc = asm_compmap[op];
+  if (asm_s390x_redundant_loop_ugt(as, ir, lref, rref))
+    return;
   left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
   asm_guardcc(as, cc & 15);
   if (irref_isk(rref) && (cc & CC_UNSIGNED) && irt_isaddr(ir->t) &&
