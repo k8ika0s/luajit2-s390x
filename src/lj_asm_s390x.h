@@ -622,6 +622,21 @@ static int asm_s390x_only_used_by_reg_add(ASMState *as, IRIns *ir)
   return uses > 0;
 }
 
+static int asm_s390x_only_used_by_ref(ASMState *as, IRIns *ir, IRRef useref)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int uses = 0;
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if ((IRRef)(use - as->ir) != useref)
+      return 0;
+    uses++;
+  }
+  return uses == 1;
+}
+
 static int asm_s390x_hload_fun_equal_info(ASMState *as, IRIns *ir,
 					  IRIns **hrefkp,
 					  int32_t *ofsp, uint64_t *kp)
@@ -2676,6 +2691,67 @@ static int asm_bxor_bnot(ASMState *as, IRIns *ir)
   return 1;
 }
 
+static int asm_bxor_bswap_bnot_accflip_loop_tail(ASMState *as, IRIns *ir)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRRef bnotref = 0, innerref = 0, bswapref = 0, accref = 0, srcref;
+  IRIns *bnot, *inner, *bswap, *accir;
+  Reg acc, src, dest;
+  RegSet allow;
+
+  if (irt_is64(ir->t) || !as->loopref || ref <= as->loopref)
+    return 0;
+  if (mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+      (bnot = IR(ir->op1))->o == IR_BNOT && ra_noreg(bnot->r) &&
+      mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+      (inner = IR(ir->op2))->o == IR_BXOR && ra_noreg(inner->r)) {
+    bnotref = ir->op1;
+    innerref = ir->op2;
+  } else if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+	     (bnot = IR(ir->op2))->o == IR_BNOT && ra_noreg(bnot->r) &&
+	     mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+	     (inner = IR(ir->op1))->o == IR_BXOR && ra_noreg(inner->r)) {
+    bnotref = ir->op2;
+    innerref = ir->op1;
+  } else {
+    return 0;
+  }
+
+  bnot = IR(bnotref);
+  inner = IR(innerref);
+  if (mayfuse(as, inner->op1) && !irref_isk(inner->op1) &&
+      (bswap = IR(inner->op1))->o == IR_BSWAP && ra_noreg(bswap->r)) {
+    bswapref = inner->op1;
+    accref = inner->op2;
+  } else if (mayfuse(as, inner->op2) && !irref_isk(inner->op2) &&
+	     (bswap = IR(inner->op2))->o == IR_BSWAP && ra_noreg(bswap->r)) {
+    bswapref = inner->op2;
+    accref = inner->op1;
+  } else {
+    return 0;
+  }
+
+  bswap = IR(bswapref);
+  if (irref_isk(accref) || bnot->op1 != bswap->op1)
+    return 0;
+  accir = IR(accref);
+  if (!asm_s390x_only_used_by_ref(as, accir, innerref))
+    return 0;
+  srcref = bnot->op1;
+
+  acc = ra_alloc1_nobase(as, accref, RSET_GPR_NOB, -231);
+  src = ra_alloc1_nobase(as, srcref, rset_exclude(RSET_GPR_NOB, acc), -232);
+  allow = rset_exclude(rset_exclude(RSET_GPR_NOB, acc), src);
+  dest = ra_dest_nobase(as, ir, allow, -230);
+  asm_s390x_bitop_log(as, "bxor_bswap_bnot_accflip_loop_tail", ir, dest, src, acc, 0);
+  asm_bnorm32(as, ir, dest);
+  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, acc, dest));
+  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, src, dest));
+  emit_u32(as, S390X_INS_RXE(S390XI_LRVR, dest, src));
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_XILF, acc, 0xffffffffu));
+  return 1;
+}
+
 static void asm_bnot(ASMState *as, IRIns *ir)
 {
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -234);
@@ -2815,6 +2891,8 @@ static void asm_bxor(ASMState *as, IRIns *ir)
   IRIns *shift;
   int32_t sh;
 
+  if (asm_bxor_bswap_bnot_accflip_loop_tail(as, ir))
+    return;
   if (asm_bxor_bnot(as, ir))
     return;
   if (asm_bxor_brol_pair(as, ir))
