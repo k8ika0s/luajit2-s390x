@@ -1,6 +1,84 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 13:05 PDT
+Last updated: 2026-04-16 13:13 PDT
+
+## Current Matrix
+
+This is the authoritative top matrix. Update this section whenever a new full
+retained-env matrix artifact supersedes the previous one. Historical checkpoint
+notes and experiment logs belong below this section or in
+[findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
+
+- Current code source point: `5975950c`, the PHI loop recurrence merge.
+- Current docs checkpoint before this cleanup: `d48b352e`.
+- Current s390x artifact:
+  `artifacts/s390x/s390x-kdz1-20260416T194254Z`.
+- Current x86 comparison:
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T194254Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
+- Run health: `2160` s390x benchmark records, `360` comparison rows,
+  `0` s390x failures, GCC/Clang, JIT-on/`-joff`, three alternating passes.
+- Regression read: no material JIT-on regression blocker. The generated
+  summary names only `gcc iterator_table/pairs_sum/hot` as slower than
+  `-joff`, at `1.0506x` (`0.004422s` vs `0.004209s`).
+
+| Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `dispatch_trace` | `numeric_loop/hot` | `0.000312` | `0.002201` | `7.054x` | `0.000321` | `6.645x` |
+| `dispatch_trace` | `side_exit_loop/hot` | `0.000481` | `0.004687` | `9.744x` | `0.000467` | `8.062x` |
+| `dispatch_trace` | `hotexit_loop/hot` | `0.000734` | `0.005682` | `7.741x` | `0.000697` | `7.594x` |
+| `iterator_table` | `pairs_sum/hot` | `0.002927` | `0.004209` | `1.438x` | `0.002842` | `1.523x` |
+| `iterator_table` | `pairs_array_sum/hot` | `0.002778` | `0.003839` | `1.382x` | `0.003019` | `1.266x` |
+| `mixed_noffi` | `mixed_loop/hot` | `0.003556` | `0.004119` | `1.158x` | `0.003560` | `1.163x` |
+| `vararg_paths` | `sum_loop/hot` | `0.000025` | `0.004388` | `175.520x` | `0.000025` | `168.440x` |
+| `vararg_paths` | `retlast_loop/hot` | `0.000025` | `0.002078` | `83.120x` | `0.000025` | `79.240x` |
+| `vararg_paths` | `retconst_loop/hot` | `0.000010` | `0.000592` | `59.200x` | `0.000010` | `55.400x` |
+| `mixed_ffi` | `mixed_ffi_loop/hot` | `0.000100` | `0.012154` | `121.540x` | `0.000099` | `130.747x` |
+| `ffi_cdata` | `pair_loop/hot` | `0.000044` | `0.017253` | `392.114x` | `0.000044` | `402.205x` |
+| `ffi_cdata` | `mixed_width_loop/hot` | `0.000247` | `0.028074` | `113.660x` | `0.000241` | `118.033x` |
+| `ffi_cdata` | `buffer_fref_loop/hot` | `0.000248` | `0.005073` | `20.456x` | `0.000237` | `21.376x` |
+| `ffi_calls` | `direct_abs/hot` | `0.000248` | `0.010339` | `41.690x` | `0.000187` | `54.545x` |
+| `ffi_calls` | `stored_abs/hot` | `0.000247` | `0.007063` | `28.595x` | `0.000187` | `36.684x` |
+| `ffi_fixed_call_pressure` | `gpr_pressure/hot` | `0.000259` | `0.024555` | `94.807x` | `0.000362` | `67.688x` |
+| `ffi_fixed_call_pressure` | `fpr_pressure/hot` | `0.000253` | `0.011647` | `46.036x` | `0.000292` | `40.003x` |
+| `ffi_fixed_struct_calls` | `one_double_take6/hot` | `0.000381` | `0.018334` | `48.121x` | `0.000424` | `42.743x` |
+| `ffi_fixed_struct_calls` | `small_u64_take7/hot` | `0.000931` | `0.023504` | `25.246x` | `0.000888` | `27.512x` |
+| `be_helpers` | `strto_loop/hot` | `0.000724` | `0.008219` | `11.352x` | `0.000660` | `12.583x` |
+| `be_helpers` | `number_helper_loop/hot` | `0.000105` | `0.002280` | `21.714x` | `0.000105` | `20.781x` |
+| `be_helpers` | `num_aload_loop/hot` | `0.000111` | `0.003948` | `35.568x` | `0.000111` | `32.883x` |
+| `numeric_ops` | `abs_loop/hot` | `0.000108` | `0.003981` | `36.861x` | `0.000106` | `36.802x` |
+| `numeric_ops` | `div_loop/hot` | `0.000187` | `0.002292` | `12.257x` | `0.000186` | `11.462x` |
+| `numeric_ops` | `fp_mod_loop/hot` | `0.000287` | `0.004615` | `16.080x` | `0.000288` | `15.236x` |
+| `numeric_ops` | `min_loop/hot` | `0.000080` | `0.002418` | `30.225x` | `0.000078` | `31.500x` |
+| `numeric_ops` | `max_loop/hot` | `0.000123` | `0.002629` | `21.374x` | `0.000121` | `21.545x` |
+| `numeric_ops` | `sqrt_loop/hot` | `0.000226` | `0.003454` | `15.283x` | `0.000225` | `15.307x` |
+| `bitops_mix` | `mix_bits/hot` | `0.000014` | `0.001794` | `128.143x` | `0.000014` | `131.500x` |
+| `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000019` | `0.001859` | `97.842x` | `0.000020` | `93.500x` |
+| `int_add_phi_only` | `add_phi_only/hot` | `0.000004` | `0.000021` | `5.250x` | `0.000004` | `5.250x` |
+| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.002073` | `0.015125` | `7.296x` | `0.002046` | `7.248x` |
+| `string_heavy` | `byte_scan_loop/hot` | `0.005815` | `0.073674` | `12.670x` | `0.005591` | `13.768x` |
+| `string_heavy` | `manual_find_loop/hot` | `0.005582` | `0.048956` | `8.770x` | `0.005758` | `8.857x` |
+| `string_heavy` | `miss_find_loop/hot` | `0.001769` | `0.007265` | `4.107x` | `0.002525` | `3.152x` |
+| `string_heavy` | `concat_slice_loop/hot` | `0.001181` | `0.010074` | `8.530x` | `0.001328` | `7.650x` |
+| `string_heavy` | `string_key_lookup_loop/hot` | `0.000329` | `0.002581` | `7.845x` | `0.000339` | `6.767x` |
+
+## Current Queue
+
+- Regression queue: empty. Do not patch from noise-level red rows without a
+  repeated official-row mechanism.
+- Rerank watch: `iterator_table/pairs_sum/hot` is the only generated-summary
+  red row, but the delta is small (`+0.000213s` on GCC in the summary read).
+  Treat it as a focused truth-pack candidate, not a broad rollback target.
+- Acceleration queue by absolute JIT time: `string_heavy/byte_scan_loop`,
+  `string_heavy/manual_find_loop`, `mixed_noffi/mixed_loop`,
+  `iterator_table/pairs_sum`, `iterator_table/pairs_array_sum`,
+  and `lower_frame_same_callsite/lua_abs_same_callsite`.
+- Cross-architecture queue: `ffi_fixed_call_pressure/gpr_pressure`,
+  `large_immediates/add_large`, `numeric_ops/abs_loop`, and selected
+  string-heavy rows remain slower than x86 JIT-on even when strongly faster
+  than s390x `-joff`.
+
+## Checkpoint Notes
 
 ## 2026-04-16 PHI Loop Recurrence Promotion
 
@@ -592,9 +670,9 @@ Last updated: 2026-04-16 13:05 PDT
   `tests/s390x/ffi_abi/build/liboracle.so` natively on the remote s390x mirror
   whenever `ffi_fixed_call_pressure` or `ffi_fixed_struct_calls` is selected.
   This keeps tracked-file sync correct while avoiding host-built `.so` reuse.
-  Full `kdz` artifact `/tmp/kdz-retained-jitter-20260412085621` now includes
-  those rows. The primary matrix below has been restamped from that artifact;
-  the only red-ish rows are tiny/noisy deltas, while the fixed-call and
+  Full `kdz` artifact `/tmp/kdz-retained-jitter-20260412085621` included
+  those rows. Later full artifacts supersede it in the top matrix; at the time
+  the only red-ish rows were tiny/noisy deltas, while the fixed-call and
   fixed-struct oracle rows are mostly deep in the compiled fast band.
 
 ## Canonical Perf Suite
@@ -638,110 +716,30 @@ enough for retained policy rows.
 ## How To Read This Page
 
 - The top matrix is the current retained row for each stable carried workload.
-- The pinned blocker table is the short view for what still hurts most.
+- The current queue immediately below the top matrix is the short view for
+  what still hurts most.
 - Historical host tables later in the file are evidence snapshots for a
   specific host and candidate surface. They are not the current matrix.
 - Experimental and mechanism-only suites stay out of the main matrix even when
   they have dramatic ratios.
 
-## Full Stable Matrix
+## Current Matrix Maintenance
 
-This is the current retained matrix for the stable carried workloads. If a
-workload belongs to the carried suite, it should have one row here even if the
-number is ugly.
+The current matrix has moved to the top of this file. This section is
+intentionally not a second table, because the stale duplicate table here was
+causing drift. Historical matrix snapshots remain in the chronological log and
+artifact directories, but only the `Current Matrix` section above is the
+canonical live view.
 
-Base source: `/tmp/kdz-retained-jitter-post-hload-20260415074738`, full retained env,
-all known `probe_retained_jitter.py` families, `S390X_PERF_SAMPLES=5`,
-`S390X_PERF_WARMUP=2`, three alternating passes. Selected retained-win rows
-are restamped from their later focused or full-matrix artifacts, including
-`/tmp/kdz-retained-jitter-20260412123059` for the `bit.tobit` helper rows.
-Oracle-backed FFI rows are included via a native remote
-`tests/s390x/build_oracles.sh` build.
+Rules:
 
-| Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Current state |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004376` | `0.004285` | `-0.000013`, `0.9969x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003665` | `0.003666` | `-0.000021`, `0.9945x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
-| `mixed_loop/hot` | `mixed_noffi` | `0.003840` | `0.003777` | `+0.000063`, `1.0167x` | `kdz` | `2026-04-15 07:49 PDT` | exact mixed `BC_ITERL` matcher restamped before broad iterator fallback; tiny residual only |
-| `mixed_ffi_loop/hot` | `mixed_ffi` | `0.000824` | `0.012084` | `-0.011260`, `0.0682x` | `kdz` | `2026-04-12 08:58 PDT` | compiled fast band after guardrail promotions |
-| `number_helper_loop/hot` | `be_helpers` | `0.000075` | `0.002288` | `-0.002213`, `0.0328x` | `kdz` | `2026-04-12 12:32 PDT` | retained safe `bit.tobit` constant-bounded `MULOV` narrowing |
-| `be_pack_loop/hot` | `be_helpers` | `0.000247` | `0.018806` | `-0.018559`, `0.0131x` | `kdz` | `2026-04-12 08:58 PDT` | exact be-pack root allowed to compile |
-| `strto_loop/hot` | `be_helpers` | `0.000645` | `0.008222` | `-0.007577`, `0.0804x` | `kdz` | `2026-04-15 07:49 PDT` | retained STRTO short-string cache fast band |
-| `direct_abs/hot` | `ffi_calls` | `0.000282` | `0.010242` | `-0.009960`, `0.0275x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
-| `stored_abs/hot` | `ffi_calls` | `0.000281` | `0.007012` | `-0.006731`, `0.0401x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
-| `mix_bits/hot` | `bitops_mix` | `0.000024` | `0.002181` | `-0.002157`, `0.0110x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
-| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000027` | `0.002176` | `-0.002149`, `0.0124x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
-| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000026` | `0.002031` | `-0.002005`, `0.0128x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
-| `numeric_loop/hot` | `dispatch_trace` | `0.000278` | `0.002204` | `-0.001926`, `0.1261x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch row compiled fast under current retained env |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.000542` | `0.004639` | `-0.004097`, `0.1168x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch side-exit row compiled fast |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.000732` | `0.005714` | `-0.004982`, `0.1281x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch hotexit row compiled fast |
-| `max_loop/hot` | `numeric_ops` | `0.000176` | `0.002608` | `-0.002432`, `0.0675x` | `kdz` | `2026-04-12 08:58 PDT` | exact max body side-trace allow retained |
-| `pair_loop/hot` | `ffi_cdata` | `0.000056` | `0.017314` | `-0.017258`, `0.0033x` | `kdz` | `2026-04-12 08:58 PDT` | obsolete cdata FORL guard retired; compiled fast band |
-| `mixed_width_loop/hot` | `ffi_cdata` | `0.000271` | `0.028213` | `-0.027942`, `0.0095x` | `kdz` | `2026-04-12 11:36 PDT` | retained cdata mixed-width `MOD` / narrow-`XSTORE` closure |
-| `buffer_fref_loop/hot` | `ffi_cdata` | `0.000273` | `0.004959` | `-0.004686`, `0.0551x` | `kdz` | `2026-04-12 13:50 PDT` | retained integer MIN plus BUFHDR backend closure |
-| `sum_loop/hot` | `vararg_paths` | `0.004414` | `0.004312` | `+0.000106`, `1.0246x` | `kdz` | `2026-04-15 07:49 PDT` | small/noisy residual only; no material payer |
-| `retlast_loop/hot` | `vararg_paths` | `0.000105` | `0.001976` | `-0.001871`, `0.0531x` | `kdz` | `2026-04-15 07:49 PDT` | retained fast row |
-| `retconst_loop/hot` | `vararg_paths` | `0.000533` | `0.000530` | `+0.000005`, `1.0095x` | `kdz` | `2026-04-15 07:49 PDT` | tiny/noisy residual only |
-| `gpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.000260` | `0.024619` | `-0.024359`, `0.0106x` | `kdz` | `2026-04-12 11:05 PDT` | retained 64-bit integer `FLOAD` closure |
-| `fpr_pressure/hot` | `ffi_fixed_call_pressure` | `0.000266` | `0.011621` | `-0.011355`, `0.0229x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fast band |
-| `small_u32_call/hot` | `ffi_fixed_struct_calls` | `0.000416` | `0.010782` | `-0.010366`, `0.0390x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `small_u64_call/hot` | `ffi_fixed_struct_calls` | `0.000431` | `0.010767` | `-0.010336`, `0.0400x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `one_float_call/hot` | `ffi_fixed_struct_calls` | `0.000195` | `0.006208` | `-0.006013`, `0.0314x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `one_double_call/hot` | `ffi_fixed_struct_calls` | `0.000173` | `0.006166` | `-0.005993`, `0.0281x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `big_pair_call/hot` | `ffi_fixed_struct_calls` | `0.000429` | `0.012778` | `-0.012349`, `0.0334x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `hfa2d_call/hot` | `ffi_fixed_struct_calls` | `0.000214` | `0.008441` | `-0.008227`, `0.0260x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `small_u32_take6/hot` | `ffi_fixed_struct_calls` | `0.000647` | `0.021029` | `-0.020382`, `0.0305x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `small_u32_take7/hot` | `ffi_fixed_struct_calls` | `0.000873` | `0.023503` | `-0.022630`, `0.0374x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `small_u64_take6/hot` | `ffi_fixed_struct_calls` | `0.000695` | `0.021324` | `-0.020629`, `0.0326x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `small_u64_take7/hot` | `ffi_fixed_struct_calls` | `0.000947` | `0.023701` | `-0.022754`, `0.0400x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `one_double_take6/hot` | `ffi_fixed_struct_calls` | `0.000383` | `0.018252` | `-0.017869`, `0.0210x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `one_double_take7/hot` | `ffi_fixed_struct_calls` | `0.000726` | `0.021625` | `-0.020899`, `0.0336x` | `kdz` | `2026-04-12 08:58 PDT` | remote `liboracle.so` build now included; fixed-struct call fast band |
-| `manual_find_loop/hot` | `string_heavy` | `0.006677` | `0.048661` | `-0.042001`, `0.1376x` | `kdz` | `2026-04-15 07:49 PDT` | new string-heavy coverage; JIT-positive |
-| `byte_scan_loop/hot` | `string_heavy` | `0.007759` | `0.073722` | `-0.065930`, `0.1053x` | `kdz` | `2026-04-15 07:49 PDT` | new string-heavy coverage; JIT-positive |
-| `string_key_lookup_loop/hot` | `string_heavy` | `0.000342` | `0.002601` | `-0.002259`, `0.1315x` | `kdz` | `2026-04-15 07:49 PDT` | dynamic string-key HREF/HLOAD guardrail retained |
-
-## Pinned Recurring Workloads
-
-This is the top progress view. It is not “best-only” anymore, and it is split
-so the live blockers stay visually dominant.
-
-### Gate And Blocker Workloads
-
-These rows should remain at the top until the branch-level gaps materially
-shrink.
-
-| Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `pairs_sum/hot` | `iterator_table` | `0.004376` | `0.004285` | `-0.000013`, `0.9969x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
-| `pairs_array_sum/hot` | `iterator_table` | `0.003665` | `0.003666` | `-0.000021`, `0.9945x` | `kdz` | `2026-04-15 07:49 PDT` | current exact root-`BC_ITERN` proto-NOJIT shapes retained; parity/noise |
-| `mixed_loop/hot` | `mixed_noffi` | `0.003840` | `0.003777` | `+0.000063`, `1.0167x` | `kdz` | `2026-04-15 07:49 PDT` | exact mixed `BC_ITERL` matcher restamped before broad iterator fallback; tiny residual only |
-| `numeric_loop/hot` | `dispatch_trace` | `0.000278` | `0.002204` | `-0.001926`, `0.1261x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch row compiled fast under current retained env |
-| `side_exit_loop/hot` | `dispatch_trace` | `0.000542` | `0.004639` | `-0.004097`, `0.1168x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch side-exit row compiled fast |
-| `hotexit_loop/hot` | `dispatch_trace` | `0.000732` | `0.005714` | `-0.004982`, `0.1281x` | `kdz` | `2026-04-15 07:49 PDT` | dispatch hotexit row compiled fast |
-| `sum_loop/hot` | `vararg_paths` | `0.004414` | `0.004312` | `+0.000106`, `1.0246x` | `kdz` | `2026-04-15 07:49 PDT` | small/noisy residual only; no material payer |
-
-### Regression And Control Workloads
-
-These rows stay pinned too, but they are controls and regression screens rather
-than the primary “still slow” blockers.
-
-| Workload | Family | Current retained JIT-on | `-joff` | Gap / Ratio | Host | Captured | Status / Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `number_helper_loop/hot` | `be_helpers` | `0.000075` | `0.002288` | `-0.002213`, `0.0328x` | `kdz` | `2026-04-12 12:32 PDT` | retained safe `bit.tobit` constant-bounded `MULOV` narrowing |
-| `be_pack_loop/hot` | `be_helpers` | `0.000247` | `0.018806` | `-0.018559`, `0.0131x` | `kdz` | `2026-04-12 08:58 PDT` | exact be-pack root allowed to compile |
-| `direct_abs/hot` | `ffi_calls` | `0.000282` | `0.010242` | `-0.009960`, `0.0275x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
-| `stored_abs/hot` | `ffi_calls` | `0.000281` | `0.007012` | `-0.006731`, `0.0401x` | `kdz` | `2026-04-12 08:58 PDT` | FFI call lowering fast band |
-| `mix_bits/hot` | `bitops_mix` | `0.000024` | `0.002181` | `-0.002157`, `0.0110x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
-| `chain_tail_add/hot` | `logical_chain_tail_add` | `0.000027` | `0.002176` | `-0.002149`, `0.0124x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
-| `chain_tail_store/hot` | `logical_chain_tail_store` | `0.000026` | `0.002031` | `-0.002005`, `0.0128x` | `kdz` | `2026-04-12 14:33 PDT` | exact promotion-core split retained; host-pair fast band |
-
-Pinned-workload rules from here:
-
-- Do not add or remove rows casually.
-- Keep the same recurring workloads at the top even when they look good or bad.
-- If a row changes meaning, record the reason explicitly in `Status / Notes`.
-- Put one-off experiments and branch-only candidates in the chronological log
-  below, not in the pinned row set.
+- Update the top matrix from full retained-env artifacts only.
+- Do not restamp the top matrix from focused probes, smoke runs, or temporary
+  truth-pack reducers.
+- Keep focused probes in [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md)
+  unless they become a retained full-matrix checkpoint.
+- If a row is added to the stable matrix, add it at the top and state why it is
+  now a recurring row.
 
 ## Experimental And Mechanism-Only Suites
 
@@ -1472,14 +1470,14 @@ scoreboards.
 
 Use this rule when a row appears here and also has a row at the top:
 
-| Row class | What it means | Should it have a retained row in `Full Stable Matrix`? |
+| Row class | What it means | Should it have a retained row in `Current Matrix`? |
 | --- | --- | --- |
 | stable carried workload | recurring checked-in suite member that we want to track over time | yes |
 | non-retained surface result | same workload, but on an older or non-retained candidate surface | no; keep only as history |
 | experimental / mechanism row | localized, static-stop, route-around, or narrow reproducer evidence | no |
 
 If a workload is part of the stable carried suite, the current retained answer
-for that workload lives in `Full Stable Matrix` near the top. If it only
+for that workload lives in `Current Matrix` at the top. If it only
 appears in the tables below, it is historical evidence or an experiment row,
 not part of the retained current matrix.
 
