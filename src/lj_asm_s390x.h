@@ -2528,6 +2528,37 @@ static void asm_bitop_logic(ASMState *as, IRIns *ir, uint32_t op)
   }
 }
 
+static int asm_bxor_bnot(ASMState *as, IRIns *ir)
+{
+  IRRef bnotref = 0, otherref = 0;
+  IRIns *bnot;
+  Reg left, right, dest;
+
+  if (irt_is64(ir->t))
+    return 0;
+  if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+      (bnot = IR(ir->op2))->o == IR_BNOT && ra_noreg(bnot->r)) {
+    bnotref = ir->op2;
+    otherref = ir->op1;
+  } else if (mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+	     (bnot = IR(ir->op1))->o == IR_BNOT && ra_noreg(bnot->r)) {
+    bnotref = ir->op1;
+    otherref = ir->op2;
+  } else {
+    return 0;
+  }
+
+  bnot = IR(bnotref);
+  left = ra_alloc1_nobase(as, otherref, RSET_GPR_NOB, -231);
+  right = ra_alloc1_nobase(as, bnot->op1, rset_exclude(RSET_GPR_NOB, left), -232);
+  dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -230);
+  asm_s390x_bitop_log(as, "bxor_bnot", ir, dest, left, right, 0);
+  asm_bnorm32(as, ir, dest);
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_XILF, dest, 0xffffffffu));
+  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, right, left));
+  return 1;
+}
+
 static void asm_bnot(ASMState *as, IRIns *ir)
 {
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -234);
@@ -2568,6 +2599,8 @@ static void asm_bor(ASMState *as, IRIns *ir)
 
 static void asm_bxor(ASMState *as, IRIns *ir)
 {
+  if (asm_bxor_bnot(as, ir))
+    return;
   asm_bitop_logic(as, ir, S390XI_XGR);
 }
 
