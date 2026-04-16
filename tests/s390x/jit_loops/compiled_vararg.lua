@@ -44,11 +44,10 @@ local actual = drive(sum_window)
 t.eq(actual, expected, "compiled vararg loop")
 t.truthy(jutil.traceinfo(1) ~= nil, "compiled vararg trace exists")
 
--- These remain tracked vararg edges on s390x and are intentionally kept out of
--- the closure trace gate until the traced loop-carried dynamic-select path is
--- fixed.
-jit.off(sum_window_loop_index, true)
-t.eq(sum_window_loop_index(1, 2, 3, 4), 10, "compiled vararg loop-index interp")
+jit.flush()
+t.eq(sum_window_loop_index(1, 2, 3, 4), 10, "compiled vararg loop-index")
+t.truthy(jutil.traceinfo(1) ~= nil, "compiled vararg loop-index trace exists")
 
-jit.off(sum_window_header_limit, true)
-t.eq(sum_window_header_limit(1, 2, 3, 4), 10, "compiled vararg header-limit interp")
+jit.flush()
+t.eq(sum_window_header_limit(1, 2, 3, 4), 10, "compiled vararg header-limit")
+t.truthy(jutil.traceinfo(1) ~= nil, "compiled vararg header-limit trace exists")

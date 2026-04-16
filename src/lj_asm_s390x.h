@@ -2505,6 +2505,157 @@ static void asm_bror(ASMState *as, IRIns *ir)
 {
   asm_brot(as, ir, 1);
 }
+
+static IRRef asm_s390x_mod_step_ref(ASMState *as, IRIns *ir, int32_t *kp)
+{
+  IRIns *add1, *mulk, *shr, *addbias, *mod;
+  IRRef ref;
+  int32_t k, shift;
+
+  if (ir->o != IR_SUB || !irt_isint(ir->t) ||
+      irref_isk(ir->op1) || irref_isk(ir->op2))
+    return REF_NIL;
+
+  add1 = IR(ir->op1);
+  mulk = IR(ir->op2);
+  if (add1->o != IR_ADD || !irref_isk(add1->op2) ||
+      IR(add1->op2)->o != IR_KINT || IR(add1->op2)->i != 1 ||
+      mulk->o != IR_MUL || !irref_isk(mulk->op2) ||
+      IR(mulk->op2)->o != IR_KINT || irref_isk(mulk->op1))
+    return REF_NIL;
+  k = IR(mulk->op2)->i;
+  if (k <= 1 || !checki16(k))
+    return REF_NIL;
+
+  shr = IR(mulk->op1);
+  if (shr->o != IR_BSHR || !irref_isk(shr->op2) ||
+      IR(shr->op2)->o != IR_KINT || irref_isk(shr->op1))
+    return REF_NIL;
+  shift = IR(shr->op2)->i;
+  if (shift <= 0 || shift >= 32)
+    return REF_NIL;
+
+  addbias = IR(shr->op1);
+  if (addbias->o != IR_ADD || !irref_isk(addbias->op2) ||
+      IR(addbias->op2)->o != IR_KINT ||
+      IR(addbias->op2)->i != k - 1 ||
+      add1->op1 != addbias->op1)
+    return REF_NIL;
+  if ((1u << (shift - 1)) != (uint32_t)(k - 1))
+    return REF_NIL;
+
+  ref = add1->op1;
+  if (irref_isk(ref))
+    return REF_NIL;
+  mod = IR(ref);
+  if (mod->o != IR_MOD || !irref_isk(mod->op2) ||
+      IR(mod->op2)->o != IR_KINT || IR(mod->op2)->i != k)
+    return REF_NIL;
+  *kp = k;
+  UNUSED(as);
+  return ref;
+}
+
+static int asm_s390x_mod_step(ASMState *as, IRIns *ir)
+{
+  int32_t k;
+  IRRef ref = asm_s390x_mod_step_ref(as, ir, &k);
+  Reg dest, left, zero;
+
+  if (ref == REF_NIL)
+    return 0;
+
+  dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -283);
+  left = ra_hintalloc_nobase(as, ref, dest, RSET_GPR_NOB, -284);
+  zero = ra_scratch(as, rset_exclude(rset_exclude(RSET_GPR_NOB, dest), left));
+
+  emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_EQ, zero));
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, dest, k));
+  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, 1));
+  emit_u32(as, S390X_INS_RXE(S390XI_XGR, zero, zero));
+  if (dest != left)
+    emit_movrr(as, ir, dest, left);
+  return 1;
+}
+
+static IRRef asm_s390x_mod_value_step_ref(ASMState *as, IRIns *ir,
+					  int32_t *kp)
+{
+  IRIns *add1, *mulk, *shr, *addbias, *value, *mod;
+  IRRef ref;
+  int32_t k, shift;
+
+  if (ir->o != IR_SUB || !irt_isint(ir->t) ||
+      irref_isk(ir->op1) || irref_isk(ir->op2))
+    return REF_NIL;
+
+  add1 = IR(ir->op1);
+  mulk = IR(ir->op2);
+  if (add1->o != IR_ADD || !irref_isk(add1->op2) ||
+      IR(add1->op2)->o != IR_KINT || IR(add1->op2)->i != 1 ||
+      mulk->o != IR_MUL || !irref_isk(mulk->op2) ||
+      IR(mulk->op2)->o != IR_KINT || irref_isk(mulk->op1))
+    return REF_NIL;
+  k = IR(mulk->op2)->i;
+  if (k <= 1 || k >= 32767)
+    return REF_NIL;
+
+  shr = IR(mulk->op1);
+  if (shr->o != IR_BSHR || !irref_isk(shr->op2) ||
+      IR(shr->op2)->o != IR_KINT || irref_isk(shr->op1))
+    return REF_NIL;
+  shift = IR(shr->op2)->i;
+  if (shift <= 0 || shift >= 32)
+    return REF_NIL;
+
+  addbias = IR(shr->op1);
+  if (addbias->o != IR_ADD || !irref_isk(addbias->op2) ||
+      IR(addbias->op2)->o != IR_KINT ||
+      IR(addbias->op2)->i != k - 2 ||
+      add1->op1 != addbias->op1)
+    return REF_NIL;
+  if ((1u << (shift - 1)) != (uint32_t)(k - 1))
+    return REF_NIL;
+
+  ref = add1->op1;
+  if (irref_isk(ref))
+    return REF_NIL;
+  value = IR(ref);
+  if (value->o != IR_ADD || !irref_isk(value->op2) ||
+      IR(value->op2)->o != IR_KINT || IR(value->op2)->i != 1 ||
+      irref_isk(value->op1))
+    return REF_NIL;
+  mod = IR(value->op1);
+  if (mod->o != IR_MOD || !irref_isk(mod->op2) ||
+      IR(mod->op2)->o != IR_KINT || IR(mod->op2)->i != k)
+    return REF_NIL;
+  *kp = k;
+  UNUSED(as);
+  return ref;
+}
+
+static int asm_s390x_mod_value_step(ASMState *as, IRIns *ir)
+{
+  int32_t k;
+  IRRef ref = asm_s390x_mod_value_step_ref(as, ir, &k);
+  Reg dest, left, one;
+
+  if (ref == REF_NIL)
+    return 0;
+
+  dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -285);
+  left = ra_hintalloc_nobase(as, ref, dest, RSET_GPR_NOB, -286);
+  one = ra_scratch(as, rset_exclude(rset_exclude(RSET_GPR_NOB, dest), left));
+
+  emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_EQ, one));
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, dest, k + 1));
+  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, 1));
+  emit_u32(as, S390X_INS_RI(S390XI_LGHI, one, 1));
+  if (dest != left)
+    emit_movrr(as, ir, dest, left);
+  return 1;
+}
+
 static void asm_sub(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
@@ -2523,6 +2674,9 @@ static void asm_sub(ASMState *as, IRIns *ir)
     asm_s390x_nyi_ir(as, ir);
     return;
   }
+
+  if (asm_s390x_mod_value_step(as, ir) || asm_s390x_mod_step(as, ir))
+    return;
 
   if (irref_isk(ir->op2)) {
     int32_t k = (int32_t)asm_kintptr(as, ir->op2);
@@ -2695,6 +2849,49 @@ static void asm_mul(ASMState *as, IRIns *ir)
     emit_movrr(as, ir, dest, left);
 }
 
+static int asm_s390x_scev_ref_offset(ASMState *as, IRRef ref, int64_t *ofsp)
+{
+  jit_State *J = as->J;
+  int64_t ofs = 0;
+
+  for (;;) {
+    IRIns *ir;
+    if (ref == J->scev.idx) {
+      *ofsp = ofs;
+      return 1;
+    }
+    if (irref_isk(ref))
+      return 0;
+    ir = IR(ref);
+    if ((ir->o == IR_ADD || ir->o == IR_ADDOV) &&
+	irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+      ofs += IR(ir->op2)->i;
+      ref = ir->op1;
+      continue;
+    }
+    if ((ir->o == IR_SUB || ir->o == IR_SUBOV) &&
+	irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+      ofs -= IR(ir->op2)->i;
+      ref = ir->op1;
+      continue;
+    }
+    return 0;
+  }
+}
+
+static int asm_s390x_mod_operand_nonnegative(ASMState *as, IRRef ref)
+{
+  jit_State *J = as->J;
+  int64_t ofs;
+
+  if (J->scev.idx == REF_NIL || !J->scev.dir ||
+      J->scev.start == REF_NIL || !irref_isk(J->scev.start))
+    return 0;
+  if (!asm_s390x_scev_ref_offset(as, ref, &ofs))
+    return 0;
+  return (int64_t)IR(J->scev.start)->i + ofs >= 0;
+}
+
 static int asm_modk_int(ASMState *as, IRIns *ir)
 {
   IRIns *k = IR(ir->op2);
@@ -2706,6 +2903,34 @@ static int asm_modk_int(ASMState *as, IRIns *ir)
 
   if (!irt_isint(ir->t) || !irref_isk(ir->op2) || k->o != IR_KINT || k->i <= 0)
     return 0;
+
+  if (asm_s390x_mod_operand_nonnegative(as, ir->op1)) {
+    allow = RSET_GPR_NOB;
+    rset_clear(allow, rem);
+    rset_clear(allow, quot);
+    dest = ra_dest_nobase(as, ir, allow, -278);
+    ra_evictset(as, RID2RSET(rem)|RID2RSET(quot));
+    ra_modified(as, rem);
+    ra_modified(as, quot);
+    allow = RSET_GPR_NOB;
+    rset_clear(allow, rem);
+    rset_clear(allow, quot);
+    rset_clear(allow, dest);
+    left = ra_alloc1_nobase(as, ir->op1, allow, -279);
+    allow = rset_exclude(RSET_GPR_NOB, left);
+    rset_clear(allow, rem);
+    rset_clear(allow, quot);
+    rset_clear(allow, dest);
+    divr = ra_allock(as, k->i, allow);
+    if (dest != rem)
+      emit_movrr(as, ir, dest, rem);
+    emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, rem, rem));
+    emit_u16_pad4(as, S390X_INS_RR(S390XI_DR, rem, divr));
+    emit_u32(as, S390X_INS_RXE(S390XI_XGR, rem, rem));
+    if (quot != left)
+      emit_movrr(as, ir, quot, left);
+    return 1;
+  }
 
   /* First fast path: signed integer modulo by a positive constant divisor.
   ** Use DSGR to avoid the generic lj_vm_modi helper on the common traced
