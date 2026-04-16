@@ -3383,7 +3383,7 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
 	     ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, node), -219) : RID_NONE;
   Reg idx = node;
   RegSet allow = rset_exclude(RSET_GPR_NOB, node);
-  Reg key, expected;
+  Reg expected;
   uint64_t k;
 
   lj_assertA(ofs % sizeof(Node) == 0, "unaligned HREFK slot");
@@ -3399,8 +3399,6 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
       emit_movrr(as, ir, dest, node);
   }
 
-  key = ra_scratch(as, allow);
-  allow = rset_exclude(allow, key);
   expected = ra_scratch(as, allow);
 
   asm_guardcc(as, CC_NE);
@@ -3414,9 +3412,8 @@ static void asm_hrefk(ASMState *as, IRIns *ir)
     k = ((uint64_t)irt_toitype(irkey->t) << 47) |
 	(uint64_t)(uintptr_t)ir_kgc(irkey);
   }
-  emit_u32(as, S390X_INS_RXE(S390XI_CGR, key, expected));
+  emit_u48_pad8(as, S390X_INS_RXY(S390XI_CG, expected, 0, idx, kofs));
   emit_loadu64(as, expected, k);
-  emit_load64ofs(as, key, idx, kofs);
 
   if (bigofs) {
     emit_addptr(as, dest, ofs);
