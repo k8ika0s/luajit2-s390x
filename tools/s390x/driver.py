@@ -71,6 +71,7 @@ JIT_CORE_FFI_LUA_FILES = {
 JIT_LOOPS_LUA_FILES = [
     "tests/s390x/jit_loops/compiled_vararg.lua",
     "tests/s390x/jit_loops/explicit_next.lua",
+    "tests/s390x/jit_loops/vararg_correctness.lua",
     "tests/s390x/jit_loops/vararg_trace.lua",
 ]
 
@@ -127,9 +128,9 @@ PERF_FAMILY_METADATA = {
     "vararg_paths": {
         "default_gate": False,
         "promotion_order": 3,
-        "status": "probe-only",
-        "priority": "tracked-follow-up",
-        "notes": "Vararg return/select probe pending release-stable native runs.",
+        "status": "candidate",
+        "priority": "promote-after-native-rerank",
+        "notes": "Vararg select/return paths now compile without retained vararg blacklists; keep as focused native rerank family before default promotion.",
     },
     "ffi_calls": {
         "default_gate": False,

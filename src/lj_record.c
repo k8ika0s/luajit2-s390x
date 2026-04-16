@@ -527,50 +527,6 @@ static void lj_record_s390x_ir_log(jit_State *J, TraceLink linktype, TraceNo lnk
 static int lj_record_s390x_mark_nil_desc_done_enabled(void);
 static int lj_record_s390x_fori_arg_log_enabled(void);
 
-static int lj_record_s390x_sum_loop_select_exit0_done_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE") != NULL);
-  return enabled;
-}
-
-static int lj_record_s390x_sum_loop_select_fixed_varg4_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SUM_LOOP_SELECT_FIXED_VARG4") != NULL);
-  return enabled;
-}
-
-static int lj_record_s390x_sum_loop_select_skip_func_eq_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ") != NULL);
-  return enabled;
-}
-
-static int lj_record_s390x_sum_loop_select_const_gget_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SUM_LOOP_SELECT_CONST_GGET") != NULL);
-  return enabled;
-}
-
-static int lj_record_s390x_vararg_sum_proto_match(GCproto *pt)
-{
-  static const char chunkname[] = "@tests/s390x/perf/vararg_paths.lua";
-  GCstr *chunk;
-  if (pt == NULL || pt->firstline != 11 || pt->numline != 6)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-         chunk->len == (MSize)(sizeof(chunkname) - 1) &&
-         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
-}
-
 static int lj_record_s390x_numeric_max_exit0_body_allow_enabled(void)
 {
   static int enabled = -1;
@@ -612,80 +568,6 @@ static int lj_record_s390x_numeric_max_exit0_body_allow(jit_State *J,
          bc_op(parentT->startins) == BC_FORL &&
          parentT->linktype == LJ_TRLINK_LOOP &&
          parentT->link == J->parent;
-}
-
-static int lj_record_s390x_vararg_record_guard_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_VARARG_RECORD_GUARD");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
-}
-
-static int lj_record_s390x_proto_has_varg(GCproto *pt)
-{
-  const BCIns *pc = proto_bc(pt);
-  const BCIns *endpc = pc + pt->sizebc;
-  for (; pc < endpc; pc++)
-    if (bc_op(*pc) == BC_VARG)
-      return 1;
-  return 0;
-}
-
-static int lj_record_s390x_sum_loop_select_exit0_done_match(jit_State *J,
-                                                             TraceLink linktype,
-                                                             TraceNo lnk)
-{
-  return LJ_TARGET_S390X &&
-         lj_record_s390x_sum_loop_select_exit0_done_enabled() &&
-         lj_record_s390x_vararg_sum_proto_match(J->pt) &&
-         J->parent != 0 &&
-         J->exitno == 0 &&
-         bc_op(*J->pc) == BC_GGET &&
-         J->pc > proto_bc(J->pt) &&
-         bc_op(J->pc[-1]) == BC_JFORI &&
-         bc_op(J->cur.startins) == BC_JMP &&
-         linktype == LJ_TRLINK_INTERP &&
-         lnk == 0 &&
-         J->cur.root == 1 &&
-         J->framedepth == 0 &&
-         J->retdepth == 0;
-}
-
-static int lj_record_s390x_sum_loop_select_fixed_varg4_match(jit_State *J,
-                                                             ptrdiff_t nvararg,
-                                                             TRef tridx)
-{
-  return LJ_TARGET_S390X &&
-         lj_record_s390x_sum_loop_select_fixed_varg4_enabled() &&
-         lj_record_s390x_vararg_sum_proto_match(J->pt) &&
-         nvararg == 4 &&
-         !tref_isk(tridx);
-}
-
-static int lj_record_s390x_sum_loop_select_skip_func_eq_match(jit_State *J)
-{
-  return LJ_TARGET_S390X &&
-         lj_record_s390x_sum_loop_select_skip_func_eq_enabled() &&
-         lj_record_s390x_vararg_sum_proto_match(J->pt) &&
-         J->framedepth == 0;
-}
-
-static int lj_record_s390x_sum_loop_select_const_gget_match(jit_State *J,
-                                                            cTValue *keyv)
-{
-  static const char keyname[] = "select";
-  GCstr *key;
-  if (!LJ_TARGET_S390X ||
-      !lj_record_s390x_sum_loop_select_const_gget_enabled() ||
-      !lj_record_s390x_vararg_sum_proto_match(J->pt) ||
-      J->framedepth != 0 || !tvisstr(keyv))
-    return 0;
-  key = strV(keyv);
-  return key->len == (MSize)(sizeof(keyname) - 1) &&
-         memcmp(strdata(key), keyname, sizeof(keyname) - 1) == 0;
 }
 
 /* Canonicalize slots: convert integers to numbers. */
@@ -780,20 +662,6 @@ void lj_record_stop(jit_State *J, TraceLink linktype, TraceNo lnk)
 nocanon:
   /* Note: all loop ops must set J->pc to the following instruction! */
   lj_snap_add(J);  /* Add loop snapshot. */
-#if LJ_TARGET_S390X
-  if (lj_record_s390x_sum_loop_select_exit0_done_match(J, linktype, lnk) &&
-      J->cur.nsnap > 0) {
-    J->cur.snap[0].count = SNAPCOUNT_DONE;
-    if (lj_record_s390x_stop_log_enabled()) {
-      fprintf(stderr,
-              "S390X_SUM_LOOP_SELECT_EXIT0_DONE trace=%u parent=%u exit=%u root=%u pc=%p startop=%u nsnap=%u\n",
-              (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-              (unsigned int)J->exitno, (unsigned int)J->cur.root,
-              (const void *)J->pc, (unsigned int)bc_op(J->cur.startins),
-              (unsigned int)J->cur.nsnap);
-    }
-  }
-#endif
   J->needsnap = 0;
   J->mergesnap = 1;  /* In case recording continues. */
 }
@@ -1640,10 +1508,66 @@ static int innerloopleft(jit_State *J, const BCIns *pc)
   return 0;
 }
 
-/* Handle the case when an interpreted loop op is hit. */
-static void rec_loop_interp(jit_State *J, const BCIns *pc, LoopEvent ev)
+static int lj_record_s390x_for_slot_int(cTValue *tv, int32_t *out)
 {
-  if (J->parent == 0 && J->exitno == 0) {
+  int64_t i64;
+  int32_t i;
+  if (tvisint(tv)) {
+    *out = intV(tv);
+    return 1;
+  }
+  if (tvisnum(tv) && lj_num2int_check(numV(tv), i64, i)) {
+    *out = i;
+    return 1;
+  }
+  return 0;
+}
+
+static int lj_record_s390x_small_vararg_for_unroll(jit_State *J,
+						    const BCIns *fori,
+						    const BCIns *loopins,
+						    LoopEvent ev)
+{
+  BCReg ra;
+  TValue *tv;
+  int32_t idx, stop, step, remaining;
+  const BCIns *pc;
+  int isvarg;
+  int has_varg = 0;
+  if (!LJ_TARGET_S390X || ev == LOOPEV_LEAVE ||
+      fori == NULL || loopins == NULL || fori >= loopins ||
+      !(bc_op(*fori) == BC_FORI || bc_op(*fori) == BC_JFORI))
+    return 0;
+  isvarg = frame_isvarg(J->L->base-1) ||
+	   (J->framedepth > 0 && J->pt && (J->pt->flags & PROTO_VARARG));
+  for (pc = fori + 1; pc < loopins; pc++)
+    if (bc_op(*pc) == BC_VARG) {
+      has_varg = 1;
+      break;
+    }
+  if (!isvarg || !has_varg)
+    return 0;
+  ra = bc_a(*fori);
+  tv = &J->L->base[ra];
+  if (!lj_record_s390x_for_slot_int(&tv[FORL_IDX], &idx) ||
+      !lj_record_s390x_for_slot_int(&tv[FORL_STOP], &stop) ||
+      !lj_record_s390x_for_slot_int(&tv[FORL_STEP], &step))
+    return 0;
+  if (step <= 0 || idx > stop)
+    return 0;
+  remaining = (stop - idx) / step + 1;
+  if (remaining <= 0 || remaining > 8)
+    return 0;
+  return 1;
+}
+
+/* Handle the case when an interpreted loop op is hit. */
+static void rec_loop_interp(jit_State *J, const BCIns *pc, const BCIns *fori,
+			    LoopEvent ev)
+{
+  int s390x_root_recording = LJ_TARGET_S390X && J->cur.root == 0 &&
+			     J->exitno == 0;
+  if ((J->parent == 0 && J->exitno == 0) || s390x_root_recording) {
     if (pc == J->startpc && J->framedepth + J->retdepth == 0) {
       if (bc_op(J->cur.startins) == BC_ITERN) return;  /* See rec_itern(). */
       /* Same loop? */
@@ -1659,7 +1583,8 @@ static void rec_loop_interp(jit_State *J, const BCIns *pc, LoopEvent ev)
       ** an inner loop even in a root trace. But it's better to be a bit
       ** more conservative here and only do it for very short loops.
       */
-      if (bc_j(*pc) != -1 && !innerloopleft(J, pc)) {
+      if (bc_j(*pc) != -1 && !innerloopleft(J, pc) &&
+	  !lj_record_s390x_small_vararg_for_unroll(J, fori, pc, ev)) {
 	lj_record_s390x_linner_log(J, "rec_loop_interp_root", ev, 0);
 	lj_trace_err(J, LJ_TRERR_LINNER);  /* Root trace hit an inner loop. */
       }
@@ -1676,18 +1601,36 @@ static void rec_loop_interp(jit_State *J, const BCIns *pc, LoopEvent ev)
 }
 
 /* Handle the case when an already compiled loop op is hit. */
-static void rec_loop_jit(jit_State *J, TraceNo lnk, LoopEvent ev)
+static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *fori,
+			 const BCIns *loopins, LoopEvent ev)
 {
   if (J->parent == 0 && J->exitno == 0) {  /* Root trace hit an inner loop. */
     /* Better let the inner loop spawn a side trace back here. */
-    lj_record_s390x_linner_log(J, "rec_loop_jit_root", ev, lnk);
-    lj_trace_err(J, LJ_TRERR_LINNER);
+    if (ev != LOOPEV_LEAVE &&
+	!lj_record_s390x_small_vararg_for_unroll(J, fori, loopins, ev)) {
+      lj_record_s390x_linner_log(J, "rec_loop_jit_root", ev, lnk);
+      lj_trace_err(J, LJ_TRERR_LINNER);
+    }
+    if ((ev != LOOPEV_ENTERLO &&
+	 J->loopref && J->cur.nins - J->loopref > 100) || --J->loopunroll < 0)
+      lj_trace_err(J, LJ_TRERR_LUNROLL);
+    J->loopref = J->cur.nins;
   } else if (ev != LOOPEV_LEAVE) {  /* Side trace enters a compiled loop. */
     int iterator_restart_loop = 0;
     int payload_desc_loop = 0;
     int s390x_link_loop_desc = 0;
     int s390x_loopdesc_self_owner_stop = 0;
     int s390x_root1_replay_triplet_link_parent = 0;
+#if LJ_TARGET_S390X
+    if (J->cur.root == 0 && J->framedepth > 0 && J->retdepth == 0 &&
+	lj_record_s390x_small_vararg_for_unroll(J, fori, loopins, ev)) {
+      if ((ev != LOOPEV_ENTERLO &&
+	   J->loopref && J->cur.nins - J->loopref > 100) || --J->loopunroll < 0)
+	lj_trace_err(J, LJ_TRERR_LUNROLL);
+      J->loopref = J->cur.nins;
+      return;
+    }
+#endif
     if (lj_record_s390x_stop_log_enabled()) {
       fprintf(stderr,
 	      "S390X_RECLOOP trace=%u parent=%u exit=%u pc=%p startpc=%p op=%u startop=%u ev=%u lnk=%u framedepth=%u retdepth=%u\n",
@@ -2187,6 +2130,153 @@ static TRef rec_call_specialize(jit_State *J, GCfunc *fn, TRef tr)
   emitir(IRTG(IR_EQ, IRT_FUNC), tr, kfunc);
   return kfunc;
 }
+
+#if LJ_TARGET_S390X
+static int rec_s390x_retlast_select_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled < 0)
+    enabled = (getenv("LUAJIT_S390X_RETLAST_SELECT_LOG") != NULL);
+  return enabled;
+}
+
+static void rec_s390x_retlast_select_log(jit_State *J, const char *reason,
+					 BCReg func, ptrdiff_t nargs)
+{
+  if (rec_s390x_retlast_select_log_enabled()) {
+    fprintf(stderr,
+	    "S390X_RETLAST_SELECT reason=%s trace=%u parent=%u exit=%u pc=%p func=%u nargs=%d\n",
+	    reason, (unsigned int)J->cur.traceno, (unsigned int)J->parent,
+	    (unsigned int)J->exitno, (const void *)J->pc,
+	    (unsigned int)func, (int)nargs);
+  }
+}
+
+static int rec_s390x_str_is_select(GCstr *s)
+{
+  const char *p = strdata(s);
+  return s->len == 6 && p[0] == 's' && p[1] == 'e' && p[2] == 'l' &&
+	 p[3] == 'e' && p[4] == 'c' && p[5] == 't';
+}
+
+static int rec_s390x_str_is_hash(GCstr *s)
+{
+  return s->len == 1 && strdata(s)[0] == '#';
+}
+
+static int rec_s390x_proto_retlast_select(GCproto *pt, GCstr **selectstr)
+{
+  BCIns *bc;
+  GCstr *gget0, *gget1, *hash;
+
+  if (!(pt->flags & PROTO_VARARG) || pt->numparams != 0 || pt->sizebc != 8)
+    return 0;
+
+  bc = proto_bc(pt);
+  if (bc_op(bc[0]) != BC_FUNCV ||
+      bc_op(bc[1]) != BC_GGET || bc_a(bc[1]) != 0 ||
+      bc_op(bc[2]) != BC_GGET || bc_a(bc[2]) != 2 ||
+      bc_op(bc[3]) != BC_KSTR || bc_a(bc[3]) != 4 ||
+      bc_op(bc[4]) != BC_VARG || bc_a(bc[4]) != 5 ||
+      bc_b(bc[4]) != 0 || bc_c(bc[4]) != 0 ||
+      bc_op(bc[5]) != BC_CALLM || bc_a(bc[5]) != 2 ||
+      bc_b(bc[5]) != 2 || bc_c(bc[5]) != 1 ||
+      bc_op(bc[6]) != BC_VARG || bc_a(bc[6]) != 3 ||
+      bc_b(bc[6]) != 0 || bc_c(bc[6]) != 0 ||
+      bc_op(bc[7]) != BC_CALLMT || bc_a(bc[7]) != 0 ||
+      bc_d(bc[7]) != 1)
+    return 0;
+
+  gget0 = gco2str(proto_kgc(pt, ~(ptrdiff_t)bc_d(bc[1])));
+  gget1 = gco2str(proto_kgc(pt, ~(ptrdiff_t)bc_d(bc[2])));
+  hash = gco2str(proto_kgc(pt, ~(ptrdiff_t)bc_d(bc[3])));
+  if (!rec_s390x_str_is_select(gget0) ||
+      !rec_s390x_str_is_select(gget1) ||
+      !rec_s390x_str_is_hash(hash))
+    return 0;
+
+  *selectstr = gget0;
+  return 1;
+}
+
+static int rec_s390x_guard_builtin_select(jit_State *J, GCfunc *fn,
+					  TRef trfunc, GCstr *selectstr)
+{
+  RecordIndex ix;
+  GCtab *env = tabref(fn->l.env);
+  cTValue *selecttv = lj_tab_getstr(env, selectstr);
+  TRef trselect;
+
+  if (!tvisfunc(selecttv) || funcV(selecttv)->c.ffid != FF_select)
+    return 0;
+
+  settabV(J->L, &ix.tabv, env);
+  setstrV(J->L, &ix.keyv, selectstr);
+  ix.val = 0;
+  ix.tab = emitir(IRT(IR_FLOAD, IRT_TAB), trfunc, IRFL_FUNC_ENV);
+  ix.key = lj_ir_kstr(J, selectstr);
+  ix.idxchain = LJ_MAX_IDXCHAIN;
+  trselect = lj_record_idx(J, &ix);
+  emitir(IRTG(IR_EQ, IRT_FUNC), trselect, lj_ir_kfunc(J, funcV(selecttv)));
+  return 1;
+}
+
+static int rec_s390x_retlast_select_call(jit_State *J, BCReg func,
+					 BCReg nresults, ptrdiff_t nargs)
+{
+  TValue *functv = &J->L->base[func];
+  GCfunc *fn;
+  GCproto *pt;
+  GCstr *selectstr;
+  TRef trfunc;
+  TRef lastarg;
+  ptrdiff_t i;
+
+  if (nresults != 1) {
+    rec_s390x_retlast_select_log(J, "nresults", func, nargs);
+    return 0;
+  }
+  if (nargs <= 0) {
+    rec_s390x_retlast_select_log(J, "nargs", func, nargs);
+    return 0;
+  }
+  if (!tvisfunc(functv)) {
+    rec_s390x_retlast_select_log(J, "notfunc", func, nargs);
+    return 0;
+  }
+  fn = funcV(functv);
+  if (!isluafunc(fn)) {
+    rec_s390x_retlast_select_log(J, "notlua", func, nargs);
+    return 0;
+  }
+  pt = funcproto(fn);
+  if (!rec_s390x_proto_retlast_select(pt, &selectstr)) {
+    rec_s390x_retlast_select_log(J, "proto", func, nargs);
+    return 0;
+  }
+
+  trfunc = getslot(J, func);
+  for (i = 1; i <= nargs; i++)
+    (void)getslot(J, func+LJ_FR2+i);
+
+  emitir(IRTG(IR_EQ, IRT_FUNC), trfunc, lj_ir_kfunc(J, fn));
+  if (!rec_s390x_guard_builtin_select(J, fn, trfunc, selectstr)) {
+    rec_s390x_retlast_select_log(J, "select", func, nargs);
+    return 0;
+  }
+
+  lastarg = getslot(J, func+LJ_FR2+nargs);
+  J->base[func] = lastarg;
+#if LJ_FR2
+  J->base[func+1] = 0;
+#endif
+  J->maxslot = func + 1;
+  /* Skip callee bytecode and the two guarded select fast-function entries. */
+  J->bcskip = pt->sizebc + 2;
+  rec_s390x_retlast_select_log(J, "hit", func, nargs);
+  return 1;
+}
+#endif
 
 /* Record call setup. */
 static void rec_call_setup(jit_State *J, BCReg func, ptrdiff_t nargs)
@@ -3174,6 +3264,15 @@ static int rec_s390x_small_table_len_const_enabled(void)
     enabled = (getenv("LUAJIT_S390X_DISABLE_SMALL_TABLE_LEN_CONST") == NULL);
   return enabled;
 }
+
+static int rec_s390x_small_table_upvalue_const_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled < 0)
+    enabled =
+      (getenv("LUAJIT_S390X_DISABLE_SMALL_TABLE_UPVALUE_CONST") == NULL);
+  return enabled;
+}
 #endif
 
 /* Check whether upvalue is immutable and ok to constify. */
@@ -3194,6 +3293,13 @@ static int rec_upvalue_constify(jit_State *J, GCupval *uvp)
     }
 #else
     UNUSED(J);
+#endif
+#if LJ_TARGET_S390X
+    if (tvistab(o) && rec_s390x_small_table_upvalue_const_enabled()) {
+      GCtab *t = tabV(o);
+      if (t->asize <= 16 && t->hmask <= 31)
+	return 1;
+    }
 #endif
     if (!(tvistab(o) || tvisudata(o) || tvisthread(o)))
       return 1;
@@ -3342,11 +3448,6 @@ static void rec_func_vararg(jit_State *J)
   GCproto *pt = J->pt;
   BCReg s, fixargs, vframe = J->maxslot+1+LJ_FR2;
   lj_assertJ((pt->flags & PROTO_VARARG), "FUNCV in non-vararg function");
-  if (lj_record_s390x_vararg_record_guard_enabled() &&
-      !lj_record_s390x_proto_has_varg(pt)) {
-    pt->flags |= PROTO_NOJIT;
-    lj_trace_err(J, LJ_TRERR_CJITOFF);
-  }
   if (J->baseslot + vframe + pt->framesize >= LJ_MAX_JSLOTS)
     lj_trace_err(J, LJ_TRERR_STACKOV);
   J->base[vframe-1-LJ_FR2] = J->base[-1-LJ_FR2];  /* Copy function up. */
@@ -3406,16 +3507,8 @@ static int select_detect(jit_State *J)
   if (bc_op(ins) == BC_CALLM && bc_b(ins) == 2 && bc_c(ins) == 1) {
     cTValue *func = &J->L->base[bc_a(ins)];
     if (tvisfunc(func) && funcV(func)->c.ffid == FF_select) {
-      if (!lj_record_s390x_sum_loop_select_skip_func_eq_match(J)) {
-        TRef kfunc = lj_ir_kfunc(J, funcV(func));
-        emitir(IRTG(IR_EQ, IRT_FUNC), getslot(J, bc_a(ins)), kfunc);
-      } else if (lj_record_s390x_stop_log_enabled()) {
-        fprintf(stderr,
-                "S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ trace=%u parent=%u exit=%u root=%u pc=%p startop=%u\n",
-                (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-                (unsigned int)J->exitno, (unsigned int)J->cur.root,
-                (const void *)J->pc, (unsigned int)bc_op(J->cur.startins));
-      }
+      TRef kfunc = lj_ir_kfunc(J, funcV(func));
+      emitir(IRTG(IR_EQ, IRT_FUNC), getslot(J, bc_a(ins)), kfunc);
       return 1;
     }
   }
@@ -3475,8 +3568,8 @@ static void rec_varg(jit_State *J, BCReg dst, ptrdiff_t nresults)
     } else if (select_detect(J)) {  /* y = select(x, ...) */
       TRef tridx = getslot(J, dst-1);
       TRef tr = TREF_NIL;
-      int sum_fixed_varg4 = 0;
-      int32_t fixed_ftsz = 0;
+      int stable_varg_count = 0;
+      int32_t stable_ftsz = 0;
       ptrdiff_t idx = lj_ffrecord_select_mode(J, tridx, &J->L->base[dst-1]);
       if (idx < 0) goto nyivarg;
       if (idx != 0 && !tref_isinteger(tridx)) {
@@ -3484,25 +3577,17 @@ static void rec_varg(jit_State *J, BCReg dst, ptrdiff_t nresults)
 	  tridx = emitir(IRTG(IR_STRTO, IRT_NUM), tridx, 0);
 	tridx = emitir(IRTGI(IR_CONV), tridx, IRCONV_INT_NUM|IRCONV_INDEX);
       }
-      if (idx != 0 && idx <= nvararg &&
-          lj_record_s390x_sum_loop_select_fixed_varg4_match(J, nvararg, tridx)) {
-        fixed_ftsz = (int32_t)frame_ftsz(J->L->base-1);
-        emitir(IRTGI(IR_EQ), fr, lj_ir_kint(J, fixed_ftsz));
-        sum_fixed_varg4 = 1;
-        if (lj_record_s390x_stop_log_enabled()) {
-          fprintf(stderr,
-                  "S390X_SUM_LOOP_SELECT_FIXED_VARG4 trace=%u parent=%u exit=%u root=%u fr=%d nvararg=%d\n",
-                  (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-                  (unsigned int)J->exitno, (unsigned int)J->cur.root,
-                  (int)fixed_ftsz, (int)nvararg);
-        }
+      if (idx != 0 && idx <= nvararg && !tref_isk(tridx)) {
+	stable_ftsz = (int32_t)frame_ftsz(J->L->base-1);
+	emitir(IRTGI(IR_EQ), fr, lj_ir_kint(J, stable_ftsz));
+	stable_varg_count = 1;
       }
       if (idx != 0 && tref_isk(tridx)) {
 	emitir(IRTGI(idx <= nvararg ? IR_GE : IR_LT),
 	       fr, lj_ir_kint(J, frofs+8*(int32_t)idx));
 	frofs -= 8;  /* Bias for 1-based index. */
       } else if (idx <= nvararg) {  /* Compute size. */
-	if (sum_fixed_varg4) {
+	if (stable_varg_count) {
 	  tr = lj_ir_kint(J, (int32_t)nvararg);
 	} else {
 	  TRef tmp = emitir(IRTI(IR_ADD), fr, lj_ir_kint(J, -frofs));
@@ -3527,14 +3612,14 @@ static void rec_varg(jit_State *J, BCReg dst, ptrdiff_t nresults)
       if (idx != 0 && idx <= nvararg) {
 	IRType t;
 	TRef aref, vbase;
-	if (sum_fixed_varg4) {
+	if (stable_varg_count) {
 	  vbase = emitir(IRT(IR_ADD, IRT_PGC), REF_BASE,
-		         lj_ir_kintpgc(J,
-			               frofs-(8<<LJ_FR2)-fixed_ftsz));
+			 lj_ir_kintpgc(J,
+				       frofs-(8<<LJ_FR2)-stable_ftsz));
 	} else {
 	  vbase = emitir(IRT(IR_SUB, IRT_IGC), REF_BASE, fr);
 	  vbase = emitir(IRT(IR_ADD, IRT_PGC), vbase,
-		         lj_ir_kintpgc(J, frofs-(8<<LJ_FR2)));
+			 lj_ir_kintpgc(J, frofs-(8<<LJ_FR2)));
 	}
 	t = itype2irt(&J->L->base[idx-2-LJ_FR2-nvararg]);
 	aref = emitir(IRT(IR_AREF, IRT_PGC), vbase, tridx);
@@ -4052,30 +4137,10 @@ void lj_record_ins(jit_State *J)
   /* -- Table ops --------------------------------------------------------- */
 
   case BC_GGET: case BC_GSET:
-    if (op == BC_GGET &&
-        lj_record_s390x_sum_loop_select_const_gget_match(J, &ix.keyv)) {
-      cTValue *tv = lj_tab_getstr(tabref(J->fn->l.env), strV(&ix.keyv));
-      if (tvisfunc(tv) && funcV(tv)->c.ffid == FF_select) {
-        rc = lj_ir_kfunc(J, funcV(tv));
-        if (lj_record_s390x_stop_log_enabled()) {
-          fprintf(stderr,
-                  "S390X_SUM_LOOP_SELECT_CONST_GGET trace=%u parent=%u exit=%u root=%u pc=%p startop=%u\n",
-                  (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-                  (unsigned int)J->exitno, (unsigned int)J->cur.root,
-                  (const void *)J->pc, (unsigned int)bc_op(J->cur.startins));
-        }
-      } else {
-        settabV(J->L, &ix.tabv, tabref(J->fn->l.env));
-        ix.tab = emitir(IRT(IR_FLOAD, IRT_TAB), getcurrf(J), IRFL_FUNC_ENV);
-        ix.idxchain = LJ_MAX_IDXCHAIN;
-        rc = lj_record_idx(J, &ix);
-      }
-    } else {
-      settabV(J->L, &ix.tabv, tabref(J->fn->l.env));
-      ix.tab = emitir(IRT(IR_FLOAD, IRT_TAB), getcurrf(J), IRFL_FUNC_ENV);
-      ix.idxchain = LJ_MAX_IDXCHAIN;
-      rc = lj_record_idx(J, &ix);
-    }
+    settabV(J->L, &ix.tabv, tabref(J->fn->l.env));
+    ix.tab = emitir(IRT(IR_FLOAD, IRT_TAB), getcurrf(J), IRFL_FUNC_ENV);
+    ix.idxchain = LJ_MAX_IDXCHAIN;
+    rc = lj_record_idx(J, &ix);
     break;
 
   case BC_TGETB: case BC_TSETB:
@@ -4129,6 +4194,12 @@ void lj_record_ins(jit_State *J)
     rc = (BCReg)(J->L->top - J->L->base) - ra - LJ_FR2;
     /* fallthrough */
   case BC_CALL:
+#if LJ_TARGET_S390X
+    if (op == BC_CALL &&
+	rec_s390x_retlast_select_call(J, (BCReg)ra, (BCReg)rb-1,
+				      (ptrdiff_t)rc-1))
+      break;
+#endif
     lj_record_call(J, ra, (ptrdiff_t)rc-1);
     break;
 
@@ -4183,7 +4254,10 @@ void lj_record_ins(jit_State *J)
 		(unsigned int)ev,
 		(unsigned int)bc_d(pc[(ptrdiff_t)rc-BCBIAS_J]));
       }
-      if (ev != LOOPEV_LEAVE) {  /* Link to existing loop. */
+      if (ev != LOOPEV_LEAVE &&
+	  !lj_record_s390x_small_vararg_for_unroll(
+	    J, pc, pc + ((ptrdiff_t)rc - BCBIAS_J), ev)) {
+	/* Link to existing loop. */
 	if (lj_record_s390x_jfori_interp_handoff_enabled() &&
 	    J->parent == 0 && J->exitno == 0 &&
 	    J->framedepth + J->retdepth == 0) {
@@ -4204,26 +4278,29 @@ void lj_record_ins(jit_State *J)
     }
 
   case BC_FORL:
-    rec_loop_interp(J, pc, rec_for(J, pc+((ptrdiff_t)rc-BCBIAS_J), 1));
+    rec_loop_interp(J, pc, pc+((ptrdiff_t)rc-BCBIAS_J),
+		    rec_for(J, pc+((ptrdiff_t)rc-BCBIAS_J), 1));
     break;
   case BC_ITERL:
-    rec_loop_interp(J, pc, rec_iterl(J, *pc));
+    rec_loop_interp(J, pc, NULL, rec_iterl(J, *pc));
     break;
   case BC_ITERN:
-    rec_loop_interp(J, pc, rec_itern(J, ra, rb));
+    rec_loop_interp(J, pc, NULL, rec_itern(J, ra, rb));
     break;
   case BC_LOOP:
-    rec_loop_interp(J, pc, rec_loop(J, ra, 1));
+    rec_loop_interp(J, pc, NULL, rec_loop(J, ra, 1));
     break;
 
-  case BC_JFORL:
-    rec_loop_jit(J, rc, rec_for(J, pc+bc_j(traceref(J, rc)->startins), 1));
+  case BC_JFORL: {
+    const BCIns *fori = pc+bc_j(traceref(J, rc)->startins);
+    rec_loop_jit(J, rc, fori, pc, rec_for(J, fori, 1));
     break;
+    }
   case BC_JITERL:
-    rec_loop_jit(J, rc, rec_iterl(J, traceref(J, rc)->startins));
+    rec_loop_jit(J, rc, NULL, NULL, rec_iterl(J, traceref(J, rc)->startins));
     break;
   case BC_JLOOP:
-    rec_loop_jit(J, rc, rec_loop(J, ra,
+    rec_loop_jit(J, rc, NULL, NULL, rec_loop(J, ra,
 				 !bc_isret(bc_op(traceref(J, rc)->startins)) &&
 				 bc_op(traceref(J, rc)->startins) != BC_ITERN));
     break;
@@ -4532,9 +4609,9 @@ void lj_record_setup(jit_State *J)
     ** The one exception is BC_ITERN, which sets LJ_TRACE_RECORD_1ST.
     */
     lj_snap_add(J);
-    if (bc_op(J->cur.startins) == BC_FORL)
+    if (bc_op(J->cur.startins) == BC_FORL) {
       rec_for_loop(J, J->pc-1, &J->scev, 1);
-    else if (bc_op(J->cur.startins) == BC_ITERC)
+    } else if (bc_op(J->cur.startins) == BC_ITERC)
       J->startpc = NULL;
     if (1 + J->pt->framesize >= LJ_MAX_JSLOTS)
       lj_trace_err(J, LJ_TRERR_STACKOV);
