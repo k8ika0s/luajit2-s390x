@@ -773,6 +773,46 @@ static void asm_s390x_addhome_log(ASMState *as, IRIns *ir)
 	  carry_candidate);
 }
 
+static int asm_s390x_ref_feeds_bitop(ASMState *as, IRRef ref)
+{
+  IRIns *ir = IR(ref);
+  IRIns *use;
+  for (use = IR(as->orignins-1); use > ir; use--)
+    if ((use->op1 == ref || use->op2 == ref) && asm_s390x_is_bitop_op(use->o))
+      return 1;
+  return 0;
+}
+
+static int asm_s390x_addk1_bitop_loop_carry(ASMState *as, IRIns *ir)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int le_uses = 0, phi_uses = 0;
+
+  if (ir->o != IR_ADD || irt_isguard(ir->t) || !irt_isinteger(ir->t) ||
+      !irref_isk(ir->op2) || (int32_t)asm_kintptr(as, ir->op2) != 1 ||
+      !asm_s390x_ref_feeds_bitop(as, ir->op1))
+    return 0;
+
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (use->o == IR_PHI) {
+      phi_uses++;
+      continue;
+    }
+    if (use->o == IR_LE && irt_isguard(use->t)) {
+      IRRef other = use->op1 == ref ? use->op2 : use->op1;
+      if (irref_isk(other))
+	return 0;
+      le_uses++;
+      continue;
+    }
+    return 0;
+  }
+  return le_uses == 1 && phi_uses == 1;
+}
+
 static void asm_s390x_low32home_log(ASMState *as, const char *phase, IRIns *ir)
 {
   IRRef ref = (IRRef)(ir - as->ir);
@@ -2240,7 +2280,7 @@ static void asm_add(ASMState *as, IRIns *ir)
 	  asm_s390x_guard_log(as, "addov_k", ir, CC_OF, 0, k);
 	  asm_guardcc(as, CC_OF);
 	}
-	if (bnorm)
+	if (bnorm && !asm_s390x_addk1_bitop_loop_carry(as, ir))
 	  asm_bnorm32(as, ir, dest);
 	if (!irt_isguard(ir->t) && dest != left)
 	  emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AGHIK, dest, left, k));
@@ -2862,9 +2902,10 @@ static void asm_neg(ASMState *as, IRIns *ir)
   dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -243);
   left = ra_alloc1_nobase(as, ir->op1, rset_exclude(RSET_GPR_NOB, dest), -244);
 
-  if (!irt_is64(ir->t) && !irt_isguard(ir->t) && irt_isinteger(ir->t)) {
+  if (!irt_is64(ir->t) && !irt_isguard(ir->t) && irt_isinteger(ir->t) &&
+      asm_s390x_only_used_by(as, ir, IR_BSAR)) {
     asm_bnorm32(as, ir, dest);
-    emit_u16_pad4(as, S390X_INS_RR(S390XI_LCR, dest, left));
+    emit_u32(as, S390X_INS_RXE(S390XI_LCGFR, dest, left));
     return;
   }
 
