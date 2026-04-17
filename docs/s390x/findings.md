@@ -34295,3 +34295,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   guardrails, logged `add_bxor_mix_suffix200_tail`, and kept
   `bitops_mix/mix_bits/hot` in band. kdz median was `0.000002`; zkd0 median was
   `0.000003`.
+
+## 2026-04-17: post-bitops full matrix and report repair
+
+- The first post-bitops kdz1 comparison attempt
+  `artifacts/s390x/compare-kdz1-ka0s01-20260417T191221Z` is invalid for
+  matrix decisions. It compared a dispatch-only artifact and therefore showed
+  `342` missing s390x rows.
+- Root cause:
+  `tools/s390x/driver.py --stage perf --suite all` currently selects only the
+  default perf gate unless explicit perf families are requested. That behavior
+  is useful for quick gates but unsafe for the full cross-arch matrix.
+- Repair:
+  added `--perf-family all` to `tools/s390x/driver.py`. The selector expands
+  to all `23` tracked perf families in promotion order and makes the full
+  matrix command explicit.
+- Clean full matrix:
+  `artifacts/s390x/20260417T192108.036453Z-p98275`, source
+  `ae1b2103`, no dirty patch, `720` benchmark records, `23` families,
+  GCC/Clang, JIT-on/`-joff`, and `0` failures.
+- Clean x86 comparison:
+  `artifacts/s390x/compare-kdz1-ka0s01-20260417T192732Z`, compared with
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`. The report has `360` rows,
+  `342` complete s390x/x86 rows, `0` missing s390x rows, `18` missing x86
+  rows, and includes the restored bottom sections including `Missing Data
+  Audit` and `Full Matrix`.
+- Full-matrix residual:
+  only GCC `mixed_noffi/mixed_loop` is slower than `-joff` in the kdz1 full
+  artifact (`0.005202s` JIT-on vs `0.003999s` `-joff`, `0.769x` hot).
+- Focused mixed-noffi follow-up:
+  kdz1 focused artifact `artifacts/s390x/20260417T192839.151719Z-p4160` is
+  green (`0.003605s` JIT-on vs `0.003992s` `-joff` hot). kdz focused artifact
+  `artifacts/s390x/20260417T193222.690803Z-p6537` is also green
+  (`0.003725s` vs `0.003928s` hot). zkd0 focused artifact
+  `artifacts/s390x/20260417T193612.667585Z-p9038` remains hot-red
+  (`0.006760s` vs `0.004662s`) while small/medium are green.
+- Current read:
+  mixed-noffi needs a fresh dense cross-host attribution before any code. Do
+  not attribute the kdz1 full-matrix red row to the bitops merge without a
+  repeated mechanism, because focused kdz1 and kdz runs do not reproduce it.
