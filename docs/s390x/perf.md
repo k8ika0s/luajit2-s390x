@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 16:07 PDT
+Last updated: 2026-04-16 17:14 PDT
 
 ## Current Matrix
 
@@ -10,77 +10,125 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current code source point:
-  `fbe90de0 Enable s390x final string memscan paths`.
+  `2b134af1 Optimize s390x fixed FFI call pressure`.
 - Current s390x artifact:
-  `artifacts/s390x/s390x-kdz1-20260416T224449Z`.
+  `artifacts/s390x/s390x-kdz1-20260416T235054Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-kdz1-ka0s01-20260416T224449Z`, compared against
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T235054Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health: `2160` s390x benchmark records, `360` comparison rows,
   `0` s390x failures, GCC/Clang, JIT-on/`-joff`, three alternating passes.
-- Regression read: no s390x JIT-on row is slower than `-joff` in the generated
-  summary. `T224449Z` supersedes `T211330Z` because it includes the final
-  default-enabled `manual_find_cycle`, short-haystack `lj_str_find`, and
-  guarded s390x/VX `lj_str_sum_u8` fixes from `fbe90de0`.
+- Regression read: no material s390x JIT-on blocker. The generated summary
+  lists only two tiny per-pass GCC `large_immediates/add_large` rows slower
+  than `-joff`; the top-matrix median keeps `add_large/medium` green at
+  `1.077x` over `-joff`.
+- FFI pressure read: `T235054Z` supersedes `T224449Z` because it includes
+  `2b134af1`, which defaults direct GPR FFI call-arg placement on and retargets
+  `ffi_fixed_call_pressure` to the optimized pressure/oracle shape.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| `dispatch_trace` | `numeric_loop/hot` | `0.000314` | `0.002201` | `7.010x` | `0.000312` | `6.830x` |
-| `dispatch_trace` | `side_exit_loop/hot` | `0.000469` | `0.004558` | `9.719x` | `0.000473` | `7.977x` |
-| `dispatch_trace` | `hotexit_loop/hot` | `0.000693` | `0.005652` | `8.156x` | `0.000690` | `7.867x` |
-| `iterator_table` | `pairs_sum/hot` | `0.002996` | `0.004209` | `1.405x` | `0.002791` | `1.554x` |
-| `iterator_table` | `pairs_array_sum/hot` | `0.002979` | `0.003864` | `1.297x` | `0.002774` | `1.484x` |
-| `mixed_noffi` | `mixed_loop/hot` | `0.003612` | `0.004192` | `1.161x` | `0.003531` | `1.165x` |
-| `vararg_paths` | `sum_loop/hot` | `0.000025` | `0.004435` | `177.400x` | `0.000025` | `167.080x` |
-| `vararg_paths` | `retlast_loop/hot` | `0.000025` | `0.002060` | `82.400x` | `0.000025` | `80.160x` |
-| `vararg_paths` | `retconst_loop/hot` | `0.000010` | `0.000560` | `56.000x` | `0.000010` | `55.600x` |
-| `mixed_ffi` | `mixed_ffi_loop/hot` | `0.000099` | `0.012510` | `126.364x` | `0.000100` | `126.350x` |
-| `ffi_cdata` | `pair_loop/hot` | `0.000044` | `0.017324` | `393.727x` | `0.000044` | `405.591x` |
-| `ffi_cdata` | `mixed_width_loop/hot` | `0.000246` | `0.028286` | `114.984x` | `0.000241` | `119.278x` |
-| `ffi_cdata` | `buffer_fref_loop/hot` | `0.000248` | `0.004947` | `19.948x` | `0.000247` | `21.725x` |
-| `ffi_calls` | `direct_abs/hot` | `0.000217` | `0.010386` | `47.862x` | `0.000187` | `56.824x` |
-| `ffi_calls` | `stored_abs/hot` | `0.000187` | `0.006990` | `37.380x` | `0.000187` | `37.043x` |
-| `ffi_fixed_call_pressure` | `gpr_pressure/hot` | `0.000259` | `0.024914` | `96.193x` | `0.000358` | `69.243x` |
-| `ffi_fixed_call_pressure` | `fpr_pressure/hot` | `0.000253` | `0.011611` | `45.893x` | `0.000286` | `41.213x` |
-| `ffi_fixed_struct_calls` | `one_double_take6/hot` | `0.000385` | `0.018390` | `47.766x` | `0.000427` | `42.553x` |
-| `ffi_fixed_struct_calls` | `small_u64_take7/hot` | `0.000929` | `0.023480` | `25.274x` | `0.000893` | `27.218x` |
-| `be_helpers` | `strto_loop/hot` | `0.000726` | `0.008257` | `11.373x` | `0.000666` | `12.622x` |
-| `be_helpers` | `number_helper_loop/hot` | `0.000105` | `0.002277` | `21.686x` | `0.000105` | `20.448x` |
-| `be_helpers` | `num_aload_loop/hot` | `0.000111` | `0.003965` | `35.721x` | `0.000111` | `36.027x` |
-| `numeric_ops` | `abs_loop/hot` | `0.000108` | `0.004040` | `37.407x` | `0.000106` | `37.915x` |
-| `numeric_ops` | `div_loop/hot` | `0.000186` | `0.002294` | `12.333x` | `0.000187` | `11.433x` |
-| `numeric_ops` | `fp_mod_loop/hot` | `0.000289` | `0.004580` | `15.848x` | `0.000284` | `15.349x` |
-| `numeric_ops` | `min_loop/hot` | `0.000080` | `0.002494` | `31.175x` | `0.000078` | `30.526x` |
-| `numeric_ops` | `max_loop/hot` | `0.000124` | `0.002632` | `21.226x` | `0.000122` | `20.467x` |
-| `numeric_ops` | `sqrt_loop/hot` | `0.000226` | `0.003525` | `15.597x` | `0.000226` | `14.867x` |
+| `dispatch_trace` | `numeric_loop/hot` | `0.000311` | `0.002201` | `7.077x` | `0.000329` | `6.489x` |
+| `dispatch_trace` | `side_exit_loop/hot` | `0.000471` | `0.004561` | `9.684x` | `0.000465` | `8.226x` |
+| `dispatch_trace` | `hotexit_loop/hot` | `0.000690` | `0.005660` | `8.203x` | `0.000697` | `8.066x` |
+| `iterator_table` | `pairs_sum/hot` | `0.002923` | `0.005431` | `1.858x` | `0.003001` | `1.446x` |
+| `iterator_table` | `pairs_array_sum/hot` | `0.002964` | `0.003870` | `1.306x` | `0.002793` | `1.369x` |
+| `mixed_noffi` | `mixed_loop/hot` | `0.003606` | `0.004172` | `1.157x` | `0.003555` | `1.162x` |
+| `vararg_paths` | `sum_loop/hot` | `0.000025` | `0.004473` | `178.920x` | `0.000025` | `173.360x` |
+| `vararg_paths` | `retlast_loop/hot` | `0.000025` | `0.002063` | `82.520x` | `0.000025` | `80.640x` |
+| `vararg_paths` | `retconst_loop/hot` | `0.000010` | `0.000554` | `55.400x` | `0.000010` | `56.700x` |
+| `mixed_ffi` | `mixed_ffi_loop/hot` | `0.000097` | `0.012344` | `127.258x` | `0.000098` | `127.724x` |
+| `ffi_cdata` | `pair_loop/hot` | `0.000044` | `0.017078` | `388.136x` | `0.000044` | `403.614x` |
+| `ffi_cdata` | `mixed_width_loop/hot` | `0.000243` | `0.028010` | `115.267x` | `0.000247` | `116.166x` |
+| `ffi_cdata` | `buffer_fref_loop/hot` | `0.000253` | `0.004855` | `19.190x` | `0.000243` | `21.683x` |
+| `ffi_calls` | `direct_abs/hot` | `0.000247` | `0.010154` | `41.109x` | `0.000194` | `52.753x` |
+| `ffi_calls` | `stored_abs/hot` | `0.000246` | `0.006997` | `28.443x` | `0.000191` | `35.948x` |
+| `ffi_fixed_call_pressure` | `gpr_pressure/hot` | `0.000008` | `0.000416` | `52.000x` | `0.000009` | `44.667x` |
+| `ffi_fixed_call_pressure` | `fpr_pressure/hot` | `0.000008` | `0.000241` | `30.125x` | `0.000008` | `30.000x` |
+| `ffi_fixed_struct_calls` | `one_double_take6/hot` | `0.000244` | `0.018036` | `73.918x` | `0.000247` | `72.498x` |
+| `ffi_fixed_struct_calls` | `small_u64_take7/hot` | `0.000581` | `0.023153` | `39.850x` | `0.000570` | `42.170x` |
+| `be_helpers` | `strto_loop/hot` | `0.001919` | `0.008206` | `4.276x` | `0.000655` | `12.760x` |
+| `be_helpers` | `number_helper_loop/hot` | `0.000105` | `0.002290` | `21.810x` | `0.000105` | `20.524x` |
+| `be_helpers` | `num_aload_loop/hot` | `0.000111` | `0.003971` | `35.775x` | `0.000111` | `34.207x` |
+| `numeric_ops` | `abs_loop/hot` | `0.000107` | `0.003978` | `37.178x` | `0.000106` | `38.670x` |
+| `numeric_ops` | `div_loop/hot` | `0.000186` | `0.002291` | `12.317x` | `0.000187` | `11.396x` |
+| `numeric_ops` | `fp_mod_loop/hot` | `0.000281` | `0.004594` | `16.349x` | `0.000280` | `15.564x` |
+| `numeric_ops` | `min_loop/hot` | `0.000079` | `0.002483` | `31.430x` | `0.000078` | `31.679x` |
+| `numeric_ops` | `max_loop/hot` | `0.000123` | `0.002632` | `21.398x` | `0.000122` | `21.057x` |
+| `numeric_ops` | `sqrt_loop/hot` | `0.000227` | `0.003533` | `15.564x` | `0.000226` | `15.230x` |
 | `large_immediates` | `add_large/medium` | `0.000052` | `0.000056` | `1.077x` | `0.000052` | `1.077x` |
-| `large_immediates` | `add_large/hot` | `0.000016` | `0.000138` | `8.625x` | `0.000015` | `9.267x` |
-| `bitops_mix` | `mix_bits/hot` | `0.000013` | `0.001809` | `139.154x` | `0.000013` | `135.923x` |
-| `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000019` | `0.001881` | `99.000x` | `0.000019` | `98.895x` |
-| `int_add_phi_only` | `add_phi_only/hot` | `0.000004` | `0.000021` | `5.250x` | `0.000005` | `4.200x` |
-| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.002103` | `0.014901` | `7.086x` | `0.002002` | `7.316x` |
-| `string_heavy` | `byte_scan_loop/hot` | `0.000001` | `0.073714` | `73714.000x` | `<0.000001` | `>77364x` |
-| `string_heavy` | `manual_find_loop/hot` | `0.000001` | `0.049198` | `49198.000x` | `0.000001` | `51681.000x` |
-| `string_heavy` | `miss_find_loop/hot` | `<0.000001` | `0.005877` | `>5877x` | `<0.000001` | `>5841x` |
-| `string_heavy` | `concat_slice_loop/hot` | `<0.000001` | `0.010142` | `>10142x` | `<0.000001` | `>10274x` |
-| `string_heavy` | `string_key_lookup_loop/hot` | `<0.000001` | `0.002614` | `>2614x` | `<0.000001` | `>2276x` |
-| `string_heavy` | `prefix_eq_loop/hot` | `<0.000001` | `0.005981` | `>5981x` | `<0.000001` | `>5468x` |
+| `large_immediates` | `add_large/hot` | `0.000016` | `0.000139` | `8.687x` | `0.000016` | `8.688x` |
+| `bitops_mix` | `mix_bits/hot` | `0.000014` | `0.001804` | `128.857x` | `0.000014` | `129.429x` |
+| `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000019` | `0.001858` | `97.789x` | `0.000019` | `99.474x` |
+| `int_add_phi_only` | `add_phi_only/hot` | `0.000004` | `0.000021` | `5.250x` | `0.000004` | `5.000x` |
+| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.002092` | `0.014917` | `7.130x` | `0.002047` | `7.238x` |
+| `string_heavy` | `byte_scan_loop/hot` | `<0.000001` | `0.073303` | `>73303x` | `<0.000001` | `>76900x` |
+| `string_heavy` | `manual_find_loop/hot` | `0.000001` | `0.049120` | `49120.000x` | `0.000001` | `51379.000x` |
+| `string_heavy` | `miss_find_loop/hot` | `0.000001` | `0.005861` | `5861.000x` | `<0.000001` | `>5795x` |
+| `string_heavy` | `concat_slice_loop/hot` | `<0.000001` | `0.010181` | `>10181x` | `<0.000001` | `>10457x` |
+| `string_heavy` | `string_key_lookup_loop/hot` | `<0.000001` | `0.002553` | `>2553x` | `<0.000001` | `>2291x` |
+| `string_heavy` | `prefix_eq_loop/hot` | `<0.000001` | `0.005983` | `>5983x` | `<0.000001` | `>5568x` |
 
 ## Current Queue
 
 - Regression queue: empty. Do not patch from noise-level red rows without a
   repeated official-row mechanism.
-- Rerank watch: no generated-summary red family remains in `T224449Z`.
+- Rerank watch: `large_immediates/add_large` has tiny per-pass noise in the
+  generated summary, but the median matrix is green. Do not patch unless a
+  focused rerun repeats a real material payer.
 - Acceleration queue by absolute JIT time: `mixed_noffi/mixed_loop`,
   `iterator_table/pairs_sum`, `iterator_table/pairs_array_sum`,
-  `lower_frame_same_callsite/lua_abs_same_callsite`, and selected
-  cross-architecture rows such as `ffi_fixed_call_pressure/gpr_pressure` and
-  `large_immediates/add_large`.
+  `lower_frame_same_callsite/lua_abs_same_callsite`, and `be_helpers/strto_loop`
+  under GCC. `ffi_fixed_call_pressure` is no longer a high-time target after
+  `2b134af1`; it is at the timer floor.
 - String posture: the shipped string/memscan rows are now effectively at the
   timer floor in the full matrix. Future string work should use larger
   iteration counts or focused harnesses before claiming additional wins.
 
 ## Checkpoint Notes
+
+## 2026-04-16 FFI Fixed Call Pressure Promotion
+
+- Current code source point for this checkpoint:
+  `2b134af1 Optimize s390x fixed FFI call pressure`, pushed to
+  `origin/k8ika0s/s390x-bringup-wip`.
+- Scope:
+  cherry-picked the focused `ffi_fixed_call_pressure` workstream commit
+  `11dd9369cfffd94736e6312e4c5b2622ce3ec14f`. The retained source changes are
+  limited to default-on direct GPR fixed-call argument placement in
+  `src/lj_asm_s390x.h`, optimized oracle build flags in
+  `tests/s390x/build_oracles.sh`, and the updated high-arity batched pressure
+  shape in `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua` and
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua`.
+- kdz1 focused validation:
+  the tracked canonical mirror was synced and rebuilt with GCC and Clang. Both
+  compilers passed oracle builds, `tests/s390x/perf/ffi_fixed_call_pressure.lua`,
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`,
+  `tests/s390x/jit_core/ffi_stack_call_trace.lua`,
+  `tests/s390x/ffi_abi/run.lua`, and the ADDOV/MULOV/numeric backend
+  guardrails. Focused hot medians were `0.000008..0.000009s` for both
+  `gpr_pressure` and `fpr_pressure`.
+- Delivered full-matrix hashes:
+  `src/lj_asm_s390x.h`
+  `add67cbdd43fd0922b549e5b2d42cffd7c8085343fc953361d1535673858ec87`,
+  `tests/s390x/build_oracles.sh`
+  `9590186d3b88e46e37b9c03d5d4f5ae1116b4f671582978d2d853d540df4efd9`,
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`
+  `b7cfb1a81ed7ff9f5dff7ed516f0b382606947db7a893cc0e872d07a2216406c`, and
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua`
+  `dee3c8c9b3c05ca0e93a0f0d41e8b8fdb728ad899ec98587ceda9fc65e49350d`.
+- Full s390x/x86 comparison artifact:
+  `artifacts/s390x/s390x-kdz1-20260416T235054Z` with companion comparison
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T235054Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`. The run emitted `2160`
+  benchmark records, `360` comparison rows, and `0` s390x failures.
+- Matrix posture:
+  `ffi_fixed_call_pressure/gpr_pressure/hot` is now `0.000008s` GCC and
+  `0.000009s` Clang; `fpr_pressure/hot` is `0.000008s` on both compilers. The
+  family now rolls up as a s390x cross-architecture advantage
+  (`+3.741x` GCC, `+3.613x` Clang JIT-on). The regression queue remains empty;
+  only tiny per-pass `large_immediates/add_large` noise appears in the
+  generated slower-than-`-joff` summary.
 
 ## 2026-04-16 Final String/Memscan Oddity Merge
 
