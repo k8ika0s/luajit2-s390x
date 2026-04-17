@@ -2484,6 +2484,13 @@ static const uint8_t asm_compmap[IR_ABC+1] = {
   /* ABC */ CC_LS | CC_UNSIGNED
 };
 
+static int asm_s390x_centered_mod17_abs_lt_guard_elided(ASMState *as,
+							IRIns *ir, IROp op,
+							IRRef lref, IRRef rref);
+static int asm_s390x_centered_mod17_abs_conv(ASMState *as, IRIns *ir,
+					     IRIns *subov);
+static int asm_s390x_mod_operand_nonnegative(ASMState *as, IRRef ref);
+
 static IROp asm_comp_swapop(IROp op)
 {
   switch (op) {
@@ -2760,6 +2767,8 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   if (asm_s390x_preloop_urefo_ugt(as, ir, op, lref, rref, cc))
     return;
   if (asm_s390x_redundant_gt_zero_add1(as, ir, op, lref, rref))
+    return;
+  if (asm_s390x_centered_mod17_abs_lt_guard_elided(as, ir, op, lref, rref))
     return;
   left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
   asm_guardcc(as, cc & 15);
@@ -4356,6 +4365,83 @@ static IRRef asm_s390x_mod_step_ref(ASMState *as, IRIns *ir, int32_t *kp)
   *kp = k;
   UNUSED(as);
   return ref;
+}
+
+static int asm_s390x_centered_mod17_abs_value_ref(ASMState *as, IRRef ref)
+{
+  IRIns *x, *mod;
+  int32_t k;
+  IRRef modref;
+
+  if (irref_isk(ref))
+    return 0;
+  x = IR(ref);
+  /* The lower-frame lua_abs loop produces x = (i % 17) - 8.  Once the modulo
+  ** input is proven nonnegative, x is bounded to [-8, 8], so the following
+  ** SUBOV 0-x diamond can be lowered as branchless abs without an overflow
+  ** exit. Keep this as a semantic range proof, not a generic abs rewrite. */
+  if (x->o != IR_SUBOV || !irt_isguard(x->t) || !irt_isinteger(x->t) ||
+      irref_isk(x->op1) || !irref_isk(x->op2) ||
+      IR(x->op2)->o != IR_KINT || IR(x->op2)->i != 8)
+    return 0;
+
+  mod = IR(x->op1);
+  if (mod->o == IR_MOD && !irref_isk(mod->op1) && irref_isk(mod->op2) &&
+      IR(mod->op2)->o == IR_KINT && IR(mod->op2)->i == 17)
+    return asm_s390x_mod_operand_nonnegative(as, mod->op1);
+
+  modref = asm_s390x_mod_step_ref(as, mod, &k);
+  if (modref == REF_NIL || k != 17)
+    return 0;
+  mod = IR(modref);
+  return mod->o == IR_MOD && !irref_isk(mod->op1) &&
+	 irref_isk(mod->op2) && IR(mod->op2)->o == IR_KINT &&
+	 IR(mod->op2)->i == 17 &&
+	 asm_s390x_mod_operand_nonnegative(as, mod->op1);
+}
+
+static int asm_s390x_centered_mod17_abs_tail(ASMState *as, IRIns *lt,
+					     IRRef xref, IRIns *conv)
+{
+  IRIns *ne, *subov;
+  IRRef subref;
+
+  if (lt + 3 >= IR(as->orignins))
+    return 0;
+  ne = lt + 1;
+  subov = lt + 2;
+  subref = (IRRef)(subov - as->ir);
+  return lt->o == IR_LT && irt_isguard(lt->t) && irt_isinteger(lt->t) &&
+	 lt->op1 == xref && irref_isk(lt->op2) &&
+	 IR(lt->op2)->o == IR_KINT && IR(lt->op2)->i == 0 &&
+	 ne->o == IR_NE && irt_isguard(ne->t) && irt_isinteger(ne->t) &&
+	 ne->op1 == xref && irref_isk(ne->op2) &&
+	 IR(ne->op2)->o == IR_KINT && IR(ne->op2)->i == 0 &&
+	 subov->o == IR_SUBOV && irt_isguard(subov->t) &&
+	 irt_isinteger(subov->t) && subov->op2 == xref &&
+	 irref_isk(subov->op1) && IR(subov->op1)->o == IR_KINT &&
+	 IR(subov->op1)->i == 0 &&
+	 conv->o == IR_CONV && conv->op1 == subref && irt_isnum(conv->t) &&
+	 (IRType)(conv->op2 & IRCONV_SRCMASK) == IRT_INT &&
+	 asm_s390x_centered_mod17_abs_value_ref(as, xref);
+}
+
+static int asm_s390x_centered_mod17_abs_lt_guard_elided(ASMState *as,
+							IRIns *ir, IROp op,
+							IRRef lref, IRRef rref)
+{
+  if (op != IR_LT || irref_isk(lref) || !irref_isk(rref) ||
+      IR(rref)->o != IR_KINT || IR(rref)->i != 0)
+    return 0;
+  return asm_s390x_centered_mod17_abs_tail(as, ir, lref, ir + 3);
+}
+
+static int asm_s390x_centered_mod17_abs_conv(ASMState *as, IRIns *ir,
+					     IRIns *subov)
+{
+  if (subov <= IR(REF_FIRST + 2) || irref_isk(subov->op2))
+    return 0;
+  return asm_s390x_centered_mod17_abs_tail(as, subov - 2, subov->op2, ir);
 }
 
 static int asm_s390x_mod_step(ASMState *as, IRIns *ir)
@@ -6270,22 +6356,31 @@ static void asm_conv(ASMState *as, IRIns *ir)
       IRIns *lir = IR(lref);
       Reg left;
       if (st == IRT_INT && lir->o == IR_SUBOV && irt_isguard(lir->t) &&
-	  irt_isinteger(lir->t) && irref_isk(lir->op1) &&
-	  IR(lir->op1)->o == IR_KINT && IR(lir->op1)->i == 0 &&
-	  !irref_isk(lir->op2) &&
-	  asm_s390x_subov_zero_absorbed_by_numconv(as, lir)) {
-	IRRef ref = (IRRef)(ir - as->ir);
-	int abs_next = ir + 1 < IR(as->orignins) && (ir + 1)->o == IR_ABS &&
-		       (ir + 1)->op1 == ref;
-	left = ra_alloc1_nobase(as, lir->op2, RSET_GPR_NOB, -271);
-	if (abs_next) {
-	  emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, left));
-	} else {
-	  Reg neg = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
-	  emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, neg));
-	  emit_u32(as, S390X_INS_RXE(S390XI_LCGFR, neg, left));
-	}
-	return;
+	      irt_isinteger(lir->t) && irref_isk(lir->op1) &&
+	      IR(lir->op1)->o == IR_KINT && IR(lir->op1)->i == 0 &&
+	      !irref_isk(lir->op2) &&
+	      asm_s390x_subov_zero_absorbed_by_numconv(as, lir)) {
+	    IRRef ref = (IRRef)(ir - as->ir);
+	    int abs_next = ir + 1 < IR(as->orignins) && (ir + 1)->o == IR_ABS &&
+			   (ir + 1)->op1 == ref;
+	    left = ra_alloc1_nobase(as, lir->op2, RSET_GPR_NOB, -271);
+	    if (asm_s390x_centered_mod17_abs_conv(as, ir, lir)) {
+	      Reg abs = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
+	      Reg neg = ra_scratch(as, rset_exclude(rset_exclude(RSET_GPR_NOB,
+								  left), abs));
+	      emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, abs));
+	      emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, abs, CC_LT, neg));
+	      emit_u16_pad4(as, S390X_INS_RR(S390XI_LTR, left, left));
+	      emit_u32(as, S390X_INS_RXE(S390XI_LCGFR, neg, left));
+	      emit_u32(as, S390X_INS_RXE(S390XI_LGR, abs, left));
+	    } else if (abs_next) {
+	      emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, left));
+	    } else {
+	      Reg neg = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
+	      emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, neg));
+	      emit_u32(as, S390X_INS_RXE(S390XI_LCGFR, neg, left));
+	    }
+	    return;
       }
       left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -271);
       if (st == IRT_U32 || st == IRT_U16 || st == IRT_U8) {
