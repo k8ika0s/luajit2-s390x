@@ -34334,3 +34334,72 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   mixed-noffi needs a fresh dense cross-host attribution before any code. Do
   not attribute the kdz1 full-matrix red row to the bitops merge without a
   repeated mechanism, because focused kdz1 and kdz runs do not reproduce it.
+
+## 2026-04-17: dispatch trace direct side-exit integration
+
+- Integrated dispatch-trace family source from the uncommitted worktree
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x-dispatch-trace`
+  onto current WIP as `ef3db658 s390x: accelerate dispatch trace side exits`.
+- Payload:
+  direct patching of known BRC/RIE guard branches to linked side traces,
+  rollback/diagnostic envs for direct patchexit, ungated nonzero CIJ/CGIJ
+  small-immediate guard fusion, SCEV constant-ref hardening in loop analysis,
+  real six-argument s390x modulo helper declarations, and expanded
+  side-exit/modulo JIT coverage including `mod_scaled_trace.lua`.
+- Merge hygiene:
+  source was based on older `fbe90de0`; the only 3-way conflict was in
+  `src/lj_asm_s390x.h` around `lj_mcode_sync()`. The resolved form keeps the
+  dispatch workstream's widened sync range (`cstart` through patched exit
+  stub) so direct branch patch sites are flushed together with the fallback
+  stub.
+- kdz1 validation mirror:
+  `/root/luajit2-s390x/workstreams/dispatch-trace-integration/repo`.
+  Hashes after tracked-file sync:
+  `src/lj_asm_s390x.h a90f2563adb282366dd86db3e08e0de8062b6b2e0a8d95cc867d4b758d9fc1f4`,
+  `src/lj_record.c 8ebc7ffe466c60db39262c1546445d5c42694987a5ec615bd42af42fceac7bf4`,
+  and
+  `tests/s390x/jit_core/side_exit.lua ee6a5765a184cba1e5bcd2152e4fbc81bd825bf1e92a276a4d86a65fbaded42d`.
+- kdz1 focused validation:
+  clean GCC static build passed; `tests/s390x/build_oracles.sh` was required
+  before the full `jit_core` sweep because the mirror initially lacked
+  `tests/s390x/ffi_abi/build/liboracle.so`.
+  Repeated `side_exit.lua`, all `tests/s390x/jit_core/*.lua`,
+  `tests/s390x/jit_loops/*.lua`, and `tests/s390x/jit_be/*.lua` passed.
+  `tests/s390x/perf/dispatch_trace.lua` passed, direct-patchexit miss logging
+  produced no `S390X_DIRECT_PATCHEXIT_MISS` lines, and
+  `LUAJIT_S390X_DISABLE_DIRECT_PATCHEXIT=1` rollback passed.
+- kdz1 added regression screen:
+  `mod_int_trace.lua`, `mod_scaled_trace.lua`, `bitops_mix_suffix.lua`,
+  `low32_home_contract.lua`, `jit_be/numeric_ops.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `vararg_correctness.lua`, `compiled_vararg.lua`, retained
+  `numeric_ops.lua`, retained `bitops_mix.lua`, and retained `ffi_calls.lua`
+  all passed.
+- zkd0 focused confirmation:
+  tracked-file mirror sync matched the kdz1 source hashes for
+  `src/lj_asm_s390x.h` and `src/lj_record.c`. Clean GCC static build passed,
+  plus `side_exit.lua`, `mod_int_trace.lua`, `mod_scaled_trace.lua`,
+  `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`, retained
+  `dispatch_trace.lua`, and the direct-patchexit zero-miss check.
+- Full kdz1 matrix:
+  `artifacts/s390x/dispatch-trace-integration-20260417T200154Z`, `720`
+  benchmark records, `318` internal comparisons, `0` failures, GCC/Clang,
+  JIT-on/`-joff`, and all `23` perf families.
+- Cross-arch comparison:
+  `artifacts/s390x/compare-kdz1-ka0s01-20260417T200936Z` against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`; `360` rows, `342` complete
+  rows, `0` missing s390x rows, `18` missing x86 rows, and the restored bottom
+  report sections (`Missing Data Audit` and `Full Matrix`) are present.
+- Matrix result:
+  `dispatch_trace` is now in the timer-floor band. GCC hot rows:
+  `numeric_loop <0.000001`, `side_exit_loop <0.000001`, and
+  `hotexit_loop 0.000001`. Clang hot rows:
+  `numeric_loop 0.000001`, `side_exit_loop <0.000001`, and
+  `hotexit_loop <0.000001`.
+- Current rerank:
+  no material official regression remains. The only JIT-on slower-than-`-joff`
+  rows are tiny `large_immediates/add_large` small/medium entries; do not patch
+  them without focused repeat evidence. Acceleration work should return to the
+  largest absolute JIT rows: `mixed_noffi/mixed_loop`, `iterator_table`
+  `pairs_sum` / `pairs_array_sum`, lower-frame `lua_abs_same_callsite`,
+  `be_helpers/strto_loop`, and selected fixed-struct pressure rows.
