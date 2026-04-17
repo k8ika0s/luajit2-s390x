@@ -3206,6 +3206,151 @@ static int asm_s390x_addk1_mix_suffix200(ASMState *as, IRIns *ir)
   return srcref == ir->op1 && asm_s390x_mix_suffix200_enabled(as, srcref);
 }
 
+static int asm_s390x_match_bshr_lane(ASMState *as, IRRef ref, IRRef *srcrefp,
+				     int32_t shr)
+{
+  IRIns *bshr;
+  if (irref_isk(ref) || !mayfuse(as, ref))
+    return 0;
+  bshr = IR(ref);
+  if (bshr->o != IR_BSHR || !ra_noreg(bshr->r) || !irref_isk(bshr->op2) ||
+      IR(bshr->op2)->o != IR_KINT || (IR(bshr->op2)->i & 31) != shr)
+    return 0;
+  if (*srcrefp && bshr->op1 != *srcrefp)
+    return 0;
+  *srcrefp = bshr->op1;
+  return 1;
+}
+
+static int asm_s390x_match_pack_lane(ASMState *as, IRRef ref, IRRef *srcrefp,
+				     int32_t shr, int32_t shl, int32_t mask)
+{
+  IRIns *band, *bshl, *bshr;
+  IRRef shlref;
+  if (mask != 0) {
+    if (irref_isk(ref) || !mayfuse(as, ref))
+      return 0;
+    band = IR(ref);
+    if (band->o != IR_BAND || !ra_noreg(band->r) || !irref_isk(band->op2) ||
+	IR(band->op2)->o != IR_KINT || IR(band->op2)->i != mask)
+      return 0;
+    shlref = band->op1;
+  } else {
+    shlref = ref;
+  }
+  if (irref_isk(shlref) || !mayfuse(as, shlref))
+    return 0;
+  bshl = IR(shlref);
+  if (bshl->o != IR_BSHL || !ra_noreg(bshl->r) || !irref_isk(bshl->op2) ||
+      IR(bshl->op2)->o != IR_KINT || (IR(bshl->op2)->i & 31) != shl)
+    return 0;
+  if (irref_isk(bshl->op1) || !mayfuse(as, bshl->op1))
+    return 0;
+  bshr = IR(bshl->op1);
+  if (bshr->o == IR_BAND && ra_noreg(bshr->r) && irref_isk(bshr->op2) &&
+      IR(bshr->op2)->o == IR_KINT && IR(bshr->op2)->i == 255) {
+    return asm_s390x_match_bshr_lane(as, bshr->op1, srcrefp, shr);
+  }
+  return asm_s390x_match_bshr_lane(as, bshl->op1, srcrefp, shr);
+}
+
+static int asm_s390x_match_pack_low_byte(ASMState *as, IRRef ref,
+					 IRRef *srcrefp)
+{
+  IRIns *band;
+  if (irref_isk(ref) || !mayfuse(as, ref))
+    return 0;
+  band = IR(ref);
+  if (band->o != IR_BAND || !ra_noreg(band->r) || !irref_isk(band->op2) ||
+      IR(band->op2)->o != IR_KINT || IR(band->op2)->i != 255)
+    return 0;
+  if (*srcrefp && band->op1 != *srcrefp)
+    return 0;
+  *srcrefp = band->op1;
+  return 1;
+}
+
+static int asm_s390x_collect_add_leaves(ASMState *as, IRRef ref,
+					IRRef *leaves, int *nleaves)
+{
+  IRIns *ir;
+  if (*nleaves >= 8)
+    return 0;
+  if (!irref_isk(ref) && mayfuse(as, ref)) {
+    ir = IR(ref);
+    if (ir->o == IR_ADD && !irt_isguard(ir->t) && irt_isinteger(ir->t) &&
+	ra_noreg(ir->r)) {
+      return asm_s390x_collect_add_leaves(as, ir->op1, leaves, nleaves) &&
+	     asm_s390x_collect_add_leaves(as, ir->op2, leaves, nleaves);
+    }
+  }
+  leaves[(*nleaves)++] = ref;
+  return 1;
+}
+
+static int asm_s390x_match_pack_u32_identity_add(ASMState *as, IRIns *ir,
+						 IRRef *accrefp, IRRef *srcrefp)
+{
+  IRRef leaves[8];
+  IRRef srcref = 0, accref = 0;
+  int nleaves = 0;
+  int i, seen_low = 0, seen_8 = 0, seen_16 = 0, seen_24 = 0;
+
+  if (irt_isguard(ir->t) || !irt_isinteger(ir->t))
+    return 0;
+  if (!asm_s390x_collect_add_leaves(as, ir->op1, leaves, &nleaves) ||
+      !asm_s390x_collect_add_leaves(as, ir->op2, leaves, &nleaves) ||
+      nleaves != 5)
+    return 0;
+
+  for (i = 0; i < nleaves; i++) {
+    if (!seen_low && asm_s390x_match_pack_low_byte(as, leaves[i], &srcref)) {
+      seen_low = 1;
+    } else if (!seen_8 &&
+	       asm_s390x_match_pack_lane(as, leaves[i], &srcref, 8, 8, 65280)) {
+      seen_8 = 1;
+    } else if (!seen_16 &&
+	       asm_s390x_match_pack_lane(as, leaves[i], &srcref, 16, 16, 16711680)) {
+      seen_16 = 1;
+    } else if (!seen_24 &&
+	       asm_s390x_match_pack_lane(as, leaves[i], &srcref, 24, 24, 0)) {
+      seen_24 = 1;
+    } else if (!irref_isk(leaves[i]) && accref == 0) {
+      accref = leaves[i];
+    } else {
+      return 0;
+    }
+  }
+
+  if (!(seen_low && seen_8 && seen_16 && seen_24) || srcref == 0 ||
+      accref == 0 || accref == srcref)
+    return 0;
+
+  *accrefp = accref;
+  *srcrefp = srcref;
+  return 1;
+}
+
+static int asm_add_pack_u32_identity(ASMState *as, IRIns *ir, Reg dest, int bnorm)
+{
+  IRRef accref = 0, srcref = 0;
+  Reg acc, src;
+
+  if (!asm_s390x_match_pack_u32_identity_add(as, ir, &accref, &srcref))
+    return 0;
+
+  acc = ra_hintalloc_nobase(as, accref, dest, RSET_GPR_NOB, -233);
+  src = ra_alloc1_nobase(as, srcref, rset_exclude(RSET_GPR_NOB, acc), -234);
+  asm_s390x_bitop_log(as, "pack_u32_identity_add", ir, dest, acc, src, 0);
+  if (bnorm)
+    asm_bnorm32(as, ir, dest);
+  if (dest == acc)
+    emit_u32(as, S390X_INS_RXE(S390XI_AGR, dest, src));
+  else
+    emit_u32(as, S390X_INS_RRF_M(S390XI_AGRK, dest, src, acc));
+  return 1;
+}
+
 static int asm_add_bxor_mix_pos_loop_tail(ASMState *as, IRIns *ir, Reg dest)
 {
   IRRef baseref = 0, srcref = 0;
@@ -3677,6 +3822,8 @@ static void asm_add(ASMState *as, IRIns *ir)
   }
   asm_s390x_addhome_log(as, ir);
   asm_s390x_low32home_log(as, "add", ir);
+  if (asm_add_pack_u32_identity(as, ir, dest, bnorm))
+    return;
   if (asm_add_bxor_mix_pos_loop_tail(as, ir, dest))
     return;
   left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
