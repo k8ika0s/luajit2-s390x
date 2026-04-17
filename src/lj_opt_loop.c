@@ -268,6 +268,16 @@ typedef struct LoopState {
 #if LJ_TARGET_S390X
 static int loop_s390x_has_call(jit_State *J, IRRef invar);
 
+static int loop_s390x_count_lt_clip_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1) {
+    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_COUNT_LT_CLIP");
+    enabled = (opt_out == NULL);
+  }
+  return enabled;
+}
+
 static int loop_s390x_scev_ref_offset(jit_State *J, IRRef ref, int64_t *ofsp)
 {
   int64_t ofs = 0;
@@ -730,6 +740,106 @@ static int loop_s390x_guard_stripov_recurrence(jit_State *J, IRRef invar,
 
   return 0;
 }
+
+static int loop_s390x_kint_value(jit_State *J, IRRef ref, int32_t *kp)
+{
+  if (!irref_isk(ref) || IR(ref)->o != IR_KINT)
+    return 0;
+  *kp = IR(ref)->i;
+  return 1;
+}
+
+static const BCIns *loop_s390x_guard_snap_pc(jit_State *J, IRRef ref)
+{
+  SnapNo s;
+  for (s = 1; s < J->cur.nsnap; s++) {
+    SnapShot *snap = &J->cur.snap[s];
+    if (snap->ref == ref || snap->ref == ref + 1) {
+      SnapEntry *map = &J->cur.snapmap[snap->mapofs];
+      return snap_pc(&map[snap->nent]);
+    }
+  }
+  return NULL;
+}
+
+static int loop_s390x_count_lt_false_to_forl(jit_State *J, IRRef guard)
+{
+  const BCIns *pc = loop_s390x_guard_snap_pc(J, guard);
+  BCOp op;
+  if (pc == NULL)
+    return 0;
+  op = bc_op(*pc);
+  return op == BC_FORL || op == BC_JFORL;
+}
+
+static int loop_s390x_count_lt_body_ok(jit_State *J, IRRef guard,
+				       IRRef bottom, IRRef inc)
+{
+  IRRef ref;
+  for (ref = guard + 1; ref < bottom; ref++) {
+    IRIns *ir = IR(ref);
+    if (ref == inc)
+      continue;
+    switch (ir->o) {
+    case IR_SLOAD:
+    case IR_ADD:
+    case IR_ADDOV:
+      break;
+    default:
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int loop_s390x_find_count_lt_clip(jit_State *J, IRRef invar,
+					 IRRef *guardp, IRRef *bottomp,
+					 IRRef *limitp)
+{
+  IRRef bottom;
+  int32_t start;
+
+  if (!loop_s390x_count_lt_clip_enabled() ||
+      !loop_s390x_unit_scev_bounds(J, &start, NULL, NULL) ||
+      start != 1 || J->scev.stop == REF_NIL)
+    return 0;
+
+  for (bottom = REF_FIRST; bottom < invar; bottom++) {
+    IRIns *bir = IR(bottom), *incir;
+    IRRef idx, guard;
+    int32_t one;
+
+    if (bir->o != IR_LE || !irt_isguard(bir->t) ||
+	bir->op2 != J->scev.stop || irref_isk(bir->op1))
+      continue;
+    incir = IR(bir->op1);
+    if (incir->o != IR_ADD || !loop_s390x_kint_value(J, incir->op2, &one) ||
+	one != 1)
+      continue;
+    idx = incir->op1;
+
+    for (guard = REF_FIRST; guard < bottom; guard++) {
+      IRIns *gir = IR(guard);
+      int32_t threshold;
+      IRRef limit;
+      if (gir->o != IR_LT || !irt_isguard(gir->t) || gir->op1 != idx ||
+	  !loop_s390x_kint_value(J, gir->op2, &threshold) ||
+	  threshold <= 1)
+	continue;
+      if (!loop_s390x_count_lt_false_to_forl(J, guard) ||
+	  !loop_s390x_count_lt_body_ok(J, guard, bottom, bir->op1))
+	continue;
+
+      limit = tref_ref(emitir(IRTI(IR_MIN), J->scev.stop,
+			      lj_ir_kint(J, threshold - 1)));
+      *guardp = guard;
+      *bottomp = bottom;
+      *limitp = limit;
+      return 1;
+    }
+  }
+  return 0;
+}
 #endif
 
 /* Unroll loop. */
@@ -746,6 +856,9 @@ static void loop_unroll(LoopState *lps)
 #if LJ_TARGET_S390X
   int s390x_have_bounds = 0;
   int32_t s390x_stop = 0;
+  IRRef s390x_clip_guard = 0;
+  IRRef s390x_clip_bottom = 0;
+  IRRef s390x_clip_limit = 0;
 #endif
 
   /* Allocate substitution table.
@@ -765,6 +878,8 @@ static void loop_unroll(LoopState *lps)
       lps->stripov[i] = 0;
   }
   loop_s390x_guard_stripov_recurrence(J, invar, lps->stripov);
+  loop_s390x_find_count_lt_clip(J, invar, &s390x_clip_guard,
+				&s390x_clip_bottom, &s390x_clip_limit);
   s390x_have_bounds = loop_s390x_unit_scev_bounds(J, NULL, &s390x_stop, NULL);
 #endif
 
@@ -798,15 +913,30 @@ static void loop_unroll(LoopState *lps)
     IRIns *ir;
     IRRef op1, op2;
 
+#if LJ_TARGET_S390X
+    if (ins == s390x_clip_guard && osnap->ref == ins) {
+      osnap++;
+    }
+#endif
     if (ins >= osnap->ref)  /* Instruction belongs to next snapshot? */
       loop_subst_snap(J, osnap++, loopmap, subst);  /* Copy-substitute it. */
 
     /* Substitute instruction operands. */
     ir = IR(ins);
+#if LJ_TARGET_S390X
+    if (ins == s390x_clip_guard) {
+      subst[ins] = REF_DROP;
+      continue;
+    }
+#endif
     op1 = ir->op1;
     if (!irref_isk(op1)) op1 = subst[op1];
     op2 = ir->op2;
     if (!irref_isk(op2)) op2 = subst[op2];
+#if LJ_TARGET_S390X
+    if (ins == s390x_clip_bottom)
+      op2 = s390x_clip_limit;
+#endif
 #if LJ_TARGET_S390X
     {
       int32_t modk, modshift;

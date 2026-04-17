@@ -423,7 +423,11 @@ static void lj_asm_s390x_tail_log(ASMState *as, SnapNo snapno,
    (o) == IR_FLOAD || (o) == IR_XLOAD || (o) == IR_SLOAD || (o) == IR_VLOAD)
 
 /* Sparse limit checks using a red zone before the actual limit. */
+#if LJ_TARGET_S390X
+#define MCLIM_REDZONE	256
+#else
 #define MCLIM_REDZONE	64
+#endif
 
 static LJ_NORET LJ_NOINLINE void asm_mclimit(ASMState *as)
 {

@@ -1259,6 +1259,25 @@ static IRRef asm_s390x_guarded_ov_preserve_ref(ASMState *as, IRIns *ir)
   return ir->op1;
 }
 
+static int asm_s390x_loop_phi_carry_in_dest(ASMState *as, IRIns *ir,
+					    Reg dest, Reg left)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+
+  if (!as->loopref || as->curins <= as->loopref || irref_isk(ir->op1))
+    return 0;
+  if (!ra_hasreg(IR(ir->op1)->r) || IR(ir->op1)->r != left)
+    return 0;
+
+  for (use = IR(as->orignins-1); use > ir; use--)
+    if (use->o == IR_PHI && use->op1 == ir->op1 && use->op2 == ref &&
+	ra_hasreg(use->r) && use->r == dest)
+      return 1;
+
+  return 0;
+}
+
 static void asm_s390x_guard_log(ASMState *as, const char *kind, IRIns *ir,
 				int cc, int32_t ofs, int extra)
 {
@@ -1582,6 +1601,7 @@ static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
     ExitNo exitno = i - 1;
     emit_u32(as, (uint32_t)as->T->traceno);
     emit_u32(as, (uint32_t)exitno);
+    emit_u16_pad4(as, 0x0707u);  /* Keep exitno/traceno at r14+2/r14+6. */
     emit_call(as, RID_R14, target);
   }
   as->mcexit = as->mcp;
@@ -1614,7 +1634,8 @@ static void asm_guardcc(ASMState *as, int cc)
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->loopinv = 1;
     lj_asm_s390x_guard_log(as, cc, target, p, 1);
-    *p = S390X_INS_BRC(CC_AL, (int32_t)(((char *)target - (char *)p) >> 1));
+    emit_u32_at(p, S390X_INS_BRC(CC_AL,
+				  (int32_t)(((char *)target - (char *)p) >> 1)));
     /* Code is emitted backwards: place the branch first so the mark write
     ** executes before a taken guard exits through the shared stub. */
     emit_condbranch(as, (S390XCC)asm_guardcc_invert(cc), p);
@@ -1647,9 +1668,9 @@ static void asm_guardcc(ASMState *as, int cc)
 
 static int asm_s390x_loop_cgrj(ASMState *as, int cc, Reg left, Reg right)
 {
-  if (as->loopinv == 1 && as->mcp == as->mctop - 2) {
+  if (as->loopinv == 1 && as->mcp == as->mctop - 8) {
     MCode *br = as->mcp;
-    as->mcp = br + 1;  /* Overwrite the separate loop BRC. */
+    as->mcp = br + 4;  /* Preserve the separate exit BRC. */
     emit_u48_pad8(as, S390X_INS_RIE_B(S390XI_CGRJ, left, right,
 				       asm_guardcc_invert(cc), 0));
     as->loopinv = 2;
@@ -1660,9 +1681,9 @@ static int asm_s390x_loop_cgrj(ASMState *as, int cc, Reg left, Reg right)
 
 static int asm_s390x_loop_crj(ASMState *as, int cc, Reg left, Reg right)
 {
-  if (as->loopinv == 1 && as->mcp == as->mctop - 2) {
+  if (as->loopinv == 1 && as->mcp == as->mctop - 8) {
     MCode *br = as->mcp;
-    as->mcp = br + 1;  /* Overwrite the separate loop BRC. */
+    as->mcp = br + 4;  /* Preserve the separate exit BRC. */
     emit_u48_pad8(as, S390X_INS_RIE_B(S390XI_CRJ, left, right,
 				       asm_guardcc_invert(cc), 0));
     as->loopinv = 2;
@@ -1683,7 +1704,7 @@ static void asm_setup_target(ASMState *as)
 
 static void asm_tail_prep(ASMState *as, TraceNo lnk)
 {
-  MCode *p = as->mctop - (as->loopref ? 1 : (lnk ? 3 : 7));
+  MCode *p = as->mctop - (as->loopref ? 4 : (lnk ? 12 : 28));
   if (as->loopref) {
     as->invmcp = as->mcp = p;
   } else {
@@ -1692,11 +1713,7 @@ static void asm_tail_prep(ASMState *as, TraceNo lnk)
     as->invmcp = NULL;
   }
   as->mctail = p;
-  *p = 0;  /* Keep the reserved slot explicit for later patching. */
-  if (!as->loopref) {
-    p[1] = 0;
-    p[2] = 0;
-  }
+  memset(p, 0, (size_t)(as->mctop - p));
 }
 
 static void asm_tail_fixup(ASMState *as, TraceNo lnk)
@@ -1709,30 +1726,34 @@ static void asm_tail_fixup(ASMState *as, TraceNo lnk)
 
   if (spadj) {
     lj_assertA(checki16(spadj), "s390x stack adjustment out of range");
-    *mcp++ = S390X_INS_RI(S390XI_AGHI, RID_SP, spadj);
+    emit_u32_at(mcp, S390X_INS_RI(S390XI_AGHI, RID_SP, spadj));
+    mcp += 4;
   }
   if (!lnk) {
     emit_u48_at(mcp, S390X_INS_RXY(S390XI_LG, RID_TMP, 0, RID_DISPATCH,
 				   emit_gl_ofs(cur_L)));
-    mcp += 2;
+    mcp += 6;
     emit_u48_at(mcp, S390X_INS_RXY(S390XI_STG, RID_TMP, 0, RID_SP,
 				   S390X_OFS_SAVE_L));
-    mcp += 2;
+    mcp += 6;
   }
 
   delta = (char *)target - (char *)mcp;
   lj_assertA((delta & 1) == 0, "unaligned tail branch target");
   if (checki16((int32_t)(delta >> 1))) {
-    *mcp++ = S390X_INS_BRC(CC_AL, (int32_t)(delta >> 1));
+    emit_u32_at(mcp, S390X_INS_BRC(CC_AL, (int32_t)(delta >> 1)));
+    mcp += 4;
   } else {
     lj_assertA(checki32((int64_t)(delta >> 1)),
 	       "s390x tail branch target out of range");
     emit_u48_at(mcp, S390X_INS_BRCL(CC_AL, (int32_t)(delta >> 1)));
-    mcp += 2;
+    mcp += 6;
   }
 
-  while (as->mctop > mcp)
-    *mcp++ = 0x07070707u;  /* Four 2-byte NOPR instructions. */
+  while (as->mctop > mcp) {
+    emit_u16_at(mcp, 0x0707u);  /* nopr %r7 */
+    mcp += 2;
+  }
 }
 
 static void asm_loop_fixup(ASMState *as)
@@ -1741,23 +1762,28 @@ static void asm_loop_fixup(ASMState *as)
   MCode *target = as->mcp;
   ptrdiff_t delta;
   if (as->loopinv == 2) {
-    delta = (char *)target - (char *)(p - 3);
+    MCode *br = p - 10;
+    delta = (char *)target - (char *)br;
     lj_assertA((delta & 1) == 0, "unaligned cgrj loop branch target");
     lj_assertA(checki16((int32_t)(delta >> 1)),
 	       "s390x cgrj loop branch target out of range");
-    p[-3] = (p[-3] & 0xffff0000u) | (uint16_t)(delta >> 1);
+    br[2] = (uint8_t)((uint16_t)(delta >> 1) >> 8);
+    br[3] = (uint8_t)(uint16_t)(delta >> 1);
   } else if (as->loopinv) {  /* Guard inversion already consumed the tail slot. */
-    delta = (char *)target - (char *)(p - 2);
+    MCode *br = p - 8;
+    delta = (char *)target - (char *)br;
     lj_assertA((delta & 1) == 0, "unaligned inverted loop branch target");
     lj_assertA(checki16((int32_t)(delta >> 1)),
 	       "s390x inverted loop branch target out of range");
-    p[-2] = (p[-2] & 0xffff0000u) | (uint16_t)(delta >> 1);
+    br[2] = (uint8_t)((uint16_t)(delta >> 1) >> 8);
+    br[3] = (uint8_t)(uint16_t)(delta >> 1);
   } else {
-    delta = (char *)target - (char *)(p - 1);
+    MCode *br = p - 4;
+    delta = (char *)target - (char *)br;
     lj_assertA((delta & 1) == 0, "unaligned loop branch target");
     lj_assertA(checki16((int32_t)(delta >> 1)),
 	       "s390x loop branch target out of range");
-    p[-1] = S390X_INS_BRC(CC_AL, (int32_t)(delta >> 1));
+    emit_u32_at(br, S390X_INS_BRC(CC_AL, (int32_t)(delta >> 1)));
   }
 }
 
@@ -2228,7 +2254,7 @@ static void asm_callx(ASMState *as, IRIns *ir)
 
   if (irref_isk(func)) {
     intptr_t addr = asm_kintptr(as, func);
-    uint8_t *p = (uint8_t *)as->mcp - 8;
+    MCode *p = as->mcp - 6;
     ptrdiff_t delta = (char *)(void *)(uintptr_t)addr - (char *)p;
     if ((delta & 1) == 0 && checki32((int64_t)(delta >> 1))) {
       ci.func = (ASMFunction)(void *)(uintptr_t)addr;
@@ -2401,6 +2427,20 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
     asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
     asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, RID_NONE, 1);
     emit_u48_pad8(as, S390X_INS_RIL(cmp32s ? S390XI_CFI : S390XI_CGFI,
+				    cmp_left, IR(rref)->i));
+    return;
+  }
+  if (irref_isk(rref) && (cc & CC_UNSIGNED) && !irt_isaddr(ir->t) &&
+      ((irt_isu32(ir->t) || irt_isp32(ir->t) || irt_isu8(ir->t) ||
+	irt_isu16(ir->t)) || IR(rref)->i >= 0)) {
+    int cmp32u_imm = irt_isu32(ir->t) || irt_isp32(ir->t) ||
+		     irt_isu8(ir->t) || irt_isu16(ir->t);
+    cmp_left = left;
+    asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir,
+			   cmp32u_imm, 0);
+    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left,
+			     RID_NONE, 0);
+    emit_u48_pad8(as, S390X_INS_RIL(cmp32u_imm ? S390XI_CLFI : S390XI_CLGFI,
 				    cmp_left, IR(rref)->i));
     return;
   }
@@ -2813,6 +2853,13 @@ static void asm_s390x_guarded_int_rr32(ASMState *as, IRIns *ir, Reg dest,
   Reg res = ra_scratch(as, sallow);
   IRRef pref = asm_s390x_guarded_ov_preserve_ref(as, ir);
   Reg preserve = (pref == ir->op2) ? right : left;
+  if (dest != preserve &&
+      asm_s390x_loop_phi_carry_in_dest(as, ir, dest, preserve)) {
+    asm_guardcc(as, CC_OF);
+    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, res));
+    emit_u32(as, S390X_INS_RRF_M(op, res, right, left));
+    return;
+  }
   emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, res));
   asm_guardcc(as, CC_OF);
   if (dest != preserve)
@@ -2886,20 +2933,27 @@ static void asm_add(ASMState *as, IRIns *ir)
       if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
 	RegSet allow = rset_exclude(RSET_GPR_NOB, dest);
 	if (as->loopref && as->curins > as->loopref) {
-	  RegSet sallow = rset_exclude(allow, left);
-	  Reg res = ra_scratch(as, sallow);
 	  int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1);
 	  asm_s390x_add_log(as, "addov_k_int_eq", ir, dest, left, RID_NONE, RID_NONE);
 	  asm_s390x_guard_log(as, "addov_k_int_eq", ir,
 			      low32home ? CC_OF : CC_NE, 0, k);
-	  emit_movrr(as, ir, dest, res);
-	  asm_guardcc(as, low32home ? CC_OF : CC_NE);
-	  if (low32home) {
-	    emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, res, left, k));
+	  if (low32home && dest != left) {
+	    asm_guardcc(as, CC_OF);
+	    if (!asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
+	      emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_OF, left));
+	    emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, dest, left, k));
 	  } else {
-	    emit_u32(as, S390X_INS_RXE(S390XI_CGFR, res, res));
-	    emit_u32(as, S390X_INS_RI(S390XI_AGHI, res, k));
-	    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	    RegSet sallow = rset_exclude(allow, left);
+	    Reg res = ra_scratch(as, sallow);
+	    emit_movrr(as, ir, dest, res);
+	    asm_guardcc(as, low32home ? CC_OF : CC_NE);
+	    if (low32home) {
+	      emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, res, left, k));
+	    } else {
+	      emit_u32(as, S390X_INS_RXE(S390XI_CGFR, res, res));
+	      emit_u32(as, S390X_INS_RI(S390XI_AGHI, res, k));
+	      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	    }
 	  }
 	} else {
 	  asm_s390x_add_log(as, "addov_k_int_eq", ir, dest, left, RID_NONE, RID_NONE);
@@ -2929,13 +2983,32 @@ static void asm_add(ASMState *as, IRIns *ir)
 	else
 	  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, k));
       }
-      if (dest != left && irt_isguard(ir->t))
+      if (dest != left && irt_isguard(ir->t) &&
+	  !(as->loopref && as->curins > as->loopref && irt_isinteger(ir->t) &&
+	    asm_s390x_guarded_addsub_op32home(as, ir->op1)))
+	emit_movrr(as, ir, dest, left);
+      return;
+    }
+    if (irt_isguard(ir->t) && irt_isinteger(ir->t) &&
+	asm_s390x_guarded_addsub_op32home(as, ir->op1)) {
+      asm_s390x_ir_log_addk(as, ir, ir->op1, ir->op2, dest, left, k);
+      asm_s390x_guard_log(as, "addov_k_int32", ir, CC_NE, 0, k);
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGFR, dest, dest));
+      emit_u48_pad8(as, S390X_INS_RIL(S390XI_AGFI, dest, k));
+      if (dest != left &&
+	  !asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
 	emit_movrr(as, ir, dest, left);
       return;
     }
     if (!irt_isguard(ir->t)) {
+      int low32home = as->loopref && as->curins > as->loopref &&
+		      asm_s390x_plain_add_range_stripped(as, ir) &&
+		      asm_s390x_plain_add_op32home(as, ir->op1) &&
+		      asm_s390x_can_defer_plain_add_bnorm32(as, ir);
       asm_s390x_ir_log_addk(as, ir, ir->op1, ir->op2, dest, left, k);
-      if (bnorm && !asm_s390x_addk_loop_result_normalized(as, ir, k) &&
+      if (bnorm && !low32home &&
+	  !asm_s390x_addk_loop_result_normalized(as, ir, k) &&
 	  !asm_s390x_can_defer_counter_add_bnorm32(as, ir))
 	asm_bnorm32(as, ir, dest);
       emit_u48_pad8(as, S390X_INS_RIL(S390XI_AGFI, dest, k));
@@ -3678,20 +3751,27 @@ static void asm_sub(ASMState *as, IRIns *ir)
       if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
 	RegSet allow = rset_exclude(RSET_GPR_NOB, dest);
 	if (as->loopref && as->curins > as->loopref) {
-	  RegSet sallow = rset_exclude(allow, left);
-	  Reg res = ra_scratch(as, sallow);
 	  int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1);
 	  asm_s390x_add_log(as, "subov_k_int_eq", ir, dest, left, RID_NONE, RID_NONE);
 	  asm_s390x_guard_log(as, "subov_k_int_eq", ir,
 			      low32home ? CC_OF : CC_NE, 0, -k);
-	  emit_movrr(as, ir, dest, res);
-	  asm_guardcc(as, low32home ? CC_OF : CC_NE);
-	  if (low32home) {
-	    emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, res, left, -k));
+	  if (low32home && dest != left) {
+	    asm_guardcc(as, CC_OF);
+	    if (!asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
+	      emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_OF, left));
+	    emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, dest, left, -k));
 	  } else {
-	    emit_u32(as, S390X_INS_RXE(S390XI_CGFR, res, res));
-	    emit_u32(as, S390X_INS_RI(S390XI_AGHI, res, -k));
-	    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	    RegSet sallow = rset_exclude(allow, left);
+	    Reg res = ra_scratch(as, sallow);
+	    emit_movrr(as, ir, dest, res);
+	    asm_guardcc(as, low32home ? CC_OF : CC_NE);
+	    if (low32home) {
+	      emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, res, left, -k));
+	    } else {
+	      emit_u32(as, S390X_INS_RXE(S390XI_CGFR, res, res));
+	      emit_u32(as, S390X_INS_RI(S390XI_AGHI, res, -k));
+	      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	    }
 	  }
 	} else {
 	  asm_s390x_add_log(as, "subov_k_int_eq", ir, dest, left, RID_NONE, RID_NONE);
@@ -3711,8 +3791,25 @@ static void asm_sub(ASMState *as, IRIns *ir)
 	else
 	  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, -k));
       }
-      if (dest != left && irt_isguard(ir->t))
+      if (dest != left && irt_isguard(ir->t) &&
+	  !(as->loopref && as->curins > as->loopref && irt_isinteger(ir->t) &&
+	    asm_s390x_guarded_addsub_op32home(as, ir->op1)))
         emit_movrr(as, ir, dest, left);
+      return;
+    }
+    if (k != INT32_MIN && irt_isguard(ir->t) && irt_isinteger(ir->t) &&
+	asm_s390x_guarded_addsub_op32home(as, ir->op1)) {
+      dest = ra_dest_nobase(as, ir, asm_s390x_dest_gprset(ir->t), -261);
+      left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
+      asm_s390x_add_log(as, "subov_k_int32", ir, dest, left, RID_NONE,
+			RID_NONE);
+      asm_s390x_guard_log(as, "subov_k_int32", ir, CC_NE, 0, -k);
+      asm_guardcc(as, CC_NE);
+      emit_u32(as, S390X_INS_RXE(S390XI_CGFR, dest, dest));
+      emit_u48_pad8(as, S390X_INS_RIL(S390XI_AGFI, dest, -k));
+      if (dest != left &&
+	  !asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
+	emit_movrr(as, ir, dest, left);
       return;
     }
     if (k != INT32_MIN && !irt_isguard(ir->t)) {
@@ -4346,7 +4443,8 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
   as->invmcp = NULL;
   emit_loadu64(as, dest, (uintptr_t)niltvg(J2G(as->J)));
 
-  l_loop = --as->mcp;
+  as->mcp -= 4;
+  l_loop = as->mcp;
   emit_u32(as, S390X_INS_RI(S390XI_CGHI, dest, 0));
   emit_load64ofs(as, dest, dest, (int32_t)offsetof(Node, next));
 
@@ -4359,7 +4457,7 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
   lj_assertA((delta & 1) == 0, "unaligned HREF string loop target");
   lj_assertA(checki16((int32_t)(delta >> 1)),
 	     "s390x HREF string loop target out of range");
-  *l_loop = S390X_INS_BRC(CC_NE, (int32_t)(delta >> 1));
+  emit_u32_at(l_loop, S390X_INS_BRC(CC_NE, (int32_t)(delta >> 1)));
 
   emit_u32(as, S390X_INS_RXE(S390XI_AGR, dest, tmp));
   emit_load64ofs(as, tmp, tab, (int32_t)offsetof(GCtab, node));
@@ -5455,6 +5553,6 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
   lj_assertJ(checki32((int64_t)(delta >> 1)),
 	     "s390x patched exit target out of range");
   emit_u48_at(px, S390X_INS_BRCL(CC_AL, (int32_t)(delta >> 1)));
-  lj_mcode_sync(px, px + 2);
+  lj_mcode_sync(px, px + 6);
   lj_mcode_patch(J, mcarea, 1);
 }
