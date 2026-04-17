@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 15:53 PDT
+Last updated: 2026-04-17 16:42 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `210b061c s390x: fold reducer byte-pack identity`.
+  `517df8c4 docs: record reducer identity acceleration`, plus the local
+  `be_helpers` harness isolation fix pending commit.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -53,12 +54,12 @@ Historical experiment detail lives in
   `ffi_cdata`, `iterator_table`, `mixed_noffi`, and core guardrails including
   `numeric_helpers.lua`, `pairs_loop.lua`, `compiled_vararg.lua`, and
   `vararg_paths.lua`.
-- kdz1 clean full matrix now passes at
-  `artifacts/s390x/scoped-hotexit100-20260417T213642Z`: `720` benchmark
-  records, all `23` perf families, GCC/Clang, JIT-on/`-joff`, `0` failures,
-  and no dirty patch.
+- kdz1 post-reducer full matrix now passes at
+  `artifacts/s390x/post-reducer-20260417T230334Z`: `720` benchmark records,
+  all `23` perf families, GCC/Clang, JIT-on/`-joff`, `0` s390x failures, and
+  no dirty source patch in the matrix artifact.
 - The companion x86 comparison is
-  `artifacts/s390x/compare-scoped-hotexit100-kdz1-ka0s01-20260417T213642Z`.
+  `artifacts/s390x/compare-post-reducer-kdz1-ka0s01-20260417T230334Z`.
   It has `360` rows, `342` complete s390x/x86 rows, `0` missing s390x rows,
   and keeps the full bottom report sections including `Missing Data Audit` and
   `Full Matrix`.
@@ -86,21 +87,30 @@ Historical experiment detail lives in
   `0.000160s`, and `0.000162s`. kdz1/kdz/zkd0 passed low32 and ADD/SUB/MUL
   overflow guardrails; kdz1 also passed `bitops_mix`, `bitops_trace`, and
   `bitops_mix_suffix`.
+- Requested-family stabilization after the reducer matrix:
+  dense `large_immediates` reruns closed the suspected red row, dense
+  `logic_add_phi_noboundary` reruns kept the row in the timer-floor band, and
+  high-sample `be_helpers` crashes were isolated to `strto_loop` trace churn in
+  the benchmark harness. `benchlib.lua` now supports per-case teardown, and
+  `be_helpers.lua` flushes after the complete `strto_loop` case. kdz1 passed
+  `be_helpers.lua` at `31` and `61` samples plus numeric backend guardrails.
 
 ## Latest Matrix
 
 - s390x artifact:
-  `artifacts/s390x/scoped-hotexit100-20260417T213642Z`.
+  `artifacts/s390x/post-reducer-20260417T230334Z`.
 - x86 comparison:
-  `artifacts/s390x/compare-scoped-hotexit100-kdz1-ka0s01-20260417T213642Z`, compared against
+  `artifacts/s390x/compare-post-reducer-kdz1-ka0s01-20260417T230334Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health:
   `720` s390x benchmark records, `360` comparison rows, `0` s390x failures,
   GCC/Clang, JIT-on/`-joff`, full-family selector.
 - Regression posture:
-  no material official row is currently red. The scoped-hotexit matrix reports
-  no JIT-on row slower than `-joff`; the earlier `large_immediates/add_large`
-  small/medium concern is green in the full matrix and in focused reruns.
+  no requested-family official row is currently red. The earlier
+  `large_immediates/add_large` concern is green in the post-reducer full matrix
+  and in dense focused reruns. Clang `mixed_noffi/mixed_loop` is the only
+  material red row in the current comparison and needs fresh attribution before
+  any source change.
 - Cross-arch acceleration artifact:
   `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline`, generated
   from the current comparison. This is the queue source for making x86 chase
@@ -142,10 +152,11 @@ Historical experiment detail lives in
   `iterator_table/pairs_array_sum` remain high absolute s390x JIT rows, but the
   current comparison lacks x86 JIT-on data for those families. Fix x86 harness
   coverage before using them for x86-gap ranking.
-- Current cross-architecture acceleration queue:
-  numeric `abs_loop` dense-sample instability, reducer `be_pack_*`, and Clang
-  `be_helpers/strto_loop`. Lower-frame `lua_abs_same_callsite` is closed by the
-  focused branchless-abs backend win pending the next full matrix refresh.
+- Current requested-family acceleration queue:
+  `numeric_ops/abs_loop` dense-sample instability is next. `large_immediates`,
+  `logic_add_phi_noboundary`, lower-frame `lua_abs_same_callsite`, reducer
+  `be_pack_*`, and high-sample `be_helpers` crash remediation are closed for
+  the current tranche.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp

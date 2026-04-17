@@ -34672,3 +34672,53 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   full matrix. The next named target is Clang-sensitive
   `be_helpers/strto_loop`, unless the full rerank surfaces a larger current
   post-`210b061c` x86-gap payer.
+
+## 2026-04-17: requested-family rerun and be_helpers strto isolation
+
+- Source point:
+  `517df8c4 docs: record reducer identity acceleration`, plus the local
+  `be_helpers` harness isolation patch described below.
+- Large-immediates dense rerun:
+  `artifacts/s390x/truth-packs/20260417-161323-kdz1-large_immediates-accel-truth-pack`
+  closed the suspected regression. `add_large`, `sub_large`, `cmp_large`,
+  `aref_large`, and `aref_small` hot rows were green in `5/5` same-host passes;
+  `add_large/hot` was `0.000016s` JIT vs `0.000139s` `-joff`.
+- Numeric dense rerun:
+  `artifacts/s390x/truth-packs/20260417-161617-kdz1-numeric_ops_micro-accel-truth-pack`
+  confirmed the current real numeric acceleration target is
+  `numeric_ops/abs_loop`, not large immediates. Dense runs stabilize
+  `abs_loop/hot` around `0.00067s..0.00070s`, while the five-sample full matrix
+  can report a misleading `~0.00011s` median because the row is bimodal.
+- Rejected numeric dispatch candidate:
+  a halfword-safe direct-patchexit scan removed the focused
+  `DIRECT_PATCHEXIT_MISS` records, but did not improve dense
+  `numeric_ops/abs_loop`; default and
+  `LUAJIT_S390X_DISABLE_DIRECT_PATCHEXIT=1` both stayed around the same median.
+  The source candidate was reverted and should not be retained without a
+  future row proving actual speed.
+- Logic-add PHI rerun:
+  `artifacts/s390x/truth-packs/20260417-kdz1-logic_add_phi_noboundary-retained_baseline-truth-pack`
+  closed `logic_add_phi_noboundary` as already timer-floor fast:
+  `0.000017s` JIT vs `0.001863s` `-joff`.
+- `be_helpers` crash isolation:
+  the full `be_helpers.lua` suite segfaulted only at higher sample counts after
+  the `strto_loop` cases accumulated fresh `loadstring` traces and poisoned
+  later rows. `strto_loop` alone passed at high samples, and the full suite
+  passed when `strto_loop` was skipped, so this was harness trace churn rather
+  than a later-row backend failure.
+- Retained harness fix:
+  `tests/s390x/perf/benchlib.lua` now supports an optional per-case
+  `teardown`, and `tests/s390x/perf/be_helpers.lua` flushes JIT state after
+  the complete `strto_loop` case. This avoids making every measured sample cold
+  while preventing stale strto traces from leaking into subsequent cases.
+- kdz1 validation:
+  after tracked-file sync and clean rebuild, `be_helpers.lua` passed
+  `S390X_PERF_SAMPLES=31` and `61`. The `61`-sample read was
+  `strto_loop/hot 0.000702s`, `number_helper_loop/hot 0.000107s`,
+  `be_pack_loop/hot 0.000038s`, and `num_aload_loop/hot 0.000113s`.
+  `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`, and
+  `mulov_overflow_guard.lua` also passed.
+- Queue update:
+  requested-family remediation is now narrowed to `numeric_ops/abs_loop`
+  branch/side-trace shape. `large_immediates`, `logic_add_phi_noboundary`, and
+  `be_helpers` crash remediation are closed for this tranche.

@@ -117,6 +117,9 @@ for _, scale in ipairs(bench.scale_order(scales)) do
               ", got " .. tostring(result))
       end
     end,
+    teardown = function()
+      require("jit").flush()
+    end,
   }
   cases[#cases + 1] = {
     workload = "num_aload_loop",

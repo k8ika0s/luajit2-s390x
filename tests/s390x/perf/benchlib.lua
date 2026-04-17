@@ -199,6 +199,9 @@ function M.run_suite(spec)
     end
     local post_result = run(iterations)
     validate(post_result)
+    if case.teardown then
+      case.teardown()
+    end
     append_jsonl(
       {
         bench_file = bench_file,
