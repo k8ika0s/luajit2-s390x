@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 14:45 PDT
+Last updated: 2026-04-17 15:52 PDT
 
 ## Current Matrix
 
@@ -11,6 +11,13 @@ notes and experiment logs belong below this section or in
 
 - Current WIP integration source point:
   `2b5d2ebe s390x: scope faster hotside threshold to safe perf families`.
+- Post-matrix retained source delta:
+  `d997ee55 s390x: lower centered modulo abs branchlessly`. The full matrix
+  below is still the authoritative full-artifact view until a new all-family
+  run supersedes it; focused kdz1/kdz/zkd0 validation moved
+  `lower_frame_same_callsite/lua_abs_same_callsite/hot` from the fresh control
+  band (`~0.001895s`) to `0.000576s..0.000579s` on kdz1/kdz and `0.001150s`
+  on zkd0.
 - Current s390x artifact:
   `artifacts/s390x/scoped-hotexit100-20260417T213642Z`.
 - Current x86 comparison:
@@ -109,12 +116,9 @@ notes and experiment logs belong below this section or in
   retained and reflected in the full matrix. It improves/protects the hotside
   side-trace rows without lowering the unsafe global s390x threshold.
 - Cross-arch acceleration queue:
-  first `lower_frame_same_callsite/lua_abs_same_callsite`, then `numeric_ops`
-  dense-sample instability, reducer `be_pack_*`, and Clang
-  `be_helpers/strto_loop`. The first kdz1 lower-frame truth pack is
-  `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`;
-  it classifies the official row as compiled-body dominated and not trace-exit
-  churn.
+  lower-frame `lua_abs_same_callsite` is closed by `d997ee55` pending the next
+  full matrix refresh. Continue with `numeric_ops` dense-sample instability,
+  reducer `be_pack_*`, and Clang `be_helpers/strto_loop`.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

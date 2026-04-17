@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 14:45 PDT
+Last updated: 2026-04-17 15:52 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `2b5d2ebe s390x: scope faster hotside threshold to safe perf families`.
+  `d997ee55 s390x: lower centered modulo abs branchlessly`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -20,6 +20,11 @@ Historical experiment detail lives in
   iterator-table, mixed-noffi, dispatch, and ffi-cdata proto families use an
   effective side-exit threshold of `100`, while the global s390x default stays
   `200` for unsafe low-threshold families.
+- Latest post-matrix acceleration work added a narrow s390x backend range proof
+  for the lower-frame `lua_abs_same_callsite` loop. The exact centered value
+  `x = (i % 17) - 8`, with nonnegative modulo input, now lowers the
+  `LT`/`NE`/`SUBOV 0-x` diamond as branchless integer abs before conversion to
+  number. This is not a generic abs rewrite.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -59,6 +64,14 @@ Historical experiment detail lives in
   GCC `numeric_loop/hot <0.000001`, `side_exit_loop/hot <0.000001`, and
   `hotexit_loop/hot 0.000001`. Treat exact ratios on those rows as
   sub-microsecond evidence, not precise arithmetic.
+- Lower-frame focused validation after `d997ee55`:
+  fresh kdz1 control from
+  `artifacts/s390x/truth-packs/20260417-152104-kdz1-lower_frame_body-accel-truth-pack`
+  was `lua_abs_same_callsite/hot median 0.001882s`; the immediate reverted
+  control was `0.001895s`; the candidate was `0.000576s..0.000577s` on kdz1,
+  `0.000579s` on kdz, and `0.001150s` on zkd0. kdz1 also passed rebuilt
+  `jit_be/*.lua`, `jit_core/*.lua`, `jit_loops/*.lua`, and focused
+  dispatch/iterator/mixed/vararg/cdata/numeric perf guardrails.
 
 ## Latest Matrix
 
@@ -116,15 +129,15 @@ Historical experiment detail lives in
   current comparison lacks x86 JIT-on data for those families. Fix x86 harness
   coverage before using them for x86-gap ranking.
 - Current cross-architecture acceleration queue:
-  `lower_frame_same_callsite/lua_abs_same_callsite`, numeric `abs_loop`
-  dense-sample instability, reducer `be_pack_*`, and Clang
-  `be_helpers/strto_loop`.
-- First lower-frame truth pack:
+  numeric `abs_loop` dense-sample instability, reducer `be_pack_*`, and Clang
+  `be_helpers/strto_loop`. Lower-frame `lua_abs_same_callsite` is closed by the
+  focused branchless-abs backend win pending the next full matrix refresh.
+- Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
-  It revalidated the official row on kdz1 and classified it as compiled-body
-  dominated, not exit/abort dominated. Next code work should inspect generated
-  `%17`/absolute-value loop lowering, not trace-control or broad lower-frame
-  route-arounds.
+  The current-source restamp
+  `artifacts/s390x/truth-packs/20260417-152104-kdz1-lower_frame_body-accel-truth-pack`
+  revalidated the official row as compiled-body dominated and led to the
+  retained branchless centered-modulo abs lowering.
 
 ## Documentation Pointers
 
