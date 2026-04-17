@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 06:10 PDT
+Last updated: 2026-04-17 07:40 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -86,6 +86,14 @@ Historical experiment detail lives in
   iterator proto/no-hot paths stay default-on in source and should be tested
   with their `LUAJIT_S390X_DISABLE_*` opt-outs, not carried as positive
   retained-env requirements.
+- Env-surface audit:
+  `tools/s390x/build_env_surface_audit.py` now inventories the full s390x env
+  surface across `src/`, `tests/s390x/`, and `tools/s390x/`. Current artifact
+  `artifacts/s390x/s390x-env-surface-20260417143448-bcb578fb` found `202`
+  unique env names: `2` retained opt-in safety rails, `31` default-on feature
+  opt-outs, `4` default-on positive aliases, `85` debug/probe knobs, `13`
+  tooling-only historical references, and `67` experimental opt-ins or
+  historical route-arounds.
 - `ffi_fixed_call_pressure` is closed as a high-time acceleration target at
   the current matrix scale: `gpr_pressure/hot` is `0.000008s` GCC /
   `0.000009s` Clang, and `fpr_pressure/hot` is `0.000008s` on both compilers.

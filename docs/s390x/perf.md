@@ -5740,3 +5740,10 @@ localized-helper carried-`total` lane
   passes, and one-at-a-time zkd0 removal also produced repeated red passes.
   Keep both broad iterator rails in the retained env until the underlying
   mixed-noffi root-iterator mechanism is replaced.
+- All-s390x env surface audit:
+  `artifacts/s390x/s390x-env-surface-20260417143448-bcb578fb` inventories
+  `202` unique `LUAJIT_S390X_*` names across source, tests, and tooling. Only
+  the two broad iterator rails are retained perf env gates. The rest classify
+  as default-on feature opt-outs, default-on positive aliases, debug/probe
+  knobs, tooling-only historical references, or experimental opt-ins requiring
+  fresh mechanism proof before use.

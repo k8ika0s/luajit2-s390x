@@ -34211,3 +34211,25 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `1.2034x` and `1.0851x`. Keep both broad rails until the mixed-noffi
   root-iterator mechanism is replaced, not merely because kdz/kdz1 tolerate
   the opt-out.
+
+## 2026-04-17: all-s390x env surface audit
+
+- New tooling:
+  added `tools/s390x/build_env_surface_audit.py` to inventory the full
+  `LUAJIT_S390X_*` surface across `src/`, `tests/s390x/`, and `tools/s390x/`.
+  This is separate from the retained jitter probes: it classifies source
+  knobs, test-only setup, tool-only historical references, default-on opt-outs,
+  and debug/probe envs.
+- Current audit artifact:
+  `artifacts/s390x/s390x-env-surface-20260417143448-bcb578fb`.
+- Current category counts:
+  `202` unique env names total: `2` retained opt-in safety rails, `31`
+  default-on feature opt-outs, `4` default-on positive aliases, `85`
+  debug/probe knobs, `13` tooling-only historical references, and `67`
+  experimental opt-ins or historical route-arounds.
+- Current conclusion:
+  there are no additional all-s390x retained perf env gates hiding outside the
+  iterator rails. The remaining non-retained source envs are either default-on
+  opt-outs, diagnostics, or experimental/historical hooks that require fresh
+  mechanism proof before use. The next cleanup pass should target stale
+  experimental source hooks by owner area, not weaken the retained perf env.
