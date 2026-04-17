@@ -2264,6 +2264,28 @@ static int asm_s390x_loop_crj(ASMState *as, IRIns *ir, IROp op,
   return 1;
 }
 
+static int asm_s390x_fill_loop_crj_nop(ASMState *as, uint16_t ins)
+{
+  uint8_t *p;
+  if (as->loopinv != 3)
+    return 0;
+  p = (uint8_t *)(as->mctop - 3);
+  if (p[0] != 0x07 || p[1] != 0x07)
+    return 0;
+  p[0] = (uint8_t)(ins >> 8);
+  p[1] = (uint8_t)ins;
+  return 1;
+}
+
+static int asm_s390x_loop_crj_nop_available(ASMState *as)
+{
+  uint8_t *p;
+  if (as->loopinv != 3)
+    return 0;
+  p = (uint8_t *)(as->mctop - 3);
+  return p[0] == 0x07 && p[1] == 0x07;
+}
+
 static void asm_intcomp(ASMState *as, IRIns *ir)
 {
   IROp op = ir->o;
@@ -2361,6 +2383,84 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
 
 static void asm_bnorm32(ASMState *as, IRIns *ir, Reg dest);
 
+static int asm_add_bxor_bswap_bnot_loop_tail(ASMState *as, IRIns *ir, Reg dest)
+{
+  IRRef baseref = 0;
+  IRRef bnotref = 0, innerref = 0, bswapref = 0, accref = 0, srcref;
+  IRIns *tail, *bnot, *inner, *bswap, *accir;
+  Reg base, src, acc, tmp;
+  RegSet allow;
+
+  if (irt_isguard(ir->t) || !irt_isinteger(ir->t) || irref_isk(ir->op1) ||
+      irref_isk(ir->op2) || !asm_s390x_add_low32home_only(as, ir))
+    return 0;
+  if (mayfuse(as, ir->op1) && (tail = IR(ir->op1))->o == IR_BXOR &&
+      ra_noreg(tail->r)) {
+    baseref = ir->op2;
+  } else if (mayfuse(as, ir->op2) && (tail = IR(ir->op2))->o == IR_BXOR &&
+	     ra_noreg(tail->r)) {
+    baseref = ir->op1;
+  } else {
+    return 0;
+  }
+
+  if (mayfuse(as, tail->op1) && !irref_isk(tail->op1) &&
+      (bnot = IR(tail->op1))->o == IR_BNOT && ra_noreg(bnot->r) &&
+      mayfuse(as, tail->op2) && !irref_isk(tail->op2) &&
+      (inner = IR(tail->op2))->o == IR_BXOR && ra_noreg(inner->r)) {
+    bnotref = tail->op1;
+    innerref = tail->op2;
+  } else if (mayfuse(as, tail->op2) && !irref_isk(tail->op2) &&
+	     (bnot = IR(tail->op2))->o == IR_BNOT && ra_noreg(bnot->r) &&
+	     mayfuse(as, tail->op1) && !irref_isk(tail->op1) &&
+	     (inner = IR(tail->op1))->o == IR_BXOR && ra_noreg(inner->r)) {
+    bnotref = tail->op2;
+    innerref = tail->op1;
+  } else {
+    return 0;
+  }
+
+  bnot = IR(bnotref);
+  inner = IR(innerref);
+  if (mayfuse(as, inner->op1) && !irref_isk(inner->op1) &&
+      (bswap = IR(inner->op1))->o == IR_BSWAP && ra_noreg(bswap->r)) {
+    bswapref = inner->op1;
+    accref = inner->op2;
+  } else if (mayfuse(as, inner->op2) && !irref_isk(inner->op2) &&
+	     (bswap = IR(inner->op2))->o == IR_BSWAP && ra_noreg(bswap->r)) {
+    bswapref = inner->op2;
+    accref = inner->op1;
+  } else {
+    return 0;
+  }
+
+  bswap = IR(bswapref);
+  if (irref_isk(accref) || bnot->op1 != bswap->op1)
+    return 0;
+  accir = IR(accref);
+  if (!asm_s390x_only_used_by_ref(as, accir, innerref))
+    return 0;
+  srcref = bnot->op1;
+
+  base = ra_hintalloc_nobase(as, baseref, dest, RSET_GPR_NOB, -231);
+  src = ra_alloc1_nobase(as, srcref, rset_exclude(RSET_GPR_NOB, base), -232);
+  allow = rset_exclude(rset_exclude(RSET_GPR_NOB, base), src);
+  acc = ra_alloc1_nobase(as, accref, allow, -233);
+  tmp = ra_scratch(as, rset_exclude(allow, acc));
+  asm_s390x_bitop_log(as, "add_bxor_bswap_bnot_loop_tail", tail, tmp, src, acc, 0);
+  if (base == dest) {
+    emit_u16_pair(as, S390X_INS_RR(S390XI_XR, tmp, acc),
+		  S390X_INS_RR(S390XI_AR, base, tmp));
+  } else {
+    emit_u32(as, S390X_INS_RRF_M(S390XI_ARK, dest, tmp, base));
+    emit_u16_pad4(as, S390X_INS_RR(S390XI_XR, tmp, acc));
+  }
+  emit_u16_u48(as, S390X_INS_RR(S390XI_XR, tmp, src),
+	       S390X_INS_RIL(S390XI_XILF, tmp, 0xffffffffu));
+  emit_u32(as, S390X_INS_RXE(S390XI_LRVR, tmp, src));
+  return 1;
+}
+
 static void asm_s390x_fpleft(ASMState *as, IRIns *ir, Reg dest, Reg left)
 {
   if (dest != left)
@@ -2399,6 +2499,8 @@ static void asm_add(ASMState *as, IRIns *ir)
   }
   asm_s390x_addhome_log(as, ir);
   asm_s390x_low32home_log(as, "add", ir);
+  if (asm_add_bxor_bswap_bnot_loop_tail(as, ir, dest))
+    return;
   if (!irt_isguard(ir->t) && irt_isinteger(ir->t) && !irref_isk(ir->op2)) {
     IRIns *lir = IR(ir->op1);
     IRIns *rir = IR(ir->op2);
@@ -2460,6 +2562,13 @@ static void asm_add(ASMState *as, IRIns *ir)
 	}
 	if (bnorm && !low32addk)
 	  asm_bnorm32(as, ir, dest);
+	if (low32addk && k == 1 && !irt_isguard(ir->t) && dest == left &&
+	    asm_s390x_addk1_bitop_loop_carry(as, ir) &&
+	    asm_s390x_loop_crj_nop_available(as)) {
+	  Reg one = ra_allock(as, 1, rset_exclude(RSET_GPR_NOB, left));
+	  if (asm_s390x_fill_loop_crj_nop(as, S390X_INS_RR(S390XI_AR, dest, one)))
+	    return;
+	}
 	if (!irt_isguard(ir->t) && dest != left)
 	  emit_u48_pad8(as, S390X_INS_RIE_D(low32addk ? S390XI_AHIK :
 					    S390XI_AGHIK, dest, left, k));
