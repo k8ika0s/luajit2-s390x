@@ -603,9 +603,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--perf-family",
         action="append",
-        choices=tuple(sorted(PERF_FAMILY_METADATA)),
+        choices=("all", *tuple(sorted(PERF_FAMILY_METADATA))),
         default=[],
-        help="Run only the selected perf family or families instead of the default gate set.",
+        help="Run only the selected perf family or families instead of the default gate set; use 'all' for the full perf matrix.",
     )
     return parser.parse_args()
 
@@ -1037,6 +1037,14 @@ def shell_skip_condition(paths: Iterable[str]) -> str:
 
 def selected_perf_families(args: argparse.Namespace) -> List[str]:
     if args.perf_family:
+        if "all" in args.perf_family:
+            return [
+                family
+                for family, _meta in sorted(
+                    PERF_FAMILY_METADATA.items(),
+                    key=lambda item: (item[1]["promotion_order"], item[0]),
+                )
+            ]
         return list(dict.fromkeys(args.perf_family))
     return [
         family
