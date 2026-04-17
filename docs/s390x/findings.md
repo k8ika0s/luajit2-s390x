@@ -33990,3 +33990,46 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   hot reads for miss-find, prefix-eq, concat-slice, and string-key lookup. The
   next performance queue should not chase these floor rows; use larger focused
   string harnesses if more string differentiation is needed.
+
+## 2026-04-16: fixed FFI call pressure promotion and matrix restamp
+
+- Source point:
+  `2b134af1 Optimize s390x fixed FFI call pressure`, cherry-picked from
+  isolated workstream commit `11dd9369cfffd94736e6312e4c5b2622ce3ec14f` and
+  pushed to `origin/k8ika0s/s390x-bringup-wip`.
+- Scope:
+  retained the focused four-file payload only:
+  `src/lj_asm_s390x.h`, `tests/s390x/build_oracles.sh`,
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`, and
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua`. The backend part defaults
+  direct GPR fixed-call argument placement on; the test/perf part retargets
+  the pressure oracle and benchmark to the optimized high-arity batched shape.
+- Delivered-source hashes in the full matrix artifact:
+  `src/lj_asm_s390x.h`
+  `add67cbdd43fd0922b549e5b2d42cffd7c8085343fc953361d1535673858ec87`,
+  `tests/s390x/build_oracles.sh`
+  `9590186d3b88e46e37b9c03d5d4f5ae1116b4f671582978d2d853d540df4efd9`,
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`
+  `b7cfb1a81ed7ff9f5dff7ed516f0b382606947db7a893cc0e872d07a2216406c`, and
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua`
+  `dee3c8c9b3c05ca0e93a0f0d41e8b8fdb728ad899ec98587ceda9fc65e49350d`.
+- Focused validation:
+  kdz1 GCC and Clang builds passed after clean rebuilds. Oracle builds passed
+  under both compilers. Focused `ffi_fixed_call_pressure` perf passed with hot
+  medians in the `0.000008..0.000009s` band for both GPR and FPR pressure.
+  Guardrails passed: `ffi_fixed_call_pressure_trace.lua`,
+  `ffi_stack_call_trace.lua`, `ffi_abi/run.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, and `numeric_ops.lua`.
+- Full comparison:
+  `artifacts/s390x/s390x-kdz1-20260416T235054Z` and
+  `artifacts/s390x/compare-kdz1-ka0s01-20260416T235054Z`, compared against
+  `artifacts/s390x/x86-ka0s01-20260415T191112Z`. The run emitted `2160`
+  s390x records, `360` comparison rows, and `0` s390x failures.
+- Matrix read:
+  `ffi_fixed_call_pressure/gpr_pressure/hot` is now `0.000008s` GCC and
+  `0.000009s` Clang; `fpr_pressure/hot` is `0.000008s` on both compilers.
+  The family now has a s390x JIT-on cross-architecture advantage in the rollup
+  (`+3.741x` GCC, `+3.613x` Clang). The generated summary lists only tiny
+  per-pass `large_immediates/add_large` noise as slower than `-joff`; the
+  top-matrix median keeps `large_immediates/add_large/medium` green at
+  `1.077x`.
