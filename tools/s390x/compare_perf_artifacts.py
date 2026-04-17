@@ -346,6 +346,10 @@ def write_markdown(
         key=lambda row: row["s390x_vs_x86_jit_on"],
         reverse=True,
     )[:20]
+    disadvantages = sorted(
+        [row for row in rows if row["s390x_vs_x86_jit_on"] is not None],
+        key=lambda row: row["s390x_vs_x86_jit_on"],
+    )[:20]
     slowest = sorted(
         [row for row in rows if row["s390x_jit_on"] is not None],
         key=lambda row: row["s390x_jit_on"],
@@ -365,6 +369,8 @@ def write_markdown(
 
     lines.extend(["", "## Largest s390x JIT-On Advantages"])
     lines.extend(markdown_table(table_headers, [row_fields(row) for row in advantages]))
+    lines.extend(["", "## Largest s390x JIT-On Disadvantages"])
+    lines.extend(markdown_table(table_headers, [row_fields(row) for row in disadvantages]))
     lines.extend(["", "## Largest s390x JIT-On Runtimes"])
     lines.extend(markdown_table(table_headers, [row_fields(row) for row in slowest]))
     lines.extend(["", "## s390x JIT-On Slower Than -joff"])
@@ -377,6 +383,8 @@ def write_markdown(
         lines.extend(markdown_table(table_headers, [row_fields(row) for row in missing]))
     else:
         lines.append("- No missing s390x/x86 on/off cells.")
+    lines.extend(["", "## Full Matrix"])
+    lines.extend(markdown_table(table_headers, [row_fields(row) for row in rows]))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
