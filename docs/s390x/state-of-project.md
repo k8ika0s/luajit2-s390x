@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 13:10 PDT
+Last updated: 2026-04-17 13:35 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `ef3db658 s390x: accelerate dispatch trace side exits`, on top of
-  `28f70e67 Update s390x bitops matrix status`.
+  `c7845bac docs: record dispatch trace integration matrix`, on top of
+  `ef3db658 s390x: accelerate dispatch trace side exits`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -18,7 +18,8 @@ Historical experiment detail lives in
   normalization repair, the focused bitops suffix-table integration, and the
   dispatch-trace direct side-exit retargeting/SCEV hardening integration.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
-  or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review.
+  or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
+  it is not already current.
 
 ## Latest Validation
 
@@ -61,6 +62,11 @@ Historical experiment detail lives in
   no material official row is currently red. Only `large_immediates/add_large`
   small/medium is slower than `-joff`, and the absolute runtimes are too small
   to patch without focused repeat evidence.
+- Cross-arch acceleration artifact:
+  `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline`, generated
+  from the current comparison. This is the queue source for making x86 chase
+  s390x; it ranks complete x86/s390x JIT-on rows by absolute s390x runtime and
+  x86-over-s390x ratio.
 
 ## Current Performance Posture
 
@@ -92,14 +98,21 @@ Historical experiment detail lives in
 - `string_heavy` remains at the matrix timer floor for the shipped hot rows.
   Further string work needs larger focused harnesses before claiming more
   retained wins.
-- Current acceleration queue by absolute JIT time:
-  `mixed_noffi/mixed_loop`, `iterator_table/pairs_sum`,
-  `iterator_table/pairs_array_sum`,
-  `lower_frame_same_callsite/lua_abs_same_callsite`, GCC/Clang
-  `be_helpers/strto_loop`, and selected `ffi_fixed_struct_calls` pressure rows.
-- Cross-architecture watch rows:
-  `large_immediates` and selected `numeric_ops` small/medium rows. Treat these
-  as acceleration research, not branch blockers.
+- Current absolute-runtime watch:
+  `mixed_noffi/mixed_loop`, `iterator_table/pairs_sum`, and
+  `iterator_table/pairs_array_sum` remain high absolute s390x JIT rows, but the
+  current comparison lacks x86 JIT-on data for those families. Fix x86 harness
+  coverage before using them for x86-gap ranking.
+- Current cross-architecture acceleration queue:
+  `lower_frame_same_callsite/lua_abs_same_callsite`, Clang
+  `be_helpers/strto_loop`, reducer `be_pack_*`, `numeric_ops` micro-kernels,
+  and `ffi_cdata` width/FREF rows.
+- First lower-frame truth pack:
+  `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
+  It revalidated the official row on kdz1 and classified it as compiled-body
+  dominated, not exit/abort dominated. Next code work should inspect generated
+  `%17`/absolute-value loop lowering, not trace-control or broad lower-frame
+  route-arounds.
 
 ## Documentation Pointers
 

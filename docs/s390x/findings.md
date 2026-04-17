@@ -34403,3 +34403,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   largest absolute JIT rows: `mixed_noffi/mixed_loop`, `iterator_table`
   `pairs_sum` / `pairs_array_sum`, lower-frame `lua_abs_same_callsite`,
   `be_helpers/strto_loop`, and selected fixed-struct pressure rows.
+
+## 2026-04-17: cross-arch acceleration ranking
+
+- Added `tools/s390x/build_x86_gap_truth_pack.py`, a selector/report layer for
+  s390x-vs-x86 comparison artifacts. It reads `combined-comparison.csv`,
+  filters complete rows where x86 JIT-on beats s390x JIT-on, ranks by absolute
+  s390x JIT runtime and x86-over-s390x ratio, emits a missing x86 JIT-on audit,
+  and maps rows to focused acceleration truth-pack targets.
+- Current generated artifact:
+  `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline`, based on
+  `artifacts/s390x/compare-kdz1-ka0s01-20260417T200936Z/combined-comparison.csv`.
+- Top complete cross-arch gaps by absolute s390x JIT runtime:
+  lower-frame `lua_abs_same_callsite/hot` (`0.001845s` GCC, `2.26x` x86 faster;
+  `0.001834s` Clang, `2.00x` x86 faster), Clang
+  `be_helpers/strto_loop/hot` (`0.001780s`, `1.73x` x86 faster), reducer
+  `be_pack_*` rows (`0.000519s..0.000861s`, up to `7.17x` x86 faster),
+  `numeric_ops` micro-kernels, and `ffi_cdata` width/FREF rows.
+- Missing x86 JIT-on coverage:
+  exactly `18` rows, all `iterator_table` and `mixed_noffi` GCC/Clang
+  small/medium/hot rows. Those remain high absolute s390x runtime rows but are
+  not valid x86-gap targets until x86 JIT-on coverage exists.
+- Extended `tools/s390x/build_acceleration_truth_pack.py` with two new targets:
+  `route_around_reducers` and `numeric_ops_micro`. Existing targets already
+  cover lower-frame, string scan, FFI cdata, FFI fixed calls, iterator safety,
+  low32, string-heavy, and number-helper residuals.
+- kdz1 lower-frame truth pack:
+  `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
+  The official retained A/B stayed green (`lua_abs_same_callsite/hot` median
+  `0.001867s` JIT-on vs `0.015130s` `-joff`, ratio `0.1242`), and the focused
+  official-shaped capture classified the row as compiled-body dominated. There
+  was no trace-exit or abort payer in this pass.
+- Tooling correction:
+  copied lower-frame temp repros are invalid for this target because the
+  route-around and retained shape are chunk/path sensitive. The lower-frame
+  truth-pack focus now runs the official
+  `tests/s390x/perf/lower_frame_same_callsite.lua` file directly and relies on
+  official dumps for the mechanism view.
+- Current next move:
+  inspect the official lower-frame mcode/IR for the `%17` plus absolute-value
+  loop body and compare against x86 lowering. Do not reopen lower-frame
+  proto-NOJIT, broad trace-control, or copied temp repros as evidence.
