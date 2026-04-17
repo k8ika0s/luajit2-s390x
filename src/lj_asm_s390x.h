@@ -1276,6 +1276,25 @@ static int asm_s390x_loop_phi_carry_in_dest(ASMState *as, IRIns *ir,
   return 0;
 }
 
+static int asm_s390x_guarded_addsub_can_stay_low32(ASMState *as, IRIns *ir)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int family_uses = 0;
+
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (asm_s390x_is_low32home_family_use(use)) {
+      family_uses++;
+      continue;
+    }
+    return 0;
+  }
+
+  return family_uses != 0;
+}
+
 static void asm_s390x_guard_log(ASMState *as, const char *kind, IRIns *ir,
 				int cc, int32_t ofs, int extra)
 {
@@ -2930,7 +2949,8 @@ static void asm_add(ASMState *as, IRIns *ir)
       if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
 	RegSet allow = rset_exclude(RSET_GPR_NOB, dest);
 	if (as->loopref && as->curins > as->loopref) {
-	  int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1);
+	  int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1) &&
+			  asm_s390x_guarded_addsub_can_stay_low32(as, ir);
 	  asm_s390x_add_log(as, "addov_k_int_eq", ir, dest, left, RID_NONE, RID_NONE);
 	  asm_s390x_guard_log(as, "addov_k_int_eq", ir,
 			      low32home ? CC_OF : CC_NE, 0, k);
@@ -2987,7 +3007,8 @@ static void asm_add(ASMState *as, IRIns *ir)
       return;
     }
     if (irt_isguard(ir->t) && irt_isinteger(ir->t) &&
-	asm_s390x_guarded_addsub_op32home(as, ir->op1)) {
+	asm_s390x_guarded_addsub_op32home(as, ir->op1) &&
+	asm_s390x_guarded_addsub_can_stay_low32(as, ir)) {
       asm_s390x_ir_log_addk(as, ir, ir->op1, ir->op2, dest, left, k);
       asm_s390x_guard_log(as, "addov_k_int32", ir, CC_NE, 0, k);
       asm_guardcc(as, CC_NE);
@@ -3028,28 +3049,28 @@ static void asm_add(ASMState *as, IRIns *ir)
       IRRef pref = asm_s390x_guarded_ov_preserve_ref(as, ir);
       Reg preserve = (pref == ir->op2) ? right : left;
       int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1) &&
-		      asm_s390x_guarded_addsub_op32home(as, ir->op2);
-      if (low32home) {
-	asm_s390x_add_log(as, "addov_rr_int_eq", ir, dest, left, right, RID_NONE);
-	asm_s390x_guard_log(as, "addov_rr_int_eq", ir, CC_OF, 0,
-			    (int)(ir->op2 - REF_BIAS));
-	if (dest != preserve) {
+		      asm_s390x_guarded_addsub_op32home(as, ir->op2) &&
+		      asm_s390x_guarded_addsub_can_stay_low32(as, ir);
+      asm_s390x_add_log(as, low32home ? "addov_rr_int_eq" :
+			"addov_rr_int_ar", ir, dest, left, right, RID_NONE);
+      asm_s390x_guard_log(as, low32home ? "addov_rr_int_eq" :
+			  "addov_rr_int_ar", ir, CC_OF, 0,
+			  (int)(ir->op2 - REF_BIAS));
+      if (low32home && dest != preserve) {
+	asm_guardcc(as, CC_OF);
+	emit_u32(as, S390X_INS_RRF_M(S390XI_ARK, dest, right, left));
+      } else {
+	if (low32home) {
 	  RegSet sallow = allow & ~RID2RSET(left);
 	  Reg res = ra_scratch(as, sallow);
 	  emit_movrr(as, ir, dest, res);
 	  asm_guardcc(as, CC_OF);
-	  emit_movrr(as, ir, dest, preserve);
+	  if (dest != preserve)
+	    emit_movrr(as, ir, dest, preserve);
 	  emit_u32(as, S390X_INS_RRF_M(S390XI_ARK, res, right, left));
 	} else {
-	  asm_guardcc(as, CC_OF);
-	  emit_u32(as, S390X_INS_RRF_M(S390XI_ARK, dest, right, left));
+	  asm_s390x_guarded_int_rr32(as, ir, dest, left, right, S390XI_ARK);
 	}
-      } else {
-	asm_s390x_add_log(as, "addov_rr_int_ar", ir, dest, left, right,
-			  RID_NONE);
-	asm_s390x_guard_log(as, "addov_rr_int_ar", ir, CC_OF, 0,
-			    (int)(ir->op2 - REF_BIAS));
-	asm_s390x_guarded_int_rr32(as, ir, dest, left, right, S390XI_ARK);
       }
     } else {
       asm_s390x_add_log(as, "addov_rr_int_eq", ir, dest, left, right, RID_NONE);
@@ -3741,7 +3762,8 @@ static void asm_sub(ASMState *as, IRIns *ir)
       if (irt_isguard(ir->t) && irt_isinteger(ir->t)) {
 	RegSet allow = rset_exclude(RSET_GPR_NOB, dest);
 	if (as->loopref && as->curins > as->loopref) {
-	  int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1);
+	  int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1) &&
+			  asm_s390x_guarded_addsub_can_stay_low32(as, ir);
 	  asm_s390x_add_log(as, "subov_k_int_eq", ir, dest, left, RID_NONE, RID_NONE);
 	  asm_s390x_guard_log(as, "subov_k_int_eq", ir,
 			      low32home ? CC_OF : CC_NE, 0, -k);
@@ -3788,7 +3810,8 @@ static void asm_sub(ASMState *as, IRIns *ir)
       return;
     }
     if (k != INT32_MIN && irt_isguard(ir->t) && irt_isinteger(ir->t) &&
-	asm_s390x_guarded_addsub_op32home(as, ir->op1)) {
+	asm_s390x_guarded_addsub_op32home(as, ir->op1) &&
+	asm_s390x_guarded_addsub_can_stay_low32(as, ir)) {
       dest = ra_dest_nobase(as, ir, asm_s390x_dest_gprset(ir->t), -261);
       left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
       asm_s390x_add_log(as, "subov_k_int32", ir, dest, left, RID_NONE,
@@ -3836,7 +3859,8 @@ static void asm_sub(ASMState *as, IRIns *ir)
 	IRRef pref = asm_s390x_guarded_ov_preserve_ref(as, ir);
 	Reg preserve = (pref == ir->op2) ? right : left;
 	int low32home = asm_s390x_guarded_addsub_op32home(as, ir->op1) &&
-			asm_s390x_guarded_addsub_op32home(as, ir->op2);
+			asm_s390x_guarded_addsub_op32home(as, ir->op2) &&
+			asm_s390x_guarded_addsub_can_stay_low32(as, ir);
 	if (low32home) {
 	  asm_s390x_add_log(as, "subov_rr_int_eq", ir, dest, left, right,
 			    RID_NONE);
