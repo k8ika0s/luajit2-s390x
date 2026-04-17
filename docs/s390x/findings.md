@@ -34605,3 +34605,25 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   close lower-frame as the current cross-arch acceleration target pending the
   next full matrix refresh. Next targets are numeric `abs_loop` dense-sample
   instability, reducer `be_pack_*`, and Clang `be_helpers/strto_loop`.
+
+## 2026-04-17: numeric abs nonnegative ABS elision rejected
+
+- Current-source truth pack:
+  `artifacts/s390x/truth-packs/20260417-153454-kdz1-numeric_ops_micro-accel-truth-pack`.
+  It shows `numeric_ops/abs_loop/hot` is not a material regression: five-pass
+  median `0.000108s` JIT vs `0.004003s` `-joff`. The issue is sample
+  instability, with individual hot samples sometimes landing near `0.00068s`.
+- Mechanism read:
+  `numeric_abs_micro` still records an odd/even branch shape around
+  `(i & 1)`, with `ABS(CONV(i))` on the positive path. Trace counts are small
+  (`TEXIT_COUNT 1` in the focused micro run), so this is not the same kind of
+  persistent exit storm seen in old iterator/mixed lanes.
+- Rejected candidate:
+  a narrow backend experiment eliding `ABS` when its input is an int-to-num
+  conversion of a SCEV-proven nonnegative value was slower on kdz1:
+  `numeric_ops/abs_loop/hot median 0.000670s`, effectively pinning the row in
+  the slow sample band instead of the retained `~0.000108s` median.
+- Queue update:
+  do not retain the `ABS(CONV(nonnegative))` elision. Numeric abs remains a
+  measurement/jitter note, not the next code target. Move to reducer
+  `be_pack_*` or Clang `be_helpers/strto_loop` for the next acceleration lane.
