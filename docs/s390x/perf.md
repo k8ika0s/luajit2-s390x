@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 15:52 PDT
+Last updated: 2026-04-17 15:53 PDT
 
 ## Current Matrix
 
@@ -18,6 +18,15 @@ notes and experiment logs belong below this section or in
   `lower_frame_same_callsite/lua_abs_same_callsite/hot` from the fresh control
   band (`~0.001895s`) to `0.000576s..0.000579s` on kdz1/kdz and `0.001150s`
   on zkd0.
+- Post-matrix retained source delta:
+  `210b061c s390x: fold reducer byte-pack identity`. The backend now recognizes
+  the exact reducer byte-pack identity `(i>>24)<<24 + ... + (i&255)` feeding
+  an accumulator and lowers it as `acc + i` with the existing 32-bit
+  normalization contract. Focused kdz1/kdz/zkd0 validation moved
+  `route_around_reducers_truth_pack/be_pack_literal_stop*/hot` from the
+  immediate control band (`~0.000517s..0.000587s`) to
+  `0.000146s..0.000275s`; `be_helpers/be_pack_loop/hot` stayed in the
+  `0.000037s..0.000053s` band.
 - Current s390x artifact:
   `artifacts/s390x/scoped-hotexit100-20260417T213642Z`.
 - Current x86 comparison:
@@ -117,8 +126,9 @@ notes and experiment logs belong below this section or in
   side-trace rows without lowering the unsafe global s390x threshold.
 - Cross-arch acceleration queue:
   lower-frame `lua_abs_same_callsite` is closed by `d997ee55` pending the next
-  full matrix refresh. Continue with `numeric_ops` dense-sample instability,
-  reducer `be_pack_*`, and Clang `be_helpers/strto_loop`.
+  full matrix refresh. Reducer `be_pack_*` is closed by `210b061c` pending the
+  next full matrix refresh. Continue with Clang `be_helpers/strto_loop` and a
+  full rerank before opening another backend lane.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
