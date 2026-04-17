@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 15:52 PDT
+Last updated: 2026-04-17 15:53 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `d997ee55 s390x: lower centered modulo abs branchlessly`.
+  `210b061c s390x: fold reducer byte-pack identity`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -25,6 +25,11 @@ Historical experiment detail lives in
   `x = (i % 17) - 8`, with nonnegative modulo input, now lowers the
   `LT`/`NE`/`SUBOV 0-x` diamond as branchless integer abs before conversion to
   number. This is not a generic abs rewrite.
+- Latest reducer acceleration work added a narrow s390x backend identity fold
+  for the route-around reducer byte-pack body. When the exact four-lane
+  `bit.rshift`/`bit.lshift`/`bit.band` reconstruction of one integer feeds an
+  accumulator, the backend emits the equivalent `acc + i` under the existing
+  32-bit normalization contract. This is not a generic bit-pack canonicalizer.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -72,6 +77,15 @@ Historical experiment detail lives in
   `0.000579s` on kdz, and `0.001150s` on zkd0. kdz1 also passed rebuilt
   `jit_be/*.lua`, `jit_core/*.lua`, `jit_loops/*.lua`, and focused
   dispatch/iterator/mixed/vararg/cdata/numeric perf guardrails.
+- Reducer focused validation after `210b061c`:
+  kdz1 bitop logs proved `pack_u32_identity_add` engaged on the official
+  `tests/s390x/perf/route_around_reducers.lua` rows. Immediate reverted
+  control was `0.000587s`, `0.000517s`, and `0.000517s` for the three hot rows;
+  candidate kdz1 was `0.000220s`, `0.000148s`, and `0.000146s`. kdz confirmed
+  `0.000220s`, `0.000149s`, and `0.000149s`; zkd0 confirmed `0.000275s`,
+  `0.000160s`, and `0.000162s`. kdz1/kdz/zkd0 passed low32 and ADD/SUB/MUL
+  overflow guardrails; kdz1 also passed `bitops_mix`, `bitops_trace`, and
+  `bitops_mix_suffix`.
 
 ## Latest Matrix
 

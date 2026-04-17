@@ -34627,3 +34627,48 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   do not retain the `ABS(CONV(nonnegative))` elision. Numeric abs remains a
   measurement/jitter note, not the next code target. Move to reducer
   `be_pack_*` or Clang `be_helpers/strto_loop` for the next acceleration lane.
+
+## 2026-04-17: retained reducer byte-pack identity lowering
+
+- Source commit:
+  `210b061c s390x: fold reducer byte-pack identity`.
+- Current-source truth pack:
+  `artifacts/s390x/truth-packs/20260417-154040-kdz1-route_around_reducers-accel-truth-pack`.
+  It showed the retained route reducer rows are already JIT-positive but still
+  carry a large compiled-body expression: the loop reconstructs `i` from four
+  byte lanes with `BSHR`/`BSHL`/`BAND`, then adds those lanes to the accumulator.
+- Mechanism:
+  the exact expression
+  `(i >> 24) << 24 + ((i >> 16) << 16 & 0xff0000) + ((i >> 8) << 8 & 0xff00) + (i & 0xff)`
+  is just the original 32-bit value of `i`. The retained backend matcher only
+  fires when all four lanes are present, use the same source ref, are fusable,
+  and feed one accumulator through an integer ADD tree. The emission uses
+  `acc + i` and the existing 32-bit normalization path; it does not change
+  recorder behavior or trace control.
+- Mechanism proof:
+  `LUAJIT_S390X_BITOP_LOG=1` on kdz1 showed `S390X_BITOP
+  kind=pack_u32_identity_add` on the official
+  `tests/s390x/perf/route_around_reducers.lua` rows.
+- Immediate kdz1 A/B:
+  reverted control was:
+  `be_pack_literal_stop/hot 0.000587s`,
+  `be_pack_literal_stop_local_ops/hot 0.000517s`, and
+  `be_pack_loop_local_ops/hot 0.000517s`.
+  Candidate was:
+  `0.000220s`, `0.000148s`, and `0.000146s`.
+- Host confirmation:
+  kdz candidate was `0.000220s`, `0.000149s`, and `0.000149s`;
+  zkd0 candidate was `0.000275s`, `0.000160s`, and `0.000162s`.
+- Sibling and correctness guardrails:
+  kdz1 passed `route_around_reducers.lua`, `be_helpers.lua`, `bitops_mix.lua`,
+  `jit_be/low32_home_contract.lua`, `jit_core/bitops_trace.lua`,
+  `jit_core/bitops_mix_suffix.lua`, `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, and `jit_be/numeric_ops.lua`.
+  kdz and zkd0 confirmed `route_around_reducers.lua`, `be_helpers.lua`,
+  `low32_home_contract.lua`, `addsub_overflow_guard.lua`, and
+  `mulov_overflow_guard.lua`.
+- Queue update:
+  close reducer `be_pack_*` as a focused acceleration lane pending the next
+  full matrix. The next named target is Clang-sensitive
+  `be_helpers/strto_loop`, unless the full rerank surfaces a larger current
+  post-`210b061c` x86-gap payer.
