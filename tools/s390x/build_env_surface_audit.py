@@ -105,14 +105,6 @@ DEFAULT_ON_KNOWN = {
     "LUAJIT_S390X_DISABLE_STRING_SUB_EQ_MEMCMP",
 }
 
-DEFAULT_ON_POSITIVE_ALIASES = {
-    "LUAJIT_S390X_AREF_BASE_ALLGPR",
-    "LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX",
-    "LUAJIT_S390X_GC64_SIGNED_INT_SLOAD",
-    "LUAJIT_S390X_INT_MINMAX",
-    "LUAJIT_S390X_NARROW_XSTORE",
-}
-
 RETAINED_NOTES = {
     "LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST":
         "Retained broad iterator ITERN rail; zkd0 mixed_noffi rejects removal.",
@@ -168,8 +160,6 @@ def category_for(env: str, retained: set[str], refs: list[Ref]) -> tuple[str, st
         return "tooling-only historical reference", "Referenced by tooling only; not a live source behavior knob."
     if env in DEFAULT_ON_KNOWN or env.startswith("LUAJIT_S390X_DISABLE_"):
         return "default-on feature opt-out", "Feature is enabled by default; env disables it for causality or safety checks."
-    if env in DEFAULT_ON_POSITIVE_ALIASES:
-        return "default-on feature alias", "Positive alias remains accepted, but the feature is default-on unless explicitly disabled."
     if is_debug_env(env):
         return "debug/probe only", "Logging, focus, dump, or truth-pack instrumentation knob."
     if any(ref.path.startswith("tests/") for ref in refs) and not any(ref.path.startswith("src/") for ref in refs):

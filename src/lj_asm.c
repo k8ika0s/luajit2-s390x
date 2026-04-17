@@ -360,9 +360,8 @@ static int lj_asm_s390x_phi_ref18_dupright_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX");
-    enabled = (opt_out == NULL) || opt_in != NULL;
+    enabled = (opt_out == NULL);
   }
   return enabled;
 }

@@ -5741,9 +5741,19 @@ localized-helper carried-`total` lane
   Keep both broad iterator rails in the retained env until the underlying
   mixed-noffi root-iterator mechanism is replaced.
 - All-s390x env surface audit:
-  `artifacts/s390x/s390x-env-surface-20260417143448-bcb578fb` inventories
-  `202` unique `LUAJIT_S390X_*` names across source, tests, and tooling. Only
-  the two broad iterator rails are retained perf env gates. The rest classify
-  as default-on feature opt-outs, default-on positive aliases, debug/probe
-  knobs, tooling-only historical references, or experimental opt-ins requiring
+  `artifacts/s390x/s390x-env-surface-20260417165424-aliascleanup-final`
+  inventories `199` unique `LUAJIT_S390X_*` names across source, tests, and
+  tooling after removing the first default-on positive-alias source tranche.
+  Only the two broad iterator rails are retained perf env gates. The rest
+  classify as default-on feature opt-outs, debug/probe knobs, tooling-only
+  historical references, test-only setup, or experimental opt-ins requiring
   fresh mechanism proof before use.
+- Source env cleanup tranche 1:
+  removed live source support for the obsolete positive aliases
+  `GC64_SIGNED_INT_SLOAD`, `FORL_CURRENT_COMPARE_FIX`, `INT_MINMAX`, and
+  `NARROW_XSTORE`, while preserving their `DISABLE_*` causality opt-outs.
+  kdz retained `numeric_ops` passed at
+  `/tmp/kdz-numeric-aliascleanup-retained-20260417165210`; the official
+  `numeric_ops.lua` perf file still carries one test-only `INT_MINMAX`
+  `setenv()` because removing that call changes the historical process shape
+  and regresses `abs_loop/hot`.

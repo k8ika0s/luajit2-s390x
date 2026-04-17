@@ -1,10 +1,5 @@
-local ffi = require("ffi")
 local jit = require("jit")
 local util = require("jit.util")
-
-ffi.cdef[[
-int setenv(const char *name, const char *value, int overwrite);
-]]
 
 local case_filter = os.getenv("S390X_RETRACE_CASE") or "all"
 local n = tonumber(os.getenv("S390X_RETRACE_N") or "") or 512
@@ -12,8 +7,6 @@ local calls = tonumber(os.getenv("S390X_RETRACE_CALLS") or "") or 200
 local trace_scan_limit = tonumber(os.getenv("S390X_RETRACE_TRACE_LIMIT") or "") or 4096
 local attach_counters = os.getenv("S390X_RETRACE_ATTACH") ~= "0"
 
-assert(ffi.C.setenv("LUAJIT_S390X_INT_MINMAX", "1", 1) == 0,
-       "setenv minmax")
 jit.opt.start("hotloop=1", "hotexit=1")
 
 local function expected_abs(limit)

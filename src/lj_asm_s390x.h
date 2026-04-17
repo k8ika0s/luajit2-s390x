@@ -112,9 +112,8 @@ static int asm_s390x_gc64_signed_int_sload_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_GC64_SIGNED_INT_SLOAD");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD");
-    enabled = ((LJ_GC64 && opt_out == NULL) || opt_in != NULL);
+    enabled = (LJ_GC64 && opt_out == NULL);
   }
   return enabled;
 }
@@ -1040,9 +1039,8 @@ static int asm_s390x_forl_current_compare_fix_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX");
-    enabled = (opt_out == NULL) || opt_in != NULL;
+    enabled = (opt_out == NULL);
   }
   return enabled;
 }
@@ -1059,9 +1057,8 @@ static int asm_s390x_int_minmax_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_INT_MINMAX");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_INT_MINMAX");
-    enabled = (opt_out == NULL) || opt_in != NULL;
+    enabled = (opt_out == NULL);
   }
   return enabled;
 }
@@ -1070,9 +1067,8 @@ static int asm_s390x_narrow_xstore_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_NARROW_XSTORE");
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_NARROW_XSTORE");
-    enabled = (opt_out == NULL) || opt_in != NULL;
+    enabled = (opt_out == NULL);
   }
   return enabled;
 }
