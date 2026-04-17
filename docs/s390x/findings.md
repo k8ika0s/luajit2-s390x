@@ -34540,3 +34540,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   keep the scoped hotside threshold as the current retained win candidate, then
   rerun the full matrix/comparison. If the full matrix stays clean, resume the
   acceleration queue at lower-frame generated code and reducer `be_pack_*`.
+
+## 2026-04-17: scoped hotside full matrix and comparison
+
+- Full kdz1 matrix:
+  `artifacts/s390x/scoped-hotexit100-20260417T213642Z`.
+  It completed successfully with `720` benchmark records, all `23` perf
+  families, GCC/Clang, JIT-on/`-joff`, and `0` failures.
+- x86 comparison:
+  `artifacts/s390x/compare-scoped-hotexit100-kdz1-ka0s01-20260417T213642Z`,
+  compared with `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
+  It produced `360` comparison rows, `342` complete s390x/x86 rows, `0`
+  missing s390x rows, `18` missing x86 rows, and retained the bottom
+  `Missing Data Audit` / `Full Matrix` sections.
+- Regression posture:
+  the scoped-hotexit matrix has no JIT-on row slower than `-joff`.
+  The earlier `large_immediates/add_large` small/medium concern is green in
+  this full matrix and in focused dense kdz1/kdz reruns.
+- Current highest absolute s390x JIT-on rows:
+  `mixed_noffi/mixed_loop/hot` (`~0.00359s..0.00365s`),
+  `iterator_table/pairs_sum/hot` (`~0.00291s..0.00307s`),
+  `iterator_table/pairs_array_sum/hot` (`~0.00276s`), Clang
+  `be_helpers/strto_loop/hot` (`~0.001997s`), and lower-frame
+  `lua_abs_same_callsite/hot` (`~0.00193s..0.00198s`).
+- Next queue:
+  do not reopen `large_immediates` as a red regression. Continue acceleration
+  work from the complete comparison: lower-frame generated code first, then
+  numeric `abs_loop` dense-sample instability, reducer `be_pack_*`, and Clang
+  `strto_loop`.
