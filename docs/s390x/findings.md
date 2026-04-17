@@ -34199,3 +34199,15 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   kdz, kdz1, and zkd0 all passed the mixed exact probes
   (`553416`, `3000`, `576000`) and `pairs_loop.lua` (`pairs total 5050`) with
   only the two broad iterator rails set.
+- Broad-rail opt-out closure:
+  kdz and kdz1 tolerate removing both broad iterator rails, but zkd0 does not.
+  With both `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST` and
+  `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST` absent, zkd0 `mixed_noffi` was red
+  in `3/3` passes at `/tmp/zkd0-mixed-unset-broad-both-20260417061550`.
+  One-at-a-time zkd0 checks were also not retainable:
+  `/tmp/zkd0-mixed-unset-broad-itern-20260417061813` had red passes
+  `1.1455x`, `1.1074x`, and `1.2195x`; and
+  `/tmp/zkd0-mixed-unset-broad-iterl-20260417061813` had red passes
+  `1.2034x` and `1.0851x`. Keep both broad rails until the mixed-noffi
+  root-iterator mechanism is replaced, not merely because kdz/kdz1 tolerate
+  the opt-out.
