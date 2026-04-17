@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 07:40 PDT
+Last updated: 2026-04-17 12:41 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -8,78 +8,58 @@ Historical experiment detail lives in
 
 ## Current Source Point
 
-- Current WIP cleanup base is
-  `52a863be Retire stale s390x retained env gates`; this update carries the
-  follow-on two-gate retained-env cleanup.
+- Current WIP integration point is
+  `ae1b2103 Add full s390x perf-family selector`, on top of
+  `b27708d7 Document s390x bitops mix merge path`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
-  large-immediate loop lowering merge, and the post-merge low32 call-argument
-  normalization repair.
-- The tracked WIP branch has been pushed to
-  `origin/k8ika0s/s390x-bringup-wip`.
+  large-immediate loop lowering merge, the post-merge low32 call-argument
+  normalization repair, and the focused bitops suffix-table integration.
+- The integration branch is `k8ika0s/s390x-wip-bitops-mix-integration`; push
+  to `origin/k8ika0s/s390x-bringup-wip` after final review.
 
 ## Latest Validation
 
-- kdz1 focused low32 call-argument repair validation passed from the tracked
-  mirror after committed source sync.
-- The post-repair default driver perf gate now passes at
-  `artifacts/s390x/s390x-kdz1-20260417T032039Z-de121bc1-driverfix`. The driver
-  no longer attempts unsupported Clang z13 builds; z13 tuning remains covered
-  by GCC.
-- The post-repair retained-env all-family rerank now passes at
-  `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5`, covering all
-  `23` tracked perf families in `3` alternating JIT/JIT-off passes with no red
-  rows versus `-joff`.
-- The retained env has since been reduced from `15` gates to `2` real opt-in
-  gates. Removed entries are stale vararg select gates, the root1 ITERL replay
-  pair, exact mixed-noffi gates that no longer carry retained behavior, and
-  default-on exact iterator routes that are controlled only by `DISABLE_*`
-  opt-outs in source. The current post-cleanup kdz all-family rerank is
-  `artifacts/s390x/kdz-retained-jitter-20260417060026-2gate`, also clean
-  across all `23` tracked perf families.
-- The reduced FFI pressure reproducer now matches `-joff`.
-- The isolated fixed-call arg probe now returns correct values for arguments
-  1..7, including argument 4 in R5.
-- GCC and Clang focused `tests/s390x/perf/ffi_fixed_call_pressure.lua` passed
-  with `gpr_pressure/hot` and `fpr_pressure/hot` in the
-  `0.000007..0.000009s` median band.
-- Guardrails passed:
-  `tests/s390x/jit_be/*.lua`,
-  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`,
-  `tests/s390x/jit_core/ffi_stack_call_trace.lua`,
-  `tests/s390x/ffi_abi/run.lua`, focused `large_immediates.lua`,
-  `ffi_calls.lua`, `ffi_cdata.lua`, and `mixed_ffi.lua`.
+- kdz1/kdz/zkd0 focused bitops validation passed from synced source. The
+  mechanism log shows `add_bxor_mix_suffix200_tail`; kdz1 and kdz report
+  `bitops_mix/mix_bits/hot` around `0.000002s`, and zkd0 around `0.000003s`.
+- kdz1 clean full matrix now passes at
+  `artifacts/s390x/20260417T192108.036453Z-p98275`: `720` benchmark records,
+  all `23` perf families, GCC/Clang, JIT-on/`-joff`, `0` failures, and no
+  dirty patch.
+- The companion x86 comparison is
+  `artifacts/s390x/compare-kdz1-ka0s01-20260417T192732Z`. It has `360` rows,
+  `342` complete s390x/x86 rows, `0` missing s390x rows, and keeps the full
+  bottom report sections including `Missing Data Audit` and `Full Matrix`.
+- The driver now supports `--perf-family all`; this is required for a full
+  matrix. Omitting it intentionally runs only default perf gates and produces a
+  dispatch-only artifact.
+- Focused mixed-noffi follow-up after the full matrix:
+  kdz1 `artifacts/s390x/20260417T192839.151719Z-p4160` and kdz
+  `artifacts/s390x/20260417T193222.690803Z-p6537` are green; zkd0
+  `artifacts/s390x/20260417T193612.667585Z-p9038` remains hot-red. Treat it as
+  a cross-host watch item requiring fresh attribution before code.
 
 ## Latest Matrix
 
 - s390x artifact:
-  `artifacts/s390x/s390x-kdz1-20260416T235054Z`.
+  `artifacts/s390x/20260417T192108.036453Z-p98275`.
 - x86 comparison:
-  `artifacts/s390x/compare-kdz1-ka0s01-20260416T235054Z`, compared against
+  `artifacts/s390x/compare-kdz1-ka0s01-20260417T192732Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health:
-  `2160` s390x benchmark records, `360` comparison rows, `0` s390x failures,
-  GCC/Clang, JIT-on/`-joff`, and three alternating passes.
+  `720` s390x benchmark records, `360` comparison rows, `0` s390x failures,
+  GCC/Clang, JIT-on/`-joff`, full-family selector.
 - Regression posture:
-  no material s390x JIT-on blocker. The generated summary lists only two tiny
-  per-pass GCC `large_immediates/add_large` rows slower than `-joff`; the
-  top-matrix median keeps `large_immediates/add_large/medium` green at
-  `1.077x`.
-- Matrix caveat:
-  the top matrix is still the last clean full comparison. The post-large
-  immediate attempt `artifacts/s390x/s390x-kdz1-20260417T015612Z` is invalid
-  because it exposed a now-fixed `ffi_fixed_call_pressure` JIT-on wrong result.
-  The driver-style post-fix rerun
-  `artifacts/s390x/s390x-kdz1-20260417T024302Z-d037816e` stopped on unsupported
-  Clang z13 flags and is not a replacement matrix. The follow-up driver rerun
-  at `artifacts/s390x/s390x-kdz1-20260417T032039Z-de121bc1-driverfix` is clean,
-  but it is the default driver perf gate, not the full cross-arch comparison.
+  only GCC `mixed_noffi/mixed_loop` is slower than `-joff` in the full kdz1
+  matrix. Immediate focused reruns disagree by host, so this is a watch item,
+  not a merge blocker for the bitops integration.
 
 ## Current Performance Posture
 
-- Regression queue: empty. Do not patch from noise-level red rows without a
-  repeated official-row mechanism.
+- Regression queue: `mixed_noffi/mixed_loop` watch only. Reprobe with dense
+  same-host A/B and mechanism logs before patching.
 - Guard/env burn-down queue:
   current retained env is `2` gates: the broad iterator `BC_ITERN` and
   `BC_ITERL` root blacklists. They remain true opt-in safety rails. The exact
@@ -95,17 +75,18 @@ Historical experiment detail lives in
   references, `67` experimental opt-ins or historical route-arounds, and `1`
   test-only setup env left in `numeric_ops.lua` to preserve the historical perf
   harness shape.
-- `ffi_fixed_call_pressure` is closed as a high-time acceleration target at
-  the current matrix scale: `gpr_pressure/hot` is `0.000008s` GCC /
-  `0.000009s` Clang, and `fpr_pressure/hot` is `0.000008s` on both compilers.
+- `bitops_mix` is closed as a high-time target at the current matrix scale:
+  `mix_bits/hot` is `0.000004s` GCC and `0.000003s` Clang in the full matrix.
+- `ffi_fixed_call_pressure` is closed as a high-time acceleration target:
+  `gpr_pressure/hot` and `fpr_pressure/hot` are both around `0.000008s`.
 - `string_heavy` remains at the matrix timer floor for the shipped hot rows.
   Further string work needs larger focused harnesses before claiming more
   retained wins.
 - Current acceleration queue by absolute JIT time:
   `mixed_noffi/mixed_loop`, `iterator_table/pairs_sum`,
   `iterator_table/pairs_array_sum`,
-  `lower_frame_same_callsite/lua_abs_same_callsite`, and GCC
-  `be_helpers/strto_loop`.
+  `lower_frame_same_callsite/lua_abs_same_callsite`, GCC/Clang
+  `be_helpers/strto_loop`, and selected `ffi_fixed_struct_calls` pressure rows.
 - Cross-architecture watch rows:
   `large_immediates` and selected `numeric_ops` small/medium rows. Treat these
   as acceleration research, not branch blockers.
