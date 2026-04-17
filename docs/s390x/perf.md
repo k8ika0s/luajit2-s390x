@@ -85,9 +85,9 @@ notes and experiment logs belong below this section or in
 
 ## Current Queue
 
-- Regression queue: empty for material official rows. `large_immediates/add_large`
-  small/medium is the only JIT-on slower-than-`-joff` item in the full matrix,
-  and it is a tiny-runtime noise/mechanism watch until a focused rerun repeats.
+- Regression queue: empty for material official rows. Focused kdz1/kdz reruns
+  did not reproduce the full-matrix `large_immediates/add_large` small/medium
+  red read; those rows stayed green in every dense pass.
 - Clean-run evidence:
   `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a` is the
   current post-cleanup retained-env rerank. It is not a cross-arch replacement
@@ -101,12 +101,16 @@ notes and experiment logs belong below this section or in
   highest absolute s390x JIT rows, but they need x86 JIT coverage before they
   can drive cross-arch acceleration decisions.
 - Cross-arch acceleration queue:
-  first `lower_frame_same_callsite/lua_abs_same_callsite`, then Clang
-  `be_helpers/strto_loop`, reducer `be_pack_*`, `numeric_ops` micro-kernels,
+  first `lower_frame_same_callsite/lua_abs_same_callsite`, then `numeric_ops`
+  dense-sample instability, reducer `be_pack_*`, Clang `be_helpers/strto_loop`,
   and `ffi_cdata` width/FREF rows. The first kdz1 lower-frame truth pack is
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`;
   it classifies the official row as compiled-body dominated and not trace-exit
   churn.
+- Large-immediate rerun:
+  `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
+  `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
+  the earlier full-matrix tiny red row as a live blocker without repeat proof.
 - Timer-floor rows (`dispatch_trace`, `string_heavy`, `bitops_mix`, and
   `ffi_fixed_call_pressure`) need larger focused harnesses before claiming more
   retained wins.

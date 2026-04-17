@@ -27,6 +27,10 @@ HOST_LABELS = ("kdz", "kdz1", "zkd0")
 DEFAULT_SAMPLES = 9
 DEFAULT_WARMUP = 2
 DEFAULT_PIN_CORE = 0
+REMOTE_BUILD_VARS = (
+    "CC=gcc HOST_CC=gcc BUILDMODE=mixed "
+    "XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT'"
+)
 REMOTE_ROOT = "/root/luajit2-s390x"
 AUTHORITATIVE_REPOS = {
     "kdz": f"{REMOTE_ROOT}/canon/repo",
@@ -445,8 +449,8 @@ def build_remote_repo(host: str, repo: str, raw_dir: pathlib.Path) -> None:
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-make -C {src_dir} clean
-make -C {src_dir} -j4
+make -C {src_dir} clean {REMOTE_BUILD_VARS}
+make -C {src_dir} -j4 {REMOTE_BUILD_VARS}
 """
     proc = run_ssh_script(host, clean_script)
     write_text(raw_dir / "build.stdout.log", proc.stdout)
@@ -458,7 +462,7 @@ make -C {src_dir} -j4
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-make -C {src_dir} -j4
+make -C {src_dir} -j4 {REMOTE_BUILD_VARS}
 """
     retry = run_ssh_script(host, retry_script)
     retry_stdout = (
@@ -480,7 +484,7 @@ make -C {src_dir} -j4
 set -euo pipefail
 cd {shlex.quote(repo)}
 export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-make -C src -j1
+make -C src -j1 {REMOTE_BUILD_VARS}
 """
     retry_serial = run_ssh_script(host, retry_serial_script)
     serial_stdout = (
