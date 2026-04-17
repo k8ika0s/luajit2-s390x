@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 22:48 PDT
+Last updated: 2026-04-17 06:10 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -8,8 +8,9 @@ Historical experiment detail lives in
 
 ## Current Source Point
 
-- Current WIP source point is
-  `41abe5a5 Skip unsupported clang z13 perf variants`.
+- Current WIP cleanup base is
+  `52a863be Retire stale s390x retained env gates`; this update carries the
+  follow-on two-gate retained-env cleanup.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -30,11 +31,13 @@ Historical experiment detail lives in
   `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5`, covering all
   `23` tracked perf families in `3` alternating JIT/JIT-off passes with no red
   rows versus `-joff`.
-- The retained env has since been reduced from `15` to `11` gates. Removed
-  entries are the stale vararg select gates and the root1 ITERL replay pair.
-  The current post-cleanup kdz all-family rerank is
-  `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a`, also
-  clean across all `23` tracked perf families.
+- The retained env has since been reduced from `15` gates to `2` real opt-in
+  gates. Removed entries are stale vararg select gates, the root1 ITERL replay
+  pair, exact mixed-noffi gates that no longer carry retained behavior, and
+  default-on exact iterator routes that are controlled only by `DISABLE_*`
+  opt-outs in source. The current post-cleanup kdz all-family rerank is
+  `artifacts/s390x/kdz-retained-jitter-20260417060026-2gate`, also clean
+  across all `23` tracked perf families.
 - The reduced FFI pressure reproducer now matches `-joff`.
 - The isolated fixed-call arg probe now returns correct values for arguments
   1..7, including argument 4 in R5.
@@ -78,9 +81,11 @@ Historical experiment detail lives in
 - Regression queue: empty. Do not patch from noise-level red rows without a
   repeated official-row mechanism.
 - Guard/env burn-down queue:
-  current retained env is `11` gates. Remaining gates are iterator safety and
-  mixed-noffi mechanism debt; direct iterator exact-escape opt-out is still
-  materially bad on kdz and broad iterator root blacklists remain unsafe.
+  current retained env is `2` gates: the broad iterator `BC_ITERN` and
+  `BC_ITERL` root blacklists. They remain true opt-in safety rails. The exact
+  iterator proto/no-hot paths stay default-on in source and should be tested
+  with their `LUAJIT_S390X_DISABLE_*` opt-outs, not carried as positive
+  retained-env requirements.
 - `ffi_fixed_call_pressure` is closed as a high-time acceleration target at
   the current matrix scale: `gpr_pressure/hot` is `0.000008s` GCC /
   `0.000009s` Clang, and `fpr_pressure/hot` is `0.000008s` on both compilers.

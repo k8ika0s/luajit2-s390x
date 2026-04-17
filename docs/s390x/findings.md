@@ -34148,3 +34148,54 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a` covers
   all `23` tracked perf families with `3` alternating passes and no red rows
   versus `-joff`.
+
+## 2026-04-17: retained-env gate burn-down to two gates
+
+- Source point:
+  cleanup continued on top of `52a863be Retire stale s390x retained env gates`.
+- Retired exact mixed-noffi envs:
+  the five remaining mixed-noffi positive env entries were removed from
+  `tools/s390x/restamp_iterator_perf.py` `RETAINED_BASELINE_ENV`:
+  `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST`,
+  `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST`,
+  `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST`,
+  `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST`, and
+  `LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT`.
+  kdz one-at-a-time and keep-one sweeps were all green. The final all-five
+  absent rerun was green across `5/5` kdz passes:
+  `/tmp/kdz-mixed-unset-all-mixed-gates-rerun-20260417055155-52a863be`.
+  kdz1 confirmed green at
+  `/tmp/kdz1-mixed-unset-all-mixed-gates-20260417055321-52a863be`, and zkd0
+  confirmed green at
+  `/tmp/zkd0-mixed-unset-all-mixed-gates-20260417055321-52a863be`.
+- Retired exact iterator positive envs:
+  `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT`,
+  `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK`,
+  `LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK`, and
+  `LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT` were removed from the
+  retained env. Source inspection shows these paths are default-on and use
+  only `LUAJIT_S390X_DISABLE_*` opt-outs, so the positive env entries were
+  stale tooling contract. This does not remove the source behavior.
+- Negative iterator proof:
+  disabling `LUAJIT_S390X_DISABLE_ITERATOR_ITERN_PROTO_NOJIT=1` is still bad
+  for the official iterator row on kdz:
+  `/tmp/kdz-iterator-disable-itern-proto-20260417055701-52a863be` reported
+  `pairs_sum/hot` ratios `2.4537x`, `1.7211x`, and `2.5527x`. The source
+  exact proto route must remain default-on.
+- Current retained env:
+  only the two broad iterator opt-in rails remain:
+  `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1` and
+  `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`.
+- Current full retained-env proof:
+  `artifacts/s390x/kdz-retained-jitter-20260417060026-2gate` covers all `23`
+  tracked perf families with `3` alternating passes and no red rows versus
+  `-joff`.
+- Host checks:
+  kdz1 confirmed `iterator_table` at
+  `/tmp/kdz1-iterator-2gate-20260417060237` and `mixed_noffi` at
+  `/tmp/kdz1-mixed-2gate-20260417060237`. zkd0 confirmed `iterator_table` at
+  `/tmp/zkd0-iterator-2gate-20260417060237`; a denser zkd0 mixed rerun at
+  `/tmp/zkd0-mixed-2gate-rerun-20260417060530` was green across `5/5` passes.
+  kdz, kdz1, and zkd0 all passed the mixed exact probes
+  (`553416`, `3000`, `576000`) and `pairs_loop.lua` (`pairs total 5050`) with
+  only the two broad iterator rails set.

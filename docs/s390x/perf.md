@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 22:48 PDT
+Last updated: 2026-04-17 06:10 PDT
 
 ## Current Matrix
 
@@ -45,12 +45,13 @@ notes and experiment logs belong below this section or in
   `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5` with all `23`
   perf families, `3` alternating passes, and no red rows versus `-joff`.
 - Current retained-env cleanup note:
-  the canonical retained env is down to `11` gates after removing stale vararg
-  select envs and the root1 ITERL replay pair from
+  the canonical retained env is down to `2` real opt-in gates after removing
+  stale vararg select envs, the root1 ITERL replay pair, exact mixed-noffi
+  positive envs, and default-on exact iterator positive envs from
   `tools/s390x/restamp_iterator_perf.py`. The current post-cleanup kdz rerank
-  is `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a`;
-  it covers all `23` tracked perf families with `3` alternating passes and no
-  red rows versus `-joff`.
+  is `artifacts/s390x/kdz-retained-jitter-20260417060026-2gate`; it covers all
+  `23` tracked perf families with `3` alternating passes and no red rows
+  versus `-joff`.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -5693,3 +5694,43 @@ localized-helper carried-`total` lane
   the old retained-env vararg rows are stale after this merge. Treat
   `vararg_paths` as corrected/accelerated pending the next full retained-env
   rerank, not as an active broad-blacklist or recorder-shaping target.
+
+## 2026-04-17 Retained-Env Gate Burn-Down To Two Gates
+
+- Source point:
+  cleanup continued on top of `52a863be Retire stale s390x retained env gates`.
+- Retired exact mixed-noffi envs:
+  removed the five remaining mixed-noffi positive env entries from the canonical
+  retained env: `LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST`,
+  `LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST`,
+  `LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST`,
+  `LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST`, and
+  `LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT`. kdz one-at-a-time and
+  keep-one sweeps were green; the final all-five-absent rerun was green in
+  `5/5` kdz passes. kdz1 and zkd0 focused confirmations also kept
+  `mixed_noffi/mixed_loop/hot` green.
+- Retired exact iterator positive envs:
+  removed `LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT`,
+  `LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK`,
+  `LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK`, and
+  `LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT` from the retained env. These
+  are default-on source paths guarded by `LUAJIT_S390X_DISABLE_*` opt-outs, so
+  the positive env entries were stale contract noise. The opt-out checks still
+  matter for causality; disabling `ITERATOR_ITERN_PROTO_NOJIT` remains
+  materially bad for the official iterator row.
+- Current retained env:
+  only two true opt-in gates remain:
+  `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1` and
+  `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`.
+- Current full retained-env proof:
+  `artifacts/s390x/kdz-retained-jitter-20260417060026-2gate` covers all `23`
+  tracked perf families with `3` alternating passes and no red rows versus
+  `-joff`. Key hot rows remain accelerated: `mixed_noffi/mixed_loop`
+  `0.8555x..0.8780x`, `iterator_table/pairs_sum` `0.4847x..0.6196x`, and
+  `iterator_table/pairs_array_sum` `0.7120x..0.7319x`.
+- Host checks:
+  kdz1 confirmed the two-gate env for `iterator_table` and `mixed_noffi`.
+  zkd0 confirmed `iterator_table`; a five-pass zkd0 mixed rerun was clean after
+  one earlier noisy first pass. kdz, kdz1, and zkd0 all passed the mixed exact
+  probes (`553416`, `3000`, `576000`) and `pairs_loop.lua` (`pairs total 5050`)
+  with only the two broad iterator rails set.
