@@ -51,6 +51,26 @@ static void emit_u48_pad8(ASMState *as, uint64_t ins)
   as->mcp = p;
 }
 
+static void emit_u48_u32_u16(ASMState *as, uint64_t first, uint32_t second,
+			     uint16_t third)
+{
+  MCode *p = as->mcp - 12;
+  emit_u48_at(p, first);
+  emit_u32_at(p + 6, second);
+  emit_u16_at(p + 10, third);
+  as->mcp = p;
+}
+
+static void emit_u48_u16_u32(ASMState *as, uint64_t first, uint16_t second,
+			     uint32_t third)
+{
+  MCode *p = as->mcp - 12;
+  emit_u48_at(p, first);
+  emit_u16_at(p + 6, second);
+  emit_u32_at(p + 8, third);
+  as->mcp = p;
+}
+
 #define S390X_INS_RXE(op, r1, r2) \
   ((uint32_t)(op) | (((uint32_t)(r1) & 15u) << 4) | ((uint32_t)(r2) & 15u))
 #define S390X_INS_RRF_M(op, r1, m3, r2) \
@@ -115,12 +135,15 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CR	0x1900u
 #define S390XI_LCR	0x1300u
 #define S390XI_LTR	0x1200u
+#define S390XI_LR	0x1800u
 #define S390XI_LGR	0xb9040000u
 #define S390XI_LRVGR	0xb90f0000u
 #define S390XI_LGFR	0xb9140000u
 #define S390XI_LLGFR	0xb9160000u
 #define S390XI_LLGCR	0xb9840000u
 #define S390XI_LLGHR	0xb9850000u
+#define S390XI_ROSBG	0xec0000000056ull
+#define S390XI_RXSBG	0xec0000000057ull
 #define S390XI_LRVR	0xb91f0000u
 #define S390XI_LCGFR	0xb9130000u
 #define S390XI_CDBR	0xb3190000u
@@ -150,18 +173,21 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CGFR	0xb9300000u
 #define S390XI_LGFI	0xc00100000000ull
 #define S390XI_LGHI	0xa7090000u
+#define S390XI_AHI	0xa70a0000u
 #define S390XI_AGHI	0xa70b0000u
 #define S390XI_CHI	0xa70e0000u
 #define S390XI_CGHI	0xa70f0000u
 #define S390XI_TMLL	0xa7010000u
 #define S390XI_MSGFI	0xc20000000000ull
 #define S390XI_AGFI	0xc20800000000ull
+#define S390XI_AFI	0xc20900000000ull
 #define S390XI_CFI	0xc20d00000000ull
 #define S390XI_CGFI	0xc20c00000000ull
 #define S390XI_CLFI	0xc20f00000000ull
 #define S390XI_CLGFI	0xc20e00000000ull
 #define S390XI_EXRL	0xc60000000000ull
 #define S390XI_AGR	0xb9080000u
+#define S390XI_AGFR	0xb9180000u
 #define S390XI_OGR	0xb9810000u
 #define S390XI_SGR	0xb9090000u
 #define S390XI_XGR	0xb9820000u
@@ -172,6 +198,9 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_NRK	0xb9f40000u
 #define S390XI_ORK	0xb9f60000u
 #define S390XI_XRK	0xb9f70000u
+#define S390XI_XR	0x1700u
+#define S390XI_AR	0x1a00u
+#define S390XI_A	0x5a000000u
 #define S390XI_ARK	0xb9f80000u
 #define S390XI_SRK	0xb9f90000u
 #define S390XI_AGRK	0xb9e80000u
@@ -197,8 +226,13 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CLC	0xd50000000000ull
 #define S390XI_TM	0x91000000u
 #define S390XI_NI	0x94000000u
+#define S390XI_RISBG	0xec0000000055ull
+#define S390XI_XILF	0xc00700000000ull
 #define S390XI_IIHF	0xc00800000000ull
+#define S390XI_LARL	0xc00000000000ull
 #define S390XI_LLILF	0xc00f00000000ull
+#define S390XI_SRL	0x88000000u
+#define S390XI_SLL	0x89000000u
 #define S390XI_SRAG	0xeb000000000aull
 #define S390XI_SRLG	0xeb000000000cull
 #define S390XI_SLLG	0xeb000000000dull
@@ -256,6 +290,36 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
   if (hi != 0)
     emit_u48_pad8(as, S390X_INS_RIL(S390XI_IIHF, r, hi));
   emit_u48_pad8(as, S390X_INS_RIL(S390XI_LLILF, r, lo));
+}
+
+static int emit_larl(ASMState *as, Reg r, const void *target)
+{
+  MCode *p;
+  ptrdiff_t delta;
+  lj_assertA(r < RID_MIN_FPR, "s390x LARL target must be a GPR");
+  p = as->mcp - 6;
+  delta = (char *)target - (char *)p;
+  if ((delta & 1) != 0 || !checki32((int64_t)(delta >> 1)))
+    return 0;
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_LARL, r, (int32_t)(delta >> 1)));
+  return 1;
+}
+
+static int emit_larl_u48_u32(ASMState *as, Reg r, const void *target,
+			     uint64_t second, uint32_t third)
+{
+  MCode *p;
+  ptrdiff_t delta;
+  lj_assertA(r < RID_MIN_FPR, "s390x LARL target must be a GPR");
+  p = as->mcp - 16;
+  delta = (char *)target - (char *)p;
+  if ((delta & 1) != 0 || !checki32((int64_t)(delta >> 1)))
+    return 0;
+  emit_u48_at(p, S390X_INS_RIL(S390XI_LARL, r, (int32_t)(delta >> 1)));
+  emit_u48_at(p + 6, second);
+  emit_u32_at(p + 12, third);
+  as->mcp = p;
+  return 1;
 }
 
 static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
