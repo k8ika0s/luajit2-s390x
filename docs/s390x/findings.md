@@ -34481,3 +34481,62 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   future dense kdz/kdz1 rerun disagrees. The first real mechanism debt found in
   this pass is numeric `abs_loop` trace/compile-mode instability, followed by
   the stable x86-gap `route_around_reducers` / `be_pack_*` cluster.
+
+## 2026-04-17: scoped hotside threshold restores high-upside side-trace rows
+
+- Starting point:
+  the full cross-arch comparison made `large_immediates` look suspicious, but
+  dense focused kdz1/kdz reruns kept it green. The actionable payer found while
+  probing the next rows was hotside threshold debt: the s390x global
+  `hotexit=200` still protects unsafe low-threshold families, but it also
+  delays profitable side traces in already-guarded official iterator, mixed,
+  dispatch, and cdata rows.
+- Broad default experiment:
+  forcing `hotexit=10` produced large speedups for `iterator_table`,
+  `mixed_noffi`, `dispatch_trace`, and `ffi_cdata`, but crashed retained
+  `vararg_paths` under the iterator blacklist env. `hotexit=100` preserved the
+  same speed band and avoided the vararg crash, but making it the global source
+  default failed `tests/s390x/jit_core/numeric_helpers.lua` with a wrong
+  `div_loop` total. So the global default stays `200`.
+- Retained candidate:
+  `trace_hotside()` now computes an effective hotside threshold of `100` only
+  for exact safe proto families already identified by retained matchers:
+  `tests/s390x/perf/ffi_cdata.lua`, `mixed_noffi.lua`,
+  `iterator_table.lua`, and `dispatch_trace.lua`. All other prototypes keep
+  the source default `200`.
+- kdz1 focused performance:
+  - `artifacts/s390x/scoped-hotexit100-kdz1-ffi-cdata-20260417T-candidate`:
+    `mixed_width_loop/hot ~0.000254s`, `buffer_fref_loop/hot ~0.000217-0.000229s`.
+  - `artifacts/s390x/scoped-hotexit100-kdz1-iterator-20260417T-candidate`:
+    `pairs_sum/hot ~0.002865-0.002955s`, `pairs_array_sum/hot ~0.002774-0.003155s`.
+  - `artifacts/s390x/scoped-hotexit100-kdz1-mixed-noffi-20260417T-candidate`:
+    `mixed_loop/hot ~0.003590-0.003610s`.
+  - `artifacts/s390x/scoped-hotexit100-kdz1-vararg-20260417T-candidate`:
+    vararg rows remained fast and correct.
+  - `artifacts/s390x/scoped-hotexit100-kdz1-large-immediates-20260417T-candidate`:
+    large-immediate hot rows stayed green, confirming the original red read was
+    not the live blocker.
+- Host confirmation:
+  - kdz:
+    `artifacts/s390x/scoped-hotexit100-kdz-ffi-cdata-20260417T-candidate`,
+    `artifacts/s390x/scoped-hotexit100-kdz-iterator-20260417T-candidate`, and
+    `artifacts/s390x/scoped-hotexit100-kdz-mixed-noffi-20260417T-candidate`
+    all stayed green.
+  - zkd0:
+    `artifacts/s390x/scoped-hotexit100-zkd0-ffi-cdata-20260417T-candidate`,
+    `artifacts/s390x/scoped-hotexit100-zkd0-iterator-20260417T-candidate`, and
+    `artifacts/s390x/scoped-hotexit100-zkd0-mixed-noffi-20260417T-candidate`
+    stayed green or neutral, with the main cdata and iterator rows materially
+    faster than `-joff`.
+- Correctness:
+  kdz1 passed `jit_be/*.lua`, `jit_core/*.lua`, `jit_loops/*.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, `iterator_table.lua`,
+  `ffi_cdata.lua`, `numeric_ops.lua`, and retained-env `dispatch_trace.lua`
+  after rebuilding oracles. kdz and zkd0 additionally passed
+  `numeric_helpers.lua`, `pairs_loop.lua`, `compiled_vararg.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`, and
+  `vararg_paths.lua`.
+- Next target:
+  keep the scoped hotside threshold as the current retained win candidate, then
+  rerun the full matrix/comparison. If the full matrix stays clean, resume the
+  acceleration queue at lower-frame generated code and reducer `be_pack_*`.
