@@ -5734,3 +5734,9 @@ localized-helper carried-`total` lane
   one earlier noisy first pass. kdz, kdz1, and zkd0 all passed the mixed exact
   probes (`553416`, `3000`, `576000`) and `pairs_loop.lua` (`pairs total 5050`)
   with only the two broad iterator rails set.
+- Broad-rail opt-out:
+  kdz and kdz1 tolerate removing both remaining broad rails, but zkd0 rejects
+  the change on `mixed_noffi`. Removing both rails was red in `3/3` zkd0 mixed
+  passes, and one-at-a-time zkd0 removal also produced repeated red passes.
+  Keep both broad iterator rails in the retained env until the underlying
+  mixed-noffi root-iterator mechanism is replaced.
