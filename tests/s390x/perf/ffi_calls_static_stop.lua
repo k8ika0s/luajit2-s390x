@@ -24,12 +24,17 @@ local function stored_abs_literal_stop_real()
   return total
 end
 
-jit.off(direct_abs_literal_stop_real, true)
-jit.off(stored_abs_literal_stop_real, true)
+local jit_enabled = select(1, jit.status())
+if jit.off then
+  jit.off(direct_abs_literal_stop_real, true)
+  jit.off(stored_abs_literal_stop_real, true)
+end
 local expected_direct = direct_abs_literal_stop_real()
 local expected_stored = stored_abs_literal_stop_real()
-jit.on(direct_abs_literal_stop_real, true)
-jit.on(stored_abs_literal_stop_real, true)
+if jit_enabled and jit.on then
+  jit.on(direct_abs_literal_stop_real, true)
+  jit.on(stored_abs_literal_stop_real, true)
+end
 
 bench.run_suite({
   family = "ffi_calls_static_stop",
