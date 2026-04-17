@@ -2399,8 +2399,6 @@ static void build_subroutines(BuildCtx *ctx)
 |4:
   |  xgr RC, RC
   |  llgh TMPR0, TRACE:RD->resumechild
-  |  cghi RC, 0
-  |  jne >7
   |  cghi TMPR0, 0
   |  je >7
   |  lgr RC, TMPR0
@@ -2424,7 +2422,7 @@ static void build_subroutines(BuildCtx *ctx)
   |6:
   |  lghi RC, 1
   |7:
-  |  clgfi RC, 0
+  |  ltgr RC, RC
   |  je >8
   |  stg BASE, DISPATCH_GL(jit_base)(DISPATCH)
   |  lg L:RB, SAVE_L
@@ -2437,13 +2435,13 @@ static void build_subroutines(BuildCtx *ctx)
   |  lgr CARG1, RD
   |  brasl r14, extern lj_trace_s390x_vm_child_skip_mcloop
   |  lg RA, TRACE:RD->mcode
-  |  clgfi r2, 0
+  |  ltgr r2, r2
   |  jne >9
-  |  llgc TMPR0, TRACE:RD->unused1
-  |  clgfi TMPR0, 0
+  |  llgc TMPR1, TRACE:RD->unused1
+  |  ltgr TMPR1, TMPR1
   |  je >9
   |  llgf TMPR0, TRACE:RD->mcloop
-  |  clgfi TMPR0, 0
+  |  ltgr TMPR0, TMPR0
   |  je >9
   |  algr RA, TMPR0
   |9:
@@ -4698,10 +4696,10 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  sty TMPR1, DISPATCH_GL(vmstate)(DISPATCH)
     |  lg RA, TRACE:RD->mcode
     |  llgc TMPR1, TRACE:RD->unused1
-    |  clgfi TMPR1, 0
+    |  ltgr TMPR1, TMPR1
     |  je >1
     |  llgf TMPR1, TRACE:RD->mcloop
-    |  clgfi TMPR1, 0
+    |  ltgr TMPR1, TMPR1
     |  je >1
     |  algr RA, TMPR1
     |1:

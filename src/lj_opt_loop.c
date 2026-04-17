@@ -324,11 +324,27 @@ static int loop_s390x_pow2plus1_shift(int32_t k)
   return shift;
 }
 
+static int loop_s390x_kint_ref(jit_State *J, IRRef ref, int32_t *kp)
+{
+  IRIns *ir;
+  /* irref_isk() is true for every low ref, including transient zero/sentinel
+  ** values. Only refs in the current trace constant range may be dereferenced
+  ** as IR_KINT entries. */
+  if (ref < J->cur.nk || ref >= REF_TRUE)
+    return 0;
+  ir = IR(ref);
+  if (ir->o != IR_KINT)
+    return 0;
+  *kp = ir->i;
+  return 1;
+}
+
 static int loop_s390x_mod_scev_inc(jit_State *J, IRIns *ir, int32_t *kp,
 				   int32_t *shiftp)
 {
   int64_t ofs;
   int32_t k;
+  int32_t start, step;
   int32_t shift;
 
   if (ir->o != IR_MOD || !irref_isk(ir->op2) ||
@@ -338,16 +354,13 @@ static int loop_s390x_mod_scev_inc(jit_State *J, IRIns *ir, int32_t *kp,
   if (k > 32767)
     return 0;
   shift = loop_s390x_pow2plus1_shift(k);
-  if (shift == 0)
-    return 0;
   if (J->scev.idx == REF_NIL || !J->scev.dir ||
-      J->scev.start == REF_NIL || !irref_isk(J->scev.start) ||
-      J->scev.step == REF_NIL || !irref_isk(J->scev.step) ||
-      IR(J->scev.step)->i != 1)
+      !loop_s390x_kint_ref(J, J->scev.start, &start) ||
+      !loop_s390x_kint_ref(J, J->scev.step, &step) || step != 1)
     return 0;
   if (!loop_s390x_scev_ref_offset(J, ir->op1, &ofs))
     return 0;
-  if ((int64_t)IR(J->scev.start)->i + ofs < 0)
+  if ((int64_t)start + ofs < 0)
     return 0;
   *kp = k;
   *shiftp = shift;
@@ -358,6 +371,11 @@ static IRRef loop_s390x_emit_mod_step(jit_State *J, IRRef remref,
 				      int32_t k, int32_t shift)
 {
   IRRef rem_plus_1 = tref_ref(emitir_raw(IRTI(IR_ADD), remref, lj_ir_kint(J, 1)));
+  if (shift == 0) {
+    IRRef wrapbase = tref_ref(emitir_raw(IRTI(IR_ADD), remref, lj_ir_kint(J, 1 - k)));
+    IRRef wrapmask = tref_ref(emitir_raw(IRTI(IR_BSAR), wrapbase, lj_ir_kint(J, 31)));
+    return tref_ref(emitir_raw(IRTI(IR_BAND), rem_plus_1, wrapmask));
+  }
   IRRef biased = tref_ref(emitir_raw(IRTI(IR_ADD), remref, lj_ir_kint(J, k - 1)));
   IRRef wrap = tref_ref(emitir_raw(IRTI(IR_BSHR), biased, lj_ir_kint(J, shift)));
   IRRef wrapk = tref_ref(emitir_raw(IRTI(IR_MUL), wrap, lj_ir_kint(J, k)));
@@ -417,6 +435,12 @@ static IRRef loop_s390x_emit_mod_value_step(jit_State *J, IRRef valueref,
 					    int32_t k, int32_t shift)
 {
   IRRef value_plus_1 = tref_ref(emitir_raw(IRTI(IR_ADD), valueref, lj_ir_kint(J, 1)));
+  if (shift == 0) {
+    IRRef wrapbase = tref_ref(emitir_raw(IRTI(IR_ADD), valueref, lj_ir_kint(J, -k)));
+    IRRef wrapmask = tref_ref(emitir_raw(IRTI(IR_BSAR), wrapbase, lj_ir_kint(J, 31)));
+    IRRef masked = tref_ref(emitir_raw(IRTI(IR_BAND), valueref, wrapmask));
+    return tref_ref(emitir_raw(IRTI(IR_ADD), masked, lj_ir_kint(J, 1)));
+  }
   IRRef biased = tref_ref(emitir_raw(IRTI(IR_ADD), valueref, lj_ir_kint(J, k - 2)));
   IRRef wrap = tref_ref(emitir_raw(IRTI(IR_BSHR), biased, lj_ir_kint(J, shift)));
   IRRef wrapk = tref_ref(emitir_raw(IRTI(IR_MUL), wrap, lj_ir_kint(J, k)));
@@ -427,11 +451,11 @@ static int loop_s390x_scev_stop_value(jit_State *J, int32_t *stopp)
 {
   if (J->scev.stop == REF_NIL)
     return 0;
-  if (irref_isk(J->scev.stop) && IR(J->scev.stop)->o == IR_KINT) {
-    *stopp = IR(J->scev.stop)->i;
+  if (loop_s390x_kint_ref(J, J->scev.stop, stopp))
     return 1;
-  }
-  if (J->scev.idx != REF_NIL) {
+  /* Non-constant FORL stops can still be read from the loop slot, but only if
+  ** the SCEV index is a valid current-trace IR ref. */
+  if (J->scev.idx >= REF_FIRST && J->scev.idx < J->cur.nins) {
     IRIns *idx = IR(J->scev.idx);
     if (idx->o == IR_SLOAD) {
       TValue *base = J->L->base - J->baseslot;
@@ -446,17 +470,17 @@ static int loop_s390x_unit_scev_bounds(jit_State *J, int32_t *startp,
 				       int32_t *stopp, int64_t *tripsp)
 {
   int32_t start, stop;
+  int32_t step;
   int64_t trips;
 
   if ((J->pt && (J->pt->flags & PROTO_VARARG)) ||
       loop_s390x_has_call(J, J->cur.nins) ||
       J->scev.idx == REF_NIL || !J->scev.dir ||
-      J->scev.start == REF_NIL || !irref_isk(J->scev.start) ||
-      J->scev.step == REF_NIL || !irref_isk(J->scev.step) ||
-      IR(J->scev.step)->i != 1 || !loop_s390x_scev_stop_value(J, &stop))
+      !loop_s390x_kint_ref(J, J->scev.start, &start) ||
+      !loop_s390x_kint_ref(J, J->scev.step, &step) || step != 1 ||
+      !loop_s390x_scev_stop_value(J, &stop))
     return 0;
 
-  start = IR(J->scev.start)->i;
   trips = (int64_t)stop - (int64_t)start + 1;
   if (trips <= 0 || trips > 65535)
     return 0;
@@ -481,8 +505,9 @@ static int loop_s390x_ref_nonneg_max(jit_State *J, IRRef ref, int32_t stop,
   int64_t m1, m2;
 
   if (irref_isk(ref)) {
-    if (IR(ref)->o == IR_KINT && IR(ref)->i >= 0) {
-      *maxp = IR(ref)->i;
+    int32_t k;
+    if (loop_s390x_kint_ref(J, ref, &k) && k >= 0) {
+      *maxp = k;
       return 1;
     }
     return 0;
@@ -490,9 +515,10 @@ static int loop_s390x_ref_nonneg_max(jit_State *J, IRRef ref, int32_t stop,
 
   if (loop_s390x_scev_ref_offset(J, ref, &ofs)) {
     int64_t minv;
-    if (J->scev.start == REF_NIL || !irref_isk(J->scev.start))
+    int32_t start;
+    if (!loop_s390x_kint_ref(J, J->scev.start, &start))
       return 0;
-    minv = (int64_t)IR(J->scev.start)->i + ofs;
+    minv = (int64_t)start + ofs;
     if (minv < 0)
       return 0;
     *maxp = (int64_t)stop + ofs;
