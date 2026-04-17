@@ -35,6 +35,306 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int64_t lj_trace_s390x_sum_mod97_seq(int32_t first, int32_t count,
+					    int32_t step)
+{
+  int64_t sum = (int64_t)(count / 97) * 4656;
+  int32_t r = count % 97;
+  int32_t v = first % 97;
+  int32_t i;
+  if (v < 0)
+    v += 97;
+  step %= 97;
+  if (step < 0)
+    step += 97;
+  for (i = 0; i < r; i++) {
+    sum += v;
+    v += step;
+    if (v >= 97)
+      v -= 97;
+  }
+  return sum;
+}
+
+static int32_t lj_trace_s390x_gcd_i32(int32_t a, int32_t b)
+{
+  while (b != 0) {
+    int32_t t = a % b;
+    a = b;
+    b = t;
+  }
+  return a < 0 ? -a : a;
+}
+
+static int64_t lj_trace_s390x_sum_mod_seq(int64_t first, int64_t count,
+					  int32_t step, int32_t mod)
+{
+  int32_t v, s, g, period, base, i;
+  int64_t cycle_sum, sum, r;
+
+  if (count <= 0)
+    return 0;
+  v = (int32_t)(first % mod);
+  if (v < 0)
+    v += mod;
+  s = step % mod;
+  if (s < 0)
+    s += mod;
+  g = lj_trace_s390x_gcd_i32(s, mod);
+  period = mod / g;
+  base = v % g;
+  cycle_sum = (int64_t)period * base +
+	      (int64_t)g * period * (period - 1) / 2;
+  sum = (count / period) * cycle_sum;
+  r = count % period;
+  for (i = 0; i < r; i++) {
+    sum += v;
+    v += s;
+    if (v >= mod)
+      v -= mod;
+  }
+  return sum;
+}
+
+static int32_t lj_trace_s390x_count_multiples(int32_t idx, int32_t stop,
+					      int32_t d)
+{
+  int32_t q1 = (idx + d - 1) / d;
+  int32_t q2 = stop / d;
+  return q2 >= q1 ? q2 - q1 + 1 : 0;
+}
+
+static int64_t lj_trace_s390x_sum_mod97_multiples(int32_t idx, int32_t stop,
+						  int32_t d)
+{
+  int32_t q1 = (idx + d - 1) / d;
+  int32_t q2 = stop / d;
+  int32_t count = q2 >= q1 ? q2 - q1 + 1 : 0;
+  if (count == 0)
+    return 0;
+  return lj_trace_s390x_sum_mod97_seq((q1 * d) % 97, count, d);
+}
+
+static int64_t lj_trace_s390x_sum_mod_multiples(int32_t idx, int32_t stop,
+						int32_t d, int32_t mod)
+{
+  int32_t q1 = (idx + d - 1) / d;
+  int32_t q2 = stop / d;
+  int32_t count = q2 >= q1 ? q2 - q1 + 1 : 0;
+  if (count == 0)
+    return 0;
+  return lj_trace_s390x_sum_mod_seq((int64_t)q1 * d, count, d, mod);
+}
+
+int32_t lj_trace_s390x_mod_mul_loop_sum(int32_t idx, int32_t stop,
+					int32_t mod, int32_t mul)
+{
+  int64_t sum, q1, q2, count, multsum;
+
+  if (mod < 2 || mod > 32767 || mul < 2 || mul > 32767)
+    return INT32_MIN;
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  sum = (idx + stop) * (stop - idx + 1) / 2;
+  q1 = (idx + mod - 1) / mod;
+  q2 = stop / mod;
+  if (q2 >= q1) {
+    count = q2 - q1 + 1;
+    multsum = (int64_t)mod * (q1 + q2) * count / 2;
+    sum += ((int64_t)mul - 1) * multsum;
+  }
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod_select_loop_sum(int32_t idx, int32_t stop,
+					   int32_t mod,
+					   int32_t then_mul,
+					   int32_t else_mul)
+{
+  int64_t allsum, q1, q2, count, multsum, sum;
+
+  if (mod < 2 || mod > 32767 ||
+      then_mul < -32767 || then_mul > 32767 ||
+      else_mul < -32767 || else_mul > 32767)
+    return INT32_MIN;
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  allsum = (idx + stop) * (stop - idx + 1) / 2;
+  q1 = (idx + mod - 1) / mod;
+  q2 = stop / mod;
+  multsum = 0;
+  if (q2 >= q1) {
+    count = q2 - q1 + 1;
+    multsum = (int64_t)mod * (q1 + q2) * count / 2;
+  }
+  sum = (int64_t)else_mul * allsum + (int64_t)(then_mul - else_mul) * multsum;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx, int32_t stop,
+					       int32_t cond_mod,
+					       int32_t rem_mod,
+					       int32_t then_mul,
+					       int32_t else_mul)
+{
+  int64_t count, allsum, multsum, sum;
+
+  if (cond_mod < 2 || cond_mod > 32767 || rem_mod < 2 || rem_mod > 4096 ||
+      then_mul < -32767 || then_mul > 32767 ||
+      else_mul < -32767 || else_mul > 32767)
+    return INT32_MIN;
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  count = stop - idx + 1;
+  allsum = lj_trace_s390x_sum_mod_seq(idx, count, 1, rem_mod);
+  multsum = lj_trace_s390x_sum_mod_multiples((int32_t)idx, (int32_t)stop,
+					     cond_mod, rem_mod);
+  sum = (int64_t)else_mul * allsum + (int64_t)(then_mul - else_mul) * multsum;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod_scaled_loop_sum(int32_t idx, int32_t stop,
+					   int32_t mod, int32_t mul)
+{
+  int64_t count, sum;
+
+  if (mod < 2 || mod > 4096 || mul == 0 || mul < -32767 || mul > 32767)
+    return INT32_MIN;
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  count = (int64_t)stop - idx + 1;
+  sum = lj_trace_s390x_sum_mod_seq(idx, count, 1, mod) * (int64_t)mul;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop, int32_t mod)
+{
+  int64_t count, sum;
+  int32_t sign = 1;
+
+  if (mod < 0) {
+    mod = -mod;
+    sign = -1;
+  }
+  if (mod < 2 || mod > 4096 || mod == 97)
+    return INT32_MIN;
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  count = stop - idx + 1;
+  sum = lj_trace_s390x_sum_mod_seq(idx, count, 1, mod);
+  if (sign < 0)
+    sum = -sum;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod97_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t sum;
+  int32_t remain;
+
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  remain = stop - idx + 1;
+  sum = lj_trace_s390x_sum_mod97_seq(idx, remain, 1);
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod97_sub_loop_sum(int32_t idx, int32_t stop)
+{
+  int32_t sum = lj_trace_s390x_mod97_loop_sum(idx, stop);
+  return sum == INT32_MIN ? INT32_MIN : -sum;
+}
+
+int32_t lj_trace_s390x_mod97_if5_else1_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t sum;
+  int32_t remain, count5;
+
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  remain = stop - idx + 1;
+  count5 = lj_trace_s390x_count_multiples(idx, stop, 5);
+  sum = remain + lj_trace_s390x_sum_mod97_multiples(idx, stop, 5) - count5;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod97_if7_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t sum;
+  int32_t remain;
+
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  remain = stop - idx + 1;
+  sum = lj_trace_s390x_sum_mod97_seq(idx, remain, 1) -
+	2 * lj_trace_s390x_sum_mod97_multiples(idx, stop, 7);
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t sum;
+  int32_t remain, count3, count5, count15;
+
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  remain = stop - idx + 1;
+  count3 = lj_trace_s390x_count_multiples(idx, stop, 3);
+  count5 = lj_trace_s390x_count_multiples(idx, stop, 5);
+  count15 = lj_trace_s390x_count_multiples(idx, stop, 15);
+  sum = remain;
+  sum += 3 * lj_trace_s390x_sum_mod97_multiples(idx, stop, 5) - count5;
+  sum -= lj_trace_s390x_sum_mod97_multiples(idx, stop, 3) -
+	 lj_trace_s390x_sum_mod97_multiples(idx, stop, 15);
+  sum -= count3 - count15;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
@@ -4063,7 +4363,7 @@ static void trace_stop(jit_State *J)
       if (!skip_patchexit) {
 	MCode *target = J->cur.mcode;
 	if (lj_trace_s390x_sideexit_mcloop_enabled() && T->mcloop)
-	  target = J->cur.mcode + T->mcloop;
+	  target = (MCode *)((char *)J->cur.mcode + T->mcloop);
 	lj_asm_patchexit(J, parentT, J->exitno, target);
       }
     }

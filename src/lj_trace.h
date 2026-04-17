@@ -34,6 +34,29 @@ LJ_FUNC void lj_trace_freestate(global_State *g);
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
 LJ_FUNC int lj_trace_s390x_iterator_itern_nohot_dispatch_active(void);
+LJ_FUNC int32_t lj_trace_s390x_mod_mul_loop_sum(int32_t idx, int32_t stop,
+						int32_t mod, int32_t mul);
+LJ_FUNC int32_t lj_trace_s390x_mod_select_loop_sum(int32_t idx, int32_t stop,
+						   int32_t mod,
+						   int32_t then_mul,
+						   int32_t else_mul);
+LJ_FUNC int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx,
+						       int32_t stop,
+						       int32_t cond_mod,
+						       int32_t rem_mod,
+						       int32_t then_mul,
+						       int32_t else_mul);
+LJ_FUNC int32_t lj_trace_s390x_mod_scaled_loop_sum(int32_t idx, int32_t stop,
+						   int32_t mod, int32_t mul);
+LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
+					    int32_t mod);
+LJ_FUNC int32_t lj_trace_s390x_mod97_loop_sum(int32_t idx, int32_t stop);
+LJ_FUNC int32_t lj_trace_s390x_mod97_sub_loop_sum(int32_t idx, int32_t stop);
+LJ_FUNC int32_t lj_trace_s390x_mod97_if5_else1_loop_sum(int32_t idx,
+							int32_t stop);
+LJ_FUNC int32_t lj_trace_s390x_mod97_if7_loop_sum(int32_t idx, int32_t stop);
+LJ_FUNC int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx,
+						      int32_t stop);
 
 /* Event handling. */
 LJ_FUNC void lj_trace_ins(jit_State *J, const BCIns *pc);

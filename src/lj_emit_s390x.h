@@ -114,6 +114,10 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
   ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
    (((uint64_t)(r2) & 15u) << 32) | (((uint64_t)(imm) & 0xffffu) << 16) | \
    (((uint64_t)(m3) & 15u) << 12))
+#define S390X_INS_RIE_C(op, r1, m3, i2, imm) \
+  ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
+   (((uint64_t)(m3) & 15u) << 32) | (((uint64_t)(imm) & 0xffffu) << 16) | \
+   (((uint64_t)(i2) & 0xffu) << 8))
 #define S390X_INS_BRC(cc, disp) \
   ((uint32_t)0xa7040000u | (((uint32_t)(cc) & 15u) << 20) | \
    (uint16_t)(disp))
@@ -170,6 +174,8 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CLGR	0xb9210000u
 #define S390XI_CGRJ	0xec0000000064ull
 #define S390XI_CRJ	0xec0000000076ull
+#define S390XI_CGIJ	0xec000000007cull
+#define S390XI_CIJ	0xec000000007eull
 #define S390XI_CGFR	0xb9300000u
 #define S390XI_LGFI	0xc00100000000ull
 #define S390XI_LGHI	0xa7090000u
