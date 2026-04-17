@@ -50,6 +50,20 @@ static void emit_u48_pair(ASMState *as, uint64_t first, uint64_t second)
   as->mcp = (MCode *)p;
 }
 
+static void emit_u16_u48(ASMState *as, uint16_t first, uint64_t second)
+{
+  uint8_t *p = (uint8_t *)as->mcp - 8;
+  p[0] = (uint8_t)(first >> 8);
+  p[1] = (uint8_t)first;
+  p[2] = (uint8_t)(second >> 40);
+  p[3] = (uint8_t)(second >> 32);
+  p[4] = (uint8_t)(second >> 24);
+  p[5] = (uint8_t)(second >> 16);
+  p[6] = (uint8_t)(second >> 8);
+  p[7] = (uint8_t)second;
+  as->mcp = (MCode *)p;
+}
+
 static void emit_u48_at(MCode *p, uint64_t ins)
 {
   uint8_t *q = (uint8_t *)p;
@@ -101,6 +115,11 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
   ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
    (((uint64_t)(r2) & 15u) << 32) | (((uint64_t)(i3) & 0xffu) << 24) | \
    (((uint64_t)(i4) & 0xffu) << 16) | (((uint64_t)(i5) & 0xffu) << 8))
+#define S390X_INS_RIE_B(op, r1, r2, m3, disp) \
+  ((uint64_t)(op) | (((uint64_t)(r1) & 15u) << 36) | \
+   (((uint64_t)(r2) & 15u) << 32) | \
+   (((uint64_t)(uint16_t)(disp)) << 16) | \
+   (((uint64_t)(m3) & 15u) << 12))
 #define S390X_INS_BRC(cc, disp) \
   ((uint32_t)0xa7040000u | (((uint32_t)(cc) & 15u) << 20) | \
    (uint16_t)(disp))
@@ -142,6 +161,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_LCGFR	0xb9130000u
 #define S390XI_LTR	0x1200u
 #define S390XI_CR	0x1900u
+#define S390XI_CRJ	0xec0000000076ull
 #define S390XI_DSGR	0xb90d0000u
 #define S390XI_DLGR	0xb9870000u
 #define S390XI_MSGFR	0xb91c0000u

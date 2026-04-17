@@ -1709,7 +1709,16 @@ static void asm_loop_fixup(ASMState *as)
   MCode *p = as->mctop;
   MCode *target = as->mcp;
   ptrdiff_t delta;
-  if (as->loopinv) {  /* Guard inversion already consumed the tail slot. */
+  if (as->loopinv == 3) {
+    uint32_t disp;
+    uint8_t *crj = (uint8_t *)(p - 3) + 2;
+    delta = (char *)target - (char *)crj;
+    lj_assertA((delta & 1) == 0, "unaligned CRJ loop branch target");
+    lj_assertA(checki16((int32_t)(delta >> 1)),
+	       "s390x CRJ loop branch target out of range");
+    disp = (uint32_t)(uint16_t)(delta >> 1);
+    p[-2] = (p[-2] & 0x0000ffffu) | (disp << 16);
+  } else if (as->loopinv) {  /* Guard inversion already consumed the tail slot. */
     delta = (char *)target - (char *)(p - 2);
     lj_assertA((delta & 1) == 0, "unaligned inverted loop branch target");
     lj_assertA(checki16((int32_t)(delta >> 1)),
@@ -2224,6 +2233,37 @@ static int asm_s390x_redundant_loop_ugt(ASMState *as, IRIns *ir,
   return 0;
 }
 
+static int asm_s390x_loop_crj(ASMState *as, IRIns *ir, IROp op,
+			      IRRef lref, IRRef rref, int cc,
+			      IRIns *lir, IRIns *rir)
+{
+  MCode *exit, *p;
+  Reg left, right;
+
+  if (as->mcp != as->invmcp || as->loopinv)
+    return 0;
+  if (asm_s390x_guardmark_enabled() || asm_s390x_guardmark_taken_enabled())
+    return 0;
+  if (op != IR_LE || (cc & CC_UNSIGNED) || !irt_isinteger(ir->t) ||
+      irref_isk(rref))
+    return 0;
+
+  left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
+  right = ra_alloc1_nobase(as, rref, rset_exclude(RSET_GPR_NOB, left), -202);
+  asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 0);
+  asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, right, 0);
+
+  as->loopinv = 3;
+  exit = asm_exitstub_addr(as, as->snapno);
+  p = as->mcp;
+  lj_asm_s390x_guard_log(as, cc & 15, exit, p, 3);
+  *p = S390X_INS_BRC(CC_AL, (int32_t)(((char *)exit - (char *)p) >> 1));
+  emit_u16_u48(as, 0x0707u,
+	       S390X_INS_RIE_B(S390XI_CRJ, left, right,
+			       asm_guardcc_invert(cc & 15), 0));
+  return 1;
+}
+
 static void asm_intcomp(ASMState *as, IRIns *ir)
 {
   IROp op = ir->o;
@@ -2246,6 +2286,8 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
     rir = IR(rref);
   cc = asm_compmap[op];
   if (asm_s390x_redundant_loop_ugt(as, ir, lref, rref))
+    return;
+  if (asm_s390x_loop_crj(as, ir, op, lref, rref, cc, lir, rir))
     return;
   left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
   asm_guardcc(as, cc & 15);

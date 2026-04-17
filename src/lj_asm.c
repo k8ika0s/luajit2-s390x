@@ -58,7 +58,7 @@ typedef struct ASMState {
   RegSet phiset;	/* Set of PHI registers. */
 
   uint32_t flags;	/* Copy of JIT compiler flags. */
-  int loopinv;		/* Loop branch inversion (0:no, 1:yes, 2:yes+CC_P). */
+  int loopinv;		/* Loop branch inversion (0:no, 1:yes, 2:yes+CC_P, 3:target). */
 
   int32_t evenspill;	/* Next even spill slot. */
   int32_t oddspill;	/* Next odd spill slot (or 0). */
