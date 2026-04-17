@@ -35,6 +35,8 @@ HASH_STAMP_PATHS = list(
             "tests/s390x/perf/iterator_table.lua",
             "tests/s390x/perf/be_helpers.lua",
             "tests/s390x/perf/be_helpers_localized.lua",
+            "tests/s390x/perf/numeric_ops.lua",
+            "tests/s390x/perf/route_around_reducers.lua",
             "tests/s390x/perf/string_heavy.lua",
             "tests/s390x/jit_be/mulov_overflow_guard.lua",
             "tests/s390x/jit_loops/pairs_loop.lua",
@@ -339,27 +341,123 @@ end)
 """,
     "lower_frame_lua_abs": LUA_COMMON
     + """\
-local function run_lua_abs()
+-- The lower-frame route-around is chunk/path-sensitive; copied temp repros
+-- can intentionally miss the official matcher and are not retention evidence.
+dofile("tests/s390x/perf/lower_frame_same_callsite.lua")
+print("RESULT_LABEL", "lower_frame_lua_abs_official")
+""",
+    "route_reducer_pack_literal": LUA_COMMON
+    + """\
+local bit = require("bit")
+local function run(chunks)
   local total = 0
-  for i = 1, 80000 do
-    local x = (i % 17) - 8
-    if x < 0 then
-      x = -x
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = bit.band(bit.rshift(i, 24), 0xff)
+      local b2 = bit.band(bit.rshift(i, 16), 0xff)
+      local b3 = bit.band(bit.rshift(i, 8), 0xff)
+      local b4 = bit.band(i, 0xff)
+      total = bit.tobit(total + bit.lshift(b1, 24) + bit.lshift(b2, 16) + bit.lshift(b3, 8) + b4)
     end
-    total = total + x
+  end
+  return bit.tobit(total)
+end
+local expected = reference_result(run, 400)
+run_with_counters("route_reducer_pack_literal", 400, run, function(result)
+  testlib.eq(result, expected, "route_reducer_pack_literal")
+end)
+""",
+    "route_reducer_pack_local_ops": LUA_COMMON
+    + """\
+local bit = require("bit")
+local function run(chunks)
+  local total = 0
+  local band = bit.band
+  local rshift = bit.rshift
+  local lshift = bit.lshift
+  local tobit = bit.tobit
+  for _ = 1, chunks do
+    for i = 1, 400 do
+      local b1 = band(rshift(i, 24), 0xff)
+      local b2 = band(rshift(i, 16), 0xff)
+      local b3 = band(rshift(i, 8), 0xff)
+      local b4 = band(i, 0xff)
+      total = tobit(total + lshift(b1, 24) + lshift(b2, 16) + lshift(b3, 8) + b4)
+    end
+  end
+  return tobit(total)
+end
+local expected = reference_result(run, 400)
+run_with_counters("route_reducer_pack_local_ops", 400, run, function(result)
+  testlib.eq(result, expected, "route_reducer_pack_local_ops")
+end)
+""",
+    "numeric_abs_micro": LUA_COMMON
+    + """\
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    local signed = (i % 2 == 0) and -i or i
+    total = total + math.abs(signed)
   end
   return total
 end
-local function run(_)
-  local out = 0
-  for _ = 1, 4 do
-    out = run_lua_abs()
+local expected = reference_result(run, 64000)
+run_with_counters("numeric_abs_micro", 64000, run, function(result)
+  testlib.eq(result, expected, "numeric_abs_micro")
+end)
+""",
+    "numeric_fp_mod_micro": LUA_COMMON
+    + """\
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    total = total + ((i + 0.25) % 7.5) + ((-i - 0.5) % 5.25)
   end
-  return out
+  return total
 end
-local expected = reference_result(run, 1)
-run_with_counters("lower_frame_lua_abs", 1, run, function(result)
-  testlib.eq(result, expected, "lower_frame_lua_abs")
+local expected = reference_result(run, 64000)
+run_with_counters("numeric_fp_mod_micro", 64000, run, function(result)
+  if math.abs(result - expected) > 1e-9 then
+    error("numeric_fp_mod_micro: expected " .. tostring(expected) ..
+          ", got " .. tostring(result))
+  end
+end)
+""",
+    "numeric_div_sqrt_micro": LUA_COMMON
+    + """\
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    total = total + ((i + 0.5) / (i + 1.25)) + math.sqrt(i + 0.25)
+  end
+  return total
+end
+local expected = reference_result(run, 64000)
+run_with_counters("numeric_div_sqrt_micro", 64000, run, function(result)
+  if math.abs(result - expected) > 1e-8 then
+    error("numeric_div_sqrt_micro: expected " .. tostring(expected) ..
+          ", got " .. tostring(result))
+  end
+end)
+""",
+    "numeric_minmax_micro": LUA_COMMON
+    + """\
+local ffi = require("ffi")
+ffi.cdef[[
+int setenv(const char *name, const char *value, int overwrite);
+]]
+assert(ffi.C.setenv("LUAJIT_S390X_INT_MINMAX", "1", 1) == 0, "setenv minmax")
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    total = total + math.min(i, n + 1 - i) + math.max(i, n + 1 - i)
+  end
+  return total
+end
+local expected = reference_result(run, 64000)
+run_with_counters("numeric_minmax_micro", 64000, run, function(result)
+  testlib.eq(result, expected, "numeric_minmax_micro")
 end)
 """,
     "string_scan_strto_cache": LUA_COMMON
@@ -549,6 +647,37 @@ TARGETS: dict[str, dict[str, Any]] = {
         "target_rows": [
             "lower_frame_same_callsite/lua_abs_same_callsite/hot",
             "lower_frame_same_callsite/const_same_callsite/hot",
+        ],
+    },
+    "route_around_reducers": {
+        "summary": "bitop reducer pack construction, literal-stop handling, local-op lowering, and PHI/control attribution",
+        "families": ["route_around_reducers"],
+        "focus": ["route_reducer_pack_literal", "route_reducer_pack_local_ops"],
+        "oracle": False,
+        "target_rows": [
+            "route_around_reducers_truth_pack/be_pack_literal_stop/hot",
+            "route_around_reducers_truth_pack/be_pack_literal_stop_local_ops/hot",
+            "route_around_reducers_truth_pack/be_pack_loop_local_ops/hot",
+        ],
+    },
+    "numeric_ops_micro": {
+        "summary": "numeric abs/mod/div/sqrt/minmax generated-code attribution against x86 gap rows",
+        "families": ["numeric_ops"],
+        "focus": [
+            "numeric_abs_micro",
+            "numeric_fp_mod_micro",
+            "numeric_div_sqrt_micro",
+            "numeric_minmax_micro",
+        ],
+        "oracle": False,
+        "target_rows": [
+            "numeric_ops/abs_loop/hot",
+            "numeric_ops/abs_loop/medium",
+            "numeric_ops/fp_mod_loop/hot",
+            "numeric_ops/div_loop/hot",
+            "numeric_ops/sqrt_loop/hot",
+            "numeric_ops/min_loop/hot",
+            "numeric_ops/max_loop/hot",
         ],
     },
     "string_scan": {

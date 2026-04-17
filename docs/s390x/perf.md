@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 13:10 PDT
+Last updated: 2026-04-17 13:35 PDT
 
 ## Current Matrix
 
@@ -10,8 +10,8 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `ef3db658 s390x: accelerate dispatch trace side exits`, on top of
-  `28f70e67 Update s390x bitops matrix status`.
+  `c7845bac docs: record dispatch trace integration matrix`, on top of
+  `ef3db658 s390x: accelerate dispatch trace side exits`.
 - Current s390x artifact:
   `artifacts/s390x/dispatch-trace-integration-20260417T200154Z`.
 - Current x86 comparison:
@@ -32,6 +32,13 @@ notes and experiment logs belong below this section or in
 - Regression read: the new full matrix has no material red official row. Only
   `large_immediates/add_large` small/medium is slower than `-joff`, and those
   rows are tiny absolute runtimes that need focused reruns before any code.
+- Cross-arch acceleration read:
+  `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline` ranks rows
+  where x86 JIT-on beats s390x JIT-on. The largest actionable absolute gaps are
+  lower-frame `lua_abs_same_callsite`, Clang `be_helpers/strto_loop`, reducer
+  `be_pack_*`, `numeric_ops`, and `ffi_cdata` width/FREF rows. x86 JIT-on data
+  is still missing for `iterator_table` and `mixed_noffi`, so those rows stay
+  out of x86-gap ranking until coverage is fixed.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -90,10 +97,19 @@ notes and experiment logs belong below this section or in
   and fixed FFI pressure) should use larger focused harnesses before claiming
   more retained wins.
 - Acceleration queue by absolute JIT time: `mixed_noffi/mixed_loop`,
-  `iterator_table/pairs_sum`, `iterator_table/pairs_array_sum`,
-  `lower_frame_same_callsite/lua_abs_same_callsite`,
-  `be_helpers/strto_loop`, and selected `ffi_fixed_struct_calls` pressure rows.
-  `ffi_fixed_call_pressure` and `bitops_mix` are at or near the timer floor.
+  `iterator_table/pairs_sum`, and `iterator_table/pairs_array_sum` remain the
+  highest absolute s390x JIT rows, but they need x86 JIT coverage before they
+  can drive cross-arch acceleration decisions.
+- Cross-arch acceleration queue:
+  first `lower_frame_same_callsite/lua_abs_same_callsite`, then Clang
+  `be_helpers/strto_loop`, reducer `be_pack_*`, `numeric_ops` micro-kernels,
+  and `ffi_cdata` width/FREF rows. The first kdz1 lower-frame truth pack is
+  `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`;
+  it classifies the official row as compiled-body dominated and not trace-exit
+  churn.
+- Timer-floor rows (`dispatch_trace`, `string_heavy`, `bitops_mix`, and
+  `ffi_fixed_call_pressure`) need larger focused harnesses before claiming more
+  retained wins.
 - String posture: the shipped string/memscan rows are now effectively at the
   timer floor in the full matrix. Future string work should use larger
   iteration counts or focused harnesses before claiming additional wins.
