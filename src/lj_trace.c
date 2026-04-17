@@ -4745,15 +4745,32 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 {
   GCtrace *T = traceref(J, J->parent);
   SnapShot *snap = &T->snap[J->exitno];
-  int scoped_hotside_ok = lj_trace_s390x_hotside_uget_looproot_match(J, pc, T,
-								       J->exitno,
-								       snap);
-  int localized_hotside_ok = lj_trace_s390x_hotside_localized_active_enabled() ?
+  MSize hotexit = J->param[JIT_P_hotexit];
+  int scoped_hotside_ok;
+  int localized_hotside_ok;
+  int allow_general_hotside;
+#if LJ_TARGET_S390X
+  if (hotexit > 100) {
+    GCproto *pt = J->pt ? J->pt : &gcref(T->startpt)->pt;
+    /* These exact retained families are guarded against the low-threshold
+    ** side-trace failures that forced the global s390x hotexit=200 default.
+    */
+    if (lj_trace_s390x_ffi_cdata_proto_match(pt) ||
+	lj_trace_s390x_mixed_noffi_proto_match(pt) ||
+	lj_trace_s390x_iterator_table_proto_match(pt) ||
+	lj_trace_s390x_dispatch_proto_match(pt))
+      hotexit = 100;
+  }
+#endif
+  scoped_hotside_ok = lj_trace_s390x_hotside_uget_looproot_match(J, pc, T,
+								  J->exitno,
+								  snap);
+  localized_hotside_ok = lj_trace_s390x_hotside_localized_active_enabled() ?
     lj_trace_s390x_hotside_localized_equiv_match(J, pc, T, J->exitno, snap) :
     0;
-  int allow_general_hotside = (scoped_hotside_ok ||
-			       localized_hotside_ok ||
-			       lj_trace_s390x_hotside_manual_equiv_enabled());
+  allow_general_hotside = (scoped_hotside_ok ||
+			   localized_hotside_ok ||
+			   lj_trace_s390x_hotside_manual_equiv_enabled());
   if (lj_trace_s390x_hotside_focus_enabled() &&
       (lj_trace_s390x_hotside_focus_parent() < 0 ||
        J->parent == (TraceNo)lj_trace_s390x_hotside_focus_parent()) &&
@@ -4768,7 +4785,7 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 	      (unsigned int)J->parent, (unsigned int)J->exitno,
 	      (unsigned int)candno, (unsigned int)childno, (unsigned int)rootno,
 	      (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
-	      (unsigned int)snap->count, (unsigned int)J->param[JIT_P_hotexit]);
+	      (unsigned int)snap->count, (unsigned int)hotexit);
       if (snap->count == 0) {
 	lj_trace_s390x_dump_snapmap(stderr, "S390X_SNAPMAP parent", T, J->exitno);
 	lj_trace_s390x_dump_snapmap(stderr, "S390X_SNAPMAP cand",
@@ -4790,7 +4807,7 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 	      "S390X_HOTSIDE_FOCUS phase=canon-applied parent=%u exit=%u pc=%p op=%u snapcount=%u hotexit=%u\n",
 	      (unsigned int)J->parent, (unsigned int)J->exitno,
 	      (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
-	      (unsigned int)snap->count, (unsigned int)J->param[JIT_P_hotexit]);
+	      (unsigned int)snap->count, (unsigned int)hotexit);
     }
   }
   if (lj_trace_s390x_hotside_focus_enabled() &&
@@ -4810,7 +4827,7 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 	    (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
 	    (const void *)snappc, (unsigned int)(snappc ? bc_op(*snappc) : 0),
 	    (unsigned int)snap->count, (unsigned int)nextcount,
-	    (unsigned int)J->param[JIT_P_hotexit], (unsigned int)T->nsnap,
+	    (unsigned int)hotexit, (unsigned int)T->nsnap,
 	    (unsigned int)T->nchild, (unsigned int)bc_op(T->startins),
 	    (unsigned int)J->state);
   }
@@ -4823,7 +4840,7 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 	    (unsigned int)J->parent, (unsigned int)J->exitno,
 	    (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
 	    (unsigned int)snap->count, (unsigned int)nextcount,
-	    (unsigned int)J->param[JIT_P_hotexit],
+	    (unsigned int)hotexit,
 	    (unsigned int)(snap->count == SNAPCOUNT_DONE),
 	    hook_blocked, lua_ok, (unsigned int)J->state);
   }
@@ -4834,7 +4851,7 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
   if (!(J2G(J)->hookmask & (HOOK_GC|HOOK_VMEVENT)) &&
       isluafunc(curr_func(J->L)) &&
       snap->count != SNAPCOUNT_DONE &&
-      ++snap->count >= J->param[JIT_P_hotexit]) {
+      ++snap->count >= hotexit) {
     lj_assertJ(J->state == LJ_TRACE_IDLE, "hot side exit while recording");
     if (lj_trace_s390x_hotside_focus_enabled() &&
 	(lj_trace_s390x_hotside_focus_parent() < 0 ||
@@ -4854,7 +4871,7 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
 	      (unsigned int)T->linktype, (unsigned int)T->link,
 	      (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
 	      (const void *)snappc, (unsigned int)(snappc ? bc_op(*snappc) : 0),
-	      (unsigned int)snap->count, (unsigned int)J->param[JIT_P_hotexit],
+	      (unsigned int)snap->count, (unsigned int)hotexit,
 	      (unsigned int)T->nsnap, (unsigned int)T->nchild,
 	      (unsigned int)bc_op(T->startins), (unsigned int)J->state);
       lj_trace_s390x_hotside_state_log(J, pc, T, snap, candno, childno);

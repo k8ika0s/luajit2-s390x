@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 13:35 PDT
+Last updated: 2026-04-17 14:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -17,6 +17,10 @@ Historical experiment detail lives in
   large-immediate loop lowering merge, the post-merge low32 call-argument
   normalization repair, the focused bitops suffix-table integration, and the
   dispatch-trace direct side-exit retargeting/SCEV hardening integration.
+- Post-matrix focused work added a scoped hotside threshold policy: exact
+  iterator-table, mixed-noffi, dispatch, and ffi-cdata proto families use an
+  effective side-exit threshold of `100`, while the global s390x default stays
+  `200` for unsafe low-threshold families.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -32,6 +36,14 @@ Historical experiment detail lives in
   `side_exit.lua`, modulo trace tests, `jit_be/numeric_ops.lua`,
   `addsub_overflow_guard.lua`, `dispatch_trace.lua`, and direct-patchexit
   zero-miss logging.
+- Scoped hotside threshold validation:
+  kdz1 passed focused `ffi_cdata`, `iterator_table`, `mixed_noffi`,
+  `vararg_paths`, `numeric_ops`, `dispatch_trace`, and `large_immediates`
+  probes from rebuilt source, plus `jit_be/*.lua`, `jit_core/*.lua`,
+  `jit_loops/*.lua`, and oracle-backed FFI tests. kdz and zkd0 confirmed
+  `ffi_cdata`, `iterator_table`, `mixed_noffi`, and core guardrails including
+  `numeric_helpers.lua`, `pairs_loop.lua`, `compiled_vararg.lua`, and
+  `vararg_paths.lua`.
 - kdz1 clean full matrix now passes at
   `artifacts/s390x/dispatch-trace-integration-20260417T200154Z`: `720`
   benchmark records, all `23` perf families, GCC/Clang, JIT-on/`-joff`, `0`
@@ -105,9 +117,10 @@ Historical experiment detail lives in
   current comparison lacks x86 JIT-on data for those families. Fix x86 harness
   coverage before using them for x86-gap ranking.
 - Current cross-architecture acceleration queue:
-  `lower_frame_same_callsite/lua_abs_same_callsite`, numeric `abs_loop`
-  dense-sample instability, reducer `be_pack_*`, Clang `be_helpers/strto_loop`,
-  and `ffi_cdata` width/FREF rows.
+  first rerun the full matrix with scoped hotside threshold in place, then
+  resume with `lower_frame_same_callsite/lua_abs_same_callsite`, numeric
+  `abs_loop` dense-sample instability, reducer `be_pack_*`, and Clang
+  `be_helpers/strto_loop`.
 - First lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   It revalidated the official row on kdz1 and classified it as compiled-body

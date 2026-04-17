@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 13:35 PDT
+Last updated: 2026-04-17 14:45 PDT
 
 ## Current Matrix
 
@@ -39,6 +39,13 @@ notes and experiment logs belong below this section or in
   `be_pack_*`, `numeric_ops`, and `ffi_cdata` width/FREF rows. x86 JIT-on data
   is still missing for `iterator_table` and `mixed_noffi`, so those rows stay
   out of x86-gap ranking until coverage is fixed.
+- Post-matrix retained candidate:
+  a scoped `trace_hotside()` threshold now uses effective `hotexit=100` only
+  for the exact safe iterator, mixed-noffi, dispatch, and ffi-cdata proto
+  families. The global s390x default remains `200` because a broad default
+  change failed `jit_core/numeric_helpers.lua`. Focused kdz1/kdz/zkd0 artifacts
+  are recorded in [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md);
+  the top matrix below should be superseded only after the next full matrix run.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -100,10 +107,15 @@ notes and experiment logs belong below this section or in
   `iterator_table/pairs_sum`, and `iterator_table/pairs_array_sum` remain the
   highest absolute s390x JIT rows, but they need x86 JIT coverage before they
   can drive cross-arch acceleration decisions.
-- Cross-arch acceleration queue:
+- Scoped hotside threshold candidate:
+  kdz1/kdz/zkd0 focused runs confirm the safe-family effective `hotexit=100`
+  policy for `ffi_cdata`, `iterator_table`, `mixed_noffi`, and `dispatch_trace`,
+  while keeping vararg and numeric guardrails clean. Run the next full matrix
+  before rewriting the top table.
+- Cross-arch acceleration queue after the full-matrix confirmation:
   first `lower_frame_same_callsite/lua_abs_same_callsite`, then `numeric_ops`
-  dense-sample instability, reducer `be_pack_*`, Clang `be_helpers/strto_loop`,
-  and `ffi_cdata` width/FREF rows. The first kdz1 lower-frame truth pack is
+  dense-sample instability, reducer `be_pack_*`, and Clang
+  `be_helpers/strto_loop`. The first kdz1 lower-frame truth pack is
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`;
   it classifies the official row as compiled-body dominated and not trace-exit
   churn.
