@@ -79,6 +79,44 @@ static void emit_u16_u32_u16(ASMState *as, uint16_t first, uint32_t second,
   as->mcp = (MCode *)p;
 }
 
+static void emit_u48_u32_u16(ASMState *as, uint64_t first, uint32_t second,
+				     uint16_t third)
+{
+  uint8_t *p = (uint8_t *)as->mcp - 12;
+  p[0] = (uint8_t)(first >> 40);
+  p[1] = (uint8_t)(first >> 32);
+  p[2] = (uint8_t)(first >> 24);
+  p[3] = (uint8_t)(first >> 16);
+  p[4] = (uint8_t)(first >> 8);
+  p[5] = (uint8_t)first;
+  p[6] = (uint8_t)(second >> 24);
+  p[7] = (uint8_t)(second >> 16);
+  p[8] = (uint8_t)(second >> 8);
+  p[9] = (uint8_t)second;
+  p[10] = (uint8_t)(third >> 8);
+  p[11] = (uint8_t)third;
+  as->mcp = (MCode *)p;
+}
+
+static void emit_u48_u16_u32(ASMState *as, uint64_t first, uint16_t second,
+			     uint32_t third)
+{
+  uint8_t *p = (uint8_t *)as->mcp - 12;
+  p[0] = (uint8_t)(first >> 40);
+  p[1] = (uint8_t)(first >> 32);
+  p[2] = (uint8_t)(first >> 24);
+  p[3] = (uint8_t)(first >> 16);
+  p[4] = (uint8_t)(first >> 8);
+  p[5] = (uint8_t)first;
+  p[6] = (uint8_t)(second >> 8);
+  p[7] = (uint8_t)second;
+  p[8] = (uint8_t)(third >> 24);
+  p[9] = (uint8_t)(third >> 16);
+  p[10] = (uint8_t)(third >> 8);
+  p[11] = (uint8_t)third;
+  as->mcp = (MCode *)p;
+}
+
 static void emit_u16_pair(ASMState *as, uint16_t first, uint16_t second)
 {
   emit_u32(as, ((uint32_t)first << 16) | (uint32_t)second);
@@ -158,6 +196,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
   ((uint32_t)(op) | (((uint32_t)(imm) & 0xffu) << 16) | \
    (((uint32_t)(b1) & 15u) << 12) | ((uint32_t)(disp) & 0xfffu))
 
+#define S390XI_LR	0x1800u
 #define S390XI_LGR	0xb9040000u
 #define S390XI_LRVGR	0xb90f0000u
 #define S390XI_LGFR	0xb9140000u
@@ -238,6 +277,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_RISBG	0xec0000000055ull
 #define S390XI_XILF	0xc00700000000ull
 #define S390XI_IIHF	0xc00800000000ull
+#define S390XI_LARL	0xc00000000000ull
 #define S390XI_LLILF	0xc00f00000000ull
 #define S390XI_SRL	0x88000000u
 #define S390XI_SLL	0x89000000u
@@ -250,6 +290,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_SRLK	0xeb00000000deull
 #define S390XI_SLLK	0xeb00000000dfull
 #define S390XI_LDR	0x2800u
+#define S390XI_A	0x5a000000u
 
 /* Prefer rematerialization of BASE/L from global_State over spills. */
 #define emit_canremat(ref)	((ref) <= REF_BASE)
@@ -292,6 +333,52 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
   } else {
     emit_u48_pad8(as, S390X_INS_RIL(S390XI_LLILF, r, lo));
   }
+}
+
+static int emit_larl(ASMState *as, Reg r, const void *target)
+{
+  uint8_t *p;
+  ptrdiff_t delta;
+  lj_assertA(r < RID_MIN_FPR, "s390x LARL target must be a GPR");
+  p = (uint8_t *)as->mcp - 8;
+  delta = (char *)target - (char *)p;
+  if ((delta & 1) != 0 || !checki32((int64_t)(delta >> 1)))
+    return 0;
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_LARL, r, (int32_t)(delta >> 1)));
+  return 1;
+}
+
+static int emit_larl_u48_u32(ASMState *as, Reg r, const void *target,
+			     uint64_t second, uint32_t third)
+{
+  uint8_t *p;
+  ptrdiff_t delta;
+  lj_assertA(r < RID_MIN_FPR, "s390x LARL target must be a GPR");
+  p = (uint8_t *)as->mcp - 16;
+  delta = (char *)target - (char *)p;
+  if ((delta & 1) != 0 || !checki32((int64_t)(delta >> 1)))
+    return 0;
+  {
+    uint64_t first = S390X_INS_RIL(S390XI_LARL, r, (int32_t)(delta >> 1));
+    p[0] = (uint8_t)(first >> 40);
+    p[1] = (uint8_t)(first >> 32);
+    p[2] = (uint8_t)(first >> 24);
+    p[3] = (uint8_t)(first >> 16);
+    p[4] = (uint8_t)(first >> 8);
+    p[5] = (uint8_t)first;
+    p[6] = (uint8_t)(second >> 40);
+    p[7] = (uint8_t)(second >> 32);
+    p[8] = (uint8_t)(second >> 24);
+    p[9] = (uint8_t)(second >> 16);
+    p[10] = (uint8_t)(second >> 8);
+    p[11] = (uint8_t)second;
+    p[12] = (uint8_t)(third >> 24);
+    p[13] = (uint8_t)(third >> 16);
+    p[14] = (uint8_t)(third >> 8);
+    p[15] = (uint8_t)third;
+    as->mcp = (MCode *)p;
+  }
+  return 1;
 }
 
 static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)
