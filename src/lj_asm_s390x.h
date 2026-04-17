@@ -2300,29 +2300,21 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
     return;
   }
   imm16_signed = irref_isk(rref) && !(cc & CC_UNSIGNED) && !irt_isaddr(ir->t) &&
-			 checki16(IR(rref)->i);
+				 checki16(IR(rref)->i);
   if (imm16_signed) {
-    cmp_left = left;
     cmp32s = irt_isinteger(ir->t);
-    if (cmp32s)
-      cmp_left = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
     asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
-    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, RID_NONE, 1);
-    emit_u32(as, S390X_INS_RI(S390XI_CGHI, cmp_left, IR(rref)->i));
-    if (cmp32s)
-      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_left, left));
+    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, RID_NONE, 1);
+    emit_u32(as, S390X_INS_RI(cmp32s ? S390XI_CHI : S390XI_CGHI,
+			      left, IR(rref)->i));
     return;
   }
   if (irref_isk(rref) && !(cc & CC_UNSIGNED) && !irt_isaddr(ir->t)) {
-    cmp_left = left;
     cmp32s = irt_isinteger(ir->t);
-    if (cmp32s)
-      cmp_left = ra_scratch(as, rset_exclude(RSET_GPR_NOB, left));
     asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
-    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, RID_NONE, 1);
-    emit_u48_pad8(as, S390X_INS_RIL(S390XI_CGFI, cmp_left, IR(rref)->i));
-    if (cmp32s)
-      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, cmp_left, left));
+    asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, RID_NONE, 1);
+    emit_u48_pad8(as, S390X_INS_RIL(cmp32s ? S390XI_CFI : S390XI_CGFI,
+				    left, IR(rref)->i));
     return;
   }
   if (irref_isk(rref)) {
@@ -2459,27 +2451,33 @@ static void asm_add(ASMState *as, IRIns *ir)
 	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
 	}
       } else {
+	int low32addk = bnorm &&
+	  (asm_s390x_addk1_bitop_loop_carry(as, ir) ||
+	   asm_s390x_addk_low32home_only(as, ir));
 	if (irt_isguard(ir->t)) {
 	  asm_s390x_guard_log(as, "addov_k", ir, CC_OF, 0, k);
 	  asm_guardcc(as, CC_OF);
 	}
-	if (bnorm && !asm_s390x_addk1_bitop_loop_carry(as, ir) &&
-	    !asm_s390x_addk_low32home_only(as, ir))
+	if (bnorm && !low32addk)
 	  asm_bnorm32(as, ir, dest);
 	if (!irt_isguard(ir->t) && dest != left)
-	  emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AGHIK, dest, left, k));
+	  emit_u48_pad8(as, S390X_INS_RIE_D(low32addk ? S390XI_AHIK :
+					    S390XI_AGHIK, dest, left, k));
 	else
-	  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, k));
+	  emit_u32(as, S390X_INS_RI(low32addk ? S390XI_AHI :
+				    S390XI_AGHI, dest, k));
       }
       if (dest != left && irt_isguard(ir->t))
 	emit_movrr(as, ir, dest, left);
       return;
     }
     if (!irt_isguard(ir->t)) {
+      int low32addk = bnorm && asm_s390x_addk_low32home_only(as, ir);
       asm_s390x_ir_log_addk(as, ir, ir->op1, ir->op2, dest, left, k);
-      if (bnorm)
+      if (bnorm && !low32addk)
 	asm_bnorm32(as, ir, dest);
-      emit_u48_pad8(as, S390X_INS_RIL(S390XI_AGFI, dest, k));
+      emit_u48_pad8(as, S390X_INS_RIL(low32addk ? S390XI_AFI :
+				      S390XI_AGFI, dest, k));
       if (dest != left)
 	emit_movrr(as, ir, dest, left);
       return;
@@ -2733,7 +2731,7 @@ static int asm_bxor_bnot(ASMState *as, IRIns *ir)
   return 1;
 }
 
-static int asm_bxor_bswap_bnot_accflip_loop_tail(ASMState *as, IRIns *ir)
+static int asm_bxor_bswap_bnot_loop_tail(ASMState *as, IRIns *ir)
 {
   IRRef ref = (IRRef)(ir - as->ir);
   IRRef bnotref = 0, innerref = 0, bswapref = 0, accref = 0, srcref;
@@ -2785,12 +2783,12 @@ static int asm_bxor_bswap_bnot_accflip_loop_tail(ASMState *as, IRIns *ir)
   src = ra_alloc1_nobase(as, srcref, rset_exclude(RSET_GPR_NOB, acc), -232);
   allow = rset_exclude(rset_exclude(RSET_GPR_NOB, acc), src);
   dest = ra_dest_nobase(as, ir, allow, -230);
-  asm_s390x_bitop_log(as, "bxor_bswap_bnot_accflip_loop_tail", ir, dest, src, acc, 0);
+  asm_s390x_bitop_log(as, "bxor_bswap_bnot_loop_tail", ir, dest, src, acc, 0);
   asm_bnorm32(as, ir, dest);
-  emit_u16_pair(as, S390X_INS_RR(S390XI_XR, dest, src),
-		S390X_INS_RR(S390XI_XR, dest, acc));
+  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, acc, dest));
+  emit_u16_u48(as, S390X_INS_RR(S390XI_XR, dest, src),
+	       S390X_INS_RIL(S390XI_XILF, dest, 0xffffffffu));
   emit_u32(as, S390X_INS_RXE(S390XI_LRVR, dest, src));
-  emit_u48_pad8(as, S390X_INS_RIL(S390XI_XILF, acc, 0xffffffffu));
   return 1;
 }
 
@@ -2992,17 +2990,64 @@ static int asm_bxor_brol_pair(ASMState *as, IRIns *ir)
   return 1;
 }
 
+static int asm_bxor_bsar_neg(ASMState *as, IRIns *ir)
+{
+  IRRef bsarref = 0, otherref = 0;
+  IRIns *bsar, *neg;
+  Reg src, dest, tmp;
+  int32_t sh;
+
+  if (irt_is64(ir->t))
+    return 0;
+  if (mayfuse(as, ir->op1) && !irref_isk(ir->op1) &&
+      (bsar = IR(ir->op1))->o == IR_BSAR && ra_noreg(bsar->r)) {
+    bsarref = ir->op1;
+    otherref = ir->op2;
+  } else if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&
+	     (bsar = IR(ir->op2))->o == IR_BSAR && ra_noreg(bsar->r)) {
+    bsarref = ir->op2;
+    otherref = ir->op1;
+  } else {
+    return 0;
+  }
+
+  if (!irref_isk(bsar->op2) || irref_isk(bsar->op1) || irref_isk(otherref) ||
+      !mayfuse(as, bsar->op1))
+    return 0;
+  neg = IR(bsar->op1);
+  if (neg->o != IR_NEG || !ra_noreg(neg->r) ||
+      !asm_s390x_only_used_by_ref(as, neg, bsarref))
+    return 0;
+
+  sh = IR(bsar->op2)->i & 31;
+  if (sh <= 0)
+    return 0;
+
+  src = ra_alloc1_nobase(as, neg->op1, RSET_GPR_NOB, -244);
+  dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, src), -230);
+  tmp = ra_scratch(as, rset_exclude(rset_exclude(RSET_GPR_NOB, src), dest));
+  asm_s390x_bitop_log(as, "bxor_bsar_neg", ir, dest, src, tmp, 0);
+  asm_bnorm32(as, ir, dest);
+  emit_u16_u32_u16(as, S390X_INS_RR(S390XI_LCR, tmp, src),
+		   S390X_INS_RX(S390XI_SRA, tmp, 0, 0, sh),
+		   S390X_INS_RR(S390XI_XR, dest, tmp));
+  ra_leftov(as, dest, otherref);
+  return 1;
+}
+
 static void asm_bxor(ASMState *as, IRIns *ir)
 {
   IRRef shiftref = 0, otherref = 0;
   IRIns *shift;
   int32_t sh;
 
-  if (asm_bxor_bswap_bnot_accflip_loop_tail(as, ir))
+  if (asm_bxor_bswap_bnot_loop_tail(as, ir))
     return;
   if (asm_bxor_bnot(as, ir))
     return;
   if (asm_bxor_brol_pair(as, ir))
+    return;
+  if (asm_bxor_bsar_neg(as, ir))
     return;
   if (!irt_is64(ir->t)) {
     if (mayfuse(as, ir->op2) && !irref_isk(ir->op2) &&

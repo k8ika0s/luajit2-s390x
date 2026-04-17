@@ -64,6 +64,21 @@ static void emit_u16_u48(ASMState *as, uint16_t first, uint64_t second)
   as->mcp = (MCode *)p;
 }
 
+static void emit_u16_u32_u16(ASMState *as, uint16_t first, uint32_t second,
+			     uint16_t third)
+{
+  uint8_t *p = (uint8_t *)as->mcp - 8;
+  p[0] = (uint8_t)(first >> 8);
+  p[1] = (uint8_t)first;
+  p[2] = (uint8_t)(second >> 24);
+  p[3] = (uint8_t)(second >> 16);
+  p[4] = (uint8_t)(second >> 8);
+  p[5] = (uint8_t)second;
+  p[6] = (uint8_t)(third >> 8);
+  p[7] = (uint8_t)third;
+  as->mcp = (MCode *)p;
+}
+
 static void emit_u16_pair(ASMState *as, uint16_t first, uint16_t second)
 {
   emit_u32(as, ((uint32_t)first << 16) | (uint32_t)second);
@@ -164,6 +179,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_LDGR	0xb3c10000u
 #define S390XI_LGDR	0xb3cd0000u
 #define S390XI_LCGFR	0xb9130000u
+#define S390XI_LCR	0x1300u
 #define S390XI_LTR	0x1200u
 #define S390XI_CR	0x1900u
 #define S390XI_CRJ	0xec0000000076ull
@@ -174,9 +190,13 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CLGR	0xb9210000u
 #define S390XI_CG	0xe30000000020ull
 #define S390XI_LGHI	0xa7090000u
+#define S390XI_AHI	0xa70a0000u
 #define S390XI_AGHI	0xa70b0000u
+#define S390XI_CHI	0xa70e0000u
 #define S390XI_CGHI	0xa70f0000u
 #define S390XI_AGFI	0xc20800000000ull
+#define S390XI_AFI	0xc20900000000ull
+#define S390XI_CFI	0xc20d00000000ull
 #define S390XI_CGFI	0xc20c00000000ull
 #define S390XI_CLGFI	0xc20e00000000ull
 #define S390XI_AGR	0xb9080000u
@@ -195,6 +215,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_ARK	0xb9f80000u
 #define S390XI_AGRK	0xb9e80000u
 #define S390XI_SGRK	0xb9e90000u
+#define S390XI_AHIK	0xec00000000d8ull
 #define S390XI_AGHIK	0xec00000000d9ull
 #define S390XI_LG	0xe30000000004ull
 #define S390XI_LLGF	0xe30000000016ull
