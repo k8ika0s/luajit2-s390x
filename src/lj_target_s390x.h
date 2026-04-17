@@ -115,7 +115,7 @@ typedef struct {
 } ExitState;
 
 #define EXITSTATE_CHECKEXIT	1
-#define EXITSTUB_SPACING	4
+#define EXITSTUB_SPACING	16
 /* Avoid dependence on lj_jit.h if only including lj_target.h. */
 #define exitstub_trace_addr(T, exitno) \
   ((MCode *)((char *)(T)->mcode + (T)->szmcode) + \

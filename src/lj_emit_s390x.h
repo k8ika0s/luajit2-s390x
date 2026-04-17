@@ -6,43 +6,49 @@
 ** for native JIT bring-up. More lowering still needs to be filled in.
 */
 
-#define emit_u32(as, ins)	(*--(as)->mcp = (ins))
-
-static void emit_u16_pad4(ASMState *as, uint16_t ins)
+static void emit_u16_at(MCode *p, uint16_t ins)
 {
-  uint8_t *p = (uint8_t *)as->mcp - 4;
   p[0] = (uint8_t)(ins >> 8);
   p[1] = (uint8_t)ins;
-  p[2] = 0x07;  /* nopr %r7 */
-  p[3] = 0x07;
-  as->mcp = (MCode *)p;
 }
 
-static void emit_u48_pad8(ASMState *as, uint64_t ins)
+static void emit_u32_at(MCode *p, uint32_t ins)
 {
-  uint8_t *p = (uint8_t *)as->mcp - 8;
+  p[0] = (uint8_t)(ins >> 24);
+  p[1] = (uint8_t)(ins >> 16);
+  p[2] = (uint8_t)(ins >> 8);
+  p[3] = (uint8_t)ins;
+}
+
+static void emit_u48_at(MCode *p, uint64_t ins)
+{
   p[0] = (uint8_t)(ins >> 40);
   p[1] = (uint8_t)(ins >> 32);
   p[2] = (uint8_t)(ins >> 24);
   p[3] = (uint8_t)(ins >> 16);
   p[4] = (uint8_t)(ins >> 8);
   p[5] = (uint8_t)ins;
-  p[6] = 0x07;  /* nopr %r7 */
-  p[7] = 0x07;
-  as->mcp = (MCode *)p;
 }
 
-static void emit_u48_at(MCode *p, uint64_t ins)
+static void emit_u16_pad4(ASMState *as, uint16_t ins)
 {
-  uint8_t *q = (uint8_t *)p;
-  q[0] = (uint8_t)(ins >> 40);
-  q[1] = (uint8_t)(ins >> 32);
-  q[2] = (uint8_t)(ins >> 24);
-  q[3] = (uint8_t)(ins >> 16);
-  q[4] = (uint8_t)(ins >> 8);
-  q[5] = (uint8_t)ins;
-  q[6] = 0x07;  /* nopr %r7 */
-  q[7] = 0x07;
+  MCode *p = as->mcp - 2;
+  emit_u16_at(p, ins);
+  as->mcp = p;
+}
+
+static void emit_u32(ASMState *as, uint32_t ins)
+{
+  MCode *p = as->mcp - 4;
+  emit_u32_at(p, ins);
+  as->mcp = p;
+}
+
+static void emit_u48_pad8(ASMState *as, uint64_t ins)
+{
+  MCode *p = as->mcp - 6;
+  emit_u48_at(p, ins);
+  as->mcp = p;
 }
 
 #define S390X_INS_RXE(op, r1, r2) \
@@ -142,6 +148,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_CGRJ	0xec0000000064ull
 #define S390XI_CRJ	0xec0000000076ull
 #define S390XI_CGFR	0xb9300000u
+#define S390XI_LGFI	0xc00100000000ull
 #define S390XI_LGHI	0xa7090000u
 #define S390XI_AGHI	0xa70b0000u
 #define S390XI_CHI	0xa70e0000u
@@ -151,6 +158,8 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_AGFI	0xc20800000000ull
 #define S390XI_CFI	0xc20d00000000ull
 #define S390XI_CGFI	0xc20c00000000ull
+#define S390XI_CLFI	0xc20f00000000ull
+#define S390XI_CLGFI	0xc20e00000000ull
 #define S390XI_EXRL	0xc60000000000ull
 #define S390XI_AGR	0xb9080000u
 #define S390XI_OGR	0xb9810000u
@@ -238,6 +247,10 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
   uint32_t hi = (uint32_t)(u64 >> 32);
   if (checki16((int64_t)u64)) {
     emit_loadi(as, r, (int32_t)u64);
+    return;
+  }
+  if (checki32((int64_t)u64)) {
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_LGFI, r, (int32_t)u64));
     return;
   }
   if (hi != 0)
@@ -424,7 +437,7 @@ static void emit_movrr(ASMState *as, IRIns *ir, Reg dst, Reg src)
 
 static void emit_condbranch(ASMState *as, S390XCC cc, MCode *target)
 {
-  MCode *p = as->mcp - 1;
+  MCode *p = as->mcp - 4;
   ptrdiff_t delta = (char *)target - (char *)p;
   lj_assertA((delta & 1) == 0, "unaligned branch target");
   lj_assertA(checki16((int32_t)(delta >> 1)), "s390x branch target out of range");
@@ -433,7 +446,7 @@ static void emit_condbranch(ASMState *as, S390XCC cc, MCode *target)
 
 static void emit_exrl(ASMState *as, Reg r, MCode *target)
 {
-  uint8_t *p = (uint8_t *)as->mcp - 8;
+  MCode *p = as->mcp - 6;
   ptrdiff_t delta = (char *)target - (char *)p;
   lj_assertA((delta & 1) == 0, "unaligned EXRL target");
   lj_assertA(checki32((int64_t)(delta >> 1)), "s390x EXRL target out of range");
@@ -442,7 +455,7 @@ static void emit_exrl(ASMState *as, Reg r, MCode *target)
 
 static void emit_call(ASMState *as, Reg rlink, void *target)
 {
-  uint8_t *p = (uint8_t *)as->mcp - 8;
+  MCode *p = as->mcp - 6;
   ptrdiff_t delta = (char *)target - (char *)p;
   lj_assertA((delta & 1) == 0, "unaligned call target");
   lj_assertA(checki32((int64_t)(delta >> 1)), "s390x call target out of range");
@@ -466,9 +479,7 @@ static void emit_addptr(ASMState *as, Reg r, int32_t ofs)
   if (checki16(ofs)) {
     emit_u32(as, S390X_INS_RI(S390XI_AGHI, r, ofs));
   } else {
-    Reg tmp = (r == RID_TMP) ? RID_R1 : RID_TMP;
-    emit_u32(as, S390X_INS_RXE(S390XI_AGR, r, tmp));
-    emit_loadu64(as, tmp, (uint64_t)(int64_t)ofs);
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_AGFI, r, ofs));
   }
 }
 
