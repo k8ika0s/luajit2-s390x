@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 19:51 PDT
+Last updated: 2026-04-16 20:30 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP source point:
-  `d037816e Fix s390x low32 call arg normalization`.
+  `41abe5a5 Skip unsupported clang z13 perf variants`.
 - Current authoritative clean full matrix source point:
   `2b134af1 Optimize s390x fixed FFI call pressure`. A post-large-immediate
   full matrix attempt at `artifacts/s390x/s390x-kdz1-20260417T015612Z` is
@@ -36,6 +36,14 @@ notes and experiment logs belong below this section or in
   normalization. Focused GCC/Clang `ffi_fixed_call_pressure` checks now pass
   again in the `0.000007..0.000009s` hot band; do not use the failed
   `T015612Z` artifact for matrix decisions.
+- Post-fix clean-run note: `41abe5a5` fixes the driver-only Clang z13 variant
+  selection bug by keeping z13 tuning to GCC, because Clang on kdz1 rejects the
+  Makefile z13 flags (`-mmvcle`/`-mfused-madd`). The driver perf gate now
+  passes at `artifacts/s390x/s390x-kdz1-20260417T032039Z-de121bc1-driverfix`
+  with `5` variants, `45` records, and `0` failures. The full retained-env
+  all-family rerank also passes at
+  `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5` with all `23`
+  perf families, `3` alternating passes, and no red rows versus `-joff`.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -84,6 +92,11 @@ notes and experiment logs belong below this section or in
 
 - Regression queue: empty. Do not patch from noise-level red rows without a
   repeated official-row mechanism.
+- Clean-run evidence:
+  `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5` is the current
+  post-repair retained-env rerank. It is not a cross-arch replacement for the
+  top matrix, but it proves the current WIP is clean across all `23` tracked
+  perf families under the retained env.
 - Rerank watch: `large_immediates/add_large` has tiny per-pass noise in the
   generated summary, but the median matrix is green. Do not patch unless a
   focused rerun repeats a real material payer.
