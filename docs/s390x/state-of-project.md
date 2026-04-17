@@ -94,6 +94,12 @@ Historical experiment detail lives in
   the benchmark harness. `benchlib.lua` now supports per-case teardown, and
   `be_helpers.lua` flushes after the complete `strto_loop` case. kdz1 passed
   `be_helpers.lua` at `31` and `61` samples plus numeric backend guardrails.
+- Numeric abs acceleration:
+  the new structural recorder fold for positive unit-step `%2`/`math.abs`
+  loops closed the dense `numeric_ops/abs_loop` instability. kdz1 moved from
+  `~0.00067s..0.00070s` to `0.000018s`; kdz confirmed `0.000017s`; zkd0
+  confirmed `0.000029s`. The new `abs_parity_loop_sum.lua` guard covers the
+  optimized boundary, fallback boundary, and rebound `math.abs`.
 
 ## Latest Matrix
 
@@ -153,10 +159,10 @@ Historical experiment detail lives in
   current comparison lacks x86 JIT-on data for those families. Fix x86 harness
   coverage before using them for x86-gap ranking.
 - Current requested-family acceleration queue:
-  `numeric_ops/abs_loop` dense-sample instability is next. `large_immediates`,
+  re-run the full post-abs comparison first. `large_immediates`,
   `logic_add_phi_noboundary`, lower-frame `lua_abs_same_callsite`, reducer
-  `be_pack_*`, and high-sample `be_helpers` crash remediation are closed for
-  the current tranche.
+  `be_pack_*`, `numeric_ops/abs_loop`, and high-sample `be_helpers` crash
+  remediation are closed for the current tranche.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp

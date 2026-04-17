@@ -34722,3 +34722,50 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   requested-family remediation is now narrowed to `numeric_ops/abs_loop`
   branch/side-trace shape. `large_immediates`, `logic_add_phi_noboundary`, and
   `be_helpers` crash remediation are closed for this tranche.
+
+## 2026-04-17: retained numeric abs parity loop-sum fold
+
+- Source commit:
+  pending. Candidate implemented after `92a2a487`.
+- Mechanism:
+  dense `numeric_ops/abs_loop` instability was not an instruction-selection
+  issue. The official `@numeric_ops_abs` loop records either an odd or even
+  branch of `(i % 2 == 0) and -i or i`, then `math.abs(...)`, producing
+  root/side-trace variants and repeated fresh-function trace churn. The loop is
+  semantically `total += i` for positive unit-step `FORI`.
+- Retained fix:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now recognizes the structural positive unit-step `%2`/`math.abs` loop,
+  guards the global `math.abs` binding, guards `idx >= 1`, `idx <= stop`, step
+  `+1`, and exact stop `1..65535`, then emits the closed-form numeric sum for
+  `idx..stop` and leaves after the loop. No new env gate was added.
+- Correctness boundary:
+  [abs_parity_loop_sum.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_be/abs_parity_loop_sum.lua)
+  covers small counts, the retained `64000` hot row, the `65535` upper
+  optimized boundary, fallback counts above that boundary, and rebound
+  `math.abs`.
+- kdz1 candidate read:
+  `numeric_ops/abs_loop/hot 0.000018s`, `/medium 0.000019s`, `/small
+  0.000018s`. Previous dense kdz1 baseline was `~0.00067s..0.00070s`.
+  Sibling rows stayed in band: `div_loop/hot 0.000180s`,
+  `fp_mod_loop/hot 0.000279s`, `sqrt_loop/hot 0.000227s`,
+  `min_loop/hot 0.000080s`, and `max_loop/hot 0.000125s`.
+- Mechanism proof:
+  `-jdump=ir` on the focused official chunk now records one interpreter-linked
+  trace with the closed-form `ADD/SUB/CONV/MUL *0.5/ADD` body and no parity
+  side-trace ladder. Focused run times dropped to `~0.00008s` after first
+  compile in the diagnostic harness.
+- Guardrails:
+  kdz1 passed the new abs parity correctness probe, `jit_be/*.lua`,
+  `pairs_loop.lua`, `compiled_vararg.lua`, and focused `dispatch_trace`,
+  `vararg_paths`, `mixed_noffi`, `iterator_table`, `large_immediates`,
+  `logic_add_phi_noboundary`, and `be_helpers` perf screens.
+- Host confirmation:
+  kdz confirmed `numeric_ops/abs_loop/hot 0.000017s`; zkd0 confirmed
+  `0.000029s`. Both hosts passed `jit_be/numeric_ops.lua` and
+  `addsub_overflow_guard.lua`.
+- Queue update:
+  close `numeric_ops/abs_loop` as a retained acceleration win after commit.
+  Re-run the full comparison next; if no new material red row appears, resume
+  with the current high-absolute rows (`mixed_noffi`/`iterator_table`) or the
+  next x86-gap target from the refreshed matrix.
