@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 15:53 PDT
+Last updated: 2026-04-17 16:42 PDT
 
 ## Current Matrix
 
@@ -10,15 +10,14 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `2b5d2ebe s390x: scope faster hotside threshold to safe perf families`.
-- Post-matrix retained source delta:
-  `d997ee55 s390x: lower centered modulo abs branchlessly`. The full matrix
-  below is still the authoritative full-artifact view until a new all-family
-  run supersedes it; focused kdz1/kdz/zkd0 validation moved
+  `517df8c4 docs: record reducer identity acceleration`.
+- Retained acceleration source delta:
+  `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
+  kdz1/kdz/zkd0 validation moved
   `lower_frame_same_callsite/lua_abs_same_callsite/hot` from the fresh control
   band (`~0.001895s`) to `0.000576s..0.000579s` on kdz1/kdz and `0.001150s`
-  on zkd0.
-- Post-matrix retained source delta:
+  on zkd0, and the post-reducer full matrix below now includes the win.
+- Retained acceleration source delta:
   `210b061c s390x: fold reducer byte-pack identity`. The backend now recognizes
   the exact reducer byte-pack identity `(i>>24)<<24 + ... + (i&255)` feeding
   an accumulator and lowers it as `acc + i` with the existing 32-bit
@@ -26,11 +25,12 @@ notes and experiment logs belong below this section or in
   `route_around_reducers_truth_pack/be_pack_literal_stop*/hot` from the
   immediate control band (`~0.000517s..0.000587s`) to
   `0.000146s..0.000275s`; `be_helpers/be_pack_loop/hot` stayed in the
-  `0.000037s..0.000053s` band.
+  `0.000037s..0.000053s` band. The post-reducer full matrix below includes
+  this source point.
 - Current s390x artifact:
-  `artifacts/s390x/scoped-hotexit100-20260417T213642Z`.
+  `artifacts/s390x/post-reducer-20260417T230334Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-scoped-hotexit100-kdz1-ka0s01-20260417T213642Z`, compared against
+  `artifacts/s390x/compare-post-reducer-kdz1-ka0s01-20260417T230334Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health: `720` s390x benchmark records, `360` comparison rows,
   `342` complete s390x/x86 rows, `0` missing s390x rows, `18` missing x86 rows,
@@ -44,9 +44,21 @@ notes and experiment logs belong below this section or in
   full matrix. Focused kdz1 and zkd0 validation also passed the
   `LUAJIT_S390X_DIRECT_PATCHEXIT_MISS_LOG=1` zero-miss check and rollback mode
   with `LUAJIT_S390X_DISABLE_DIRECT_PATCHEXIT=1`.
-- Regression read: the new full matrix has no material red official row and no
-  JIT-on row slower than `-joff`. `large_immediates/add_large` small/medium is
-  now green versus `-joff` in the full matrix and in focused kdz1/kdz reruns.
+- Regression read: the new full matrix has no requested-family row slower than
+  `-joff`. `large_immediates/add_large` small/medium is green versus `-joff`
+  in the full matrix and in focused dense kdz1 reruns. The only material red row in this comparison is Clang
+  `mixed_noffi/mixed_loop`, which is outside the requested-family remediation
+  tranche and should get a fresh attribution before code.
+- Dense-sample caveat:
+  the five-sample matrix under-reports `numeric_ops/abs_loop/hot` when it lands
+  on the fast half of a bimodal distribution. Dense kdz1 reruns put the row at
+  `~0.00067s..0.00070s`, so `numeric_abs` is the next requested-family
+  acceleration target even though the table below shows the five-sample median.
+- `be_helpers` harness caveat:
+  high-sample full-suite runs needed a per-case teardown after `strto_loop` to
+  prevent accumulated fresh `loadstring` traces from poisoning later rows. The
+  benchmark now flushes after the complete `strto_loop` case; this is a harness
+  isolation fix, not a backend optimization.
 - Cross-arch acceleration read:
   `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline` ranks rows
   where x86 JIT-on beats s390x JIT-on. The largest actionable absolute gaps are
@@ -82,7 +94,7 @@ notes and experiment logs belong below this section or in
 | `ffi_fixed_call_pressure` | `fpr_pressure/hot` | `0.000008` | `0.000244` | `30.500x` | `0.000007` | `34.429x` |
 | `ffi_fixed_struct_calls` | `one_double_take6/hot` | `0.000185` | `0.017896` | `96.735x` | `0.000247` | `72.895x` |
 | `ffi_fixed_struct_calls` | `small_u64_take7/hot` | `0.000507` | `0.023599` | `46.546x` | `0.000490` | `53.386x` |
-| `be_helpers` | `strto_loop/hot` | `0.000666` | `0.008169` | `12.266x` | `0.001997` | `4.058x` |
+| `be_helpers` | `strto_loop/hot` | `0.000664` | `0.008161` | `12.291x` | `0.000587` | `14.104x` |
 | `be_helpers` | `number_helper_loop/hot` | `0.000105` | `0.002278` | `21.695x` | `0.000105` | `20.048x` |
 | `be_helpers` | `num_aload_loop/hot` | `0.000111` | `0.003824` | `34.450x` | `0.000130` | `28.369x` |
 | `numeric_ops` | `abs_loop/hot` | `0.000111` | `0.004073` | `36.694x` | `0.000108` | `36.120x` |
@@ -94,9 +106,9 @@ notes and experiment logs belong below this section or in
 | `large_immediates` | `add_large/medium` | `0.000040` | `0.000062` | `1.550x` | `0.000040` | `1.300x` |
 | `large_immediates` | `add_large/hot` | `0.000016` | `0.000131` | `8.188x` | `0.000016` | `8.188x` |
 | `bitops_mix` | `mix_bits/hot` | `0.000005` | `0.001770` | `354.000x` | `0.000003` | `596.000x` |
-| `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000026` | `0.001907` | `73.346x` | `0.000030` | `62.333x` |
+| `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000019` | `0.001878` | `98.842x` | `0.000019` | `101.579x` |
 | `int_add_phi_only` | `add_phi_only/hot` | `0.000004` | `0.000027` | `6.750x` | `0.000004` | `5.250x` |
-| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.001926` | `0.015037` | `7.807x` | `0.001983` | `7.230x` |
+| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.000580` | `0.014789` | `25.498x` | `0.000575` | `25.757x` |
 | `string_heavy` | `byte_scan_loop/hot` | `0.000001` | `0.077445` | `77445.000x` | `<0.000001` | `n/a` |
 | `string_heavy` | `manual_find_loop/hot` | `0.000001` | `0.050579` | `50579.000x` | `0.000001` | `50686.000x` |
 | `string_heavy` | `miss_find_loop/hot` | `<0.000001` | `0.005743` | `n/a` | `0.000001` | `5595.000x` |
@@ -106,9 +118,9 @@ notes and experiment logs belong below this section or in
 
 ## Current Queue
 
-- Regression queue: empty. The full scoped-hotexit matrix has no JIT-on row
-  slower than `-joff`, and focused kdz1/kdz reruns did not reproduce the older
-  `large_immediates/add_large` concern.
+- Requested-family regression queue: empty. The post-reducer matrix and focused
+  dense kdz1 reruns did not reproduce the older `large_immediates/add_large`
+  concern.
 - Clean-run evidence:
   `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a` is the
   current post-cleanup retained-env rerank. It is not a cross-arch replacement
@@ -125,10 +137,10 @@ notes and experiment logs belong below this section or in
   retained and reflected in the full matrix. It improves/protects the hotside
   side-trace rows without lowering the unsafe global s390x threshold.
 - Cross-arch acceleration queue:
-  lower-frame `lua_abs_same_callsite` is closed by `d997ee55` pending the next
-  full matrix refresh. Reducer `be_pack_*` is closed by `210b061c` pending the
-  next full matrix refresh. Continue with Clang `be_helpers/strto_loop` and a
-  full rerank before opening another backend lane.
+  lower-frame `lua_abs_same_callsite` is closed by `d997ee55`, and reducer
+  `be_pack_*` is closed by `210b061c`. `be_helpers` high-sample crash is closed
+  by benchmark teardown isolation. Continue with dense `numeric_ops/abs_loop`
+  branch/side-trace attribution before opening another backend lane.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
