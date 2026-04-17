@@ -34109,3 +34109,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   (`0.001979s`, `0.1317x`), and `be_helpers/strto_loop/hot`
   (`0.001840s`, `0.2244x`). These are acceleration targets, not clean-run
   blockers.
+
+## 2026-04-16: retained-env gate burn-down to eleven gates
+
+- Source point:
+  cleanup staged on top of `1853413a Record s390x clean retained rerank`.
+- Tooling fix:
+  `tools/s390x/probe_retained_jitter.py` now includes the local process id in
+  its remote temp directory. The previous second-resolution temp path caused
+  same-host parallel probe runs to collide and contaminate JSONL rows.
+- Retired stale vararg envs:
+  removed `LUAJIT_S390X_SUM_LOOP_SELECT_EXIT0_DONE` and
+  `LUAJIT_S390X_SUM_LOOP_SELECT_SKIP_FUNC_EQ` from
+  `tools/s390x/restamp_iterator_perf.py` `RETAINED_BASELINE_ENV`. Both are
+  already absent from source and classified as retired source guards by the
+  guard-retirement ledger.
+- Retired mixed replay env pair:
+  removed `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET` and
+  `LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT` from the canonical
+  retained env. kdz and kdz1 `mixed_noffi` retained-env probes stayed green
+  with the pair absent. zkd0 showed the same mixed-noffi noise pattern in both
+  candidate and retained-control reads, so it is not attributed to the pair.
+  Exact probes on kdz, kdz1, and zkd0 with the pair absent returned
+  `mixedprobe -> 553416`, `hash_value -> 3000`, and
+  `ipairs_only_probe -> 576000`.
+- Negative sweeps:
+  disabling the exact iterator-table escape hatches is still materially bad on
+  kdz: `pairs_sum/hot` regressed to roughly `1.9x..2.7x` versus `-joff` and
+  `pairs_array_sum/hot` to roughly `2.1x`. Removing all exact mixed-noffi gates
+  is unstable and produced a red mixed pass (`~1.25x`), so those gates remain
+  mechanism debt.
+- Current retained env:
+  `11` gates remain: four exact iterator-table gates, two broad iterator root
+  blacklists, and five mixed-noffi exact mechanism gates. The refreshed ledger
+  classifies `9` as mechanism debt and `2` broad iterator gates as still
+  unsafe.
+- Current full retained-env proof:
+  `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a` covers
+  all `23` tracked perf families with `3` alternating passes and no red rows
+  versus `-joff`.

@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 20:30 PDT
+Last updated: 2026-04-16 22:48 PDT
 
 ## Current Matrix
 
@@ -44,6 +44,13 @@ notes and experiment logs belong below this section or in
   all-family rerank also passes at
   `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5` with all `23`
   perf families, `3` alternating passes, and no red rows versus `-joff`.
+- Current retained-env cleanup note:
+  the canonical retained env is down to `11` gates after removing stale vararg
+  select envs and the root1 ITERL replay pair from
+  `tools/s390x/restamp_iterator_perf.py`. The current post-cleanup kdz rerank
+  is `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a`;
+  it covers all `23` tracked perf families with `3` alternating passes and no
+  red rows versus `-joff`.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -93,10 +100,10 @@ notes and experiment logs belong below this section or in
 - Regression queue: empty. Do not patch from noise-level red rows without a
   repeated official-row mechanism.
 - Clean-run evidence:
-  `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5` is the current
-  post-repair retained-env rerank. It is not a cross-arch replacement for the
-  top matrix, but it proves the current WIP is clean across all `23` tracked
-  perf families under the retained env.
+  `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a` is the
+  current post-cleanup retained-env rerank. It is not a cross-arch replacement
+  for the top matrix, but it proves the current WIP is clean across all `23`
+  tracked perf families under the now-`11`-gate retained env.
 - Rerank watch: `large_immediates/add_large` has tiny per-pass noise in the
   generated summary, but the median matrix is green. Do not patch unless a
   focused rerun repeats a real material payer.

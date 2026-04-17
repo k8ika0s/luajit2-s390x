@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 20:30 PDT
+Last updated: 2026-04-16 22:48 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -30,6 +30,11 @@ Historical experiment detail lives in
   `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5`, covering all
   `23` tracked perf families in `3` alternating JIT/JIT-off passes with no red
   rows versus `-joff`.
+- The retained env has since been reduced from `15` to `11` gates. Removed
+  entries are the stale vararg select gates and the root1 ITERL replay pair.
+  The current post-cleanup kdz all-family rerank is
+  `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a`, also
+  clean across all `23` tracked perf families.
 - The reduced FFI pressure reproducer now matches `-joff`.
 - The isolated fixed-call arg probe now returns correct values for arguments
   1..7, including argument 4 in R5.
@@ -72,6 +77,10 @@ Historical experiment detail lives in
 
 - Regression queue: empty. Do not patch from noise-level red rows without a
   repeated official-row mechanism.
+- Guard/env burn-down queue:
+  current retained env is `11` gates. Remaining gates are iterator safety and
+  mixed-noffi mechanism debt; direct iterator exact-escape opt-out is still
+  materially bad on kdz and broad iterator root blacklists remain unsafe.
 - `ffi_fixed_call_pressure` is closed as a high-time acceleration target at
   the current matrix scale: `gpr_pressure/hot` is `0.000008s` GCC /
   `0.000009s` Clang, and `fpr_pressure/hot` is `0.000008s` on both compilers.

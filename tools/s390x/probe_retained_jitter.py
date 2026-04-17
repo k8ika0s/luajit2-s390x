@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import pathlib
 import shlex
 import statistics
@@ -344,7 +345,7 @@ def main() -> int:
     output_dir = args.output_dir or DEFAULT_OUTPUT_ROOT / f"{host}-retained-jitter-{stamp}"
     raw_dir = output_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
-    remote_tmp = f"/tmp/{host}-retained-jitter-{stamp}"
+    remote_tmp = f"/tmp/{host}-retained-jitter-{stamp}-{os.getpid()}"
     retained_env = dict(restamp.RETAINED_BASELINE_ENV)
     for key in parse_env_unsets(args.unset_env):
         retained_env.pop(key, None)
