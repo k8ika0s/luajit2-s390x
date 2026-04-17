@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-16 17:14 PDT
+Last updated: 2026-04-16 19:51 PDT
 
 ## Current Matrix
 
@@ -9,8 +9,14 @@ retained-env matrix artifact supersedes the previous one. Historical checkpoint
 notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
-- Current code source point:
-  `2b134af1 Optimize s390x fixed FFI call pressure`.
+- Current WIP source point:
+  `d037816e Fix s390x low32 call arg normalization`.
+- Current authoritative clean full matrix source point:
+  `2b134af1 Optimize s390x fixed FFI call pressure`. A post-large-immediate
+  full matrix attempt at `artifacts/s390x/s390x-kdz1-20260417T015612Z` is
+  invalid because it exposed six `ffi_fixed_call_pressure` JIT-on failures;
+  those are fixed at `d037816e`, but a clean post-`d037816e` full comparison
+  has not yet replaced the current top matrix.
 - Current s390x artifact:
   `artifacts/s390x/s390x-kdz1-20260416T235054Z`.
 - Current x86 comparison:
@@ -25,6 +31,11 @@ notes and experiment logs belong below this section or in
 - FFI pressure read: `T235054Z` supersedes `T224449Z` because it includes
   `2b134af1`, which defaults direct GPR FFI call-arg placement on and retargets
   `ffi_fixed_call_pressure` to the optimized pressure/oracle shape.
+- Post-matrix correctness note: `d037816e` prevents guarded `ADDOV`/`SUBOV`
+  low32-home values from crossing hard consumers such as `CALLXS` without
+  normalization. Focused GCC/Clang `ffi_fixed_call_pressure` checks now pass
+  again in the `0.000007..0.000009s` hot band; do not use the failed
+  `T015612Z` artifact for matrix decisions.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
@@ -86,6 +97,28 @@ notes and experiment logs belong below this section or in
   iteration counts or focused harnesses before claiming additional wins.
 
 ## Checkpoint Notes
+
+## 2026-04-16 Low32 Call-Argument Normalization Repair
+
+- Current WIP source point:
+  `d037816e Fix s390x low32 call arg normalization`, pushed to
+  `origin/k8ika0s/s390x-bringup-wip`.
+- The failed post-large-immediate matrix artifact
+  `artifacts/s390x/s390x-kdz1-20260417T015612Z` is explicitly superseded for
+  correctness purposes. It found a real `ffi_fixed_call_pressure/gpr_pressure`
+  JIT-on wrong result caused by a low32-home guarded `ADDOV` result reaching
+  fixed-call argument R5 without normalization.
+- Focused kdz1 validation after the fix:
+  the reduced FFI pressure reproducer matches `-joff`, the isolated arg probe
+  returns correct values for arguments 1..7, GCC/Clang
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua` pass, `jit_be/*.lua` passes,
+  and focused `large_immediates.lua`, `ffi_calls.lua`, `ffi_cdata.lua`, and
+  `mixed_ffi.lua` checks pass.
+- The current top matrix remains `T235054Z` until a clean post-`d037816e`
+  full comparison artifact replaces it. A driver-style rerun at
+  `artifacts/s390x/s390x-kdz1-20260417T024302Z-d037816e` stopped on an
+  unsupported Clang z13 flag combination (`-mmvcle`/`-mfused-madd`) and is not
+  a replacement matrix.
 
 ## 2026-04-16 FFI Fixed Call Pressure Promotion
 

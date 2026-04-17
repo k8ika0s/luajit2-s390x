@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 17:14 PDT
+Last updated: 2026-04-16 19:51 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,29 +9,31 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP source point is
-  `2b134af1 Optimize s390x fixed FFI call pressure`.
+  `d037816e Fix s390x low32 call arg normalization`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
-  string/memscan paths, and the promoted fixed FFI call pressure optimization.
+  string/memscan paths, the promoted fixed FFI call pressure optimization, the
+  large-immediate loop lowering merge, and the post-merge low32 call-argument
+  normalization repair.
 - The tracked WIP branch has been pushed to
   `origin/k8ika0s/s390x-bringup-wip`.
 
 ## Latest Validation
 
-- kdz1 focused FFI pressure validation passed from the tracked mirror after
-  committed source sync.
-- GCC and Clang builds passed.
-- Oracle rebuilds passed under both compilers.
-- Focused `tests/s390x/perf/ffi_fixed_call_pressure.lua` passed with
-  `gpr_pressure/hot` and `fpr_pressure/hot` in the `0.000008..0.000009s`
-  median band.
+- kdz1 focused low32 call-argument repair validation passed from the tracked
+  mirror after committed source sync.
+- The reduced FFI pressure reproducer now matches `-joff`.
+- The isolated fixed-call arg probe now returns correct values for arguments
+  1..7, including argument 4 in R5.
+- GCC and Clang focused `tests/s390x/perf/ffi_fixed_call_pressure.lua` passed
+  with `gpr_pressure/hot` and `fpr_pressure/hot` in the
+  `0.000007..0.000009s` median band.
 - Guardrails passed:
+  `tests/s390x/jit_be/*.lua`,
   `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`,
   `tests/s390x/jit_core/ffi_stack_call_trace.lua`,
-  `tests/s390x/ffi_abi/run.lua`,
-  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
-  `tests/s390x/jit_be/mulov_overflow_guard.lua`, and
-  `tests/s390x/jit_be/numeric_ops.lua`.
+  `tests/s390x/ffi_abi/run.lua`, focused `large_immediates.lua`,
+  `ffi_calls.lua`, `ffi_cdata.lua`, and `mixed_ffi.lua`.
 
 ## Latest Matrix
 
@@ -48,6 +50,13 @@ Historical experiment detail lives in
   per-pass GCC `large_immediates/add_large` rows slower than `-joff`; the
   top-matrix median keeps `large_immediates/add_large/medium` green at
   `1.077x`.
+- Matrix caveat:
+  the top matrix is still the last clean full comparison. The post-large
+  immediate attempt `artifacts/s390x/s390x-kdz1-20260417T015612Z` is invalid
+  because it exposed a now-fixed `ffi_fixed_call_pressure` JIT-on wrong result.
+  The driver-style post-fix rerun
+  `artifacts/s390x/s390x-kdz1-20260417T024302Z-d037816e` stopped on unsupported
+  Clang z13 flags and is not a replacement matrix.
 
 ## Current Performance Posture
 

@@ -34033,3 +34033,47 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   per-pass `large_immediates/add_large` noise as slower than `-joff`; the
   top-matrix median keeps `large_immediates/add_large/medium` green at
   `1.077x`.
+
+## 2026-04-16: low32-home call-argument normalization fix after large-immediate merge
+
+- Source point:
+  `d037816e Fix s390x low32 call arg normalization`, pushed to
+  `origin/k8ika0s/s390x-bringup-wip` after merge commit `01f06631`, which
+  carried `36ba25a6 Optimize s390x large immediate loops`.
+- Failure found:
+  the first post-large-immediate full matrix attempt
+  `artifacts/s390x/s390x-kdz1-20260417T015612Z` is not retained evidence. It
+  emitted six `ffi_fixed_call_pressure.lua` JIT-on failures across GCC/Clang:
+  `gpr_pressure/hot` expected `5.2417469920129e+15` and got
+  `5.4834033269224e+15`.
+- Root cause:
+  the large-immediate guarded integer loop path allowed an `ADDOV` low32-home
+  result to remain in a non-normalized register across a hard `CALLXS`
+  consumer. A reduced kdz1 arg probe isolated the bad value to fixed-call
+  argument 4, the s390x R5 argument register. The traced body computed R5 with
+  the low32 `AHIK`/`LOCGRO` path and reached `basr` without a full signed
+  normalization.
+- Fix:
+  `src/lj_asm_s390x.h` now requires guarded `ADDOV`/`SUBOV` low32-home results
+  to have only low32-family downstream uses before staying in that
+  representation. Hard consumers such as calls, stores, guards, or generic
+  uses force the existing normalized guarded lowering instead. Delivered hash:
+  `src/lj_asm_s390x.h`
+  `c0b548642251e36e331be23e1b26bbb450275b38e6717801a7b3e17e3f6ed983`.
+- Focused validation on kdz1:
+  the plain `ffi_fixed_call_pressure` reproducer now matches `-joff`, and the
+  isolated arg-probe rows now return the expected values for arguments 1..7,
+  including arg4/R5. GCC and Clang focused
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua` both pass with hot medians in
+  the `0.000007..0.000009s` band. `jit_be/*.lua`,
+  `ffi_fixed_call_pressure_trace.lua`, `ffi_stack_call_trace.lua`,
+  `ffi_abi/run.lua`, `large_immediates.lua`, `ffi_calls.lua`, `ffi_cdata.lua`,
+  and `mixed_ffi.lua` passed focused kdz1 checks.
+- Matrix status:
+  do not promote `T015612Z` into docs. A later driver-style rerun at
+  `artifacts/s390x/s390x-kdz1-20260417T024302Z-d037816e` is also not a full
+  comparison replacement because the driver attempted a Clang z13 build with
+  unsupported `-mmvcle`/`-mfused-madd` flags and stopped before the full
+  matrix. The last authoritative clean full matrix remains
+  `artifacts/s390x/s390x-kdz1-20260416T235054Z` until a clean post-`d037816e`
+  full comparison artifact replaces it.
