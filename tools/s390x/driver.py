@@ -857,12 +857,13 @@ def build_variants(
             for mode in modes:
                 if perf_family_selected and jit_choice == "on":
                     variants.append(Variant(compiler=compiler, mode=mode, jit="on", tuning="baseline"))
-                    variants.append(Variant(compiler=compiler, mode=mode, jit="on", tuning="z13"))
+                    if compiler == "gcc":
+                        variants.append(Variant(compiler=compiler, mode=mode, jit="on", tuning="z13"))
                     variants.append(Variant(compiler=compiler, mode=mode, jit="off", tuning="baseline"))
                     continue
                 for jit in jits:
                     variants.append(Variant(compiler=compiler, mode=mode, jit=jit, tuning="baseline"))
-                    if jit == "on":
+                    if jit == "on" and compiler == "gcc":
                         variants.append(Variant(compiler=compiler, mode=mode, jit=jit, tuning="z13"))
         return variants
     for compiler in compilers:
