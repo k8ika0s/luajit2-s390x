@@ -50,10 +50,10 @@ notes and experiment logs belong below this section or in
   `mixed_noffi/mixed_loop`, which is outside the requested-family remediation
   tranche and should get a fresh attribution before code.
 - Dense-sample caveat:
-  the five-sample matrix under-reports `numeric_ops/abs_loop/hot` when it lands
-  on the fast half of a bimodal distribution. Dense kdz1 reruns put the row at
-  `~0.00067s..0.00070s`, so `numeric_abs` is the next requested-family
-  acceleration target even though the table below shows the five-sample median.
+  superseded by the retained numeric abs parity loop-sum fold pending the next
+  full matrix. Dense kdz1 baseline was `~0.00067s..0.00070s`; the candidate
+  moved `numeric_ops/abs_loop/hot` to `0.000018s` on kdz1, `0.000017s` on kdz,
+  and `0.000029s` on zkd0.
 - `be_helpers` harness caveat:
   high-sample full-suite runs needed a per-case teardown after `strto_loop` to
   prevent accumulated fresh `loadstring` traces from poisoning later rows. The
@@ -139,8 +139,9 @@ notes and experiment logs belong below this section or in
 - Cross-arch acceleration queue:
   lower-frame `lua_abs_same_callsite` is closed by `d997ee55`, and reducer
   `be_pack_*` is closed by `210b061c`. `be_helpers` high-sample crash is closed
-  by benchmark teardown isolation. Continue with dense `numeric_ops/abs_loop`
-  branch/side-trace attribution before opening another backend lane.
+  by benchmark teardown isolation. `numeric_ops/abs_loop` is closed by the
+  abs parity loop-sum fold pending the next full matrix. Re-run the full
+  comparison before opening another backend lane.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
