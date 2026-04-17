@@ -9,8 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `c7845bac docs: record dispatch trace integration matrix`, on top of
-  `ef3db658 s390x: accelerate dispatch trace side exits`.
+  `2b5d2ebe s390x: scope faster hotside threshold to safe perf families`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -45,13 +44,14 @@ Historical experiment detail lives in
   `numeric_helpers.lua`, `pairs_loop.lua`, `compiled_vararg.lua`, and
   `vararg_paths.lua`.
 - kdz1 clean full matrix now passes at
-  `artifacts/s390x/dispatch-trace-integration-20260417T200154Z`: `720`
-  benchmark records, all `23` perf families, GCC/Clang, JIT-on/`-joff`, `0`
-  failures, and no dirty patch.
+  `artifacts/s390x/scoped-hotexit100-20260417T213642Z`: `720` benchmark
+  records, all `23` perf families, GCC/Clang, JIT-on/`-joff`, `0` failures,
+  and no dirty patch.
 - The companion x86 comparison is
-  `artifacts/s390x/compare-kdz1-ka0s01-20260417T200936Z`. It has `360` rows,
-  `342` complete s390x/x86 rows, `0` missing s390x rows, and keeps the full
-  bottom report sections including `Missing Data Audit` and `Full Matrix`.
+  `artifacts/s390x/compare-scoped-hotexit100-kdz1-ka0s01-20260417T213642Z`.
+  It has `360` rows, `342` complete s390x/x86 rows, `0` missing s390x rows,
+  and keeps the full bottom report sections including `Missing Data Audit` and
+  `Full Matrix`.
 - The driver now supports `--perf-family all`; this is required for a full
   matrix. Omitting it intentionally runs only default perf gates and produces a
   dispatch-only artifact.
@@ -63,18 +63,17 @@ Historical experiment detail lives in
 ## Latest Matrix
 
 - s390x artifact:
-  `artifacts/s390x/dispatch-trace-integration-20260417T200154Z`.
+  `artifacts/s390x/scoped-hotexit100-20260417T213642Z`.
 - x86 comparison:
-  `artifacts/s390x/compare-kdz1-ka0s01-20260417T200936Z`, compared against
+  `artifacts/s390x/compare-scoped-hotexit100-kdz1-ka0s01-20260417T213642Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health:
   `720` s390x benchmark records, `360` comparison rows, `0` s390x failures,
   GCC/Clang, JIT-on/`-joff`, full-family selector.
 - Regression posture:
-  no material official row is currently red. Only `large_immediates/add_large`
-  small/medium is slower than `-joff`, and the absolute runtimes are too small
-  to patch without focused repeat evidence. A follow-up dense kdz1/kdz probe
-  did not reproduce that red read.
+  no material official row is currently red. The scoped-hotexit matrix reports
+  no JIT-on row slower than `-joff`; the earlier `large_immediates/add_large`
+  small/medium concern is green in the full matrix and in focused reruns.
 - Cross-arch acceleration artifact:
   `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline`, generated
   from the current comparison. This is the queue source for making x86 chase
@@ -117,9 +116,8 @@ Historical experiment detail lives in
   current comparison lacks x86 JIT-on data for those families. Fix x86 harness
   coverage before using them for x86-gap ranking.
 - Current cross-architecture acceleration queue:
-  first rerun the full matrix with scoped hotside threshold in place, then
-  resume with `lower_frame_same_callsite/lua_abs_same_callsite`, numeric
-  `abs_loop` dense-sample instability, reducer `be_pack_*`, and Clang
+  `lower_frame_same_callsite/lua_abs_same_callsite`, numeric `abs_loop`
+  dense-sample instability, reducer `be_pack_*`, and Clang
   `be_helpers/strto_loop`.
 - First lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.

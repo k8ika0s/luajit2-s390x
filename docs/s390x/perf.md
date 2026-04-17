@@ -10,12 +10,11 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `c7845bac docs: record dispatch trace integration matrix`, on top of
-  `ef3db658 s390x: accelerate dispatch trace side exits`.
+  `2b5d2ebe s390x: scope faster hotside threshold to safe perf families`.
 - Current s390x artifact:
-  `artifacts/s390x/dispatch-trace-integration-20260417T200154Z`.
+  `artifacts/s390x/scoped-hotexit100-20260417T213642Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-kdz1-ka0s01-20260417T200936Z`, compared against
+  `artifacts/s390x/compare-scoped-hotexit100-kdz1-ka0s01-20260417T213642Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health: `720` s390x benchmark records, `360` comparison rows,
   `342` complete s390x/x86 rows, `0` missing s390x rows, `18` missing x86 rows,
@@ -29,9 +28,9 @@ notes and experiment logs belong below this section or in
   full matrix. Focused kdz1 and zkd0 validation also passed the
   `LUAJIT_S390X_DIRECT_PATCHEXIT_MISS_LOG=1` zero-miss check and rollback mode
   with `LUAJIT_S390X_DISABLE_DIRECT_PATCHEXIT=1`.
-- Regression read: the new full matrix has no material red official row. Only
-  `large_immediates/add_large` small/medium is slower than `-joff`, and those
-  rows are tiny absolute runtimes that need focused reruns before any code.
+- Regression read: the new full matrix has no material red official row and no
+  JIT-on row slower than `-joff`. `large_immediates/add_large` small/medium is
+  now green versus `-joff` in the full matrix and in focused kdz1/kdz reruns.
 - Cross-arch acceleration read:
   `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline` ranks rows
   where x86 JIT-on beats s390x JIT-on. The largest actionable absolute gaps are
@@ -39,50 +38,49 @@ notes and experiment logs belong below this section or in
   `be_pack_*`, `numeric_ops`, and `ffi_cdata` width/FREF rows. x86 JIT-on data
   is still missing for `iterator_table` and `mixed_noffi`, so those rows stay
   out of x86-gap ranking until coverage is fixed.
-- Post-matrix retained candidate:
-  a scoped `trace_hotside()` threshold now uses effective `hotexit=100` only
-  for the exact safe iterator, mixed-noffi, dispatch, and ffi-cdata proto
-  families. The global s390x default remains `200` because a broad default
-  change failed `jit_core/numeric_helpers.lua`. Focused kdz1/kdz/zkd0 artifacts
-  are recorded in [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md);
-  the top matrix below should be superseded only after the next full matrix run.
+- Scoped hotside threshold read:
+  `trace_hotside()` now uses effective `hotexit=100` only for the exact safe
+  iterator, mixed-noffi, dispatch, and ffi-cdata proto families. The global
+  s390x default remains `200` because a broad default change failed
+  `jit_core/numeric_helpers.lua`. This is now reflected in the full matrix
+  below.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | `dispatch_trace` | `numeric_loop/hot` | `<0.000001` | `0.002101` | `n/a` | `0.000001` | `2125.000x` |
 | `dispatch_trace` | `side_exit_loop/hot` | `<0.000001` | `0.003769` | `n/a` | `<0.000001` | `n/a` |
 | `dispatch_trace` | `hotexit_loop/hot` | `0.000001` | `0.005621` | `5621.000x` | `<0.000001` | `n/a` |
-| `iterator_table` | `pairs_sum/hot` | `0.002951` | `0.004222` | `1.431x` | `0.002864` | `1.482x` |
-| `iterator_table` | `pairs_array_sum/hot` | `0.002955` | `0.003837` | `1.298x` | `0.002752` | `1.381x` |
-| `mixed_noffi` | `mixed_loop/hot` | `0.003613` | `0.003983` | `1.102x` | `0.003561` | `1.146x` |
+| `iterator_table` | `pairs_sum/hot` | `0.003068` | `0.005295` | `1.726x` | `0.002906` | `1.783x` |
+| `iterator_table` | `pairs_array_sum/hot` | `0.002762` | `0.003827` | `1.386x` | `0.002755` | `1.380x` |
+| `mixed_noffi` | `mixed_loop/hot` | `0.003593` | `0.003930` | `1.094x` | `0.003645` | `1.068x` |
 | `vararg_paths` | `sum_loop/hot` | `0.000022` | `0.004369` | `198.591x` | `0.000022` | `191.818x` |
 | `vararg_paths` | `retlast_loop/hot` | `0.000025` | `0.002042` | `81.680x` | `0.000025` | `82.080x` |
 | `vararg_paths` | `retconst_loop/hot` | `0.000010` | `0.000597` | `59.700x` | `0.000010` | `54.300x` |
 | `mixed_ffi` | `mixed_ffi_loop/hot` | `0.000090` | `0.012099` | `134.433x` | `0.000090` | `141.956x` |
-| `ffi_cdata` | `pair_loop/hot` | `0.000050` | `0.017310` | `346.200x` | `0.000050` | `347.880x` |
-| `ffi_cdata` | `mixed_width_loop/hot` | `0.000257` | `0.028218` | `109.798x` | `0.000254` | `115.224x` |
-| `ffi_cdata` | `buffer_fref_loop/hot` | `0.000252` | `0.004815` | `19.107x` | `0.000256` | `19.848x` |
+| `ffi_cdata` | `pair_loop/hot` | `0.000050` | `0.017260` | `345.200x` | `0.000050` | `357.940x` |
+| `ffi_cdata` | `mixed_width_loop/hot` | `0.000255` | `0.028545` | `111.941x` | `0.000256` | `121.766x` |
+| `ffi_cdata` | `buffer_fref_loop/hot` | `0.000227` | `0.005055` | `22.269x` | `0.000240` | `21.208x` |
 | `ffi_calls` | `direct_abs/hot` | `0.000185` | `0.010050` | `54.324x` | `0.000247` | `41.028x` |
 | `ffi_calls` | `stored_abs/hot` | `0.000185` | `0.006897` | `37.281x` | `0.000247` | `27.903x` |
 | `ffi_fixed_call_pressure` | `gpr_pressure/hot` | `0.000008` | `0.000418` | `52.250x` | `0.000008` | `50.125x` |
 | `ffi_fixed_call_pressure` | `fpr_pressure/hot` | `0.000008` | `0.000244` | `30.500x` | `0.000007` | `34.429x` |
 | `ffi_fixed_struct_calls` | `one_double_take6/hot` | `0.000185` | `0.017896` | `96.735x` | `0.000247` | `72.895x` |
 | `ffi_fixed_struct_calls` | `small_u64_take7/hot` | `0.000507` | `0.023599` | `46.546x` | `0.000490` | `53.386x` |
-| `be_helpers` | `strto_loop/hot` | `0.000663` | `0.008280` | `12.489x` | `0.001780` | `4.558x` |
+| `be_helpers` | `strto_loop/hot` | `0.000666` | `0.008169` | `12.266x` | `0.001997` | `4.058x` |
 | `be_helpers` | `number_helper_loop/hot` | `0.000105` | `0.002278` | `21.695x` | `0.000105` | `20.048x` |
 | `be_helpers` | `num_aload_loop/hot` | `0.000111` | `0.003824` | `34.450x` | `0.000130` | `28.369x` |
-| `numeric_ops` | `abs_loop/hot` | `0.000111` | `0.003972` | `35.784x` | `0.000121` | `32.463x` |
-| `numeric_ops` | `div_loop/hot` | `0.000184` | `0.002247` | `12.212x` | `0.000204` | `10.284x` |
-| `numeric_ops` | `fp_mod_loop/hot` | `0.000278` | `0.003766` | `13.547x` | `0.000379` | `11.675x` |
-| `numeric_ops` | `min_loop/hot` | `0.000080` | `0.002481` | `31.012x` | `0.000116` | `21.353x` |
-| `numeric_ops` | `max_loop/hot` | `0.000125` | `0.002641` | `21.128x` | `0.000171` | `15.251x` |
-| `numeric_ops` | `sqrt_loop/hot` | `0.000227` | `0.003603` | `15.872x` | `0.000240` | `14.279x` |
-| `large_immediates` | `add_large/medium` | `0.000060` | `0.000053` | `0.883x` | `0.000039` | `1.359x` |
-| `large_immediates` | `add_large/hot` | `0.000017` | `0.000131` | `7.706x` | `0.000016` | `8.188x` |
+| `numeric_ops` | `abs_loop/hot` | `0.000111` | `0.004073` | `36.694x` | `0.000108` | `36.120x` |
+| `numeric_ops` | `div_loop/hot` | `0.000181` | `0.002242` | `12.387x` | `0.000180` | `11.611x` |
+| `numeric_ops` | `fp_mod_loop/hot` | `0.000279` | `0.003754` | `13.455x` | `0.000279` | `15.670x` |
+| `numeric_ops` | `min_loop/hot` | `0.000080` | `0.002509` | `31.362x` | `0.000079` | `31.519x` |
+| `numeric_ops` | `max_loop/hot` | `0.000124` | `0.002675` | `21.573x` | `0.000123` | `22.276x` |
+| `numeric_ops` | `sqrt_loop/hot` | `0.000228` | `0.003467` | `15.206x` | `0.000226` | `15.128x` |
+| `large_immediates` | `add_large/medium` | `0.000040` | `0.000062` | `1.550x` | `0.000040` | `1.300x` |
+| `large_immediates` | `add_large/hot` | `0.000016` | `0.000131` | `8.188x` | `0.000016` | `8.188x` |
 | `bitops_mix` | `mix_bits/hot` | `0.000005` | `0.001770` | `354.000x` | `0.000003` | `596.000x` |
 | `logic_add_phi_noboundary` | `logic_add_phi_noboundary/hot` | `0.000026` | `0.001907` | `73.346x` | `0.000030` | `62.333x` |
 | `int_add_phi_only` | `add_phi_only/hot` | `0.000004` | `0.000027` | `6.750x` | `0.000004` | `5.250x` |
-| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.001845` | `0.015007` | `8.134x` | `0.001834` | `7.965x` |
+| `lower_frame_same_callsite` | `lua_abs_same_callsite/hot` | `0.001926` | `0.015037` | `7.807x` | `0.001983` | `7.230x` |
 | `string_heavy` | `byte_scan_loop/hot` | `0.000001` | `0.077445` | `77445.000x` | `<0.000001` | `n/a` |
 | `string_heavy` | `manual_find_loop/hot` | `0.000001` | `0.050579` | `50579.000x` | `0.000001` | `50686.000x` |
 | `string_heavy` | `miss_find_loop/hot` | `<0.000001` | `0.005743` | `n/a` | `0.000001` | `5595.000x` |
@@ -92,9 +90,9 @@ notes and experiment logs belong below this section or in
 
 ## Current Queue
 
-- Regression queue: empty for material official rows. Focused kdz1/kdz reruns
-  did not reproduce the full-matrix `large_immediates/add_large` small/medium
-  red read; those rows stayed green in every dense pass.
+- Regression queue: empty. The full scoped-hotexit matrix has no JIT-on row
+  slower than `-joff`, and focused kdz1/kdz reruns did not reproduce the older
+  `large_immediates/add_large` concern.
 - Clean-run evidence:
   `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a` is the
   current post-cleanup retained-env rerank. It is not a cross-arch replacement
@@ -107,12 +105,10 @@ notes and experiment logs belong below this section or in
   `iterator_table/pairs_sum`, and `iterator_table/pairs_array_sum` remain the
   highest absolute s390x JIT rows, but they need x86 JIT coverage before they
   can drive cross-arch acceleration decisions.
-- Scoped hotside threshold candidate:
-  kdz1/kdz/zkd0 focused runs confirm the safe-family effective `hotexit=100`
-  policy for `ffi_cdata`, `iterator_table`, `mixed_noffi`, and `dispatch_trace`,
-  while keeping vararg and numeric guardrails clean. Run the next full matrix
-  before rewriting the top table.
-- Cross-arch acceleration queue after the full-matrix confirmation:
+- Scoped hotside threshold:
+  retained and reflected in the full matrix. It improves/protects the hotside
+  side-trace rows without lowering the unsafe global s390x threshold.
+- Cross-arch acceleration queue:
   first `lower_frame_same_callsite/lua_abs_same_callsite`, then `numeric_ops`
   dense-sample instability, reducer `be_pack_*`, and Clang
   `be_helpers/strto_loop`. The first kdz1 lower-frame truth pack is
