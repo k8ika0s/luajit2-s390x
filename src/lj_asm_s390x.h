@@ -2787,8 +2787,8 @@ static int asm_bxor_bswap_bnot_accflip_loop_tail(ASMState *as, IRIns *ir)
   dest = ra_dest_nobase(as, ir, allow, -230);
   asm_s390x_bitop_log(as, "bxor_bswap_bnot_accflip_loop_tail", ir, dest, src, acc, 0);
   asm_bnorm32(as, ir, dest);
-  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, acc, dest));
-  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, src, dest));
+  emit_u16_pair(as, S390X_INS_RR(S390XI_XR, dest, src),
+		S390X_INS_RR(S390XI_XR, dest, acc));
   emit_u32(as, S390X_INS_RXE(S390XI_LRVR, dest, src));
   emit_u48_pad8(as, S390X_INS_RIL(S390XI_XILF, acc, 0xffffffffu));
   return 1;
@@ -2984,8 +2984,8 @@ static int asm_bxor_brol_pair(ASMState *as, IRIns *ir)
   rot2 = ra_scratch(as, rset_exclude(allow, rot1));
   asm_s390x_bitop_log(as, "bxor_brol_pair", ir, dest, rot1, rot2, 0);
   asm_bnorm32(as, ir, dest);
-  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, rot2, dest));
-  emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, rot1, dest));
+  emit_u16_pair(as, S390X_INS_RR(S390XI_XR, dest, rot1),
+		S390X_INS_RR(S390XI_XR, dest, rot2));
   emit_u48_pair(as, S390X_INS_RSYB(S390XI_RLL, rot1, src, 0, innersh),
 		S390X_INS_RSYB(S390XI_RLL, rot2, src, 0, outersh));
   ra_leftov(as, dest, accref);

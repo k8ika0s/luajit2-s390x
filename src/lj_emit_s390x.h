@@ -64,6 +64,11 @@ static void emit_u16_u48(ASMState *as, uint16_t first, uint64_t second)
   as->mcp = (MCode *)p;
 }
 
+static void emit_u16_pair(ASMState *as, uint16_t first, uint16_t second)
+{
+  emit_u32(as, ((uint32_t)first << 16) | (uint32_t)second);
+}
+
 static void emit_u48_at(MCode *p, uint64_t ins)
 {
   uint8_t *q = (uint8_t *)p;
@@ -186,6 +191,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_NGRK	0xb9e40000u
 #define S390XI_OGRK	0xb9e60000u
 #define S390XI_XGRK	0xb9e70000u
+#define S390XI_XR	0x1700u
 #define S390XI_ARK	0xb9f80000u
 #define S390XI_AGRK	0xb9e80000u
 #define S390XI_SGRK	0xb9e90000u
