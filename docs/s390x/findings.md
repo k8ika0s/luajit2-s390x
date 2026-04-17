@@ -34233,3 +34233,30 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   opt-outs, diagnostics, or experimental/historical hooks that require fresh
   mechanism proof before use. The next cleanup pass should target stale
   experimental source hooks by owner area, not weaken the retained perf env.
+
+## 2026-04-17: source env cleanup tranche 1, default-on positive aliases
+
+- Removed live source support for obsolete positive aliases whose features are
+  already default-on:
+  `LUAJIT_S390X_GC64_SIGNED_INT_SLOAD`,
+  `LUAJIT_S390X_FORL_CURRENT_COMPARE_FIX`, `LUAJIT_S390X_INT_MINMAX`, and
+  `LUAJIT_S390X_NARROW_XSTORE`. Their `LUAJIT_S390X_DISABLE_*` causality
+  opt-outs remain for now.
+- Updated tests:
+  removed stale `LUAJIT_S390X_INT_MINMAX` setup from
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/numeric_ops.lua`, and
+  `perf/numeric_retrace_probe.lua`.
+- Kept one test-only setup env in `tests/s390x/perf/numeric_ops.lua`:
+  removing that top-level `setenv()` call changes the historical benchmark
+  process shape and moves `abs_loop/hot` from the `~0.00011s` band to
+  `~0.00067s`. A non-env FFI warmup was not stable enough, so this is left as
+  explicit harness debt rather than silently regressing the official row.
+- Current audit artifact:
+  `artifacts/s390x/s390x-env-surface-20260417165424-aliascleanup-final`.
+  The audit now reports `199` unique env names, with no default-on positive
+  aliases left in live source.
+- Validation:
+  kdz clean rebuild plus retained `numeric_ops` probe passed at
+  `/tmp/kdz-numeric-aliascleanup-retained-20260417165210`. Focused
+  `addsub_overflow_guard.lua`, `jit_be/numeric_ops.lua`, and
+  `numeric_retrace_probe.lua` also passed on kdz.

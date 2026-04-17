@@ -1,11 +1,5 @@
 local jit = require("jit")
 local t = require("tests.s390x.helpers.testlib")
-local ffi = require("ffi")
-
-ffi.cdef[[
-int setenv(const char *name, const char *value, int overwrite);
-]]
-assert(ffi.C.setenv("LUAJIT_S390X_INT_MINMAX", "1", 1) == 0, "setenv minmax")
 
 local function expect_trace(label, fn)
   jit.flush()

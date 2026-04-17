@@ -89,11 +89,12 @@ Historical experiment detail lives in
 - Env-surface audit:
   `tools/s390x/build_env_surface_audit.py` now inventories the full s390x env
   surface across `src/`, `tests/s390x/`, and `tools/s390x/`. Current artifact
-  `artifacts/s390x/s390x-env-surface-20260417143448-bcb578fb` found `202`
-  unique env names: `2` retained opt-in safety rails, `31` default-on feature
-  opt-outs, `4` default-on positive aliases, `85` debug/probe knobs, `13`
-  tooling-only historical references, and `67` experimental opt-ins or
-  historical route-arounds.
+  `artifacts/s390x/s390x-env-surface-20260417165424-aliascleanup-final` found
+  `199` unique env names: `2` retained opt-in safety rails, `31` default-on
+  feature opt-outs, `85` debug/probe knobs, `13` tooling-only historical
+  references, `67` experimental opt-ins or historical route-arounds, and `1`
+  test-only setup env left in `numeric_ops.lua` to preserve the historical perf
+  harness shape.
 - `ffi_fixed_call_pressure` is closed as a high-time acceleration target at
   the current matrix scale: `gpr_pressure/hot` is `0.000008s` GCC /
   `0.000009s` Clang, and `fpr_pressure/hot` is `0.000008s` on both compilers.
