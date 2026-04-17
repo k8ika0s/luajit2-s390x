@@ -97,11 +97,18 @@ SOAK_FFI_LUA_FILES = {
 
 PERF_FFI_LUA_FILES = {
     "tests/s390x/perf/ffi_calls.lua",
+    "tests/s390x/perf/ffi_calls_static_stop.lua",
     "tests/s390x/perf/ffi_cdata.lua",
+    "tests/s390x/perf/ffi_fixed_call_pressure.lua",
+    "tests/s390x/perf/ffi_fixed_struct_calls.lua",
     "tests/s390x/perf/mixed_ffi.lua",
 }
 
 PERF_TOP_CROSS_ARCH_COUNT = 5
+PERF_RETAINED_ENV = {
+    "LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST": "1",
+    "LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST": "1",
+}
 
 PERF_FAMILY_METADATA = {
     "dispatch_trace": {
@@ -125,51 +132,142 @@ PERF_FAMILY_METADATA = {
         "priority": "tracked-follow-up",
         "notes": "Bitops/tobit perf probe kept out of the default lane until release-stable.",
     },
-    "vararg_paths": {
+    "be_helpers_localized": {
         "default_gate": False,
         "promotion_order": 3,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Localized big-endian helper and tobit lowering probe.",
+    },
+    "vararg_paths": {
+        "default_gate": False,
+        "promotion_order": 4,
         "status": "candidate",
         "priority": "promote-after-native-rerank",
         "notes": "Vararg select/return paths now compile without retained vararg blacklists; keep as focused native rerank family before default promotion.",
     },
     "ffi_calls": {
         "default_gate": False,
-        "promotion_order": 4,
+        "promotion_order": 5,
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Traced direct and stored FFI call probe.",
     },
-    "ffi_cdata": {
-        "default_gate": False,
-        "promotion_order": 5,
-        "status": "probe-only",
-        "priority": "tracked-follow-up",
-        "notes": "Cdata load/store perf probe.",
-    },
-    "be_helpers": {
+    "ffi_calls_static_stop": {
         "default_gate": False,
         "promotion_order": 6,
         "status": "probe-only",
         "priority": "tracked-follow-up",
+        "notes": "Static-stop direct and stored FFI call probe.",
+    },
+    "ffi_cdata": {
+        "default_gate": False,
+        "promotion_order": 7,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Cdata load/store perf probe.",
+    },
+    "ffi_fixed_call_pressure": {
+        "default_gate": False,
+        "promotion_order": 8,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "High-pressure fixed FFI call argument/return probe.",
+    },
+    "ffi_fixed_struct_calls": {
+        "default_gate": False,
+        "promotion_order": 9,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Fixed struct-by-value FFI call ABI probe.",
+    },
+    "be_helpers": {
+        "default_gate": False,
+        "promotion_order": 10,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
         "notes": "Big-endian helper and pack/unpack probe.",
+    },
+    "int_add_phi_only": {
+        "default_gate": False,
+        "promotion_order": 11,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Integer ADD PHI recurrence codegen probe.",
+    },
+    "large_immediates": {
+        "default_gate": False,
+        "promotion_order": 12,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Large-immediate compare/add/sub/addressing codegen probe.",
+    },
+    "logic_add_phi_noboundary": {
+        "default_gate": False,
+        "promotion_order": 13,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Low-bit demanded PHI recurrence probe without boundary churn.",
+    },
+    "logical_chain_tail_add": {
+        "default_gate": False,
+        "promotion_order": 14,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Logical chain tail-add lowering probe.",
+    },
+    "logical_chain_tail_store": {
+        "default_gate": False,
+        "promotion_order": 15,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Logical chain tail-store lowering probe.",
+    },
+    "lower_frame_same_callsite": {
+        "default_gate": False,
+        "promotion_order": 16,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Lower-frame same-callsite recorder/backend probe.",
     },
     "mixed_noffi": {
         "default_gate": False,
-        "promotion_order": 7,
+        "promotion_order": 17,
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Mixed JIT-heavy workload without FFI.",
     },
     "mixed_ffi": {
         "default_gate": False,
-        "promotion_order": 8,
+        "promotion_order": 18,
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "Mixed Lua + FFI workload.",
     },
+    "numeric_ops": {
+        "default_gate": False,
+        "promotion_order": 19,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Numeric helper, division, modulo, sqrt, and min/max lowering probe.",
+    },
+    "promotion_core_static_stop": {
+        "default_gate": False,
+        "promotion_order": 20,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Promotion-core static-stop route-around reduction probe.",
+    },
+    "route_around_reducers": {
+        "default_gate": False,
+        "promotion_order": 21,
+        "status": "probe-only",
+        "priority": "tracked-follow-up",
+        "notes": "Route-around reducer truth-pack perf probe.",
+    },
     "string_heavy": {
         "default_gate": False,
-        "promotion_order": 9,
+        "promotion_order": 22,
         "status": "probe-only",
         "priority": "tracked-follow-up",
         "notes": "String compare/search/scan and string-key lookup workload.",
@@ -180,6 +278,7 @@ PERF_BENCH_LUA_FILE_BY_FAMILY = {
     family: f"tests/s390x/perf/{family}.lua"
     for family in PERF_FAMILY_METADATA
 }
+PERF_BENCH_LUA_FILE_BY_FAMILY["route_around_reducers"] = "tests/s390x/perf/route_around_reducers.lua"
 
 PERF_BENCH_LUA_FILES = [
     PERF_BENCH_LUA_FILE_BY_FAMILY[family]
@@ -843,6 +942,7 @@ def build_variants(
     compilers = expand_choice(compiler_choice, ["gcc", "clang"])
     modes = expand_choice(mode_choice, ["debug", "release"])
     jits = expand_choice(jit_choice, ["off", "on"])
+    include_z13 = os.environ.get("S390X_DRIVER_INCLUDE_Z13") == "1"
     variants: List[Variant] = []
     if stage == "matrix":
         for compiler in compilers:
@@ -857,13 +957,13 @@ def build_variants(
             for mode in modes:
                 if perf_family_selected and jit_choice == "on":
                     variants.append(Variant(compiler=compiler, mode=mode, jit="on", tuning="baseline"))
-                    if compiler == "gcc":
+                    if include_z13 and compiler == "gcc":
                         variants.append(Variant(compiler=compiler, mode=mode, jit="on", tuning="z13"))
                     variants.append(Variant(compiler=compiler, mode=mode, jit="off", tuning="baseline"))
                     continue
                 for jit in jits:
                     variants.append(Variant(compiler=compiler, mode=mode, jit=jit, tuning="baseline"))
-                    if jit == "on" and compiler == "gcc":
+                    if include_z13 and jit == "on" and compiler == "gcc":
                         variants.append(Variant(compiler=compiler, mode=mode, jit=jit, tuning="z13"))
         return variants
     for compiler in compilers:
@@ -1129,6 +1229,8 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             """
         ).strip()
     if suite == "soak":
+        if variant.jit == "off":
+            return None
         skip_soak = shell_skip_condition(SOAK_FFI_LUA_FILES if variant.ffi == "off" else [])
         return textwrap.dedent(
             f"""
@@ -1147,11 +1249,18 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             test for test in selected_perf_bench_files(ctx.args)
             if variant.ffi == "on" or test not in PERF_FFI_LUA_FILES
         ]
+        retained_exports = [
+            f"export {name}={shlex.quote(value)}"
+            for name, value in sorted(PERF_RETAINED_ENV.items())
+        ]
         bench_steps: List[str] = [
             'mkdir -p "$S390X_STEP_DIR/bench-logs" "$S390X_STEP_DIR/perf-stat"',
             'bench_json="$S390X_STEP_DIR/benchmarks.jsonl"',
             'rm -f "$bench_json"',
+            *retained_exports,
         ]
+        if variant.ffi == "on" and any(test in PERF_FFI_LUA_FILES for test in bench_files):
+            bench_steps.append(f"CC={variant.compiler} sh tests/s390x/build_oracles.sh")
         for test in bench_files:
             stem = pathlib.Path(test).stem
             stdout_path = f'$S390X_STEP_DIR/bench-logs/{stem}.stdout.log'
@@ -1365,7 +1474,7 @@ def perf_baseline_selector(record: dict) -> bool:
 
 def perf_authoritative_selector(record: dict) -> bool:
     return (
-        record.get("host") == "kdz"
+        record.get("host") in ("kdz", "kdz1")
         and record.get("compiler") == "gcc"
         and record.get("mode") == "release"
         and record.get("ffi") == "on"
@@ -1437,7 +1546,7 @@ def generate_perf_comparisons(ctx: Context) -> None:
         if base_record:
             maybe_add_comparison(ctx, "z13_vs_baseline", tuned_record, base_record, "z13", "baseline")
 
-    clang_index = record_index(lambda r: r.get("host") == "kdz" and r.get("compiler") == "clang" and r.get("mode") == "release" and r.get("jit") == "on" and r.get("ffi") == "on" and r.get("tuning") == "baseline")
+    clang_index = record_index(lambda r: r.get("host") in ("kdz", "kdz1") and r.get("compiler") == "clang" and r.get("mode") == "release" and r.get("jit") == "on" and r.get("ffi") == "on" and r.get("tuning") == "baseline")
     gcc_index = record_index(lambda r: perf_authoritative_selector(r) and r.get("jit") == "on" and r.get("tuning") == "baseline")
     for key, clang_record in clang_index.items():
         gcc_record = gcc_index.get(key)
