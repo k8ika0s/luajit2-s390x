@@ -34568,3 +34568,40 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   work from the complete comparison: lower-frame generated code first, then
   numeric `abs_loop` dense-sample instability, reducer `be_pack_*`, and Clang
   `strto_loop`.
+
+## 2026-04-17: retained lower-frame centered-modulo abs lowering
+
+- Source commit:
+  `d997ee55 s390x: lower centered modulo abs branchlessly`.
+- Fresh current-source truth pack:
+  `artifacts/s390x/truth-packs/20260417-152104-kdz1-lower_frame_body-accel-truth-pack`.
+  It confirmed the official `lower_frame_same_callsite/lua_abs_same_callsite`
+  row is compiled-body dominated and stable: five-pass kdz1 median
+  `0.001882s` JIT vs `0.015112s` `-joff`.
+- Mechanism:
+  the official root body still used the `%17` loop-remainder recurrence, so the
+  rejected generic `%17` MLR path was not the payer. The remaining hot cost was
+  the branch-shaped Lua absolute-value diamond:
+  `SUBOV (mod %17) - 8`, then guarded `LT x,0`, `NE x,0`,
+  `SUBOV 0-x`, and `CONV num.int`.
+- Retained fix:
+  [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  now proves only the centered value `x = (i % 17) - 8` with nonnegative
+  modulo input. That bounds `x` to `[-8, 8]`, so the backend can elide the
+  `LT` guard and lower the absorbed `SUBOV 0-x -> CONV num.int` as branchless
+  integer abs using `LCGFR`/`LTR`/`LOCGR` before `CDFBR`.
+- Immediate kdz1 A/B:
+  candidate `lower_frame_same_callsite/lua_abs_same_callsite/hot 0.000577s`;
+  immediate reverted control `0.001895s`.
+- Host confirmation:
+  kdz candidate `0.000579s`; zkd0 candidate `0.001150s`.
+- Guardrails:
+  kdz1 passed `jit_be/*.lua`, `jit_core/*.lua`, `jit_loops/*.lua` after
+  rebuilding `liboracle.so`, plus focused `dispatch_trace`, `iterator_table`,
+  `mixed_noffi`, `vararg_paths`, `ffi_cdata`, and `numeric_ops` perf screens.
+  kdz and zkd0 also passed `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, `pairs_loop.lua`, and `vararg_paths.lua`.
+- Queue update:
+  close lower-frame as the current cross-arch acceleration target pending the
+  next full matrix refresh. Next targets are numeric `abs_loop` dense-sample
+  instability, reducer `be_pack_*`, and Clang `be_helpers/strto_loop`.
