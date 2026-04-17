@@ -33,6 +33,7 @@ HASH_STAMP_PATHS = list(
             "tests/s390x/perf/ffi_cdata.lua",
             "tests/s390x/perf/ffi_fixed_call_pressure.lua",
             "tests/s390x/perf/iterator_table.lua",
+            "tests/s390x/perf/large_immediates.lua",
             "tests/s390x/perf/be_helpers.lua",
             "tests/s390x/perf/be_helpers_localized.lua",
             "tests/s390x/perf/numeric_ops.lua",
@@ -460,6 +461,53 @@ run_with_counters("numeric_minmax_micro", 64000, run, function(result)
   testlib.eq(result, expected, "numeric_minmax_micro")
 end)
 """,
+    "large_immediate_add": LUA_COMMON
+    + """\
+local function run(n)
+  local total = 0
+  for _ = 1, n do
+    total = total + 40000
+  end
+  return total
+end
+local expected = reference_result(run, 40000)
+run_with_counters("large_immediate_add", 40000, run, function(result)
+  testlib.eq(result, expected, "large_immediate_add")
+end)
+""",
+    "large_immediate_cmp": LUA_COMMON
+    + """\
+local function run(n)
+  local total = 0
+  for i = 1, n do
+    if i < 40000 then
+      total = total + 1
+    end
+  end
+  return total
+end
+local expected = reference_result(run, 40000)
+run_with_counters("large_immediate_cmp", 40000, run, function(result)
+  testlib.eq(result, expected, "large_immediate_cmp")
+end)
+""",
+    "large_immediate_aref": LUA_COMMON
+    + """\
+local arr = {}
+arr[4] = 19
+arr[5000] = 73
+local function run(n)
+  local total = 0
+  for _ = 1, n do
+    total = total + arr[5000]
+  end
+  return total
+end
+local expected = reference_result(run, 40000)
+run_with_counters("large_immediate_aref", 40000, run, function(result)
+  testlib.eq(result, expected, "large_immediate_aref")
+end)
+""",
     "string_scan_strto_cache": LUA_COMMON
     + """\
 local values = { "1.25", "2.5", "3.75", "4.125" }
@@ -678,6 +726,25 @@ TARGETS: dict[str, dict[str, Any]] = {
             "numeric_ops/sqrt_loop/hot",
             "numeric_ops/min_loop/hot",
             "numeric_ops/max_loop/hot",
+        ],
+    },
+    "large_immediates": {
+        "summary": "large immediate add/sub/compare/AREF generated-code attribution",
+        "families": ["large_immediates"],
+        "focus": [
+            "large_immediate_add",
+            "large_immediate_cmp",
+            "large_immediate_aref",
+        ],
+        "oracle": False,
+        "target_rows": [
+            "large_immediates/add_large/small",
+            "large_immediates/add_large/medium",
+            "large_immediates/add_large/hot",
+            "large_immediates/sub_large/hot",
+            "large_immediates/cmp_large/hot",
+            "large_immediates/aref_large/hot",
+            "large_immediates/aref_small/hot",
         ],
     },
     "string_scan": {

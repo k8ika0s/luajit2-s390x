@@ -61,7 +61,8 @@ Historical experiment detail lives in
 - Regression posture:
   no material official row is currently red. Only `large_immediates/add_large`
   small/medium is slower than `-joff`, and the absolute runtimes are too small
-  to patch without focused repeat evidence.
+  to patch without focused repeat evidence. A follow-up dense kdz1/kdz probe
+  did not reproduce that red read.
 - Cross-arch acceleration artifact:
   `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline`, generated
   from the current comparison. This is the queue source for making x86 chase
@@ -104,8 +105,8 @@ Historical experiment detail lives in
   current comparison lacks x86 JIT-on data for those families. Fix x86 harness
   coverage before using them for x86-gap ranking.
 - Current cross-architecture acceleration queue:
-  `lower_frame_same_callsite/lua_abs_same_callsite`, Clang
-  `be_helpers/strto_loop`, reducer `be_pack_*`, `numeric_ops` micro-kernels,
+  `lower_frame_same_callsite/lua_abs_same_callsite`, numeric `abs_loop`
+  dense-sample instability, reducer `be_pack_*`, Clang `be_helpers/strto_loop`,
   and `ffi_cdata` width/FREF rows.
 - First lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.

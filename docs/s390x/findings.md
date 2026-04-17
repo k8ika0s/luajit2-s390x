@@ -34444,3 +34444,40 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   inspect the official lower-frame mcode/IR for the `%17` plus absolute-value
   loop body and compare against x86 lowering. Do not reopen lower-frame
   proto-NOJIT, broad trace-control, or copied temp repros as evidence.
+
+## 2026-04-17: large-immediates and numeric follow-up after x86-gap rerank
+
+- Correction to the immediate queue:
+  `large_immediates/add_large` small/medium looked red in the full comparison,
+  but dense focused reruns on both kdz1 and kdz did not reproduce a JIT-on
+  regression. With `61` samples, `10` warmups, and alternating passes,
+  `add_large/small` stayed around `0.7143x` JIT-on/`-joff`,
+  `add_large/medium` stayed around `0.6964x..0.7143x`, and
+  `add_large/hot` stayed around `0.11x`. Current artifacts:
+  `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` and
+  `artifacts/s390x/large-immediates-kdz-regression-20260417T-focused`.
+- Added `large_immediates` as a first-class
+  `tools/s390x/build_acceleration_truth_pack.py` target so future large
+  immediate work captures official A/B, focused IR/mcode dumps, trace counts,
+  and sibling rows instead of relying on one noisy full-matrix row. First
+  kdz1 artifact:
+  `artifacts/s390x/truth-packs/20260417-134948-kdz1-large_immediates-accel-truth-pack`.
+- Tooling fix:
+  the shared focused-probe rebuild path in
+  `tools/s390x/restamp_iterator_perf.py` was still using plain `make -C src`.
+  That is not the current matrix build contract. It now rebuilds with
+  `CC=gcc HOST_CC=gcc BUILDMODE=mixed XCFLAGS=-DLUAJIT_ENABLE_S390X_JIT`,
+  matching the `gcc-release-jiton-ffion-mixed-baseline` matrix variant.
+- Numeric follow-up:
+  `numeric_ops` is green versus `-joff`, but `abs_loop/hot` is bimodal under
+  dense sampling. With the driver-shaped `5` samples / `1` warmup it repeats
+  the matrix band (`~0.000109s..0.000110s`); with dense `31` samples /
+  `5` warmups, samples split between the same fast band and a slower
+  `~0.00066s..0.00069s` band, causing the median to flip slow. Artifacts:
+  `artifacts/s390x/numeric-ops-kdz1-driver-shape-20260417T-focused` and
+  `artifacts/s390x/numeric-ops-kdz1-mixedjit-20260417T-focused`.
+- Current read:
+  do not patch `large_immediates` as a red-vs-`-joff` regression unless a
+  future dense kdz/kdz1 rerun disagrees. The first real mechanism debt found in
+  this pass is numeric `abs_loop` trace/compile-mode instability, followed by
+  the stable x86-gap `route_around_reducers` / `be_pack_*` cluster.
