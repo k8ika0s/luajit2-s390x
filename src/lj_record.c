@@ -1987,6 +1987,51 @@ static int rec_for_direction(cTValue *o)
   return (tvisint(o) ? intV(o) : (int32_t)o->u32.hi) >= 0;
 }
 
+#if LJ_TARGET_S390X
+static int lj_record_s390x_kint_ref(jit_State *J, IRRef ref, int32_t *k)
+{
+  IRIns *ir;
+  if (ref < J->cur.nk || ref >= REF_BIAS)
+    return 0;
+  ir = IR(ref);
+  if (ir->o != IR_KINT)
+    return 0;
+  *k = ir->i;
+  return 1;
+}
+
+static int lj_record_s390x_fori_u8histop(jit_State *J, const BCIns *fori,
+					 BCReg ra, IRType t, int dir,
+					 IRRef start, TRef stop, TRef step)
+{
+  IRRef stopref, stepref;
+  TRef stopk;
+  int32_t startv, stopv, stepv;
+  if (t != IRT_INT || !dir || !start || !irref_isk(start) ||
+      !lj_record_s390x_kint_ref(J, start, &startv) || startv < 0)
+    return 0;
+
+  stepref = tref_ref(step);
+  if (!tref_isk(step) || !lj_record_s390x_kint_ref(J, stepref, &stepv) ||
+      stepv != 1)
+    return 0;
+
+  stopref = tref_ref(stop);
+  if (!tref_isk(stop)) {
+    stopk = find_kinit(J, fori, ra+FORL_STOP, t);
+    if (!tref_isk(stopk))
+      return 0;
+    stopref = tref_ref(stopk);
+  }
+
+  if (!lj_record_s390x_kint_ref(J, stopref, &stopv))
+    return 0;
+  if (stopv < startv || stopv <= 128 || stopv > 255)
+    return 0;
+  return stopv;
+}
+#endif
+
 static int lj_record_s390x_stop_log_enabled(void)
 {
   static int enabled = -1;
@@ -2523,6 +2568,7 @@ static void rec_for_loop(jit_State *J, const BCIns *fori, ScEvEntry *scev,
     ((!LJ_DUALNUM || tvisint(tv) == (t == IRT_INT)) ? IRSLOAD_READONLY : 0);
   TRef stop = fori_arg(J, fori, ra+FORL_STOP, t, mode);
   TRef step = fori_arg(J, fori, ra+FORL_STEP, t, mode);
+  int idxmode;
   int tc, dir = rec_for_direction(&tv[FORL_STEP]);
   lj_assertJ(bc_op(*fori) == BC_FORI || bc_op(*fori) == BC_JFORI,
 	     "bad bytecode %d instead of FORI/JFORI", bc_op(*fori));
@@ -2540,9 +2586,17 @@ static void rec_for_loop(jit_State *J, const BCIns *fori, ScEvEntry *scev,
     J->base[ra+FORL_STOP] = stop;
     J->base[ra+FORL_STEP] = step;
   }
+  idxmode = IRSLOAD_INHERIT + tc + (J->scev.start << 16);
+#if LJ_TARGET_S390X
+  {
+    int u8histop = lj_record_s390x_fori_u8histop(J, fori, ra, t, dir,
+						 scev->start, stop, step);
+    if (u8histop)
+      idxmode |= IRSLOAD_FORI_U8HISTOP_MODE(u8histop);
+  }
+#endif
   if (!idx)
-    idx = fori_load(J, ra+FORL_IDX, t,
-		    IRSLOAD_INHERIT + tc + (J->scev.start << 16));
+    idx = fori_load(J, ra+FORL_IDX, t, idxmode);
   if (!init)
     J->base[ra+FORL_IDX] = idx = emitir(IRT(IR_ADD, t), idx, step);
   J->base[ra+FORL_EXT] = idx;

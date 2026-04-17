@@ -34260,3 +34260,38 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `/tmp/kdz-numeric-aliascleanup-retained-20260417165210`. Focused
   `addsub_overflow_guard.lua`, `jit_be/numeric_ops.lua`, and
   `numeric_retrace_probe.lua` also passed on kdz.
+
+## 2026-04-17: bitops mix focused integration
+
+- Integrated the focused bitops mix package from source commit `77a21a18`
+  onto WIP base `4091b8e6` on branch
+  `k8ika0s/s390x-wip-bitops-mix-integration`.
+- Conflict policy used:
+  preserved current WIP low32/add/sub/shift/loop mechanics and layered only the
+  focused FORI u8 high-stop metadata, suffix-table mix path, pre-loop UREFO
+  guard strengthening, and required emitter helpers/opcodes.
+- WIP drift fix:
+  current WIP already proves the loop index is u8 and removes the loop-body
+  `BAND i,255` node. The suffix matcher was narrowed to accept that guarded-u8
+  direct-index shape, which re-engages `add_bxor_mix_suffix200_tail` without
+  removing the `bit.*` table guards.
+- kdz1 isolated validation path:
+  `/root/luajit2-s390x/workstreams/bitops-mix/canon/repo`.
+- kdz1 mechanism proof:
+  `LUAJIT_S390X_BITOP_LOG=1 -jdump=ism tests/s390x/perf/bitops_mix.lua`
+  logs `add_bxor_mix_suffix200_tail` for trace 1, with `TRACE 1 mcode 1188`.
+- kdz1 focused timings:
+  GCC `mix_bits/hot` median `0.000002..0.000003`; Clang `mix_bits/hot` median
+  `0.000002`. Focused guardrails passed under both GCC and Clang:
+  `bitops_trace.lua`, `bitops_mix_suffix.lua`, `low32_home_contract.lua`,
+  `string_key_href.lua`, and `jit_be/numeric_ops.lua`.
+- kdz1 regression screen:
+  GCC `bitops_mix.lua`, `logical_chain_tail_add.lua`,
+  `logical_chain_tail_store.lua`, `numeric_ops.lua`, `dispatch_trace.lua`, and
+  `ffi_fixed_struct_calls.lua` passed after building the required oracle
+  library with `tests/s390x/build_oracles.sh`.
+- Host confirmation:
+  kdz and zkd0 both rebuilt the same synced source, passed the focused
+  guardrails, logged `add_bxor_mix_suffix200_tail`, and kept
+  `bitops_mix/mix_bits/hot` in band. kdz median was `0.000002`; zkd0 median was
+  `0.000003`.
