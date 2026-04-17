@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-16 19:51 PDT
+Last updated: 2026-04-16 20:30 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP source point is
-  `d037816e Fix s390x low32 call arg normalization`.
+  `41abe5a5 Skip unsupported clang z13 perf variants`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -22,6 +22,14 @@ Historical experiment detail lives in
 
 - kdz1 focused low32 call-argument repair validation passed from the tracked
   mirror after committed source sync.
+- The post-repair default driver perf gate now passes at
+  `artifacts/s390x/s390x-kdz1-20260417T032039Z-de121bc1-driverfix`. The driver
+  no longer attempts unsupported Clang z13 builds; z13 tuning remains covered
+  by GCC.
+- The post-repair retained-env all-family rerank now passes at
+  `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5`, covering all
+  `23` tracked perf families in `3` alternating JIT/JIT-off passes with no red
+  rows versus `-joff`.
 - The reduced FFI pressure reproducer now matches `-joff`.
 - The isolated fixed-call arg probe now returns correct values for arguments
   1..7, including argument 4 in R5.
@@ -56,7 +64,9 @@ Historical experiment detail lives in
   because it exposed a now-fixed `ffi_fixed_call_pressure` JIT-on wrong result.
   The driver-style post-fix rerun
   `artifacts/s390x/s390x-kdz1-20260417T024302Z-d037816e` stopped on unsupported
-  Clang z13 flags and is not a replacement matrix.
+  Clang z13 flags and is not a replacement matrix. The follow-up driver rerun
+  at `artifacts/s390x/s390x-kdz1-20260417T032039Z-de121bc1-driverfix` is clean,
+  but it is the default driver perf gate, not the full cross-arch comparison.
 
 ## Current Performance Posture
 

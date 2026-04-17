@@ -34077,3 +34077,35 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   matrix. The last authoritative clean full matrix remains
   `artifacts/s390x/s390x-kdz1-20260416T235054Z` until a clean post-`d037816e`
   full comparison artifact replaces it.
+
+## 2026-04-16: driver Clang z13 perf-variant cleanup and retained-env rerank
+
+- Source point:
+  `41abe5a5 Skip unsupported clang z13 perf variants`, pushed to
+  `origin/k8ika0s/s390x-bringup-wip`.
+- Failure remediated:
+  the driver perf gate was clean through Clang baseline but stopped when it
+  tried to build `clang-debug-jiton-ffion-mixed-z13`. kdz1 Clang rejects the
+  Makefile z13 flag pair `-mmvcle` / `-mfused-madd`, so this was a tooling
+  variant-selection failure rather than a runtime regression.
+- Fix:
+  `tools/s390x/driver.py` now emits z13 perf variants only for GCC. Baseline
+  GCC and Clang coverage is unchanged, and GCC still carries the z13 tuning
+  comparison.
+- Validation:
+  `python3 -m py_compile tools/s390x/driver.py` passed. The follow-up driver
+  perf gate `artifacts/s390x/s390x-kdz1-20260417T032039Z-de121bc1-driverfix`
+  passed on kdz1 with `5` variants, `45` benchmark records, and `0` failures.
+- Full retained-env rerank:
+  `artifacts/s390x/kdz-retained-jitter-20260417032751-41abe5a5` passed on kdz
+  after tracked-file sync and remote rebuild. It covered all `23` tracked perf
+  families, `3` alternating JIT/JIT-off passes, and produced no red rows versus
+  `-joff`.
+- Current acceleration read from that rerank:
+  the slowest retained JIT rows are `mixed_noffi/mixed_loop/hot`
+  (`0.003609s`, `0.8671x` versus `-joff`), `iterator_table/pairs_sum/hot`
+  (`0.003004s`, `0.7066x`), `iterator_table/pairs_array_sum/hot`
+  (`0.002779s`, `0.7205x`), `lower_frame_same_callsite/lua_abs_same_callsite/hot`
+  (`0.001979s`, `0.1317x`), and `be_helpers/strto_loop/hot`
+  (`0.001840s`, `0.2244x`). These are acceleration targets, not clean-run
+  blockers.
