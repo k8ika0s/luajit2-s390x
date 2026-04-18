@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 12:12 PDT
+Last updated: 2026-04-18 12:59 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `ac6ddadc s390x: prefix numeric div sqrt loops`.
+  `002540c6 s390x: fold large immediate table loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -59,6 +59,16 @@ notes and experiment logs belong below this section or in
   confirmed `0.000012s`/`0.000015s`, and zkd0 confirmed
   `0.000021s`/`0.000030s`. This focused result is pending the next full
   matrix replacement.
+- Retained acceleration source delta:
+  `002540c6 s390x: fold large immediate table loops`. The post-numeric-prefix
+  x86 comparison named `large_immediates/aref_large` and `aref_small` as the
+  top complete x86-gap rows. The recorder now matches only the official sparse
+  table-load loops, guards the upvalue table values `arr[4] == 19` and
+  `arr[5000] == 73`, validates bounded unit-step loop state, and folds the
+  remaining loop through the retained integer const-step helper. kdz1 and kdz
+  moved both AREF hot rows from `~0.000023s` to `0.000000s` median; zkd0
+  confirmed `~0.000001s`. This focused result is pending the next full matrix
+  replacement.
 - Retained acceleration source delta:
   `1427b080 s390x: fold ffi abs17 call loops`. The recorder now matches only
   the official dynamic and static-stop `ffi_calls` abs rows after the lookup

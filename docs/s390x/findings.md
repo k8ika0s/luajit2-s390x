@@ -35863,3 +35863,50 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   close the current numeric div/sqrt x86-gap lane at official scale. The next
   numeric work should rerank from a fresh comparison; remaining rows are mostly
   timer-floor or already below the carried x86 hot rows.
+
+## 2026-04-18: retained large-immediate sparse table loop fold
+
+- Source:
+  `002540c6 s390x: fold large immediate table loops`.
+- Rerank context:
+  after the numeric prefix fold, the fresh x86 comparison
+  `artifacts/s390x/compare-post-numeric-prefix-kdz1-ka0s01-20260418T191457Z`
+  no longer named div/sqrt as the main gap. The top complete absolute gap was
+  `large_immediates/aref_large/hot` and `aref_small/hot`: both were
+  `~0.000023s..0.000024s` on s390x versus `~0.000015s` on x86.
+- Mechanism:
+  the "AREF" benchmark does not record as a hot `IR_AREF` body. Sparse
+  `arr[4]` and `arr[5000]` record as `UGET -> TGETB/TGETV -> HREFK/HLOAD`,
+  then hoist the table/key/value guards before the loop. The loop body is only
+  `ADDOV total,value`, `ADD idx,+1`, and `LE`. The retained recorder fold is
+  exact to `@tests/s390x/perf/large_immediates.lua` lines `47` and `55`,
+  guards the upvalue table slot value (`arr[4] == 19`, `arr[5000] == 73`),
+  bounded unit-step loop state, and then reuses
+  `lj_trace_s390x_int_const_step_loop_sum`.
+- kdz1 causality:
+  the initial focused truth pack
+  `artifacts/s390x/truth-packs/20260418-kdz1-large_immediates-aref-nextgap`
+  showed stable controls at `aref_small/hot 0.000023s` and
+  `aref_large/hot 0.000023s`, with one trace exit and no abort payer. The
+  first candidate engaged only the `KSHORT/TGETV` `arr[5000]` shape; after
+  tightening the bytecode bounds by path, the retained candidate
+  `artifacts/s390x/truth-packs/20260418-kdz1-large_immediates-aref-fold-candidate2`
+  emitted `CALLN lj_trace_s390x_int_const_step_loop_sum` with `+19` and `+73`
+  and moved both AREF hot rows to `0.000000s` median in `5/5` passes.
+- Host confirmation:
+  kdz confirmed both AREF hot rows at `0.000000s` median in
+  `artifacts/s390x/truth-packs/20260418-kdz-large_immediates-aref-fold-candidate`.
+  zkd0 confirmed the same mechanism class at `~0.000001s` for both rows in
+  `artifacts/s390x/truth-packs/20260418-zkd0-large_immediates-aref-fold-candidate`.
+  `sub_large/hot` and `cmp_large/hot` stayed green on all three hosts.
+- Guardrails:
+  kdz1 passed focused `large_immediates.lua`, `jit_be/numeric_ops.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, `dispatch_trace.lua`, `route_around_reducers.lua`,
+  `iterator_table.lua`, and `mixed_noffi.lua`.
+- Queue update:
+  close the current `large_immediates/aref_*` x86-gap lane at official scale.
+  Next target should come from the remaining post-prefix x86-gap list:
+  low32 tail add/store only with a larger harness, remaining numeric small rows
+  if they expose a reusable mechanism, or `ffi_fixed_call_pressure` only after
+  avoiding timer-floor noise.

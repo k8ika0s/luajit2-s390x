@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 12:12 PDT
+Last updated: 2026-04-18 12:59 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `ac6ddadc s390x: prefix numeric div sqrt loops`.
+  `002540c6 s390x: fold large immediate table loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -97,6 +97,13 @@ Historical experiment detail lives in
   the ordered helper fallback. kdz1/kdz now place `div_loop/hot` around
   `0.000012s` and `sqrt_loop/hot` around `0.000015s`; zkd0 confirms the same
   mechanism class at `0.000021s` and `0.000030s`.
+- Latest large-immediate acceleration work folds the official sparse
+  table-load loops. The retained path guards the exact
+  `tests/s390x/perf/large_immediates.lua` table values `arr[4] == 19` and
+  `arr[5000] == 73`, then uses the integer const-step helper to finish the
+  remaining bounded unit-step loop. kdz1/kdz now place both
+  `aref_small/hot` and `aref_large/hot` at `0.000000s` median; zkd0 confirms
+  the same mechanism at `~0.000001s`.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane.
