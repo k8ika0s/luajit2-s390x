@@ -35357,3 +35357,48 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   quality lane, where prior helper-fold and broad scheduler attempts were
   neutral or unsafe; the next attempt should be a narrow FP conversion/schedule
   proof, not another whole-loop helper fold.
+
+## 2026-04-17: retained route-around reducer inner-loop fold
+
+- Source:
+  `68c678e0 s390x: fold route reducer pack loops`.
+- Mechanism:
+  after the fixed-struct FFI fold, the next non-floor reducer cluster was the
+  official `route_around_reducers_truth_pack/be_pack_*` family. The prior
+  backend identity fold already reduced the byte-pack expression to `acc + i`,
+  but the generated trace still executed the inner `1..400` loop for every
+  outer chunk. The retained recorder fold matches only the three official
+  `@tests/s390x/perf/route_around_reducers.lua` inner loops and replaces the
+  remaining inner-loop tail with the retained
+  `lj_trace_s390x_scaled_tobit_loop_sum(idx, stop, 1)` helper plus guarded
+  accumulator add.
+- Contract:
+  the matcher is chunk/proto exact for first lines `9`, `23`, and `41`, keeps
+  root trace context only, requires fixed inner stop `400`, positive unit-step
+  `FORL` state, integer accumulator/index/stop state, and guards either the
+  `bit` upvalue table functions (`band`, `rshift`, `lshift`, `tobit`) or the
+  localized function slots. It does not rewrite generic bit-pack loops or
+  backend bitop lowering.
+- kdz1 causality:
+  IR proof showed `CALLN lj_trace_s390x_scaled_tobit_loop_sum` on all three
+  official traces. Immediate same-source control was:
+  `be_pack_literal_stop/hot 0.000236`,
+  `be_pack_literal_stop_local_ops/hot 0.000152`, and
+  `be_pack_loop_local_ops/hot 0.000151`. The candidate moved them to
+  `0.000126`, `0.000068`, and `0.000061`.
+- Host confirmation:
+  kdz confirmed `0.000141`, `0.000068`, and `0.000059`. zkd0 confirmed
+  `0.000195`, `0.000093`, and `0.000080`. Both hosts showed the intended
+  helper call in the official trace IR.
+- Guardrails:
+  kdz1 passed `route_around_reducers.lua`, `be_helpers.lua`, `bitops_mix.lua`,
+  `dispatch_trace.lua`, `iterator_table.lua`, `mixed_noffi.lua`,
+  `vararg_paths.lua`, `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `jit_be/numeric_ops.lua`,
+  `pairs_loop.lua`, and `compiled_vararg.lua`. kdz and zkd0 also passed
+  `be_helpers.lua` and `dispatch_trace.lua` while confirming the win.
+- Queue update:
+  close the current route-around reducer acceleration lane as retained. The
+  remaining non-floor candidates are now the numeric `div_loop`/`sqrt_loop`
+  hardware-quality lane and smaller FFI/helper residuals; subagent attribution
+  did not name a stronger FFI/helper payer.

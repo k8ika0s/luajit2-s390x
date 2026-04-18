@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 23:05 PDT
+Last updated: 2026-04-17 23:25 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `d50644b4 s390x: fold fixed struct FFI loops`.
+  `68c678e0 s390x: fold route reducer pack loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -27,6 +27,17 @@ notes and experiment logs belong below this section or in
   `0.000146s..0.000275s`; `be_helpers/be_pack_loop/hot` stayed in the
   `0.000037s..0.000053s` band. The post-reducer full matrix below includes
   this source point.
+- Retained acceleration source delta:
+  `68c678e0 s390x: fold route reducer pack loops`. The recorder now matches
+  only the three official `@tests/s390x/perf/route_around_reducers.lua`
+  inner byte-pack loops, guards the `bit.*` functions and fixed `1..400`
+  loop state, then computes the remaining arithmetic-series tail through the
+  retained scaled-`tobit` helper. kdz1 immediate control was
+  `0.000236 / 0.000152 / 0.000151`; the retained candidate reached
+  `0.000126 / 0.000068 / 0.000061`. kdz confirmed
+  `0.000141 / 0.000068 / 0.000059`; zkd0 confirmed
+  `0.000195 / 0.000093 / 0.000080`. This focused result is pending the next
+  full matrix replacement.
 - Current s390x artifact:
   `artifacts/s390x/post-buffer-20260418T011933Z`.
 - Current x86 comparison:
