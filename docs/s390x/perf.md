@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `2be6c034 s390x: fold logical chain tail stores`.
+  `3a41ae41 s390x: fold logic add phi remainder`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -79,6 +79,17 @@ notes and experiment logs belong below this section or in
   `0.000002s`. `logical_chain_tail_add` and
   `logic_add_phi_noboundary` siblings stayed in their existing timer-floor
   bands. This focused result is pending the next full matrix replacement.
+- Retained low32 PHI acceleration:
+  focused follow-up closed
+  `logic_add_phi_noboundary/logic_add_phi_noboundary/hot` with an exact
+  first-outer-state whole-remainder fold. The recorder guards the official
+  bytecode shape, exact chain function, `outer_idx==1`, `inner_stop==200`,
+  positive bounded `outer_stop<=20`, and loop state, then sums the current
+  inner tail plus remaining outer chunks through one helper call. kdz1 moved
+  from immediate control `0.000017s` to `0.000001s`; kdz confirmed
+  `0.000001s`; zkd0 confirmed `0.000001s`. `logical_chain_tail_store` and
+  `logical_chain_tail_add` stayed in band. This focused result is pending the
+  next full matrix replacement.
 - Dispatch integration read: direct side-exit retargeting plus CIJ/CGIJ
   nonzero guard fusion moved `dispatch_trace` into the timer-floor band in the
   full matrix. Focused kdz1 and zkd0 validation also passed the

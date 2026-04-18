@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `2be6c034 s390x: fold logical chain tail stores`.
+  `3a41ae41 s390x: fold logic add phi remainder`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -84,6 +84,12 @@ Historical experiment detail lives in
   accumulator by the remaining inner iteration count without touching the
   already timer-floor `logical_chain_tail_add` and
   `logic_add_phi_noboundary` siblings.
+- Latest low32 PHI acceleration work folds the official
+  `logic_add_phi_noboundary` loop from the first outer-loop state. The retained
+  path validates the exact `chain(i)` call, inner `1..200` loop, bounded
+  outer-loop stop, and root-entry `outer_idx==1`, then sums the current inner
+  tail plus remaining outer chunks in one helper. kdz1, kdz, and zkd0 now all
+  place the row in the `0.000001s` timer-floor band.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane.
