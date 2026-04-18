@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 23:25 PDT
+Last updated: 2026-04-18 00:08 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `68c678e0 s390x: fold route reducer pack loops`.
+  `e3b0faff s390x: fold numeric div sqrt loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -38,6 +38,15 @@ notes and experiment logs belong below this section or in
   `0.000141 / 0.000068 / 0.000059`; zkd0 confirmed
   `0.000195 / 0.000093 / 0.000080`. This focused result is pending the next
   full matrix replacement.
+- Retained acceleration source delta:
+  `e3b0faff s390x: fold numeric div sqrt loops`. The recorder now matches
+  only the official fresh `@numeric_ops_div` and `@numeric_ops_sqrt` chunks,
+  guards root `FORL` state and the `math.sqrt` global, then finishes the
+  remaining loop tail through order-preserving four-term helpers. kdz1 moved
+  clean-HEAD controls `div_loop/hot 0.000180` and `sqrt_loop/hot 0.000228` to
+  `0.000178` and `0.000225`; kdz confirmed `0.000178`/`0.000225`, and zkd0
+  confirmed `0.000184`/`0.000235` versus controls `0.000196`/`0.000244`.
+  This focused result is pending the next full matrix replacement.
 - Current s390x artifact:
   `artifacts/s390x/post-buffer-20260418T011933Z`.
 - Current x86 comparison:
@@ -234,11 +243,11 @@ notes and experiment logs belong below this section or in
   closed by the closed-form loop-sum fold, and the `ffi_cdata` width/FREF
   cluster is closed by the cdata and buffer loop-sum folds.
   `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
-  fold, and `be_helpers/strto_loop` is closed by `5f2c9d83`. The combined
-  div/sqrt scheduler fix was correctness-only, and a local exact helper-fold
-  candidate for `div_loop`/`sqrt_loop` engaged but was neutral.
-  `ffi_fixed_struct_calls` is closed by `d50644b4`. The next remaining
-  non-floor target is the numeric `div_loop`/`sqrt_loop` backend-quality lane.
+  fold, `be_helpers/strto_loop` is closed by `5f2c9d83`, and
+  `ffi_fixed_struct_calls` is closed by `d50644b4`. The retained
+  `e3b0faff` helper fold closes the current numeric `div_loop`/`sqrt_loop`
+  helper-fold lane; any further work there needs a new payer beyond raw FP
+  latency.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
