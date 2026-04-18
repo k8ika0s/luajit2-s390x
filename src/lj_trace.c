@@ -483,6 +483,22 @@ int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
   return (int32_t)((uint32_t)mul * (uint32_t)tri);
 }
 
+double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx, int32_t stop)
+{
+  static const double values[4] = { 1.25, 2.5, 3.75, 4.125 };
+  int64_t n, q, rem, i;
+  double sum;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return 0.0;
+  n = (int64_t)stop - idx + 1;
+  q = n >> 2;
+  rem = n & 3;
+  sum = (double)q * 11.625;
+  for (i = 0; i < rem; i++)
+    sum += values[(uint32_t)(idx + (int32_t)i) & 3u];
+  return sum;
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
