@@ -59,6 +59,8 @@ LJ_FUNC int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx,
 						      int32_t stop);
 LJ_FUNC double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx,
 						     int32_t stop);
+LJ_FUNC double lj_trace_s390x_mixed_width_loop_sum(int32_t idx,
+						  int32_t stop);
 
 /* Event handling. */
 LJ_FUNC void lj_trace_ins(jit_State *J, const BCIns *pc);

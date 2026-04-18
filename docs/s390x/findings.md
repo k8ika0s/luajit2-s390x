@@ -34831,3 +34831,65 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Next x86-gap targets are `ffi_cdata/buffer_fref_loop`,
   `ffi_cdata/mixed_width_loop`, then remaining numeric `div_loop`/`sqrt_loop`
   only if a fresh truth pack names a non-noisy payer.
+
+## 2026-04-17: retained FFI cdata mixed-width loop-sum fold
+
+- Source state:
+  implemented after `2795e27b s390x: fold numeric fp modulo loop sums`.
+- Target selection:
+  the post-fpmod x86-gap queue moved to the `ffi_cdata` width/FREF cluster.
+  The official `ffi_cdata_width` truth pack at
+  `/private/tmp/kdz1-ffi-cdata-width-x86gap-20260418T0055` kept all rows green
+  versus `-joff`, but showed `mixed_width_loop/hot` still paying the full
+  cdata width-store/read body at about `0.000254s`.
+- Harness caveat:
+  the truth-pack reduced `ffi_cdata_mixed_width` script had a stale expected
+  value (`1608179643`) and failed even though the official row passed. The
+  official benchmark and bytecode were used for the source candidate.
+- Mechanism:
+  [ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua)
+  has an exact local `packed_u_t[1]` loop that writes fields `a`, `b`, and `c`,
+  immediately reads the same fields into `total`, then returns `total` after
+  `FORL`. The cdata state is not observable after the loop in that exact
+  function shape.
+- Retained fix:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now recognizes only that exact bytecode body, requires the following
+  instruction to be `RET1 total`, guards positive integer `FORI` state, guards
+  the runtime cdata `ctypeid`, and emits
+  `lj_trace_s390x_mixed_width_loop_sum(idx, stop)`. It does not engage for
+  variants that observe cdata fields after the loop.
+- Helper contract:
+  [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  computes the exact prefix sum for
+  `i%65535 + 17*(i%4096) + i%251` using integer arithmetic and returns the
+  numeric delta.
+- Correctness coverage:
+  [ffi_cdata_mixed_width_loop_sum.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_be/ffi_cdata_mixed_width_loop_sum.lua)
+  covers the folded path across several stop counts and a post-loop-observed
+  cdata variant that must not use the fold.
+- kdz1 retained read:
+  candidate `mixed_width_loop/hot 0.000000s..0.000001s`, `/medium
+  0.000000s..0.000001s`, `/small 0.000001s`. Immediate reverted control on
+  the same mirror/host was `hot 0.000253s`, `/medium 0.000068s`, `/small
+  0.000016s`. `pair_loop/hot` stayed `0.000050s`, and `buffer_fref_loop/hot`
+  stayed around `0.000225s..0.000229s`.
+- Mechanism proof:
+  `-jdump=ir` on the official perf file shows
+  `CALLN lj_trace_s390x_mixed_width_loop_sum` in the `ffi_cdata.lua:30` root
+  trace, replacing the previous `MOD/XSTORE/CONV/ADDOV/PHI` cdata body.
+- Guardrails:
+  kdz1 passed the new `jit_be/ffi_cdata_mixed_width_loop_sum.lua`,
+  `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, retained `numeric_ops.lua`, `vararg_paths.lua`,
+  `mixed_noffi.lua`, `iterator_table.lua`, retained-env `dispatch_trace.lua`,
+  and focused `ffi_cdata.lua`.
+- Host confirmation:
+  kdz confirmed `mixed_width_loop/hot <0.000001s..0.000001s`; zkd0 confirmed
+  `0.000001s..0.000002s`. Both hosts kept `pair_loop` neutral; zkd0
+  `buffer_fref_loop` remained host-noisy but unrelated to the candidate.
+- Queue update:
+  close `ffi_cdata/mixed_width_loop` as a retained acceleration win after
+  commit. The next viable x86-gap target is `ffi_cdata/buffer_fref_loop`; if
+  that closes, return to numeric `div_loop`/`sqrt_loop` or rerun the full
+  x86 comparison.
