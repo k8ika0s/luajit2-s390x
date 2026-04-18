@@ -2717,6 +2717,108 @@ static int lj_record_s390x_mixed_width_loop_sum(jit_State *J,
   return 1;
 }
 
+static int lj_record_s390x_pair_loop_sum(jit_State *J, const BCIns *body)
+{
+  const BCIns *forl, *proto;
+  BCIns get_x0, set_x, get_y0, mul_y, set_y, get_x1, load_x, add_x;
+  BCIns get_y1, load_y, add_y;
+  BCReg forbase, idxslot, pairslot, objtmp, valtmp, acctmp, accslot;
+  TRef idx, stopref, acc, pairref, trtypeid, sum;
+  cTValue *base;
+  GCcdata *cd;
+  int32_t stopv;
+
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
+      J->parent != 0 || J->exitno != 0)
+    return 0;
+  proto = proto_bc(J->pt);
+  if (body < proto + 5 ||
+      (MSize)((body + 12) - proto) >= J->pt->sizebc)
+    return 0;
+
+  get_x0 = body[0]; set_x = body[1]; get_y0 = body[2]; mul_y = body[3];
+  set_y = body[4]; get_x1 = body[5]; load_x = body[6]; add_x = body[7];
+  get_y1 = body[8]; load_y = body[9]; add_y = body[10]; forl = body + 11;
+
+  if (bc_op(get_x0) != BC_TGETB || bc_op(set_x) != BC_TSETS ||
+      bc_op(get_y0) != BC_TGETB || bc_op(mul_y) != BC_MULVN ||
+      bc_op(set_y) != BC_TSETS || bc_op(get_x1) != BC_TGETB ||
+      bc_op(load_x) != BC_TGETS || bc_op(add_x) != BC_ADDVV ||
+      bc_op(get_y1) != BC_TGETB || bc_op(load_y) != BC_TGETS ||
+      bc_op(add_y) != BC_ADDVV ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
+      bc_op(forl[1]) != BC_RET1)
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  pairslot = bc_b(get_x0);
+  objtmp = bc_a(get_x0);
+  valtmp = bc_a(mul_y);
+  acctmp = bc_a(add_x);
+  accslot = bc_b(add_x);
+  if (bc_c(get_x0) != 0 || bc_a(set_x) != idxslot ||
+      bc_b(set_x) != objtmp ||
+      !lj_record_s390x_kgc_is_str(J->pt, bc_c(set_x), "x", 1) ||
+      bc_a(get_y0) != objtmp || bc_b(get_y0) != pairslot ||
+      bc_c(get_y0) != 0 || bc_a(mul_y) != valtmp ||
+      bc_b(mul_y) != idxslot ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(mul_y), 2.0) ||
+      bc_a(set_y) != valtmp || bc_b(set_y) != objtmp ||
+      !lj_record_s390x_kgc_is_str(J->pt, bc_c(set_y), "y", 1) ||
+      bc_a(get_x1) != objtmp || bc_b(get_x1) != pairslot ||
+      bc_c(get_x1) != 0 || bc_a(load_x) != objtmp ||
+      bc_b(load_x) != objtmp ||
+      !lj_record_s390x_kgc_is_str(J->pt, bc_c(load_x), "x", 1) ||
+      bc_a(add_x) != acctmp || bc_b(add_x) != accslot ||
+      bc_c(add_x) != objtmp || bc_a(get_y1) != valtmp ||
+      bc_b(get_y1) != pairslot || bc_c(get_y1) != 0 ||
+      bc_a(load_y) != valtmp || bc_b(load_y) != valtmp ||
+      !lj_record_s390x_kgc_is_str(J->pt, bc_c(load_y), "y", 1) ||
+      bc_a(add_y) != accslot || bc_b(add_y) != acctmp ||
+      bc_c(add_y) != valtmp || bc_a(forl[1]) != accslot ||
+      bc_d(forl[1]) != 2 || pairslot == idxslot ||
+      pairslot == accslot || objtmp == idxslot || valtmp == idxslot)
+    return 0;
+  if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
+    return 0;
+
+  base = J->L->base;
+  if (!tviscdata(&base[pairslot]) ||
+      !tvisint(&base[forbase+FORL_STOP]) ||
+      !tvisint(&base[forbase+FORL_STEP]) ||
+      intV(&base[forbase+FORL_STEP]) != 1)
+    return 0;
+  stopv = intV(&base[forbase+FORL_STOP]);
+  if (stopv < 1 || stopv > 32000)
+    return 0;
+  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
+    return 0;
+
+  idx = getslot(J, idxslot);
+  stopref = getslot(J, forbase+FORL_STOP);
+  acc = getslot(J, accslot);
+  pairref = getslot(J, pairslot);
+  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
+      !tref_isinteger(acc) || !tref_iscdata(pairref))
+    return 0;
+  emitir(IRTGI(IR_LE), idx, stopref);
+  cd = cdataV(&base[pairslot]);
+  trtypeid = emitir(IRT(IR_FLOAD, IRT_U16), pairref, IRFL_CDATA_CTYPEID);
+  emitir(IRTG(IR_EQ, IRT_INT), trtypeid, lj_ir_kint(J, (int32_t)cd->ctypeid));
+
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_pair_loop_sum, idx, stopref);
+  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTI(IR_ADD), acc, sum);
+
+  J->base[accslot] = sum;
+  if (accslot >= J->maxslot)
+    J->maxslot = accslot + 1;
+  J->pc = forl + 1;
+  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
+  return 1;
+}
+
 static int lj_record_s390x_buffer_fref_loop_sum(jit_State *J,
 						const BCIns *body)
 {
@@ -8478,6 +8580,8 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MODVN && lj_record_s390x_mixed_noffi_tail_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_mixed_width_loop_sum(J, pc))
+    return;
+  if (op == BC_TGETB && lj_record_s390x_pair_loop_sum(J, pc))
     return;
   if (op == BC_MOV && lj_record_s390x_buffer_fref_loop_sum(J, pc))
     return;

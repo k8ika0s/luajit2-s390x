@@ -406,6 +406,17 @@ double lj_trace_s390x_mixed_width_loop_sum(int32_t idx, int32_t stop)
   return (double)sum;
 }
 
+int32_t lj_trace_s390x_pair_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t n, sum;
+  if (idx < 1 || stop > 32000 || stop < idx)
+    return INT32_MIN;
+  n = (int64_t)stop - idx + 1;
+  sum = ((int64_t)idx + stop) * n / 2;
+  sum *= 3;
+  return sum > INT32_MAX ? INT32_MIN : (int32_t)sum;
+}
+
 int32_t lj_trace_s390x_buffer_fref_loop_sum(int32_t idx, int32_t stop)
 {
   int32_t n, q, rem, remsum;
