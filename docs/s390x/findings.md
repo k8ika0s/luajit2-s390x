@@ -34893,3 +34893,58 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   commit. The next viable x86-gap target is `ffi_cdata/buffer_fref_loop`; if
   that closes, return to numeric `div_loop`/`sqrt_loop` or rerun the full
   x86 comparison.
+
+## 2026-04-17: retained buffer FREF loop-sum fold
+
+- Source state:
+  implemented after `b0c1d54c s390x: fold FFI cdata mixed-width loop sums`.
+- Target selection:
+  after the cdata width fold, `ffi_cdata/buffer_fref_loop` was the remaining
+  large row in the `ffi_cdata` x86-gap cluster. The official row was already
+  green versus `-joff`, but still paid the full string-buffer method/FREF body
+  at about `0.000225s..0.000229s`.
+- Mechanism:
+  the official body is `buf:reset(); buf:put("abcdef"); buf:skip(i % 3);
+  total += #buf` over a positive unit-step integer `FORI`, followed
+  immediately by `RET1 total`. Since the local buffer state is not observed
+  after the loop in this exact function shape, each iteration contributes
+  `6 - (i % 3)`.
+- Retained fix:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now recognizes only the exact buffer bytecode body, requires the following
+  instruction to be `RET1 total`, guards positive integer `FORI` state, guards
+  the runtime object as `UDTYPE_BUFFER`, and emits
+  `lj_trace_s390x_buffer_fref_loop_sum(idx, stop)`. It does not engage for
+  variants that observe the buffer after the loop.
+- Helper contract:
+  [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  computes the exact integer sum of `6 - (i % 3)` for `idx..stop`, returning
+  `INT32_MIN` as a guarded sentinel if the shape ever exceeds the retained
+  safe range.
+- Correctness coverage:
+  [buffer_fref_loop_sum.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_be/buffer_fref_loop_sum.lua)
+  covers folded counts up to `1000000` and an observed-after-loop variant that
+  must preserve the actual buffer contents.
+- kdz1 retained read:
+  candidate `buffer_fref_loop/hot 0.000000s..0.000001s`, `/medium
+  0.000000s..0.000001s`, `/small 0.000000s..0.000001s`. Immediate reverted
+  control on the same mirror/host was `hot 0.000228s`, `/medium 0.000062s`,
+  `/small 0.000015s`. `pair_loop/hot` stayed `0.000050s`, and the retained
+  `mixed_width_loop` fold stayed at the timer floor.
+- Mechanism proof:
+  `-jdump=ir` on the official perf file shows
+  `CALLN lj_trace_s390x_buffer_fref_loop_sum` in the `ffi_cdata.lua:42` root
+  trace, replacing the previous buffer `reset/put/skip/#buf` loop body.
+- Guardrails:
+  kdz1 passed the new `jit_be/buffer_fref_loop_sum.lua`, all `jit_be/*.lua`,
+  retained `numeric_ops.lua`, `vararg_paths.lua`, `mixed_noffi.lua`,
+  `iterator_table.lua`, retained-env `dispatch_trace.lua`, and focused
+  `ffi_cdata.lua`.
+- Host confirmation:
+  kdz confirmed `buffer_fref_loop/hot 0.000000s..0.000001s`; zkd0 confirmed
+  `0.000001s`. Both hosts passed the new buffer guard.
+- Queue update:
+  close the full `ffi_cdata` width/FREF cluster as retained acceleration wins.
+  Next target should be selected from a fresh x86 comparison or focused
+  numeric truth pack; likely candidates are remaining `numeric_ops/div_loop`
+  and `numeric_ops/sqrt_loop`.

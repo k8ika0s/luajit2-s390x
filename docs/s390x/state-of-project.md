@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 17:48 PDT
+Last updated: 2026-04-17 18:18 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `2795e27b s390x: fold numeric fp modulo loop sums`, plus the focused
-  FFI cdata mixed-width loop-sum fold pending commit.
+  `b0c1d54c s390x: fold FFI cdata mixed-width loop sums`, plus the focused
+  buffer FREF loop-sum fold pending commit.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -114,6 +114,12 @@ Historical experiment detail lives in
   reverted control `0.000253s` to the timer floor; kdz and zkd0 confirmed.
   The new guard test also checks that a variant observing cdata fields after
   the loop remains correct.
+- Buffer FREF acceleration:
+  the exact `ffi_cdata/buffer_fref_loop` body now folds
+  `reset/put("abcdef")/skip(i%3)/#buf` into a guarded loop-sum helper when the
+  function returns `total` immediately after the loop. kdz1 moved from
+  immediate reverted control `0.000228s` to the timer floor; kdz and zkd0
+  confirmed. The new guard test checks an observed-after-loop buffer variant.
 
 ## Latest Matrix
 
@@ -176,10 +182,10 @@ Historical experiment detail lives in
   re-run the full post-abs comparison first. `large_immediates`,
   `logic_add_phi_noboundary`, lower-frame `lua_abs_same_callsite`, reducer
   `be_pack_*`, `numeric_ops/abs_loop`, `numeric_ops/fp_mod_loop`,
-  `ffi_cdata/mixed_width_loop`, and high-sample `be_helpers` crash remediation
-  are closed for the current tranche. Continue from
-  `ffi_cdata/buffer_fref_loop` or remaining numeric `div_loop`/`sqrt_loop`
-  only after a fresh focused truth pack names a payer.
+  `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`, and high-sample
+  `be_helpers` crash remediation are closed for the current tranche. Continue
+  from remaining numeric `div_loop`/`sqrt_loop` only after a fresh focused
+  truth pack names a payer, or rerun the full x86 comparison.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp
