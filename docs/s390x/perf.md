@@ -5920,3 +5920,35 @@ localized-helper carried-`total` lane
   `numeric_ops.lua` perf file still carries one test-only `INT_MINMAX`
   `setenv()` because removing that call changes the historical process shape
   and regresses `abs_loop/hot`.
+
+## 2026-04-18 Promotion-Core Static `tobit` Fold
+
+- Source:
+  `b67c3573 s390x: fold promotion static tobit loops`.
+- Target:
+  [tests/s390x/perf/promotion_core_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/promotion_core_static_stop.lua)
+  number-helper roots only:
+  `number_helper_literal_stop_real/hot` and
+  `number_helper_literal_stop_real_local_tobit/hot`.
+- Mechanism:
+  the existing scaled `bit.tobit(total + i * K)` fold now accepts the exact
+  static-stop number-helper protos at firstlines `4` and `12`. It does not
+  broaden to the static be-pack root, which remains covered by the separate
+  route-reducer lane.
+- kdz1:
+  control was `0.000105s` for both number-helper hot rows; the candidate moved
+  both to `0.000000s..0.000001s`. `be_pack_literal_stop_real/hot` stayed at
+  `0.000037s`.
+- Host confirmation:
+  kdz confirmed both target rows at `0.000000s`, and zkd0 confirmed both at
+  `0.000001s`; both hosts showed `CALLN
+  lj_trace_s390x_scaled_tobit_loop_sum` in the official traces.
+- Guardrails:
+  kdz1 passed be-helper siblings, route reducers, numeric overflow,
+  dispatch, iterator, mixed-noffi, vararg, pairs-loop, compiled-vararg, and
+  the exact mixed/hash/ipairs probes.
+- Queue:
+  promotion-core static number-helper rows are closed for this tranche. The
+  next source lane needs a fresh full-matrix or x86-gap rerank; residual
+  numeric FP and `num_aload` rows are currently attribution targets, not
+  patch targets.

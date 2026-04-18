@@ -35518,3 +35518,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   as retained. Next acceleration targets return to residual numeric FP,
   route-around reducer/static-stop rows, and `be_helpers/num_aload_loop`
   unless a fresh full x86 comparison names a stronger absolute payer.
+
+## 2026-04-18: retained promotion-core static `tobit` fold
+
+- Source:
+  `b67c3573 s390x: fold promotion static tobit loops`.
+- Mechanism:
+  the post-FFI rerank left the `promotion_core_static_stop` number-helper rows
+  as a missed reuse of the already-retained scaled `bit.tobit` fold. The
+  source change adds a narrow proto matcher for only
+  `@tests/s390x/perf/promotion_core_static_stop.lua` firstlines `4` and `12`,
+  then routes those roots through the existing
+  `lj_trace_s390x_scaled_tobit_loop_sum(idx, stop, 65537)` path. The be-pack
+  static-stop root is intentionally excluded and remains on the route-reducer
+  path.
+- kdz1 causality:
+  control before the change was
+  `number_helper_literal_stop_real/hot 0.000105`,
+  `number_helper_literal_stop_real_local_tobit/hot 0.000105`, and
+  `be_pack_literal_stop_real/hot 0.000037`. Candidate IR showed
+  `CALLN lj_trace_s390x_scaled_tobit_loop_sum` on traces `1` and `2`, moved
+  both number-helper hot rows to `0.000000s..0.000001s`, and left
+  `be_pack_literal_stop_real/hot` at `0.000037s`.
+- Host confirmation:
+  kdz confirmed both number-helper rows at `0.000000s` with the same helper
+  call proof and kept the be-pack sibling at `0.000038s`. zkd0 confirmed both
+  number-helper rows at `0.000001s` and kept the be-pack sibling in band at
+  `0.000054s`.
+- Guardrails:
+  kdz1 passed `be_helpers.lua`, `be_helpers_localized.lua`,
+  `route_around_reducers.lua`, `numeric_ops.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`,
+  `dispatch_trace.lua`, `iterator_table.lua`, `mixed_noffi.lua`,
+  `vararg_paths.lua`, `pairs_loop.lua`, `compiled_vararg.lua`, and the exact
+  mixed/hash/ipairs probes.
+- Queue update:
+  close the promotion-core static number-helper lane as retained. A parallel
+  source read found no concrete next source patch in residual numeric
+  `div_loop`/`sqrt_loop` or `be_helpers/num_aload_loop`; rerank from the next
+  full retained/x86 comparison before opening another source lane.
