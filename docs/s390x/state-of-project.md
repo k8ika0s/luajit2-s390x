@@ -112,6 +112,12 @@ Historical experiment detail lives in
   `logical_chain_tail_store` show those rows are faster than x86 at real
   scale, while amplified `ffi_fixed_call_pressure/xhot` remains the next
   measurable x86-gap lane around fixed `CALLXS` call-boundary overhead.
+- Latest FFI coverage work splits fixed call pressure by ABI depth:
+  register-only GPR/FPR calls, one-stack-arg calls, and the existing high-arity
+  pressure calls. kdz1/kdz confirm the stack-depth tax is secondary; x86 stays
+  faster even on register-only calls. The next FFI source target is therefore
+  the fixed `CALLXS` boundary itself, not another duplicate-arg or stack-store
+  micro-cut.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane.

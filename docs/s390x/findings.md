@@ -35987,3 +35987,41 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   not the previously visible preserve moves. Any next candidate needs to reduce
   call-boundary cost or use a semantically broader FFI call contract; do not
   remove or fold away the high-arity oracle call just to improve the benchmark.
+
+## 2026-04-18: fixed FFI pressure ABI-depth coverage
+
+- Source:
+  focused coverage delta after `ab471584`.
+- Change:
+  `ffi_fixed_call_pressure.lua` now splits the fixed FFI pressure family into
+  register-only and stack-argument depths:
+  `gpr_reg5_pressure`, `gpr_stack6_pressure`, existing
+  `gpr_pressure`/seven-arg stack pressure, `fpr_reg4_pressure`,
+  `fpr_stack5_pressure`, and existing `fpr_pressure`/six-arg stack pressure.
+  The oracle adds matching `sum5_u64`, `sum6_u64`, `sum4_double`, and
+  `sum5_double` helpers, with `ffi_abi/run.lua` coverage.
+- kdz1:
+  rebuilt GCC source and oracle passed `ffi_abi/run.lua`. Focused
+  `S390X_PERF_WARMUP=3 S390X_PERF_SAMPLES=31` showed:
+  `gpr_reg5_pressure/xhot 0.000067s`,
+  `gpr_stack6_pressure/xhot 0.000068s`,
+  `gpr_pressure/xhot 0.000079s`,
+  `fpr_reg4_pressure/xhot 0.000063s`,
+  `fpr_stack5_pressure/xhot 0.000068s`, and
+  `fpr_pressure/xhot 0.000073s`.
+- x86 side check:
+  the same patched source on `ka0s01:/tmp/ffi-pressure-variants/repo` showed
+  `xhot` medians clustered at `0.000030s..0.000032s` for every GPR/FPR
+  depth. x86 is not getting most of its advantage from avoiding stack
+  arguments in this benchmark; it is ahead on the fixed call boundary itself.
+- Host confirmation:
+  kdz matched kdz1 closely (`gpr_reg5_pressure/xhot 0.000067s`,
+  `gpr_pressure/xhot 0.000078s`, `fpr_reg4_pressure/xhot 0.000063s`,
+  `fpr_pressure/xhot 0.000073s`). zkd0 was slower/noisier but preserved the
+  same depth ordering (`~0.000098s..0.000115s` for xhot rows).
+- Queue update:
+  this coverage should be kept in the matrix so future FFI call-boundary work
+  can prove whether it helps register-only calls, stack-depth calls, or both.
+  The next source attempt should be a broader `CALLXS` boundary design. Local
+  stack-store scheduling, duplicate stack args, and one-off argument movement
+  are now low-priority unless a new mcode proof names them again.
