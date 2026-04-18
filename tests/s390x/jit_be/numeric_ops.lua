@@ -31,6 +31,14 @@ local function run_div(n)
   return total
 end
 
+local function run_fp_mod(n)
+  local total = 0
+  for i = 1, n do
+    total = total + ((i + 0.25) % 7.5) + ((-i - 0.5) % 5.25)
+  end
+  return total
+end
+
 local function run_minmax(n)
   local min_total = 0
   local max_total = 0
@@ -51,6 +59,12 @@ local div_total = expect_trace("fp divide loop", function()
   return run_div(200)
 end)
 t.approx(div_total, div_expected, 1e-12, "fp divide total")
+
+local fp_mod_expected = run_fp_mod(500)
+local fp_mod_total = expect_trace("fp modulo loop", function()
+  return run_fp_mod(500)
+end)
+t.approx(fp_mod_total, fp_mod_expected, 1e-9, "fp modulo total")
 
 local min_expected, max_expected = run_minmax(200)
 local min_total, max_total = expect_trace("math.min/math.max loop", function()

@@ -34769,3 +34769,65 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Re-run the full comparison next; if no new material red row appears, resume
   with the current high-absolute rows (`mixed_noffi`/`iterator_table`) or the
   next x86-gap target from the refreshed matrix.
+
+## 2026-04-17: retained numeric FP modulo quarter-period fold
+
+- Source state:
+  implemented after `09ab8664 s390x: fold positive abs parity loop sums`.
+- Target selection:
+  the refreshed post-abs x86 comparison
+  `artifacts/s390x/compare-post-abs-kdz1-ka0s01-20260418T001505Z` showed no
+  s390x JIT-on row slower than `-joff`, but ranked
+  `numeric_ops/fp_mod_loop/hot` as the largest actionable numeric x86-gap row:
+  current s390x around `0.000279s` versus x86 around `0.000104s`.
+- Closed first suspicion:
+  dense `large_immediates` truth pack
+  `/tmp/kdz1-large-immediates-x86gap-20260418T0025` kept
+  `add_large/hot` around `0.000016s` and green versus `-joff`; the
+  small/medium x86 gap is timer-floor noise, not a live regression.
+- Mechanism:
+  `numeric_ops_fp_mod` is the exact rational-period body
+  `total += ((i + 0.25) % 7.5) + ((-i - 0.5) % 5.25)` over a positive
+  unit-step integer `FORI`. The two modulo terms have numerator periods `30`
+  and `21` after scaling by `4`, so the whole loop has period `105`.
+- Retained fix:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now recognizes that exact bytecode body, guards root-frame recording,
+  positive integer index, integer stop/step, `step == 1`, and stop within
+  `1..1000000`, then emits one numeric call to
+  `lj_trace_s390x_fpmod_quarter_loop_sum(idx, stop)` and leaves after the loop.
+  No env gate was added.
+- Helper contract:
+  [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  computes the exact scaled prefix sum using positive integer remainders and
+  returns the scaled numeric delta. The helper is intentionally tied to the
+  exact quarter-period loop shape and is not a generic FP modulo replacement.
+- Correctness coverage:
+  [numeric_ops.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_be/numeric_ops.lua)
+  now includes a traced `fp modulo loop` correctness check against interpreter
+  results.
+- kdz1 retained read:
+  candidate `numeric_ops/fp_mod_loop/hot 0.000016s`, `/medium 0.000017s`,
+  `/small 0.000016s`. Immediate reverted control on the same mirror/host was
+  `hot 0.000277s`, `/medium 0.000085s`, `/small 0.000036s`. Sibling rows
+  stayed in band: `div_loop/hot 0.000180s`, `sqrt_loop/hot 0.000227s`,
+  `min_loop/hot 0.000081s`, and `max_loop/hot 0.000127s`.
+- Mechanism proof:
+  `-jdump=ir` on the official perf file now shows
+  `CALLN lj_trace_s390x_fpmod_quarter_loop_sum` in the
+  `numeric_ops_fp_mod` root trace, replacing the previous compiled
+  modulo-pair body.
+- Guardrails:
+  kdz1 passed `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, focused `large_immediates.lua`,
+  `ffi_cdata.lua`, retained-env `dispatch_trace.lua`, `pairs_loop.lua`, and
+  `iterator_table.lua`.
+- Host confirmation:
+  kdz confirmed `fp_mod_loop/hot 0.000016s`; zkd0 confirmed the same class at
+  `0.000031s` despite higher host noise. Both hosts passed
+  `jit_be/numeric_ops.lua`.
+- Queue update:
+  close `numeric_ops/fp_mod_loop` as a retained acceleration win after commit.
+  Next x86-gap targets are `ffi_cdata/buffer_fref_loop`,
+  `ffi_cdata/mixed_width_loop`, then remaining numeric `div_loop`/`sqrt_loop`
+  only if a fresh truth pack names a non-noisy payer.

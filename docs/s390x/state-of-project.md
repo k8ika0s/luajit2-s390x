@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 16:42 PDT
+Last updated: 2026-04-17 17:48 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `517df8c4 docs: record reducer identity acceleration`, plus the local
-  `be_helpers` harness isolation fix pending commit.
+  `09ab8664 s390x: fold positive abs parity loop sums`, plus the focused
+  numeric FP modulo quarter-period fold pending commit.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -100,6 +100,13 @@ Historical experiment detail lives in
   `~0.00067s..0.00070s` to `0.000018s`; kdz confirmed `0.000017s`; zkd0
   confirmed `0.000029s`. The new `abs_parity_loop_sum.lua` guard covers the
   optimized boundary, fallback boundary, and rebound `math.abs`.
+- Numeric FP modulo acceleration:
+  the exact `numeric_ops/fp_mod_loop` quarter-period body now folds to one
+  guarded helper call over the remaining loop range. kdz1 moved from immediate
+  reverted control `0.000277s` to `0.000016s`; kdz confirmed `0.000016s`;
+  zkd0 confirmed `0.000031s`. kdz1 also passed numeric overflow guardrails,
+  `large_immediates`, `ffi_cdata`, retained-env `dispatch_trace`,
+  `pairs_loop`, and `iterator_table`.
 
 ## Latest Matrix
 
@@ -161,8 +168,10 @@ Historical experiment detail lives in
 - Current requested-family acceleration queue:
   re-run the full post-abs comparison first. `large_immediates`,
   `logic_add_phi_noboundary`, lower-frame `lua_abs_same_callsite`, reducer
-  `be_pack_*`, `numeric_ops/abs_loop`, and high-sample `be_helpers` crash
-  remediation are closed for the current tranche.
+  `be_pack_*`, `numeric_ops/abs_loop`, `numeric_ops/fp_mod_loop`, and
+  high-sample `be_helpers` crash remediation are closed for the current
+  tranche. Continue from `ffi_cdata` width/FREF or remaining numeric
+  `div_loop`/`sqrt_loop` only after a fresh focused truth pack names a payer.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp
