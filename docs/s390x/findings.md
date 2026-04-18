@@ -35169,3 +35169,20 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   keep `numeric_ops/div_loop` and `numeric_ops/sqrt_loop` open only for a
   narrow backend scheduling attempt. Do not retry broad helper-loop folding
   unless a new benchmark shape names a different payer.
+
+## 2026-04-17: closed numeric FP scheduler removal as unsafe
+
+- Candidate:
+  locally disabled both s390x numeric FP scheduling shortcuts,
+  `asm_s390x_fpdiv_same_conv_addk_sched` and
+  `asm_s390x_fpsqrt_addk_sched`, to test whether the specialized scheduler was
+  itself the remaining x86-gap payer.
+- Result:
+  the candidate built but `tests/s390x/jit_be/numeric_ops.lua` did not
+  complete on kdz1 and had to be killed after several minutes. This was not a
+  perf-only regression; it is unsafe as a correctness/termination change.
+- Interpretation:
+  the current scheduler is part of the correctness/stability contract for the
+  numeric FP rows. The next viable numeric experiment must preserve the
+  specialized scheduler and test narrower instruction-order or register-choice
+  variants inside it. Do not retry scheduler removal.
