@@ -35957,3 +35957,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `jit_core/ffi_fixed_call_pressure_trace.lua`, and focused
   `large_immediates.lua`, `logical_chain_tail_add.lua`,
   `logical_chain_tail_store.lua`, and `ffi_fixed_call_pressure.lua`.
+
+## 2026-04-18: fixed FFI call-pressure duplicate stack-arg candidate closed
+
+- Target:
+  `ffi_fixed_call_pressure/gpr_pressure/xhot` and
+  `ffi_fixed_call_pressure/fpr_pressure/xhot`, after the amplified scale proved
+  a real x86 gap above timer-floor noise.
+- Attribution:
+  `LUAJIT_S390X_CALL_LOG=1` on the official benchmark showed repeated
+  duplicate call arguments in the high-arity `CALLXS` shapes. GPR pressure has
+  `sum7_u64(a,b,c,d,a,b,c)`, with s390x placing only five integer arguments in
+  registers and spilling two to the ABI stack; FPR pressure has the analogous
+  duplicate double stack arguments. This explains why the row is harder for
+  s390x than x86_64: x86_64 has one additional integer argument register for
+  the seven-arg GPR shape.
+- Candidate:
+  a temporary backend patch deferred duplicate overflow stack arguments and
+  stored them from their previously assigned ABI argument register, reducing
+  preserve/rematerialization logging without changing the `CALLXS` call itself.
+- Result:
+  kdz1 correctness passed `ffi_fixed_call_pressure_trace.lua`, but focused
+  `S390X_PERF_WARMUP=3 S390X_PERF_SAMPLES=31` showed no material movement:
+  `gpr_pressure/xhot` stayed at `~0.000079s` and `fpr_pressure/xhot` stayed at
+  `~0.000073s`. The candidate was backed out.
+- Queue update:
+  do not retry duplicate stack-arg scheduling as the next FFI pressure lever.
+  The remaining payer is the actual fixed `CALLXS` boundary/ABI stack traffic,
+  not the previously visible preserve moves. Any next candidate needs to reduce
+  call-boundary cost or use a semantically broader FFI call contract; do not
+  remove or fold away the high-arity oracle call just to improve the benchmark.
