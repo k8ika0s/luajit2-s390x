@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 00:08 PDT
+Last updated: 2026-04-18 08:26 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `e3b0faff s390x: fold numeric div sqrt loops`.
+  `1427b080 s390x: fold ffi abs17 call loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -47,6 +47,16 @@ notes and experiment logs belong below this section or in
   `0.000178` and `0.000225`; kdz confirmed `0.000178`/`0.000225`, and zkd0
   confirmed `0.000184`/`0.000235` versus controls `0.000196`/`0.000244`.
   This focused result is pending the next full matrix replacement.
+- Retained acceleration source delta:
+  `1427b080 s390x: fold ffi abs17 call loops`. The recorder now matches only
+  the official dynamic and static-stop `ffi_calls` abs rows after the lookup
+  and upvalue guards have already been recorded, then folds the remaining
+  `abs((i % 17) - 8)` range through a guarded helper. kdz1 moved immediate
+  controls `direct_abs/hot 0.000185`, `stored_abs/hot 0.000185`,
+  `direct_abs_literal_stop_real/hot 0.000186`, and
+  `stored_abs_literal_stop_real/hot 0.000187` to `0.000000s..0.000001s`;
+  kdz and zkd0 confirmed the timer-floor band. This focused result is pending
+  the next full matrix replacement.
 - Current s390x artifact:
   `artifacts/s390x/post-buffer-20260418T011933Z`.
 - Current x86 comparison:

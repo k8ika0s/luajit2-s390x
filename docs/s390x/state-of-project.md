@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 23:25 PDT
+Last updated: 2026-04-18 08:26 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `68c678e0 s390x: fold route reducer pack loops`.
+  `1427b080 s390x: fold ffi abs17 call loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -55,6 +55,11 @@ Historical experiment detail lives in
   backend byte-pack identity lowering, but now folds each exact inner
   `1..400` pack loop to one guarded arithmetic-series helper call before
   returning to the outer chunk loop.
+- Latest FFI calls acceleration work added a chunk-exact fold for the official
+  `ffi_calls` dynamic and static-stop `abs((i % 17) - 8)` rows. The retained
+  path engages only after the recorded lookup/upvalue guards, preserves generic
+  `CALLXS` lowering elsewhere, and sums the remaining fixed 17-value cycle in
+  one helper.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -178,6 +183,14 @@ Historical experiment detail lives in
   timer-floor band and zkd0 confirmed `0.000001s`. kdz1 guardrails passed the
   focused FFI trace/ABI tests plus dispatch, iterator, mixed-noffi, vararg,
   ffi-cdata, ffi-calls, and numeric overflow screens.
+- FFI calls abs17 acceleration:
+  the official dynamic and static-stop `direct_abs`/`stored_abs` rows now fold
+  the remaining `abs((i % 17) - 8)` loop tail after the function lookup/upvalue
+  guards have recorded. kdz1 immediate controls were `0.000185s..0.000187s`;
+  the candidate moved all four hot rows to `0.000000s..0.000001s`. kdz and
+  zkd0 confirmed the timer-floor band. kdz1 guardrails passed FFI ABI, numeric
+  overflow, dispatch, iterator, mixed-noffi, vararg, pairs-loop, compiled
+  vararg, and exact mixed/hash/ipairs probes.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
