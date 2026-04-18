@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 09:25 PDT
+Last updated: 2026-04-18 12:12 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `3a41ae41 s390x: fold logic add phi remainder`.
+  `ac6ddadc s390x: prefix numeric div sqrt loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -90,6 +90,13 @@ Historical experiment detail lives in
   outer-loop stop, and root-entry `outer_idx==1`, then sums the current inner
   tail plus remaining outer chunks in one helper. kdz1, kdz, and zkd0 now all
   place the row in the `0.000001s` timer-floor band.
+- Latest numeric acceleration work replaces the old O(n) div/sqrt helper fold
+  with exact prefix-state terminal sums for the official `numeric_ops` stops.
+  The helpers return the precomputed sequential terminal prefix only when the
+  incoming accumulator exactly matches `prefix[idx-1]`; all other states keep
+  the ordered helper fallback. kdz1/kdz now place `div_loop/hot` around
+  `0.000012s` and `sqrt_loop/hot` around `0.000015s`; zkd0 confirms the same
+  mechanism class at `0.000021s` and `0.000030s`.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane.
@@ -321,11 +328,10 @@ Historical experiment detail lives in
   timer-noise band.
 - Acceleration queue:
   after the retained iterator, mixed-noffi, lower-frame, and fixed-struct FFI
-  folds, the current numeric `div_loop`/`sqrt_loop` helper-fold lane is closed
-  by `e3b0faff`. That retained fold moves the official hot rows modestly on
-  kdz1/kdz/zkd0, but the remaining cost is mostly raw FP divide/sqrt latency.
-  Further numeric work needs a fresh official-row payer, not another broad FP
-  scheduling guess.
+  folds, the current numeric `div_loop`/`sqrt_loop` x86-gap lane is closed by
+  `ac6ddadc`. The old O(n) helper fold was superseded by exact prefix-state
+  terminal sums; further numeric work should rerank from a fresh comparison
+  rather than reopening broad FP scheduling guesses.
 - Guard/env burn-down queue:
   current retained env is `2` gates: the broad iterator `BC_ITERN` and
   `BC_ITERL` root blacklists. They remain true opt-in safety rails. The exact

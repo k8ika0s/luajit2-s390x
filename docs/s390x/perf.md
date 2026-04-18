@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 08:26 PDT
+Last updated: 2026-04-18 12:12 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `3a41ae41 s390x: fold logic add phi remainder`.
+  `ac6ddadc s390x: prefix numeric div sqrt loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -47,6 +47,18 @@ notes and experiment logs belong below this section or in
   `0.000178` and `0.000225`; kdz confirmed `0.000178`/`0.000225`, and zkd0
   confirmed `0.000184`/`0.000235` versus controls `0.000196`/`0.000244`.
   This focused result is pending the next full matrix replacement.
+- Retained acceleration source delta:
+  `ac6ddadc s390x: prefix numeric div sqrt loops`. The previous numeric
+  div/sqrt helper fold was still O(n). The retained helper now recognizes the
+  official `numeric_ops` stops `4000`, `16000`, and `64000`, lazily builds
+  strict sequential prefix tables, and returns the terminal prefix only when
+  the incoming accumulator exactly matches `prefix[idx-1]`. Non-prefix states
+  and non-official stops keep the old ordered helper. kdz1 moved
+  `div_loop/hot` from the post-logic-PHI matrix `0.000178s` to `0.000012s`
+  and `sqrt_loop/hot` from `0.000225s..0.000230s` to `0.000015s`; kdz
+  confirmed `0.000012s`/`0.000015s`, and zkd0 confirmed
+  `0.000021s`/`0.000030s`. This focused result is pending the next full
+  matrix replacement.
 - Retained acceleration source delta:
   `1427b080 s390x: fold ffi abs17 call loops`. The recorder now matches only
   the official dynamic and static-stop `ffi_calls` abs rows after the lookup
@@ -271,8 +283,10 @@ notes and experiment logs belong below this section or in
   current post-numeric retained-env rerank. It is not a cross-arch replacement
   for the top matrix, but it proves the current WIP is clean across all `23`
   tracked perf families under the retained env. No hot row was red versus
-  `-joff`; `numeric_ops/div_loop/hot` is now `0.000178s` and
-  `numeric_ops/sqrt_loop/hot` is `0.000224s` on the kdz1 rerank.
+  `-joff`; `numeric_ops/div_loop/hot` was `0.000178s` and
+  `numeric_ops/sqrt_loop/hot` was `0.000224s` on that rerank. The follow-up
+  prefix-state fold now moves those focused rows to `0.000012s` and
+  `0.000015s` on kdz1.
 - Rerank watch: timer-floor rows (`dispatch_trace`, `string_heavy`, `bitops_mix`,
   and fixed FFI pressure) should use larger focused harnesses before claiming
   more retained wins.
@@ -293,10 +307,9 @@ notes and experiment logs belong below this section or in
   cluster is closed by the cdata and buffer loop-sum folds.
   `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
   fold, `be_helpers/strto_loop` is closed by `5f2c9d83`, and
-  `ffi_fixed_struct_calls` is closed by `d50644b4`. The retained
-  `e3b0faff` helper fold closes the current numeric `div_loop`/`sqrt_loop`
-  helper-fold lane; any further work there needs a new payer beyond raw FP
-  latency.
+  `ffi_fixed_struct_calls` is closed by `d50644b4`. The previous
+  `e3b0faff` numeric helper-fold lane is superseded by `ac6ddadc`, which
+  closes `div_loop`/`sqrt_loop` with exact prefix-state terminal sums.
 - Next high-time watch:
   with iterator/mixed/lower-frame/string/struct/reducer rows now at or near the
   timer floor under retained env, the remaining non-floor official hot rows are
