@@ -36098,3 +36098,73 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   result materialization, and repeated C-call latency. The next FFI attempt
   should be a larger call-boundary design or a new benchmark shape that proves
   an inlinable/helper-replaceable contract, not another local preserve move.
+
+## 2026-04-18: fixed FFI pressure truth pack refreshed with xhot rows
+
+- Tooling:
+  `tools/s390x/build_acceleration_truth_pack.py` now uses current
+  `ffi_fixed_call_pressure` row names for the focused FFI pressure target and
+  includes declared non-hot target rows in the retained A/B summary. This fixes
+  the earlier acceleration-pack blind spot where `xhot` rows were present in
+  raw JSONL but silently omitted from `summary.md`.
+- Artifact:
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260418-154410-kdz1-ffi_fixed_gpr-accel-truth-pack`.
+- kdz1 result:
+  all current FFI fixed-call pressure rows remain strong JIT wins versus
+  `-joff`: `gpr_pressure/xhot 0.000079s / 0.004548s` (`0.0172x`),
+  `gpr_reg5_pressure/xhot 0.000067s / 0.003763s` (`0.0178x`),
+  `gpr_stack6_pressure/xhot 0.000069s / 0.004095s` (`0.0167x`),
+  `fpr_pressure/xhot 0.000072s / 0.002422s` (`0.0297x`),
+  `fpr_reg4_pressure/xhot 0.000063s / 0.001892s` (`0.0333x`), and
+  `fpr_stack5_pressure/xhot 0.000068s / 0.002117s` (`0.0321x`).
+- Mechanism:
+  focused trace counters show no abort storm and only one terminal exit per
+  row (`TEXIT_COUNT 1`). Dumps still show compact loop bodies with repeated
+  `CALLXS` sites; this is compiled-call-boundary dominated, not trace-control
+  churn.
+- Queue update:
+  keep fixed FFI call pressure in the x86-gap backlog, but stop spending source
+  attempts on local duplicate-arg preserve/copy scheduling. The next credible
+  FFI move must be a larger `CALLXS` boundary contract or a new truth pack that
+  proves a specific inlinable/helper-replaceable leaf-call shape.
+
+## 2026-04-18: post-merge acceleration target sweep reranks to no immediate source payer
+
+- Artifacts:
+  focused kdz1 acceleration truth packs were refreshed on WIP `ae8a87be` for
+  the current target queue:
+  `20260418-154815-kdz1-numeric_ops_micro-accel-truth-pack`,
+  `20260418-155109-kdz1-low32_home-accel-truth-pack`,
+  `20260418-155404-kdz1-be_number_helper-accel-truth-pack`,
+  `20260418-155620-kdz1-ffi_cdata_width-accel-truth-pack`, and
+  `20260418-155822-kdz1-lower_frame_body-accel-truth-pack`.
+- Numeric:
+  official retained numeric rows are now floor-level on kdz1:
+  `div_loop/hot 0.000012s`, `sqrt_loop/hot 0.000015s`,
+  `fp_mod_loop/hot 0.000016s`, `abs_loop/hot 0.000018s`,
+  `min_loop/hot 0.000015s`, and `max_loop/hot 0.000015s`. The reduced
+  focused scripts still show high terminal-exit counts for some shapes, but
+  the official rows are not material enough for another backend source patch.
+- Low32/logic:
+  `bitops_mix/mix_bits/hot 0.000002s`,
+  `logical_chain_tail_add/chain_tail_add/hot 0.000002s`, and
+  `logical_chain_tail_store/chain_tail_store/hot 0.000001s`. These are
+  timer-floor acceleration rows now, not current W32_HOME source targets.
+- Helpers and cdata:
+  `be_helpers/number_helper_loop/hot` and localized tobit are at the timer
+  floor; the largest helper sibling in the pack is `num_aload_loop/hot` at
+  `0.000111s` and still a strong retained JIT win. `ffi_cdata` width/FREF rows
+  are also effectively floor-level after the retained cdata loop-sum paths:
+  `mixed_width_loop/hot 0.000001s`, `pair_loop/hot 0.000001s`, and
+  `buffer_fref_loop/hot 0.000000s`.
+- Lower-frame:
+  `lower_frame_same_callsite/lua_abs_same_callsite/hot` is now `0.000001s`
+  and the dump shows the retained
+  `lj_trace_s390x_lower_frame_abs17_loop_sum` path. The old lower-frame body
+  `%17` lane is closed at official scale.
+- Queue update:
+  do not open source changes against these rows from stale x86-gap memories.
+  The next source target needs a fresh full comparison/rerank or a larger
+  amplified harness that escapes timer floor. Current surviving mechanism debt
+  is fixed FFI `CALLXS` boundary design, broader matrix/x86 coverage, and any
+  future row that repeats above the noise floor in official retained A/B.
