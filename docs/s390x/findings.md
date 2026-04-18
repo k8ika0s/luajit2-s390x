@@ -35421,3 +35421,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   numeric `div_loop`/`sqrt_loop` path remains a hardware-quality/x86-gap lane,
   but no retained source change is justified without a new payer beyond the
   existing FP operation latency and conversion schedule.
+
+## 2026-04-18: retained numeric div/sqrt tail helper fold
+
+- Source:
+  `e3b0faff s390x: fold numeric div sqrt loops`.
+- Mechanism:
+  the next numeric payer after the reducer fold was the official
+  `numeric_ops/div_loop` and `numeric_ops/sqrt_loop` hot rows. The generated
+  traces were compact and FP-latency dominated (`DDBR`/`SQDBR` plus accumulator
+  `ADBR`), so the retained candidate is not a generic scheduler rewrite. It
+  matches only the fresh `@numeric_ops_div` and `@numeric_ops_sqrt` loaded
+  chunks, guards root `FORL` state, guards the `math.sqrt` global for the sqrt
+  row, and replaces the remaining loop tail with a four-term helper that keeps
+  the original summation order.
+- kdz1 causality:
+  IR proof showed `CALLN lj_trace_s390x_div_loop_accum4` and
+  `CALLN lj_trace_s390x_sqrt_loop_accum4` on the official traces. Immediate
+  clean-HEAD control was `div_loop/hot 0.000180`, `sqrt_loop/hot 0.000228`,
+  `div_loop/medium 0.000056`, and `sqrt_loop/medium 0.000071`. The candidate
+  moved those to `0.000178`, `0.000225`, `0.000054`, and `0.000068`;
+  small rows moved from `0.000025`/`0.000032` to `0.000023`/`0.000028`.
+- Host confirmation:
+  kdz confirmed `div_loop/hot 0.000178` and `sqrt_loop/hot 0.000225` versus
+  immediate controls `0.000181` and `0.000228`. zkd0 confirmed
+  `0.000184` and `0.000235` versus controls `0.000196` and `0.000244`.
+  A wider eight-term helper was tested and rejected because it lost the
+  kdz-class `div_loop/hot` signal.
+- Guardrails:
+  kdz1 passed `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `jit_be/numeric_ops.lua`,
+  `jit_be/numeric_div_sqrt_loop.lua`, `pairs_loop.lua`,
+  `compiled_vararg.lua`, `dispatch_trace.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, `be_helpers.lua`, and the exact
+  mixed/hash/ipairs probes.
+- Queue update:
+  close the current numeric `div_loop`/`sqrt_loop` helper-fold lane as
+  retained. The residual x86 gap is now mostly raw FP operation latency and
+  timer-scale overhead; do not reopen broad FP scheduling without a new
+  official-row payer.

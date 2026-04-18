@@ -237,10 +237,11 @@ Historical experiment detail lives in
   timer-noise band.
 - Acceleration queue:
   after the retained iterator, mixed-noffi, lower-frame, and fixed-struct FFI
-  folds, the next remaining non-floor target is `numeric_ops/div_loop` and
-  `sqrt_loop`. Prior whole-loop helper and broad scheduling attempts were
-  neutral or unsafe, so continue only with a narrow backend FP
-  conversion/scheduling proof.
+  folds, the current numeric `div_loop`/`sqrt_loop` helper-fold lane is closed
+  by `e3b0faff`. That retained fold moves the official hot rows modestly on
+  kdz1/kdz/zkd0, but the remaining cost is mostly raw FP divide/sqrt latency.
+  Further numeric work needs a fresh official-row payer, not another broad FP
+  scheduling guess.
 - Guard/env burn-down queue:
   current retained env is `2` gates: the broad iterator `BC_ITERN` and
   `BC_ITERL` root blacklists. They remain true opt-in safety rails. The exact
@@ -275,12 +276,11 @@ Historical experiment detail lives in
   `large_immediates`, `logic_add_phi_noboundary`, lower-frame
   `lua_abs_same_callsite`, reducer `be_pack_*`, `numeric_ops/abs_loop`,
   `numeric_ops/fp_mod_loop`, `numeric_ops/min_loop`, `numeric_ops/max_loop`,
+  `numeric_ops/div_loop`, `numeric_ops/sqrt_loop`,
   `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`,
   `be_helpers/number_helper_loop`, `be_helpers/strto_loop`, and high-sample
-  `be_helpers` crash remediation are closed for the current tranche. A local
-  exact helper-fold candidate for numeric `div_loop`/`sqrt_loop` engaged but
-  was neutral; continue there only through a narrow backend FP
-  conversion/scheduling attempt.
+  `be_helpers` crash remediation are closed for the current tranche. Rerank
+  from the next full matrix before opening another acceleration lane.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp
