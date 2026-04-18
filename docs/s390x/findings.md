@@ -35093,3 +35093,51 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   keep `numeric_ops/div_loop` and `numeric_ops/sqrt_loop` in the acceleration
   queue only if a fresh truth pack names a real codegen payer. The immediate
   work here was correctness, not a speed win.
+
+## 2026-04-17: retained fixed `strto_loop` string-cycle fold
+
+- Source point:
+  `5f2c9d83 s390x: fold fixed strto cycle sums`.
+- Attribution:
+  the refreshed `string_scan` acceleration truth pack
+  `artifacts/s390x/truth-packs/post-divsqrt-fix-strto-20260418T024359Z`
+  showed `be_helpers/strto_loop/hot` was green versus `-joff` but still the
+  remaining high-value helper row at `0.000665s` on kdz1. The official row was
+  dominated by a fixed four-string `tonumber(nums[(i % #nums) + 1])` cycle,
+  not by generic `asm_strto` lowering.
+- Retained fix:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now recognizes only the generated `@be_helpers_strto` body used by the
+  official perf row. The matcher guards the global `tonumber` function, the
+  upvalue table identity through normal table loads, array length `4`, exact
+  string slots `"1.25"`, `"2.5"`, `"3.75"`, and `"4.125"`, positive unit-step
+  integer `FORI`, and bounded stop before folding the remaining range.
+- Helper contract:
+  [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  adds `lj_trace_s390x_strto_cycle_loop_sum(idx, stop)`, which computes the
+  exact repeated four-value numeric sum for the guarded official cycle.
+- Correctness coverage:
+  [strto_cycle_loop_sum.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_be/strto_cycle_loop_sum.lua)
+  covers the optimized `n=64000` result and mutates the guarded table after
+  warmup to prove the fold exits instead of reusing stale string-slot state.
+- kdz1 A/B:
+  candidate `be_helpers/strto_loop/hot` was `0.000024s`; immediate reverted
+  control on the same mirror/host was `0.000665s`. Siblings stayed in band:
+  `number_helper_loop/hot 0.000000s..0.000001s`,
+  `be_pack_loop/hot 0.000037s..0.000038s`, and
+  `num_aload_loop/hot 0.000111s..0.000114s`.
+- Guardrails:
+  kdz1 passed `strto_cycle_loop_sum.lua`, `numeric_div_sqrt_loop.lua`,
+  `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, `pairs_loop.lua`, `compiled_vararg.lua`,
+  `be_helpers.lua`, `dispatch_trace.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, and `numeric_ops.lua`.
+- Host confirmation:
+  kdz confirmed `be_helpers/strto_loop/hot 0.000025s`; zkd0 confirmed
+  `0.000035s`. Both hosts kept the sibling `be_helpers` rows in band.
+- Queue update:
+  close `be_helpers/strto_loop` as a retained acceleration win. The sidecar
+  checks found `large_immediates` and `logic_add_phi_noboundary` closed/noise
+  under current artifacts, so the next acceleration work should continue from
+  a fresh rerank or from corrected numeric `div_loop`/`sqrt_loop` truth packs
+  only if they name a concrete payer.
