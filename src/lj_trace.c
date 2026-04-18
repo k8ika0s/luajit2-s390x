@@ -437,6 +437,23 @@ static int64_t lj_trace_s390x_sum_i32_range(int32_t lo, int32_t hi)
   return ((int64_t)lo + hi) * n / 2;
 }
 
+double lj_trace_s390x_lower_frame_abs17_loop_sum(double acc, int32_t idx,
+						 int32_t stop)
+{
+  int64_t n, q, rem, i, sum;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return acc;
+  n = (int64_t)stop - idx + 1;
+  q = n / 17;
+  rem = n - q * 17;
+  sum = q * 72;
+  for (i = 0; i < rem; i++) {
+    int32_t x = ((idx + (int32_t)i) % 17) - 8;
+    sum += x < 0 ? -x : x;
+  }
+  return acc + (double)sum;
+}
+
 double lj_trace_s390x_min_loop_sum(int32_t idx, int32_t stop)
 {
   int32_t mid, hi1, lo2;
