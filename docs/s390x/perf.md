@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 14:14 PDT
+Last updated: 2026-04-18 16:45 PDT
 
 ## Current Matrix
 
@@ -10,9 +10,32 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `5e4bb6de docs: record large immediate table fold`, plus the focused
-  subtract/xhot source delta recorded below pending the next full matrix
-  replacement.
+  `cbdf6b38 tools: refresh acceleration truth pack targets`.
+- Current s390x artifact:
+  `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z`.
+- Current x86 comparison:
+  `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`,
+  compared against refreshed x86 artifact
+  `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
+- Run health:
+  `800` s390x benchmark records, `400` comparison rows, `342` complete
+  s390x/x86 rows, `0` missing s390x rows, `58` missing x86 rows, `0` s390x
+  failures, and `12` expected x86 failures from x86 JIT-on
+  `iterator_table`/`mixed_noffi` timeouts.
+- Regression read:
+  no s390x JIT-on row in the current full comparison is slower than `-joff`.
+  The regression queue is empty at official matrix scale.
+- Current acceleration queue:
+  `logical_chain_tail_add`/`logical_chain_tail_store` `xhot` rows are now the
+  largest absolute s390x JIT-on rows (`~0.00009s..0.000135s`) but lack x86
+  rows in the carried comparison; `be_helpers/num_aload_loop/hot` is the
+  largest complete high-time row and s390x is already faster than x86
+  (`~0.000111s` vs `~0.000146s`). The remaining complete x86-faster rows are
+  timer-floor scale, led by `ffi_fixed_call_pressure` hot rows
+  (`~0.000007s..0.000008s`) and small/medium `numeric_ops`
+  (`~0.000012s..0.000016s`). Treat the next source lane as fixed `CALLXS`
+  boundary design or a larger amplified numeric/FFI harness, not a broad
+  regression repair.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -106,16 +129,9 @@ notes and experiment logs belong below this section or in
   `stored_abs_literal_stop_real/hot 0.000187` to `0.000000s..0.000001s`;
   kdz and zkd0 confirmed the timer-floor band. This focused result is pending
   the next full matrix replacement.
-- Current s390x artifact:
-  `artifacts/s390x/post-large-aref-20260418T203616Z`.
-- Current x86 comparison:
-  `artifacts/s390x/compare-post-large-aref-kdz1-ka0s01-20260418T203616Z`,
-  compared against refreshed x86 artifact
-  `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
-- Run health: `720` s390x benchmark records, `360` comparison rows,
-  `342` complete s390x/x86 rows, `0` missing s390x rows, `18` missing x86 rows,
-  `0` s390x failures, `12` expected x86 failures from x86 JIT-on
-  `iterator_table`/`mixed_noffi` timeouts, GCC/Clang, JIT-on/`-joff`.
+- Superseded full-matrix checkpoint:
+  `artifacts/s390x/post-large-aref-20260418T203616Z` /
+  `artifacts/s390x/compare-post-large-aref-kdz1-ka0s01-20260418T203616Z`.
 - Matrix tooling note: use
   `tools/s390x/driver.py --stage perf --suite all --compiler both --mode release --jit both --perf-family all`
   for the full matrix. Without `--perf-family all`, the driver intentionally
@@ -146,11 +162,10 @@ notes and experiment logs belong below this section or in
   full matrix. Focused kdz1 and zkd0 validation also passed the
   `LUAJIT_S390X_DIRECT_PATCHEXIT_MISS_LOG=1` zero-miss check and rollback mode
   with `LUAJIT_S390X_DISABLE_DIRECT_PATCHEXIT=1`.
-- Regression read: the new full matrix has no requested-family row slower than
-  `-joff`. `large_immediates/add_large` small/medium is green versus `-joff`
-  in the full matrix and in focused dense kdz1 reruns. The only material red row in this comparison is Clang
-  `mixed_noffi/mixed_loop`, which is outside the requested-family remediation
-  tranche and should get a fresh attribution before code.
+- Regression read:
+  the current `cbdf6b38` full matrix has no s390x JIT-on row slower than
+  `-joff`. Earlier `large_immediates` and `mixed_noffi` red reads are
+  superseded by the current full comparison and focused closures above.
 - Dense-sample caveat:
   superseded by the retained numeric abs parity loop-sum fold pending the next
   full matrix. Dense kdz1 baseline was `~0.00067s..0.00070s`; the candidate
@@ -239,13 +254,12 @@ notes and experiment logs belong below this section or in
   prevent accumulated fresh `loadstring` traces from poisoning later rows. The
   benchmark now flushes after the complete `strto_loop` case; this is a harness
   isolation fix, not a backend optimization.
-- Cross-arch acceleration read:
-  `artifacts/s390x/x86-gap/post-buffer-20260418T011933Z` ranks rows
-  where x86 JIT-on beats s390x JIT-on. The largest actionable absolute gaps are
-  Clang `be_helpers/strto_loop`, remaining `numeric_ops/div_loop` and
-  `numeric_ops/sqrt_loop`, and smaller reducer/static-stop rows. x86 JIT-on
-  data is still missing for `iterator_table` and `mixed_noffi`, so those rows
-  stay out of x86-gap ranking until coverage is fixed.
+- Superseded cross-arch acceleration read:
+  the older post-buffer x86-gap queue is closed by later numeric, helper,
+  cdata, lower-frame, iterator, mixed, large-immediate, and route-reducer
+  folds. Use
+  `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z` for
+  current cross-arch ranking.
 - Scoped hotside threshold read:
   `trace_hotside()` now uses effective `hotexit=100` only for the exact safe
   iterator, mixed-noffi, dispatch, and ffi-cdata proto families. The global
@@ -314,25 +328,22 @@ notes and experiment logs belong below this section or in
 
 ## Current Queue
 
-- Requested-family regression queue: empty. The post-buffer matrix and focused
-  dense kdz1 reruns did not reproduce the older `large_immediates/add_large`
-  concern.
+- Requested-family regression queue:
+  empty. The `cbdf6b38` full comparison has no s390x JIT-on row slower than
+  `-joff`.
 - Clean-run evidence:
-  `artifacts/s390x/jitter/post-numeric-divsqrt-rerank-20260418T0015Z` is the
-  current post-numeric retained-env rerank. It is not a cross-arch replacement
-  for the top matrix, but it proves the current WIP is clean across all `23`
-  tracked perf families under the retained env. No hot row was red versus
-  `-joff`; `numeric_ops/div_loop/hot` was `0.000178s` and
-  `numeric_ops/sqrt_loop/hot` was `0.000224s` on that rerank. The follow-up
-  prefix-state fold now moves those focused rows to `0.000012s` and
-  `0.000015s` on kdz1.
+  `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z` is the current
+  full-family kdz1 rerank: `800` s390x benchmark records, `0` s390x failures,
+  and `0` missing s390x rows.
 - Rerank watch: timer-floor rows (`dispatch_trace`, `string_heavy`, `bitops_mix`,
   and fixed FFI pressure) should use larger focused harnesses before claiming
   more retained wins.
-- Acceleration queue by absolute JIT time: `mixed_noffi/mixed_loop`,
-  `iterator_table/pairs_sum`, and `iterator_table/pairs_array_sum` remain the
-  highest absolute s390x JIT rows, but they need x86 JIT coverage before they
-  can drive cross-arch acceleration decisions.
+- Acceleration queue by absolute JIT time:
+  `logical_chain_tail_add/xhot`, `logical_chain_tail_store/xhot`,
+  `be_helpers/num_aload_loop/hot`, `mixed_ffi/mixed_ffi_loop/hot`, and
+  `ffi_fixed_call_pressure/*/xhot`. The complete high-time rows are already
+  faster than x86 where x86 rows exist; the missing x86 xhot rows need
+  coverage before they can drive cross-arch source work.
 - Scoped hotside threshold:
   retained and reflected in the full matrix. It improves/protects the hotside
   side-trace rows without lowering the unsafe global s390x threshold.
@@ -350,14 +361,12 @@ notes and experiment logs belong below this section or in
   `e3b0faff` numeric helper-fold lane is superseded by `ac6ddadc`, which
   closes `div_loop`/`sqrt_loop` with exact prefix-state terminal sums.
 - Next high-time watch:
-  with iterator/mixed/lower-frame/string/struct/reducer rows now at or near the
-  timer floor under retained env, the remaining non-floor official hot rows are
-  call/FP quality targets rather than regressions: `ffi_calls/direct_abs` and
-  `stored_abs` (`~0.000185s`), residual `numeric_ops/sqrt_loop`/`div_loop`
-  (`0.000224s`/`0.000178s`), `route_around_reducers/be_pack_literal_stop`
-  (`~0.000125s`), and `be_helpers/num_aload_loop` (`0.000111s`). Open code
-  only after focused truth packs name a mechanism; the rerank itself does not
-  justify weakening safety rails.
+  the only complete non-floor high-time row still worth watching is
+  `be_helpers/num_aload_loop/hot` (`~0.000111s`), and s390x already beats x86
+  there. The complete x86-faster rows are all small/timer-floor scale, led by
+  fixed FFI call pressure hot rows and small/medium `numeric_ops`. Open code
+  only after an amplified truth pack names a mechanism; the rerank itself does
+  not justify weakening safety rails.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 14:14 PDT
+Last updated: 2026-04-18 16:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `5e4bb6de docs: record large immediate table fold`, plus the focused
-  subtract/xhot source delta pending the next full matrix replacement.
+  `cbdf6b38 tools: refresh acceleration truth pack targets`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -124,9 +123,20 @@ Historical experiment detail lives in
   faster even on register-only calls. The next FFI source target is therefore
   the fixed `CALLXS` boundary itself, not another duplicate-arg or stack-store
   micro-cut.
+- Current full matrix:
+  `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z` and comparison
+  `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`.
+  The run has `800` s390x benchmark records, `0` s390x failures, `0` missing
+  s390x rows, and no s390x JIT-on row slower than `-joff`.
+- Current caveat:
+  the x86 comparison still has `58` missing x86 rows. These are from the
+  carried x86 artifact timing out on JIT-on `iterator_table`/`mixed_noffi` and
+  from newer xhot pressure/logic rows that need x86 coverage before they can
+  drive cross-arch decisions.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
-  source lane.
+  source lane. The next credible source work is fixed `CALLXS` boundary design
+  or an amplified harness that makes numeric/FFI timer-floor gaps measurable.
 
 ## Latest Validation
 
@@ -329,24 +339,26 @@ Historical experiment detail lives in
 ## Latest Matrix
 
 - s390x artifact:
-  `artifacts/s390x/post-buffer-20260418T011933Z`.
+  `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z`.
 - x86 comparison:
-  `artifacts/s390x/compare-post-buffer-kdz1-ka0s01-20260418T011933Z`, compared against
-  `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
+  `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`,
+  compared against `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
 - Run health:
-  `720` s390x benchmark records, `360` comparison rows, `0` s390x failures,
-  GCC/Clang, JIT-on/`-joff`, full-family selector.
+  `800` s390x benchmark records, `400` comparison rows, `342` complete
+  s390x/x86 rows, `0` s390x failures, `0` missing s390x rows, GCC/Clang,
+  JIT-on/`-joff`, full-family selector.
 - Regression posture:
-  no requested-family official row is currently red. The earlier
-  `large_immediates/add_large` concern is green in the post-buffer full matrix
-  and in dense focused reruns. Clang `mixed_noffi/mixed_loop` is the only
-  material red row in the current comparison and needs fresh attribution before
-  any source change.
+  no current s390x JIT-on official row is slower than `-joff`. The regression
+  queue is empty at full-matrix scale.
+- Cross-arch caveat:
+  `58` x86 rows are missing because the carried x86 artifact timed out on
+  x86 JIT-on `iterator_table`/`mixed_noffi` and predates newer xhot pressure /
+  logic coverage. Do not use those missing rows as source-target evidence.
 - Cross-arch acceleration artifact:
-  `artifacts/s390x/x86-gap/post-buffer-20260418T011933Z`, generated
-  from the current comparison. This is the queue source for making x86 chase
-  s390x; it ranks complete x86/s390x JIT-on rows by absolute s390x runtime and
-  x86-over-s390x ratio.
+  use `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`
+  for current complete-row ranking. Complete x86-faster rows are now
+  timer-floor scale; the next meaningful source work needs amplified harnesses
+  or x86 coverage completion.
 
 ## Current Performance Posture
 
