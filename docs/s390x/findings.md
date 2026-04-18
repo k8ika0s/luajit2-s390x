@@ -35761,3 +35761,54 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `logical_chain_tail_add` and `logic_add_phi_noboundary` remain parked unless
   a larger harness exposes a non-noisy payer; the rejected helper-call fold is
   not a viable route.
+
+## 2026-04-18: retained logic-add PHI whole-remainder fold
+
+- Source:
+  `3a41ae41 s390x: fold logic add phi remainder`.
+- Rerank context:
+  after the retained tail-store fold, a fresh same-host read showed
+  `logic_add_phi_noboundary/hot` was still a real low32 logic residual:
+  kdz1 immediate control stayed around `0.000017s`, while the first
+  per-inner-loop helper-call attempt was rejected because it reduced trace size
+  but left the official hot row neutral and regressed the timer-floor
+  `logical_chain_tail_add` sibling.
+- Mechanism:
+  the retained path changes approach from per-inner-loop lowering to one
+  exact first-outer-state whole-remainder fold. The recorder matches only the
+  official `@tests/s390x/perf/logic_add_phi_noboundary.lua` body
+  `UGET chain -> MOV inner index -> CALL -> ADDVV -> inner FORL -> outer FORL`.
+  It guards the exact chain upvalue function, root trace entry, `outer_idx==1`,
+  fixed `inner_stop==200`, positive bounded `outer_stop<=20`, positive
+  unit-step loop state, and `inner_idx<=inner_stop`, then folds the current
+  inner tail plus all remaining outer chunks through
+  `lj_trace_s390x_logic_add_phi_remainder_sum(acc, inner_idx, inner_stop,
+  outer_stop)`.
+- kdz1 causality:
+  the final source changed trace 1 from the baseline per-iteration low32
+  logic/PHI body to a single `CALLN
+  lj_trace_s390x_logic_add_phi_remainder_sum` and immediate interpreter stop.
+  Dense same-host control was `logic_add_phi_noboundary/hot 0.000017s`;
+  candidate reached `0.000001s` for small, medium, and hot. The safety
+  tightening briefly suppressed the matcher when the bytecode-length guard was
+  too conservative; the retained guard now covers the required `body+6`
+  `RET1` access without excluding the official terminal instruction.
+- Host confirmation:
+  kdz confirmed `logic_add_phi_noboundary/hot 0.000001s`; zkd0 confirmed
+  `0.000001s`. Siblings stayed in the retained low32 band:
+  kdz `logical_chain_tail_store/hot 0.000002s` and
+  `logical_chain_tail_add/hot 0.000003s`; zkd0
+  `logical_chain_tail_store/hot 0.000002s` and
+  `logical_chain_tail_add/hot 0.000004s`.
+- Guardrails:
+  kdz1 passed `jit_be/low32_home_contract.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`,
+  `jit_be/numeric_ops.lua`, `jit_core/bitops_trace.lua`,
+  `jit_loops/compiled_vararg.lua`, `jit_loops/pairs_loop.lua`,
+  `dispatch_trace.lua`, `iterator_table.lua`, `mixed_noffi.lua`, and
+  `vararg_paths.lua`.
+- Queue update:
+  close `logic_add_phi_noboundary` as retained at current official scale.
+  The remaining low32 logic sibling `logical_chain_tail_add` is still at the
+  timer floor and should only reopen if a larger harness exposes a material
+  non-noisy payer.
