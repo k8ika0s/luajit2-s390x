@@ -190,9 +190,9 @@ notes and experiment logs belong below this section or in
   cluster is closed by the cdata and buffer loop-sum folds.
   `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
   fold, and `be_helpers/strto_loop` is closed by `5f2c9d83`. The combined
-  div/sqrt scheduler fix was correctness-only; continue
-  with remaining numeric `div_loop`/`sqrt_loop` only after a corrected fresh
-  truth pack names a concrete payer.
+  div/sqrt scheduler fix was correctness-only, and a local exact helper-fold
+  candidate for `div_loop`/`sqrt_loop` engaged but was neutral. Continue with
+  those rows only through a narrow backend FP conversion/scheduling attempt.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
