@@ -35579,3 +35579,47 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Prior source reads do not name a safe patch for these rows, so the next
   tranche should start from a fresh full x86-gap comparison or denser
   official-row truth pack.
+
+## 2026-04-18: retained `ffi_cdata/pair_loop` x86-gap fold
+
+- Source:
+  `6d17fc83 s390x: fold ffi cdata pair loop`.
+- Numeric FP closure:
+  the next x86-gap pass first rechecked `numeric_ops/div_loop` and
+  `sqrt_loop`. The division identity `1 - 0.75/(i+1.25)` was correctness-clean
+  but unchanged at `div_loop/hot 0.000178s`. Replacing `sqrt()` with
+  `__builtin_sqrt()` did not change GCC's emitted fallback branches; explicit
+  positive-input `SQDBR` removed those branches but was slightly slower
+  (`sqrt_loop/hot 0.000228s`). No numeric source was retained.
+- Mechanism:
+  the next concrete gap was `ffi_cdata/pair_loop`: the carried x86 comparison
+  had x86 around `0.000034s`, while current s390x retained reads were around
+  `0.000050s`. The official bytecode stores `pair[0].x=i`, stores
+  `pair[0].y=i*2`, immediately reloads both fields, adds them to `total`, and
+  returns `total` directly after the loop. The retained matcher is exact for
+  that shape, guards cdata type id plus bounded unit-step `FORL` state
+  (`stop <= 32000`), and replaces the remaining loop body with
+  `lj_trace_s390x_pair_loop_sum(idx, stop)` computing `3 * sum(i)`.
+- kdz1 causality:
+  IR proof showed `CALLN lj_trace_s390x_pair_loop_sum` on the official
+  `ffi_cdata.lua` trace. Focused candidate moved `pair_loop/hot` to
+  `0.000000s..0.000001s`; sibling rows stayed at timer floor
+  (`mixed_width_loop/hot 0.000001s`, `buffer_fref_loop/hot 0.000000s`).
+- Host confirmation:
+  kdz confirmed `pair_loop/hot 0.000001s`, `mixed_width_loop/hot 0.000000s`,
+  and `buffer_fref_loop/hot 0.000000s`, with the same helper-call proof.
+  zkd0 confirmed all three hot rows at `0.000001s`.
+- Guardrails:
+  kdz1 passed the new
+  `tests/s390x/jit_be/ffi_cdata_pair_loop_sum.lua`, which covers the folded
+  row, an observed-after-loop fallback, and a stop-above-bound fallback. kdz1
+  also passed `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `jit_be/numeric_ops.lua`,
+  `ffi_cdata.lua`, `dispatch_trace.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, `pairs_loop.lua`,
+  `compiled_vararg.lua`, and the exact mixed/hash/ipairs probes.
+- Queue update:
+  close the full `ffi_cdata` family as an x86-gap target at current scale.
+  Remaining non-floor gaps are mostly numeric FP hardware latency and tiny
+  logic/large-immediate rows; rerun the full x86 comparison after this commit
+  before opening another source lane.

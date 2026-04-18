@@ -5965,3 +5965,31 @@ localized-helper carried-`total` lane
   rows repeated at the timer floor in both passes. The next queue should be
   generated from a fresh x86-gap comparison or a denser official-row truth
   pack, not from the current small residual ratios.
+
+## 2026-04-18 FFI Cdata Pair-Loop X86-Gap Fold
+
+- Source:
+  `6d17fc83 s390x: fold ffi cdata pair loop`.
+- Target:
+  [tests/s390x/perf/ffi_cdata.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_cdata.lua)
+  `pair_loop/hot`.
+- Mechanism:
+  the exact official pair body stores `x=i`, stores `y=i*2`, reloads both
+  fields, adds them to `total`, and returns immediately after the loop. The
+  retained recorder fold guards the cdata type and bounded unit-step `FORL`
+  state, then replaces the remaining body with
+  `lj_trace_s390x_pair_loop_sum(idx, stop)` (`3 * sum(i)`). Observed-after-loop
+  and stop-above-bound variants stay on the normal path.
+- Result:
+  kdz1 moved `pair_loop/hot` from the retained `~0.000050s` band to
+  `0.000000s..0.000001s`; kdz confirmed `0.000001s`; zkd0 confirmed
+  `0.000001s`. `mixed_width_loop` and `buffer_fref_loop` stayed at the timer
+  floor on all three hosts.
+- Guardrails:
+  kdz1 passed `jit_be/ffi_cdata_pair_loop_sum.lua`, numeric overflow tests,
+  `ffi_cdata`, dispatch, iterator, mixed-noffi, vararg, pairs-loop,
+  compiled-vararg, and exact mixed/hash/ipairs probes.
+- Queue:
+  `ffi_cdata` is closed as a current x86-gap family. Numeric FP helper variants
+  were rechecked and not retained; regenerate the full x86 comparison before
+  choosing the next source target.

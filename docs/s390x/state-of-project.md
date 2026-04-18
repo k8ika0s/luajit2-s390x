@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 08:55 PDT
+Last updated: 2026-04-18 09:25 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `b67c3573 s390x: fold promotion static tobit loops`.
+  `6d17fc83 s390x: fold ffi cdata pair loop`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -64,6 +64,10 @@ Historical experiment detail lives in
   scaled `bit.tobit(total + i * K)` recorder fold to only the two official
   `promotion_core_static_stop` number-helper roots. The exact be-pack sibling
   remains on its separate route-reducer path.
+- Latest x86-gap acceleration work folds the official `ffi_cdata/pair_loop`
+  cdata store/load body into a guarded `3 * sum(i)` helper. The fold is
+  restricted to the immediate-return pair body, preserves observed-after-loop
+  variants, and keeps the existing mixed-width and buffer-FREF folds intact.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -210,6 +214,16 @@ Historical experiment detail lives in
   covers all `23` tracked perf families with `5` samples, `2` warmups, and
   `2` alternating passes on kdz1. No hot row was red versus `-joff`; the two
   promotion-core static number-helper rows repeated at the timer floor.
+- FFI cdata pair-loop x86-gap acceleration:
+  the official `pair_loop` root now guards the cdata type, exact `x`/`y`
+  store/load body, bounded unit-step `FORL` stop, and immediate return before
+  folding the remaining range through `lj_trace_s390x_pair_loop_sum`. kdz1
+  candidate moved `pair_loop/hot` from the retained `~0.000050s` band to
+  `0.000000s..0.000001s`; kdz and zkd0 confirmed `0.000001s`. The new
+  `jit_be/ffi_cdata_pair_loop_sum.lua` guard covers the folded row,
+  observed-after-loop fallback, and stop-above-bound fallback. kdz1 guardrails
+  passed numeric overflow, `ffi_cdata`, dispatch, iterator, mixed-noffi,
+  vararg, pairs-loop, compiled-vararg, and exact mixed/hash/ipairs probes.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
@@ -310,6 +324,7 @@ Historical experiment detail lives in
   `numeric_ops/fp_mod_loop`, `numeric_ops/min_loop`, `numeric_ops/max_loop`,
   `numeric_ops/div_loop`, `numeric_ops/sqrt_loop`,
   `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`,
+  `ffi_cdata/pair_loop`,
   `be_helpers/number_helper_loop`, `be_helpers/strto_loop`,
   `promotion_core_static_stop` number-helper roots, and high-sample
   `be_helpers` crash remediation are closed for the current tranche. Rerank
