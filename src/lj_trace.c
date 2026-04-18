@@ -471,6 +471,18 @@ double lj_trace_s390x_max_loop_sum(int32_t idx, int32_t stop)
   return (double)(allsum - (int64_t)lj_trace_s390x_min_loop_sum(idx, stop));
 }
 
+int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
+					     int32_t mul)
+{
+  uint64_t n, edges, tri;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return 0;
+  n = (uint64_t)(uint32_t)(stop - idx + 1);
+  edges = (uint64_t)(uint32_t)(idx + stop);
+  tri = (n & 1) ? n * (edges >> 1) : (n >> 1) * edges;
+  return (int32_t)((uint32_t)mul * (uint32_t)tri);
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
