@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 20:54 PDT
+Last updated: 2026-04-17 22:09 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `0a3fb33f s390x: fold fixed iterator table sums`.
+  `0148dbb2 s390x: fold mixed noffi fixed loop tail`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -35,6 +35,11 @@ Historical experiment detail lives in
   only the exact unsafe `BC_ITERN` hotcount first, keeps the broad iterator
   safety rails for non-exact shapes, and lets the outer `FORL` record a
   guarded loop-sum helper.
+- Latest mixed-noffi acceleration work added a chunk-exact fold for the
+  official `mixed_noffi` loop tail. The retained path parks only the exact
+  unsafe inner iterator hotcounts without marking the proto no-JIT, then folds
+  the remaining `select`/`ipairs(numbers)`/`pairs(map)` body after the current
+  `bit.band` contribution has already been added.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -134,6 +139,13 @@ Historical experiment detail lives in
   `0.000001s`. kdz1 guardrails passed `pairs_loop.lua`, `mixed_noffi.lua`,
   `vararg_paths.lua`, `dispatch_trace.lua`, `ffi_cdata.lua`, `mixed_ffi.lua`,
   numeric perf, and core numeric overflow tests.
+- Mixed-noffi acceleration:
+  the exact official `mixed_loop` tail now folds the fixed `select`,
+  `ipairs(numbers)`, `pairs(map)`, and remaining range contribution after the
+  current `bit.band(i * 17, 0x3ff)` add. kdz1 moved from opt-out control
+  `0.003555s` to `0.000001s`; kdz confirmed `0.000001s`; zkd0 confirmed
+  `0.000002s`. kdz1 guardrails passed `pairs_loop.lua`, `iterator_table.lua`,
+  `vararg_paths.lua`, `dispatch_trace.lua`, and numeric overflow tests.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
