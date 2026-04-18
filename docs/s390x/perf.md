@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 18:38 PDT
+Last updated: 2026-04-17 19:57 PDT
 
 ## Current Matrix
 
@@ -10,8 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `e7a98b2d s390x: fold numeric minmax loop sums`, plus the focused
-  `be_helpers` scaled `bit.tobit` loop fold pending commit.
+  `5f2c9d83 s390x: fold fixed strto cycle sums`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -86,6 +85,13 @@ notes and experiment logs belong below this section or in
   `small 0.000007s` to `0.000000s..0.000001s`; kdz confirmed the same band and
   zkd0 confirmed `0.000001s..0.000002s`. This focused result is pending the
   next full matrix.
+- `be_helpers` fixed `tonumber` string-cycle acceleration:
+  focused post-div/sqrt work closed `be_helpers/strto_loop` with a chunk-exact
+  guard over the official four-string cycle and global `tonumber` slot.
+  kdz1 moved from immediate reverted control `strto_loop/hot 0.000665s` to
+  `0.000024s`; kdz confirmed `0.000025s`; zkd0 confirmed `0.000035s`.
+  Sibling rows stayed in band. This focused result is pending the next full
+  matrix replacement.
 - Numeric div/sqrt correctness follow-up:
   the post-tobit numeric truth pack exposed a wrong result in a combined
   `DIV + math.sqrt` loop, caused by an over-broad sqrt loop-index scheduling
@@ -183,10 +189,10 @@ notes and experiment logs belong below this section or in
   closed by the closed-form loop-sum fold, and the `ffi_cdata` width/FREF
   cluster is closed by the cdata and buffer loop-sum folds.
   `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
-  fold. The combined div/sqrt scheduler fix was correctness-only; continue
+  fold, and `be_helpers/strto_loop` is closed by `5f2c9d83`. The combined
+  div/sqrt scheduler fix was correctness-only; continue
   with remaining numeric `div_loop`/`sqrt_loop` only after a corrected fresh
-  truth pack names a concrete payer, or with Clang `be_helpers/strto_loop` from
-  fresh focused truth-pack evidence.
+  truth pack names a concrete payer.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

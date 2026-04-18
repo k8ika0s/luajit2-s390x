@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 18:38 PDT
+Last updated: 2026-04-17 19:57 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `e7a98b2d s390x: fold numeric minmax loop sums`, plus the focused
-  `be_helpers` scaled `bit.tobit` loop fold pending commit.
+  `5f2c9d83 s390x: fold fixed strto cycle sums`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -140,6 +139,15 @@ Historical experiment detail lives in
   The shortcut now stays on direct sqrt-accumulator shapes and falls back for
   mixed numeric `ADD` inputs. kdz1, kdz, and zkd0 passed the new
   `jit_be/numeric_div_sqrt_loop.lua` guard and retained numeric backend tests.
+- `be_helpers` fixed `tonumber` string-cycle acceleration:
+  the official `be_helpers/strto_loop` body now guards the four-string upvalue
+  table, the global `tonumber` slot, positive unit-step `FORI`, and bounded
+  stop before folding the repeated parse cycle into one numeric helper call.
+  kdz1 immediate reverted control was `strto_loop/hot 0.000665s`; the candidate
+  ran at `0.000024s`, with kdz confirming `0.000025s` and zkd0 confirming
+  `0.000035s`. kdz1 guardrails passed `strto_cycle_loop_sum.lua`, numeric
+  overflow tests, `pairs_loop.lua`, `compiled_vararg.lua`, and focused
+  dispatch/iterator/mixed/vararg/numeric perf screens.
 
 ## Latest Matrix
 
@@ -203,11 +211,10 @@ Historical experiment detail lives in
   `lua_abs_same_callsite`, reducer `be_pack_*`, `numeric_ops/abs_loop`,
   `numeric_ops/fp_mod_loop`, `numeric_ops/min_loop`, `numeric_ops/max_loop`,
   `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`,
-  `be_helpers/number_helper_loop`, and high-sample `be_helpers` crash
-  remediation are closed for the current tranche. Continue
+  `be_helpers/number_helper_loop`, `be_helpers/strto_loop`, and high-sample
+  `be_helpers` crash remediation are closed for the current tranche. Continue
   from remaining numeric `div_loop`/`sqrt_loop` only after a corrected fresh
-  truth pack names a concrete payer, or from Clang
-  `be_helpers/strto_loop` only after a fresh focused truth pack names a payer.
+  truth pack names a concrete payer.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp
