@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 08:26 PDT
+Last updated: 2026-04-18 08:55 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `1427b080 s390x: fold ffi abs17 call loops`.
+  `b67c3573 s390x: fold promotion static tobit loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -60,6 +60,10 @@ Historical experiment detail lives in
   path engages only after the recorded lookup/upvalue guards, preserves generic
   `CALLXS` lowering elsewhere, and sums the remaining fixed 17-value cycle in
   one helper.
+- Latest promotion-core static-stop acceleration work extends the existing
+  scaled `bit.tobit(total + i * K)` recorder fold to only the two official
+  `promotion_core_static_stop` number-helper roots. The exact be-pack sibling
+  remains on its separate route-reducer path.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -191,6 +195,16 @@ Historical experiment detail lives in
   zkd0 confirmed the timer-floor band. kdz1 guardrails passed FFI ABI, numeric
   overflow, dispatch, iterator, mixed-noffi, vararg, pairs-loop, compiled
   vararg, and exact mixed/hash/ipairs probes.
+- Promotion-core static `tobit` acceleration:
+  the official `number_helper_literal_stop_real` and
+  `number_helper_literal_stop_real_local_tobit` roots now reuse the retained
+  scaled `bit.tobit` loop-sum fold. kdz1 control was `0.000105s` for both hot
+  rows; the candidate moved both to `0.000000s..0.000001s`. kdz confirmed
+  `0.000000s`; zkd0 confirmed `0.000001s`. The `be_pack_literal_stop_real`
+  sibling stayed on the existing reducer path (`0.000037s..0.000054s` across
+  hosts). kdz1 guardrails passed be-helper siblings, route reducers, numeric
+  overflow, dispatch, iterator, mixed-noffi, vararg, pairs-loop,
+  compiled-vararg, and exact mixed/hash/ipairs probes.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
@@ -291,7 +305,8 @@ Historical experiment detail lives in
   `numeric_ops/fp_mod_loop`, `numeric_ops/min_loop`, `numeric_ops/max_loop`,
   `numeric_ops/div_loop`, `numeric_ops/sqrt_loop`,
   `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`,
-  `be_helpers/number_helper_loop`, `be_helpers/strto_loop`, and high-sample
+  `be_helpers/number_helper_loop`, `be_helpers/strto_loop`,
+  `promotion_core_static_stop` number-helper roots, and high-sample
   `be_helpers` crash remediation are closed for the current tranche. Rerank
   from the next full matrix before opening another acceleration lane.
 - Lower-frame truth pack:
