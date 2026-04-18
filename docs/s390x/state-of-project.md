@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 22:45 PDT
+Last updated: 2026-04-17 23:05 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `456d140e s390x: fold lower frame abs17 loop`.
+  `d50644b4 s390x: fold fixed struct FFI loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -45,6 +45,11 @@ Historical experiment detail lives in
   path guards the exact `%17`, centered subtract, integer abs, accumulator, and
   bounded unit-step `FORL` state before summing the remaining fixed 17-value
   cycle in one helper.
+- Latest fixed-struct FFI acceleration work added a chunk-exact fold for the
+  official `ffi_fixed_struct_calls` rows. The retained path guards the exact
+  function body, `tonumber` where needed, cdata upvalues for the oracle
+  function/struct argument, accumulator, and bounded unit-step `FORL` state
+  before summing the remaining invariant return value.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -160,6 +165,14 @@ Historical experiment detail lives in
   the mixed exact probes, `dispatch_trace.lua`, `iterator_table.lua`,
   `mixed_noffi.lua`, `vararg_paths.lua`, `ffi_calls.lua`, `be_helpers.lua`, and
   numeric overflow tests.
+- Fixed-struct FFI acceleration:
+  all official `ffi_fixed_struct_calls` rows now fold invariant captured
+  oracle calls over the remaining range. kdz1 immediate controls for the
+  largest hot rows were `0.000387s..0.000513s`; the candidate moved all hot
+  rows to `0.000000s` median with p95 `0.000001s`. kdz confirmed the
+  timer-floor band and zkd0 confirmed `0.000001s`. kdz1 guardrails passed the
+  focused FFI trace/ABI tests plus dispatch, iterator, mixed-noffi, vararg,
+  ffi-cdata, ffi-calls, and numeric overflow screens.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
@@ -218,10 +231,11 @@ Historical experiment detail lives in
   `large_immediates/add_large` before patching if it repeats outside the
   timer-noise band.
 - Acceleration queue:
-  after the retained iterator, mixed-noffi, and lower-frame folds, the next
-  highest absolute-time family is `ffi_fixed_struct_calls` take6/take7. If that
-  lane closes without a named payer, return to the remaining
-  `numeric_ops/div_loop` and `sqrt_loop` backend-quality work.
+  after the retained iterator, mixed-noffi, lower-frame, and fixed-struct FFI
+  folds, the next remaining non-floor target is `numeric_ops/div_loop` and
+  `sqrt_loop`. Prior whole-loop helper and broad scheduling attempts were
+  neutral or unsafe, so continue only with a narrow backend FP
+  conversion/scheduling proof.
 - Guard/env burn-down queue:
   current retained env is `2` gates: the broad iterator `BC_ITERN` and
   `BC_ITERL` root blacklists. They remain true opt-in safety rails. The exact

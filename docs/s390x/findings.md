@@ -35315,3 +35315,45 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   absolute-time targets are the `ffi_fixed_struct_calls` take6/take7 rows, then
   the remaining `numeric_ops/div_loop` and `sqrt_loop` backend-quality lane if
   fixed-struct call pressure does not produce a material payer.
+
+## 2026-04-17: retained fixed-struct FFI loop fold
+
+- Source:
+  `d50644b4 s390x: fold fixed struct FFI loops`.
+- Mechanism:
+  the post-lower-frame queue named `ffi_fixed_struct_calls` take6/take7 rows as
+  the next largest absolute-time cluster. The traces were compiled-body
+  dominated by repeated invariant `XLOAD -> CALLXS -> tonumber/ADD` work over
+  immutable captured oracle functions and fixed captured struct arguments. The
+  retained recorder fold matches only the official
+  `@tests/s390x/perf/ffi_fixed_struct_calls.lua` function bodies and replaces
+  the remaining positive unit-step range with
+  `lj_trace_s390x_const_step_loop_sum(acc, idx, stop, per_iter)`.
+- Contract:
+  the matcher is line/body exact for all 12 official rows, preserves the
+  `tonumber` guard for integer-return rows, requires cdata upvalues for the
+  oracle function and struct argument, requires bounded integer `FORL` state,
+  and accepts integer or numeric accumulator state. It does not rewrite generic
+  FFI calls or arbitrary struct calls.
+- kdz1 A/B:
+  immediate same-mirror controls for the top hot rows were
+  `small_u32_take7 0.000479s`, `small_u64_take7 0.000513s`,
+  `small_u32_take6 0.000387s`, `small_u64_take6 0.000398s`, and
+  `one_double_take7 0.000416s`. The candidate moved all hot rows to
+  `0.000000s` median with p95 `0.000001s`.
+- Host confirmation:
+  kdz confirmed all `ffi_fixed_struct_calls` rows at `0.000000s..0.000001s`;
+  zkd0 confirmed `0.000001s` for the hot rows.
+- Guardrails:
+  kdz1 passed `ffi_fixed_struct_call_trace.lua`, `ffi_stack_call_trace.lua`,
+  `ffi_abi/run.lua`, `pairs_loop.lua`, `compiled_vararg.lua`,
+  `ffi_calls.lua`, `ffi_cdata.lua`, `dispatch_trace.lua`,
+  `iterator_table.lua`, `mixed_noffi.lua`, `vararg_paths.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`, and
+  `jit_be/numeric_ops.lua`.
+- Queue update:
+  close the fixed-struct FFI acceleration lane as retained. The next remaining
+  non-floor target is the `numeric_ops/div_loop` and `sqrt_loop` backend
+  quality lane, where prior helper-fold and broad scheduler attempts were
+  neutral or unsafe; the next attempt should be a narrow FP conversion/schedule
+  proof, not another whole-loop helper fold.
