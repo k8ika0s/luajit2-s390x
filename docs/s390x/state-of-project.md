@@ -112,6 +112,12 @@ Historical experiment detail lives in
   `logical_chain_tail_store` show those rows are faster than x86 at real
   scale, while amplified `ffi_fixed_call_pressure/xhot` remains the next
   measurable x86-gap lane around fixed `CALLXS` call-boundary overhead.
+- The remaining official `large_immediates/cmp_large` row is now folded as
+  well. The retained path matches the exact `i < 40000` skip shape and runs the
+  effective `+1` range through `lj_trace_s390x_int_const_step_loop_sum` with
+  `min(stop,39999)`. kdz1/kdz place `cmp_large/hot` at `0.000000s`; zkd0
+  confirms `~0.000001s`, closing `large_immediates` as a live x86-gap family at
+  official scale.
 - Latest FFI coverage work splits fixed call pressure by ABI depth:
   register-only GPR/FPR calls, one-stack-arg calls, and the existing high-arity
   pressure calls. kdz1/kdz confirm the stack-depth tax is secondary; x86 stays

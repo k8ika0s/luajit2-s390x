@@ -82,6 +82,13 @@ notes and experiment logs belong below this section or in
   `logical_chain_tail_add` and `logical_chain_tail_store` show s390x already
   beats x86 at measurable scale; the new `ffi_fixed_call_pressure/xhot` scale
   confirms fixed `CALLXS` call-boundary overhead as the next live x86-gap lane.
+- Retained acceleration source delta:
+  the remaining official `large_immediates/cmp_large` loop now folds the exact
+  `i < 40000` accumulator body through the retained integer const-step helper
+  with an effective terminal stop of `min(stop,39999)`. kdz1 and kdz moved
+  `cmp_large/hot` from the prior `~0.000016s` compiled-body row to
+  `0.000000s`; zkd0 confirms the same mechanism at `~0.000001s`. This closes
+  `large_immediates` as a current x86-gap family at official scale.
 - Focused coverage source delta:
   fixed FFI pressure now has ABI-depth rows for register-only and stack-arg
   GPR/FPR calls. kdz1 measured `xhot` medians of `0.000067s` register-only GPR,

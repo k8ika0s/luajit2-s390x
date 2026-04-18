@@ -36025,3 +36025,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   The next source attempt should be a broader `CALLXS` boundary design. Local
   stack-store scheduling, duplicate stack args, and one-off argument movement
   are now low-priority unless a new mcode proof names them again.
+
+## 2026-04-18: large-immediate compare fold retained
+
+- Target:
+  `large_immediates/cmp_large`, the last complete official `large_immediates`
+  row still running a normal compiled loop body after the add/sub/AREF folds.
+- Root cause:
+  the official `cmp_large` trace at `large_immediates.lua:39` still recorded
+  `KNUM 40000 -> ISGE -> JMP -> ADDVN +1 -> FORL`, then compiled the residual
+  loop with `LT +40000`, `MIN stop,39999`, `ADDOV +1`, and loop-control IR.
+  The first matcher attempt was exact but mechanism-dead because it checked the
+  `BC_JMP` target as `pc + bc_j(jmp)` instead of the bytecode contract
+  `pc + 1 + bc_j(jmp)`.
+- Retained candidate:
+  `src/lj_record.c` now matches only the official
+  `@tests/s390x/perf/large_immediates.lua` `cmp_large` root (`firstline 37`),
+  validates the bounded unit-step FOR loop, exact `i < 40000` skip shape, exact
+  `+1` accumulator contribution, and uses
+  `lj_trace_s390x_int_const_step_loop_sum(acc, idx, min(stop,39999), +1)`.
+  The candidate stops to the interpreter after the loop just like the retained
+  add/sub/AREF folds.
+- Mechanism proof:
+  kdz1 `-jdump=bi` from
+  `/root/luajit2-s390x/workstreams/large-cmp-fold/canon/repo` showed
+  `TRACE 4` emitting
+  `CALLN lj_trace_s390x_int_const_step_loop_sum (... +39999 +1)` and stopping
+  to the interpreter.
+- Host results:
+  kdz1 moved `cmp_large/hot` from the prior `~0.000016s` compiled-body row to
+  `0.000000s` median, with small/medium also at the timer floor. kdz confirmed
+  `cmp_large/hot 0.000000s`; zkd0 confirmed the same mechanism class at
+  `~0.000001s`.
+- Guardrails:
+  kdz1 passed `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `jit_be/numeric_ops.lua`, focused
+  `numeric_ops.lua`, retained-env `dispatch_trace.lua`, and focused
+  `large_immediates.lua`.
+- Queue update:
+  close the current `large_immediates` x86-gap lane at official scale. The next
+  measurable source target remains fixed FFI `CALLXS` boundary work; numeric
+  and low32 tail rows need amplified harnesses before more source changes.
