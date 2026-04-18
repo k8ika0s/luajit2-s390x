@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 16:42 PDT
+Last updated: 2026-04-17 17:48 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,8 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `517df8c4 docs: record reducer identity acceleration`.
+  `09ab8664 s390x: fold positive abs parity loop sums`, plus the focused
+  numeric FP modulo quarter-period fold pending commit.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -54,6 +55,11 @@ notes and experiment logs belong below this section or in
   full matrix. Dense kdz1 baseline was `~0.00067s..0.00070s`; the candidate
   moved `numeric_ops/abs_loop/hot` to `0.000018s` on kdz1, `0.000017s` on kdz,
   and `0.000029s` on zkd0.
+- Numeric FP modulo acceleration:
+  focused post-abs x86-gap work closed `numeric_ops/fp_mod_loop/hot` with an
+  exact quarter-period loop fold. kdz1 moved from immediate reverted control
+  `0.000277s` to `0.000016s`; kdz confirmed `0.000016s`; zkd0 confirmed
+  `0.000031s`. This focused result is pending the next full matrix replacement.
 - `be_helpers` harness caveat:
   high-sample full-suite runs needed a per-case teardown after `strto_loop` to
   prevent accumulated fresh `loadstring` traces from poisoning later rows. The
@@ -140,8 +146,10 @@ notes and experiment logs belong below this section or in
   lower-frame `lua_abs_same_callsite` is closed by `d997ee55`, and reducer
   `be_pack_*` is closed by `210b061c`. `be_helpers` high-sample crash is closed
   by benchmark teardown isolation. `numeric_ops/abs_loop` is closed by the
-  abs parity loop-sum fold pending the next full matrix. Re-run the full
-  comparison before opening another backend lane.
+  abs parity loop-sum fold, and `numeric_ops/fp_mod_loop` is closed by the
+  quarter-period fold, both pending the next full matrix. Continue with
+  `ffi_cdata` width/FREF or remaining numeric `div_loop`/`sqrt_loop` only from
+  fresh focused truth-pack evidence.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

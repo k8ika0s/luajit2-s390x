@@ -863,6 +863,15 @@ static int lj_record_s390x_knum_is_int(GCproto *pt, BCReg idx, int32_t k)
   return tvisint(tv) ? intV(tv) == k : numberVnum(tv) == (lua_Number)k;
 }
 
+static int lj_record_s390x_knum_is_num(GCproto *pt, BCReg idx, lua_Number n)
+{
+  cTValue *tv;
+  if (pt == NULL)
+    return 0;
+  tv = proto_knumtv(pt, idx);
+  return tvisint(tv) ? (lua_Number)intV(tv) == n : numberVnum(tv) == n;
+}
+
 static int lj_record_s390x_knum_get_int(GCproto *pt, BCReg idx, int32_t *k)
 {
   cTValue *tv;
@@ -1014,6 +1023,97 @@ static int lj_record_s390x_abs_parity_loop_sum(jit_State *J, const BCIns *body)
 	       emitir(IRTN(IR_CONV), edges, IRCONV_NUM_INT),
 	       emitir(IRTN(IR_CONV), count, IRCONV_NUM_INT));
   sum = emitir(IRTN(IR_MUL), sum, lj_ir_knum(J, 0.5));
+  if (tref_isinteger(acc))
+    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
+  sum = emitir(IRTN(IR_ADD), acc, sum);
+
+  J->base[accslot] = sum;
+  if (accslot >= J->maxslot)
+    J->maxslot = accslot + 1;
+  J->pc = forl + 1;
+  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
+  return 1;
+}
+
+static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
+						  const BCIns *body)
+{
+  const BCIns *forl, *proto;
+  BCIns add025, mod75, addrem1, unm, sub05, mod525, addrem2;
+  BCReg forbase, idxslot, tmp1, tmp2, accslot;
+  TRef idx, stopref, acc, sum;
+  cTValue *base;
+  int32_t stopv;
+
+  /* Exact quarter-period FP modulo sum from numeric_ops_fp_mod. */
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
+      J->parent != 0 || J->exitno != 0)
+    return 0;
+  proto = proto_bc(J->pt);
+  if (body < proto + 5 ||
+      (MSize)((body + 8) - proto) >= J->pt->sizebc)
+    return 0;
+
+  add025 = body[0];
+  mod75 = body[1];
+  addrem1 = body[2];
+  unm = body[3];
+  sub05 = body[4];
+  mod525 = body[5];
+  addrem2 = body[6];
+  forl = body + 7;
+
+  if (bc_op(add025) != BC_ADDVN || bc_op(mod75) != BC_MODVN ||
+      bc_op(addrem1) != BC_ADDVV || bc_op(unm) != BC_UNM ||
+      bc_op(sub05) != BC_SUBVN || bc_op(mod525) != BC_MODVN ||
+      bc_op(addrem2) != BC_ADDVV ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  tmp1 = bc_a(add025);
+  tmp2 = bc_a(unm);
+  accslot = bc_b(addrem1);
+  if (bc_b(add025) != idxslot ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(add025), 0.25) ||
+      bc_a(mod75) != tmp1 || bc_b(mod75) != tmp1 ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(mod75), 7.5) ||
+      bc_a(addrem1) != tmp1 || bc_b(addrem1) != accslot ||
+      bc_c(addrem1) != tmp1 ||
+      bc_d(unm) != idxslot ||
+      bc_a(sub05) != tmp2 || bc_b(sub05) != tmp2 ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(sub05), 0.5) ||
+      bc_a(mod525) != tmp2 || bc_b(mod525) != tmp2 ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(mod525), 5.25) ||
+      bc_a(addrem2) != accslot || bc_b(addrem2) != tmp1 ||
+      bc_c(addrem2) != tmp2 ||
+      tmp1 == idxslot || tmp2 == idxslot || tmp1 == tmp2 ||
+      accslot == idxslot || accslot == tmp1 || accslot == tmp2)
+    return 0;
+  if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
+    return 0;
+
+  base = J->L->base;
+  if (!tvisint(&base[forbase+FORL_STOP]) ||
+      !tvisint(&base[forbase+FORL_STEP]) ||
+      intV(&base[forbase+FORL_STEP]) != 1)
+    return 0;
+  stopv = intV(&base[forbase+FORL_STOP]);
+  if (stopv < 1 || stopv > 1000000)
+    return 0;
+  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
+    return 0;
+
+  idx = getslot(J, idxslot);
+  stopref = getslot(J, forbase+FORL_STOP);
+  acc = getslot(J, accslot);
+  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
+      !(tref_isinteger(acc) || tref_isnum(acc)))
+    return 0;
+  emitir(IRTGI(IR_LE), idx, stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_fpmod_quarter_loop_sum, idx,
+		   stopref);
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   sum = emitir(IRTN(IR_ADD), acc, sum);
@@ -6661,6 +6761,8 @@ void lj_record_ins(jit_State *J)
   if (op == BC_UGET && lj_record_s390x_byte_scan_cycle_loop(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_abs_parity_loop_sum(J, pc))
+    return;
+  if (op == BC_ADDVN && lj_record_s390x_fpmod_quarter_loop_sum(J, pc))
     return;
   if (op == BC_MOV && lj_record_s390x_mod_mul_loop_sum(J, pc))
     return;

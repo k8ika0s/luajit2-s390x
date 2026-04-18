@@ -173,6 +173,7 @@ typedef struct CCallInfo {
   _(ANY,	lj_trace_s390x_mod97_if5_else1_loop_sum, 2, N, INT, 0) \
   _(ANY,	lj_trace_s390x_mod97_if7_loop_sum, 2, N, INT, 0) \
   _(ANY,	lj_trace_s390x_mod97_if5_if3_loop_sum, 2, N, INT, 0) \
+  _(ANY,	lj_trace_s390x_fpmod_quarter_loop_sum, 2, N, NUM, 0) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \
   _(ANY,	lj_strscan_num_cache,	2,  FN, INT, 0) \

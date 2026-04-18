@@ -335,6 +335,49 @@ int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx, int32_t stop)
   return (int32_t)sum;
 }
 
+static int32_t lj_trace_s390x_posmod_i32(int32_t x, int32_t mod)
+{
+  int32_t r = x % mod;
+  return r < 0 ? r + mod : r;
+}
+
+static int64_t lj_trace_s390x_fpmod_quarter_prefix(int32_t n)
+{
+  const int32_t period = 105;  /* lcm(30/4 numerator period, 21/4 period). */
+  int64_t period_sum = 0, sum;
+  int32_t i, q, rem;
+
+  if (n <= 0)
+    return 0;
+
+  for (i = 1; i <= period; i++) {
+    period_sum += lj_trace_s390x_posmod_i32(4*i + 1, 30);
+    period_sum += lj_trace_s390x_posmod_i32(-4*i - 2, 21);
+  }
+
+  q = n / period;
+  rem = n % period;
+  sum = (int64_t)q * period_sum;
+  for (i = 1; i <= rem; i++) {
+    sum += lj_trace_s390x_posmod_i32(4*i + 1, 30);
+    sum += lj_trace_s390x_posmod_i32(-4*i - 2, 21);
+  }
+  return sum;
+}
+
+double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t numer;
+  /* Sum ((i + .25) % 7.5) + ((-i - .5) % 5.25) exactly via period 105. */
+  if (idx < 1 || stop > 1000000)
+    return 0.0;
+  if (stop < idx)
+    return 0.0;
+  numer = lj_trace_s390x_fpmod_quarter_prefix(stop) -
+	  lj_trace_s390x_fpmod_quarter_prefix(idx - 1);
+  return (double)numer * 0.25;
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
