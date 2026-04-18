@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `1427b080 s390x: fold ffi abs17 call loops`.
+  `2753c018 s390x: fold route reducer outer loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -58,9 +58,9 @@ notes and experiment logs belong below this section or in
   kdz and zkd0 confirmed the timer-floor band. This focused result is pending
   the next full matrix replacement.
 - Current s390x artifact:
-  `artifacts/s390x/post-buffer-20260418T011933Z`.
+  `artifacts/s390x/post-ffi-pair-20260418T162706Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-post-buffer-kdz1-ka0s01-20260418T011933Z`, compared against
+  `artifacts/s390x/compare-post-ffi-pair-kdz1-ka0s01-20260418T162706Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health: `720` s390x benchmark records, `360` comparison rows,
   `342` complete s390x/x86 rows, `0` missing s390x rows, `18` missing x86 rows,
@@ -180,6 +180,14 @@ notes and experiment logs belong below this section or in
   s390x default remains `200` because a broad default change failed
   `jit_core/numeric_helpers.lua`. This is now reflected in the full matrix
   below.
+- Route-reducer outer-loop acceleration:
+  focused post-ffi-pair work closed the next complete x86-gap reducer row by
+  folding the remaining official outer `chunks=400` loop through
+  `lj_trace_s390x_route_pack_outer_sum`. kdz1 moved all three
+  `route_around_reducers_truth_pack/*/hot` rows from the prior
+  `0.000056s..0.000129s` band to `0.000000s..0.000001s`; kdz and zkd0
+  confirmed the helper-call proof and timer-floor band. This focused result is
+  pending the next full matrix replacement.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |

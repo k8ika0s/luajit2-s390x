@@ -35623,3 +35623,49 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Remaining non-floor gaps are mostly numeric FP hardware latency and tiny
   logic/large-immediate rows; rerun the full x86 comparison after this commit
   before opening another source lane.
+
+## 2026-04-18: retained route-reducer outer-loop fold
+
+- Source:
+  `2753c018 s390x: fold route reducer outer loops`.
+- Rerank context:
+  after `ffi_cdata/pair_loop` landed, the fresh comparison
+  `artifacts/s390x/compare-post-ffi-pair-kdz1-ka0s01-20260418T162706Z`
+  named `route_around_reducers_truth_pack/be_pack_literal_stop/hot` as the
+  next actionable complete x86-gap row after residual numeric FP. Numeric
+  `div_loop`/`sqrt_loop` were rechecked first; identity and helper-codegen
+  attempts were neutral, so no numeric source was retained in that pass.
+- Mechanism:
+  the retained route-reducer inner fold still paid the outer `chunks=400`
+  loop. The new recorder path matches only the exact official
+  `@tests/s390x/perf/route_around_reducers.lua` nested pack reducers, verifies
+  the inner and outer `FORI/JFORI` entries rather than interpreting patched
+  `JFORL` D fields as jumps, guards bounded unit-step outer loop state, and
+  folds the remaining chunks through
+  `lj_trace_s390x_route_pack_outer_sum(acc, idx, stop)`.
+- kdz1 causality:
+  the first candidate missed because it used `bc_j()` on already-patched
+  `JFORL`; diagnostic logs showed `JFORL` carried trace numbers. The retained
+  matcher instead validates the paired `FORI/JFORI` entries. Official dumps
+  then showed `CALLN lj_trace_s390x_route_pack_outer_sum` for all three route
+  rows. The final kdz1 truth pack
+  `artifacts/s390x/accel/route_reducers-outer-fold-final-20260418T162706Z`
+  moved `be_pack_literal_stop/hot`,
+  `be_pack_literal_stop_local_ops/hot`, and
+  `be_pack_loop_local_ops/hot` to `0.000000s..0.000001s` across three
+  alternating passes.
+- Host confirmation:
+  kdz confirmed the same helper-call proof and timer-floor band in
+  `artifacts/s390x/accel/route_reducers-outer-fold-kdz-20260418T162706Z`;
+  zkd0 confirmed in
+  `artifacts/s390x/accel/route_reducers-outer-fold-zkd0-20260418T162706Z`.
+- Guardrails:
+  kdz1 passed `route_around_reducers.lua`,
+  `jit_be/numeric_ops.lua`, `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `bitops_mix.lua`,
+  `large_immediates.lua`, and `dispatch_trace.lua`.
+- Queue update:
+  close the route-around reducer x86-gap lane as retained at current scale.
+  The remaining complete x86 gaps are mostly numeric FP residuals,
+  `large_immediates/add_large/medium`, and small logic/BE-helper rows; rerank
+  from the next full comparison before opening another source lane.
