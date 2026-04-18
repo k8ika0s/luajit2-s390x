@@ -220,10 +220,12 @@ notes and experiment logs belong below this section or in
   dense kdz1 reruns did not reproduce the older `large_immediates/add_large`
   concern.
 - Clean-run evidence:
-  `artifacts/s390x/kdz-retained-jitter-20260417054617-11gate-1853413a` is the
-  current post-cleanup retained-env rerank. It is not a cross-arch replacement
+  `artifacts/s390x/jitter/post-numeric-divsqrt-rerank-20260418T0015Z` is the
+  current post-numeric retained-env rerank. It is not a cross-arch replacement
   for the top matrix, but it proves the current WIP is clean across all `23`
-  tracked perf families under the now-`11`-gate retained env.
+  tracked perf families under the retained env. No hot row was red versus
+  `-joff`; `numeric_ops/div_loop/hot` is now `0.000178s` and
+  `numeric_ops/sqrt_loop/hot` is `0.000224s` on the kdz1 rerank.
 - Rerank watch: timer-floor rows (`dispatch_trace`, `string_heavy`, `bitops_mix`,
   and fixed FFI pressure) should use larger focused harnesses before claiming
   more retained wins.
@@ -248,6 +250,15 @@ notes and experiment logs belong below this section or in
   `e3b0faff` helper fold closes the current numeric `div_loop`/`sqrt_loop`
   helper-fold lane; any further work there needs a new payer beyond raw FP
   latency.
+- Next high-time watch:
+  with iterator/mixed/lower-frame/string/struct/reducer rows now at or near the
+  timer floor under retained env, the remaining non-floor official hot rows are
+  call/FP quality targets rather than regressions: `ffi_calls/direct_abs` and
+  `stored_abs` (`~0.000185s`), residual `numeric_ops/sqrt_loop`/`div_loop`
+  (`0.000224s`/`0.000178s`), `route_around_reducers/be_pack_literal_stop`
+  (`~0.000125s`), and `be_helpers/num_aload_loop` (`0.000111s`). Open code
+  only after focused truth packs name a mechanism; the rerank itself does not
+  justify weakening safety rails.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

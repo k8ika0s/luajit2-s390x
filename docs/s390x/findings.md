@@ -35460,3 +35460,24 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   retained. The residual x86 gap is now mostly raw FP operation latency and
   timer-scale overhead; do not reopen broad FP scheduling without a new
   official-row payer.
+
+## 2026-04-18: post-numeric retained-env rerank is clean
+
+- Artifact:
+  `artifacts/s390x/jitter/post-numeric-divsqrt-rerank-20260418T0015Z`.
+- Read:
+  kdz1 retained-env rerank, `5` samples, `2` warmups, `2` alternating passes
+  across the current `23` tracked perf families. No hot row was red versus
+  `-joff`.
+- Numeric status:
+  `numeric_ops/div_loop/hot` repeated at `0.000178s`; `sqrt_loop/hot`
+  repeated at `0.000224s`. This confirms the retained helper-fold source point
+  and leaves only a residual FP-latency/x86-gap lane, not a correctness or
+  regression blocker.
+- Next target read:
+  remaining non-floor hot rows are now acceleration candidates only:
+  `ffi_calls/direct_abs` and `stored_abs` around `0.000185s`,
+  residual numeric FP rows, `route_around_reducers/be_pack_literal_stop`
+  around `0.000125s`, and `be_helpers/num_aload_loop` around `0.000111s`.
+  Start the next tranche with focused call-path truth packs unless a fresh
+  x86 comparison names a stronger absolute gap.
