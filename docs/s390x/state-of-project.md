@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 12:59 PDT
+Last updated: 2026-04-18 14:14 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `002540c6 s390x: fold large immediate table loops`.
+  `5e4bb6de docs: record large immediate table fold`, plus the focused
+  subtract/xhot source delta pending the next full matrix replacement.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -104,6 +105,13 @@ Historical experiment detail lives in
   remaining bounded unit-step loop. kdz1/kdz now place both
   `aref_small/hot` and `aref_large/hot` at `0.000000s` median; zkd0 confirms
   the same mechanism at `~0.000001s`.
+- Latest focused x86-gap work folds the official `large_immediates/sub_large`
+  loop through the same integer const-step helper with a negative `-40000`
+  contribution. kdz1/kdz moved `sub_large/hot` to `0.000000s`; zkd0 confirmed
+  `~0.000001s`. Amplified `xhot` scales for `logical_chain_tail_add` and
+  `logical_chain_tail_store` show those rows are faster than x86 at real
+  scale, while amplified `ffi_fixed_call_pressure/xhot` remains the next
+  measurable x86-gap lane around fixed `CALLXS` call-boundary overhead.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane.

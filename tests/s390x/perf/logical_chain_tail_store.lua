@@ -1,9 +1,9 @@
 local bit = require("bit")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
 
-local scale_order = { "hot" }
+local scale_order = { "hot", "xhot" }
 local scales = {
-  hot = 20,
+  hot = 20, xhot = 2000,
 }
 
 local function chain(i)

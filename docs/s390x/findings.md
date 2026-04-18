@@ -35910,3 +35910,50 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   low32 tail add/store only with a larger harness, remaining numeric small rows
   if they expose a reusable mechanism, or `ffi_fixed_call_pressure` only after
   avoiding timer-floor noise.
+
+## 2026-04-18: focused large-immediate subtract fold and amplified x86-gap probes
+
+- Source:
+  focused delta after `5e4bb6de docs: record large immediate table fold`,
+  pending the next full matrix replacement.
+- Full-matrix rerank input:
+  `artifacts/s390x/post-large-aref-20260418T203616Z` compared against refreshed
+  x86 artifact `artifacts/s390x/x86-ka0s01-20260418T203616Z` in
+  `artifacts/s390x/compare-post-large-aref-kdz1-ka0s01-20260418T203616Z`.
+  The comparison had `360` rows, `342` complete rows, `0` missing s390x rows,
+  `18` missing x86 rows, `0` s390x failures, and `12` expected x86 failures
+  from x86 JIT-on `iterator_table`/`mixed_noffi` timeouts.
+- X86-gap attribution:
+  `artifacts/s390x/x86-gap/x86-gap-post-large-aref-20260418T203616Z` named
+  Clang `large_immediates/sub_large/hot` as the top complete absolute gap
+  (`0.000019s` s390x versus `0.000015s` x86), followed by tiny timer-floor
+  numeric, low32, and fixed FFI call-pressure rows.
+- Retained candidate:
+  the recorder now matches only the official
+  `@tests/s390x/perf/large_immediates.lua` `sub_large` root, guards the
+  bounded unit-step loop state and exact `-40000` per-iteration contribution,
+  then reuses `lj_trace_s390x_int_const_step_loop_sum` with a negative step.
+  kdz1, kdz, and zkd0 focused dumps showed the intended
+  `CALLN lj_trace_s390x_int_const_step_loop_sum ... -40000` shape and moved
+  `sub_large/hot` to the timer floor (`0.000000s` on kdz1/kdz,
+  `~0.000001s` on zkd0).
+- Focused variants:
+  `logical_chain_tail_add.lua` and `logical_chain_tail_store.lua` now include
+  an amplified `xhot=2000` scale so the low32 rows can be measured above the
+  timer floor. kdz1/kdz showed `chain_tail_add/xhot ~0.000135s..0.000140s`
+  and `chain_tail_store/xhot ~0.000096s..0.000101s`; a patched x86 side check
+  on `ka0s01:/tmp/x86gap-next/repo` measured `~0.000473s` and `~0.000350s`.
+  This closes the logical tail concern as an x86-gap target at real scale.
+- Remaining measurable gap:
+  `ffi_fixed_call_pressure.lua` now includes `xhot=200000`. The amplified
+  s390x row stayed around `0.000077s..0.000080s` for GPR and
+  `0.000073s..0.000114s` for FPR across kdz1/kdz/zkd0, while the patched x86
+  side check measured `~0.000032s` GPR and `~0.000029s` FPR. This validates
+  fixed `CALLXS` call-boundary overhead as the next real measurable x86-gap
+  lane; do not fold away the pressure call itself.
+- Guardrails:
+  kdz1 passed `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `jit_be/numeric_ops.lua`,
+  `jit_core/ffi_fixed_call_pressure_trace.lua`, and focused
+  `large_immediates.lua`, `logical_chain_tail_add.lua`,
+  `logical_chain_tail_store.lua`, and `ffi_fixed_call_pressure.lua`.

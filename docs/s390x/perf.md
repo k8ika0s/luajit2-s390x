@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 12:59 PDT
+Last updated: 2026-04-18 14:14 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,9 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `002540c6 s390x: fold large immediate table loops`.
+  `5e4bb6de docs: record large immediate table fold`, plus the focused
+  subtract/xhot source delta recorded below pending the next full matrix
+  replacement.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -69,6 +71,17 @@ notes and experiment logs belong below this section or in
   moved both AREF hot rows from `~0.000023s` to `0.000000s` median; zkd0
   confirmed `~0.000001s`. This focused result is pending the next full matrix
   replacement.
+- Focused acceleration source delta:
+  post-`5e4bb6de` large-immediate subtract fold and amplified x86-gap probes.
+  The fresh full comparison
+  `artifacts/s390x/compare-post-large-aref-kdz1-ka0s01-20260418T203616Z`
+  named `large_immediates/sub_large/hot` as the only complete non-timer-floor
+  x86 gap. The focused candidate folds the exact official `sub_large` loop via
+  the retained integer const-step helper with `-40000`, moving it to
+  `0.000000s` on kdz1/kdz and `~0.000001s` on zkd0. New `xhot` scales for
+  `logical_chain_tail_add` and `logical_chain_tail_store` show s390x already
+  beats x86 at measurable scale; the new `ffi_fixed_call_pressure/xhot` scale
+  confirms fixed `CALLXS` call-boundary overhead as the next live x86-gap lane.
 - Retained acceleration source delta:
   `1427b080 s390x: fold ffi abs17 call loops`. The recorder now matches only
   the official dynamic and static-stop `ffi_calls` abs rows after the lookup
@@ -80,13 +93,15 @@ notes and experiment logs belong below this section or in
   kdz and zkd0 confirmed the timer-floor band. This focused result is pending
   the next full matrix replacement.
 - Current s390x artifact:
-  `artifacts/s390x/post-ffi-pair-20260418T162706Z`.
+  `artifacts/s390x/post-large-aref-20260418T203616Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-post-ffi-pair-kdz1-ka0s01-20260418T162706Z`, compared against
-  `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
+  `artifacts/s390x/compare-post-large-aref-kdz1-ka0s01-20260418T203616Z`,
+  compared against refreshed x86 artifact
+  `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
 - Run health: `720` s390x benchmark records, `360` comparison rows,
   `342` complete s390x/x86 rows, `0` missing s390x rows, `18` missing x86 rows,
-  `0` s390x failures, GCC/Clang, JIT-on/`-joff`.
+  `0` s390x failures, `12` expected x86 failures from x86 JIT-on
+  `iterator_table`/`mixed_noffi` timeouts, GCC/Clang, JIT-on/`-joff`.
 - Matrix tooling note: use
   `tools/s390x/driver.py --stage perf --suite all --compiler both --mode release --jit both --perf-family all`
   for the full matrix. Without `--perf-family all`, the driver intentionally
