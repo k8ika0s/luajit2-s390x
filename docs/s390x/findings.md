@@ -35481,3 +35481,40 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   around `0.000125s`, and `be_helpers/num_aload_loop` around `0.000111s`.
   Start the next tranche with focused call-path truth packs unless a fresh
   x86 comparison names a stronger absolute gap.
+
+## 2026-04-18: retained FFI abs17 call-loop fold
+
+- Source:
+  `1427b080 s390x: fold ffi abs17 call loops`.
+- Mechanism:
+  the post-numeric rerank named `ffi_calls/direct_abs` and
+  `ffi_calls/stored_abs` as the largest remaining official hot rows. Fresh
+  dumps showed both loops were compiled-body dominated by repeated `CALLXS`
+  to `abs` after the lookup/upvalue guards had already been recorded. The
+  retained candidate is chunk-exact for the official dynamic and static-stop
+  `ffi_calls` abs rows: it matches only the `MODVN 17 -> SUBVN 8 -> CALL ->
+  ADDVV -> FORL -> RET1` body, guards bounded unit-step `FORL` state, then
+  folds the remaining `abs((i % 17) - 8)` range through
+  `lj_trace_s390x_abs17_loop_sum`.
+- kdz1 causality:
+  IR proof showed `CALLN lj_trace_s390x_abs17_loop_sum` on both official abs
+  traces. Immediate clean-HEAD control was `direct_abs/hot 0.000185`,
+  `stored_abs/hot 0.000185`, static `direct_abs_literal_stop_real/hot
+  0.000186`, and static `stored_abs_literal_stop_real/hot 0.000187`. The
+  candidate moved all four hot rows to `0.000000s..0.000001s`.
+- Host confirmation:
+  kdz confirmed both dynamic abs rows at `0.000000s..0.000001s` and static
+  rows at `0.000000s..0.000001s`; zkd0 confirmed the same class at
+  `0.000001s`.
+- Guardrails:
+  kdz1 passed `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, `jit_be/numeric_ops.lua`,
+  `tests/s390x/ffi_abi/run.lua`, `ffi_calls.lua`,
+  `ffi_fixed_struct_calls.lua`, `dispatch_trace.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, `pairs_loop.lua`,
+  `compiled_vararg.lua`, and the exact mixed/hash/ipairs probes.
+- Queue update:
+  close the current `ffi_calls/direct_abs` and `stored_abs` acceleration lane
+  as retained. Next acceleration targets return to residual numeric FP,
+  route-around reducer/static-stop rows, and `be_helpers/num_aload_loop`
+  unless a fresh full x86 comparison names a stronger absolute payer.
