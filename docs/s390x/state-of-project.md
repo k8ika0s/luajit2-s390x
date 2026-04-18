@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 23:05 PDT
+Last updated: 2026-04-17 23:25 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `d50644b4 s390x: fold fixed struct FFI loops`.
+  `68c678e0 s390x: fold route reducer pack loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -50,6 +50,11 @@ Historical experiment detail lives in
   function body, `tonumber` where needed, cdata upvalues for the oracle
   function/struct argument, accumulator, and bounded unit-step `FORL` state
   before summing the remaining invariant return value.
+- Latest route-reducer acceleration work added a chunk-exact fold for the
+  official `route_around_reducers` rows. The retained path keeps the previous
+  backend byte-pack identity lowering, but now folds each exact inner
+  `1..400` pack loop to one guarded arithmetic-series helper call before
+  returning to the outer chunk loop.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
