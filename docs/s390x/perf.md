@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 22:45 PDT
+Last updated: 2026-04-17 23:05 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `456d140e s390x: fold lower frame abs17 loop`.
+  `d50644b4 s390x: fold fixed struct FFI loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -116,6 +116,16 @@ notes and experiment logs belong below this section or in
   kdz1 moved from immediate same-mirror control `0.000576s` to `0.000001s`;
   kdz confirmed `0.000001s`; zkd0 confirmed `0.000002s`. This focused result
   is pending the next full matrix replacement.
+- `ffi_fixed_struct_calls` fixed struct-call acceleration:
+  focused post-lower-frame work closed all official fixed-struct call rows with
+  a chunk-exact fold over invariant captured oracle functions and fixed struct
+  arguments. kdz1 immediate controls for the largest rows were
+  `small_u64_take7/hot 0.000513s`, `small_u32_take7/hot 0.000479s`,
+  `small_u64_take6/hot 0.000398s`, `small_u32_take6/hot 0.000387s`, and
+  `one_double_take7/hot 0.000416s`; the candidate moved all hot rows to
+  `0.000000s` median with p95 `0.000001s`. kdz confirmed the timer-floor band
+  and zkd0 confirmed `0.000001s`. This focused result is pending the next full
+  matrix replacement.
 - Numeric div/sqrt correctness follow-up:
   the post-tobit numeric truth pack exposed a wrong result in a combined
   `DIV + math.sqrt` loop, caused by an over-broad sqrt loop-index scheduling
@@ -215,10 +225,9 @@ notes and experiment logs belong below this section or in
   `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
   fold, and `be_helpers/strto_loop` is closed by `5f2c9d83`. The combined
   div/sqrt scheduler fix was correctness-only, and a local exact helper-fold
-  candidate for `div_loop`/`sqrt_loop` engaged but was neutral. The next
-  absolute-time acceleration target is the `ffi_fixed_struct_calls` take6/take7
-  cluster; continue with numeric div/sqrt only after that lane closes or fails
-  to name a payer.
+  candidate for `div_loop`/`sqrt_loop` engaged but was neutral.
+  `ffi_fixed_struct_calls` is closed by `d50644b4`. The next remaining
+  non-floor target is the numeric `div_loop`/`sqrt_loop` backend-quality lane.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
