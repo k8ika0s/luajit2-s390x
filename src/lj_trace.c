@@ -580,6 +580,17 @@ int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
   return (int32_t)((uint32_t)mul * (uint32_t)tri);
 }
 
+int32_t lj_trace_s390x_route_pack_outer_sum(int32_t acc, int32_t idx,
+					    int32_t stop)
+{
+  int64_t n, sum;
+  if (idx < 1 || stop != 400 || stop < idx)
+    return acc;
+  n = (int64_t)stop - idx + 1;
+  sum = (int64_t)acc + n * 80200;
+  return (int32_t)sum;
+}
+
 double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx, int32_t stop)
 {
   static const double values[4] = { 1.25, 2.5, 3.75, 4.125 };
