@@ -1876,6 +1876,22 @@ static int lj_record_s390x_be_helpers_proto_match(GCproto *pt)
 		  sizeof(be_helpers_localized) - 1) == 0));
 }
 
+static int lj_record_s390x_scaled_tobit_proto_match(GCproto *pt)
+{
+  GCstr *chunk;
+  static const char promotion_core_static[] =
+    "@tests/s390x/perf/promotion_core_static_stop.lua";
+  if (lj_record_s390x_be_helpers_proto_match(pt))
+    return 1;
+  if (pt == NULL || (pt->firstline != 4 && pt->firstline != 12))
+    return 0;
+  chunk = proto_chunkname(pt);
+  return chunk != NULL &&
+	 chunk->len == (MSize)(sizeof(promotion_core_static) - 1) &&
+	 memcmp(strdata(chunk), promotion_core_static,
+		sizeof(promotion_core_static) - 1) == 0;
+}
+
 static int lj_record_s390x_be_helpers_strto_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -1988,7 +2004,7 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
   int32_t stopv, mulv;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_be_helpers_proto_match(J->pt) ||
+      !lj_record_s390x_scaled_tobit_proto_match(J->pt) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
