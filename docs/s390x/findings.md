@@ -36168,3 +36168,36 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   amplified harness that escapes timer floor. Current surviving mechanism debt
   is fixed FFI `CALLXS` boundary design, broader matrix/x86 coverage, and any
   future row that repeats above the noise floor in official retained A/B.
+
+## 2026-04-18: cbdf6b38 full comparison rerank has no s390x regression queue
+
+- Artifacts:
+  full kdz1 s390x matrix
+  `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z` and comparison
+  `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`
+  against x86 artifact `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
+- Run health:
+  the s390x artifact has `800` perf records and `0` failures. The comparison
+  has `400` rows, `342` complete cross-arch rows, `0` missing s390x rows,
+  `58` missing x86 rows, and `12` x86 failures. The x86 failures are the
+  known x86 JIT-on timeouts for `iterator_table.lua` and `mixed_noffi.lua`.
+- Regression result:
+  no current s390x JIT-on row is slower than `-joff`. This closes the
+  immediate regression queue for the official matrix at `cbdf6b38`.
+- High-time result:
+  the largest s390x JIT-on rows are the amplified low32 logic rows
+  (`logical_chain_tail_add/xhot ~0.000134s..0.000135s` and
+  `logical_chain_tail_store/xhot ~0.000092s..0.000097s`), followed by
+  `be_helpers/num_aload_loop/hot ~0.000111s` and
+  `mixed_ffi/mixed_ffi_loop/hot ~0.000090s`. The complete high-time rows are
+  already faster than x86 where x86 data exists.
+- x86-gap result:
+  the largest complete x86-faster rows above `5us` are timer-floor-adjacent
+  `ffi_fixed_call_pressure` hot rows (`~0.000007s..0.000008s`) and small /
+  medium `numeric_ops` rows (`~0.000012s..0.000016s`). There is no complete
+  x86-faster row above `20us`.
+- Queue update:
+  do not open broad regression work from this matrix. The next credible
+  source lane is either fixed `CALLXS` boundary design with an amplified
+  pressure harness, or x86 coverage completion for the missing xhot /
+  iterator / mixed rows before using them for cross-arch ranking.
