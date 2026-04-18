@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `2753c018 s390x: fold route reducer outer loops`.
+  `835e1ad4 s390x: fold large immediate add loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -73,6 +73,10 @@ Historical experiment detail lives in
   path validates paired `FORI/JFORI` entries so already-patched `JFORL` trace
   numbers are not misread as bytecode jumps, then sums the remaining chunks
   through one guarded helper.
+- Latest large-immediate x86-gap acceleration work folds the official
+  add-small/add-large loops after guarding bounded unit-step loop state. This
+  removes stop-specialized side paths for medium/small scales while keeping
+  the change exact to `tests/s390x/perf/large_immediates.lua`.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane.
@@ -238,6 +242,13 @@ Historical experiment detail lives in
   new helper in official dumps and moved all three route-reducer hot rows to
   `0.000000s..0.000002s`. kdz1 guardrails passed route reducers, numeric
   overflow, bitops, large immediates, and dispatch.
+- Large-immediate add acceleration:
+  the official `add_small` and `add_large` loops now fold the remaining
+  positive unit-step range with `lj_trace_s390x_int_const_step_loop_sum` after
+  guarding `stop <= 40000`. kdz1 moved `add_large/medium` from `0.000041s` and
+  `add_large/hot` from `0.000016s` to the timer floor; kdz and zkd0 confirmed
+  the helper-call proof and timer-floor add rows. kdz1 guardrails passed large
+  immediates, numeric overflow, numeric perf, dispatch, and route reducers.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
