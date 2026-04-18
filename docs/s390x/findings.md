@@ -35712,3 +35712,52 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   complete x86 gaps are now mostly numeric FP residuals and small low32/logic
   timer-floor rows; rerun the x86 comparison after this source point before
   selecting the next patch.
+
+## 2026-04-18: retained logical-chain tail-store fold
+
+- Source:
+  `2be6c034 s390x: fold logical chain tail stores`.
+- Rerank context:
+  after the large-immediate fold, the remaining complete x86-gap list still
+  had small low32 logic rows. Dense kdz1 reads showed
+  `logical_chain_tail_add` and `logic_add_phi_noboundary` were already in the
+  timer-floor/noise band, while
+  `logical_chain_tail_store/chain_tail_store/hot` still paid a visible
+  `~0.000013s` for the official side-effecting inner loop.
+- Mechanism:
+  the first helper-call fold for `logical_chain_tail_add` and
+  `logic_add_phi_noboundary` was rejected. It reduced trace size but moved
+  `chain_tail_add/hot` from the timer floor to `~0.000010s` and left
+  `logic_add_phi_noboundary/hot` neutral/slightly worse. The retained path
+  instead matches only the official
+  `@tests/s390x/perf/logical_chain_tail_store.lua` inner loop. It verifies the
+  `chain(i) -> sink[1] -> sink[1] -> equality -> total+1` bytecode shape,
+  guards the exact chain upvalue, fixed `1..200` inner loop, fixed `chunks=20`
+  outer loop, local sink table array slot, and nil metatable, then stores the
+  only externally visible final value `chain(200)` once and adds the remaining
+  inner iteration count to `total`.
+- kdz1 causality:
+  official dump proof changed trace 1 from the baseline `1432` byte mcode with
+  per-iteration `ASTORE` to a `460` byte trace with one
+  `ASTORE +1476402964`. Immediate same-host control was
+  `logical_chain_tail_store/hot 0.000013s`; candidate reached
+  `0.000001s` with p95 `0.000002s`.
+- Host confirmation:
+  kdz confirmed `logical_chain_tail_store/hot 0.000001s` and zkd0 confirmed
+  `0.000002s`. Siblings stayed in band: kdz
+  `logical_chain_tail_add/hot 0.000002s` and
+  `logic_add_phi_noboundary/hot 0.000017s`; zkd0
+  `logical_chain_tail_add/hot 0.000002s` and
+  `logic_add_phi_noboundary/hot 0.000018s`.
+- Guardrails:
+  kdz1 passed `jit_be/low32_home_contract.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`,
+  `jit_be/numeric_ops.lua`, `jit_core/bitops_trace.lua`,
+  `jit_loops/compiled_vararg.lua`, `jit_loops/pairs_loop.lua`,
+  `dispatch_trace.lua`, `iterator_table.lua`, `mixed_noffi.lua`,
+  `vararg_paths.lua`, and the focused low32 perf siblings.
+- Queue update:
+  close `logical_chain_tail_store` as retained at current official scale.
+  `logical_chain_tail_add` and `logic_add_phi_noboundary` remain parked unless
+  a larger harness exposes a non-noisy payer; the rejected helper-call fold is
+  not a viable route.

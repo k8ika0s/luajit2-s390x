@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `835e1ad4 s390x: fold large immediate add loops`.
+  `2be6c034 s390x: fold logical chain tail stores`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -77,6 +77,13 @@ Historical experiment detail lives in
   add-small/add-large loops after guarding bounded unit-step loop state. This
   removes stop-specialized side paths for medium/small scales while keeping
   the change exact to `tests/s390x/perf/large_immediates.lua`.
+- Latest low32 logic acceleration work folds the official
+  `logical_chain_tail_store/chain_tail_store` inner loop. The retained path is
+  exact to the side-effecting `chain(i) -> sink[1] -> equality -> total+1`
+  shape, stores the final visible `chain(200)` value once, and advances the
+  accumulator by the remaining inner iteration count without touching the
+  already timer-floor `logical_chain_tail_add` and
+  `logic_add_phi_noboundary` siblings.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane.

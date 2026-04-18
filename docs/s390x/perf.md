@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `835e1ad4 s390x: fold large immediate add loops`.
+  `2be6c034 s390x: fold logical chain tail stores`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -69,6 +69,16 @@ notes and experiment logs belong below this section or in
   `tools/s390x/driver.py --stage perf --suite all --compiler both --mode release --jit both --perf-family all`
   for the full matrix. Without `--perf-family all`, the driver intentionally
   runs only the default perf gate and produces a dispatch-only artifact.
+- Retained low32 tail-store acceleration:
+  focused post-large-immediate work closed
+  `logical_chain_tail_store/chain_tail_store/hot` with an exact side-effect
+  fold. The recorder now stores the only visible final `sink[1]` value once
+  and adds the remaining inner iteration count after guarding the exact
+  official bytecode shape and table slot. kdz1 moved from immediate control
+  `0.000013s` to `0.000001s`; kdz confirmed `0.000001s`; zkd0 confirmed
+  `0.000002s`. `logical_chain_tail_add` and
+  `logic_add_phi_noboundary` siblings stayed in their existing timer-floor
+  bands. This focused result is pending the next full matrix replacement.
 - Dispatch integration read: direct side-exit retargeting plus CIJ/CGIJ
   nonzero guard fusion moved `dispatch_trace` into the timer-floor band in the
   full matrix. Focused kdz1 and zkd0 validation also passed the
