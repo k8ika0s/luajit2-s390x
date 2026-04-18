@@ -1022,6 +1022,27 @@ static int lj_record_s390x_numeric_divsqrt_proto_match(GCproto *pt,
 	   memcmp(strdata(chunk), want_noat, len - 1) == 0));
 }
 
+static int lj_record_s390x_ffi_calls_proto_match(GCproto *pt)
+{
+  GCstr *chunk;
+  static const char ffi_calls[] = "@tests/s390x/perf/ffi_calls.lua";
+  static const char ffi_calls_static[] =
+    "@tests/s390x/perf/ffi_calls_static_stop.lua";
+  if (pt == NULL)
+    return 0;
+  chunk = proto_chunkname(pt);
+  if (chunk == NULL)
+    return 0;
+  if (chunk->len == (MSize)(sizeof(ffi_calls) - 1) &&
+      memcmp(strdata(chunk), ffi_calls, sizeof(ffi_calls) - 1) == 0)
+    return pt->firstline == 16 || pt->firstline == 24;
+  if (chunk->len == (MSize)(sizeof(ffi_calls_static) - 1) &&
+      memcmp(strdata(chunk), ffi_calls_static,
+	     sizeof(ffi_calls_static) - 1) == 0)
+    return pt->firstline == 11 || pt->firstline == 19;
+  return 0;
+}
+
 static int lj_record_s390x_route_reducer_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -1471,6 +1492,78 @@ static int lj_record_s390x_numeric_sqrt_loop_accum4(jit_State *J,
   emitir(IRTGI(IR_LE), idx, stopref);
   sum = lj_ir_call(J, IRCALL_lj_trace_s390x_sqrt_loop_accum4, acc, idx,
 		   stopref);
+  J->base[accslot] = sum;
+  if (accslot >= J->maxslot)
+    J->maxslot = accslot + 1;
+  J->pc = forl + 1;
+  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
+  return 1;
+}
+
+static int lj_record_s390x_ffi_abs17_loop_sum(jit_State *J, const BCIns *body)
+{
+  const BCIns *forl, *proto;
+  BCIns mod17, sub8, call, add;
+  BCReg forbase, idxslot, tmp, callbase, accslot;
+  TRef idx, stopref, acc, sum;
+  cTValue *base;
+  int32_t stopv;
+
+  if (!lj_record_s390x_root_frame(J) ||
+      !lj_record_s390x_ffi_calls_proto_match(J->pt) ||
+      J->parent != 0 || J->exitno != 0)
+    return 0;
+  proto = proto_bc(J->pt);
+  if (body < proto + 5 || (MSize)((body + 4) - proto) >= J->pt->sizebc)
+    return 0;
+
+  mod17 = body[0]; sub8 = body[1]; call = body[2]; add = body[3];
+  forl = body + 4;
+  if (bc_op(mod17) != BC_MODVN || bc_op(sub8) != BC_SUBVN ||
+      bc_op(call) != BC_CALL || bc_op(add) != BC_ADDVV ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
+      bc_op(forl[1]) != BC_RET1)
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  tmp = bc_a(mod17);
+  callbase = bc_a(call);
+  accslot = bc_b(add);
+  if (bc_b(mod17) != idxslot ||
+      !lj_record_s390x_knum_is_int(J->pt, bc_c(mod17), 17) ||
+      bc_a(sub8) != tmp || bc_b(sub8) != tmp ||
+      !lj_record_s390x_knum_is_int(J->pt, bc_c(sub8), 8) ||
+      bc_b(call) != 2 || bc_c(call) != 2 ||
+      bc_a(add) != accslot || bc_b(add) != accslot ||
+      bc_c(add) != callbase ||
+      bc_op(*(forl + 1 + bc_j(*forl))) != BC_UGET ||
+      forl + 1 + bc_j(*forl) > body ||
+      bc_a(forl[1]) != accslot ||
+      callbase == idxslot || callbase == accslot || tmp == accslot)
+    return 0;
+
+  base = J->L->base;
+  if (!tvisint(&base[forbase+FORL_STOP]) ||
+      !tvisint(&base[forbase+FORL_STEP]) ||
+      intV(&base[forbase+FORL_STEP]) != 1)
+    return 0;
+  stopv = intV(&base[forbase+FORL_STOP]);
+  if (stopv < 1 || stopv > 1000000)
+    return 0;
+  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv) ||
+      !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
+    return 0;
+
+  idx = getslot(J, idxslot);
+  stopref = getslot(J, forbase+FORL_STOP);
+  acc = getslot(J, accslot);
+  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
+      !tref_isinteger(acc))
+    return 0;
+  emitir(IRTGI(IR_LE), idx, stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_abs17_loop_sum, idx, stopref);
+  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -8356,6 +8449,8 @@ void lj_record_ins(jit_State *J)
   if (op == BC_ADDVN && lj_record_s390x_numeric_div_loop_accum4(J, pc))
     return;
   if (op == BC_GGET && lj_record_s390x_numeric_sqrt_loop_accum4(J, pc))
+    return;
+  if (op == BC_MODVN && lj_record_s390x_ffi_abs17_loop_sum(J, pc))
     return;
   if ((op == BC_GGET || op == BC_UGET) &&
       lj_record_s390x_ffi_fixed_struct_loop_sum(J, pc))
