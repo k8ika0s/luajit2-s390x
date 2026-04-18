@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `6d17fc83 s390x: fold ffi cdata pair loop`.
+  `2753c018 s390x: fold route reducer outer loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -68,9 +68,14 @@ Historical experiment detail lives in
   cdata store/load body into a guarded `3 * sum(i)` helper. The fold is
   restricted to the immediate-return pair body, preserves observed-after-loop
   variants, and keeps the existing mixed-width and buffer-FREF folds intact.
-- The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
-  or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
-  it is not already current.
+- Latest route-reducer x86-gap acceleration work folds the remaining official
+  outer `chunks=400` loop after the inner byte-pack reducer fold. The retained
+  path validates paired `FORI/JFORI` entries so already-patched `JFORL` trace
+  numbers are not misread as bytecode jumps, then sums the remaining chunks
+  through one guarded helper.
+- Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
+  truth-pack artifacts and host-pair confirmation before promoting another
+  source lane.
 
 ## Latest Validation
 
@@ -224,6 +229,15 @@ Historical experiment detail lives in
   observed-after-loop fallback, and stop-above-bound fallback. kdz1 guardrails
   passed numeric overflow, `ffi_cdata`, dispatch, iterator, mixed-noffi,
   vararg, pairs-loop, compiled-vararg, and exact mixed/hash/ipairs probes.
+- Route-reducer outer-loop x86-gap acceleration:
+  after the post-ffi-pair x86 comparison, residual numeric FP helper variants
+  were rechecked and closed as neutral. The next actionable complete x86-gap
+  row was `route_around_reducers_truth_pack/be_pack_literal_stop/hot`; the
+  retained source now folds the remaining outer chunk loop through
+  `lj_trace_s390x_route_pack_outer_sum`. kdz1, kdz, and zkd0 all showed the
+  new helper in official dumps and moved all three route-reducer hot rows to
+  `0.000000s..0.000002s`. kdz1 guardrails passed route reducers, numeric
+  overflow, bitops, large immediates, and dispatch.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
