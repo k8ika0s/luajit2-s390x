@@ -36066,3 +36066,35 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   close the current `large_immediates` x86-gap lane at official scale. The next
   measurable source target remains fixed FFI `CALLXS` boundary work; numeric
   and low32 tail rows need amplified harnesses before more source changes.
+
+## 2026-04-18: fixed FFI pressure duplicate GPR-arg candidate closed
+
+- Target:
+  `ffi_fixed_call_pressure` xhot rows after ABI-depth coverage showed the gap is
+  present even for register-only GPR/FPR calls.
+- Attribution:
+  current kdz1 source at `5b17b201` still measures
+  `gpr_reg5_pressure/xhot ~0.000067s`, `gpr_pressure/xhot ~0.000076s`,
+  `fpr_reg4_pressure/xhot ~0.000063s`, and
+  `fpr_pressure/xhot ~0.000073s`. IR dumps show two `CALLXS` sites per batched
+  trace body. `LUAJIT_S390X_CALL_LOG=1` shows the GPR register-only case still
+  has duplicate argument pressure where the later duplicate uses an earlier ABI
+  argument register.
+- Candidate:
+  a temporary backend patch recognized later duplicate GPR arguments already
+  resident in an earlier ABI argument register and emitted a direct register
+  copy instead of preserving the earlier argument through a non-argument GPR.
+  This removed the visible duplicate GPR preserve logs for the register-only
+  path.
+- Result:
+  kdz1 correctness passed `ffi_fixed_call_pressure_trace.lua` and
+  `ffi_abi/run.lua`, but focused `S390X_PERF_WARMUP=3 S390X_PERF_SAMPLES=31`
+  did not improve the target rows: `gpr_reg5_pressure/xhot` stayed at
+  `~0.000068s`, `gpr_pressure/xhot` stayed at `~0.000078s`, and FPR rows were
+  unchanged. The candidate was backed out.
+- Queue update:
+  close duplicate GPR argument copies as a primary FFI pressure lever. The
+  remaining gap is the fixed `CALLXS` boundary itself: call setup, ABI handoff,
+  result materialization, and repeated C-call latency. The next FFI attempt
+  should be a larger call-boundary design or a new benchmark shape that proves
+  an inlinable/helper-replaceable contract, not another local preserve move.
