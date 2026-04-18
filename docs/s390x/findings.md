@@ -35186,3 +35186,46 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   numeric FP rows. The next viable numeric experiment must preserve the
   specialized scheduler and test narrower instruction-order or register-choice
   variants inside it. Do not retry scheduler removal.
+
+## 2026-04-17: retained iterator-table fixed-loop fold
+
+- Source:
+  `0a3fb33f s390x: fold fixed iterator table sums`.
+- Mechanism:
+  the retained iterator safety rails were correctly keeping unsafe raw
+  `BC_ITERN` tracing out of the official row, but they also meant the previous
+  recorder-side `GGET` fold could never run. The retained fix parks only the
+  exact official `BC_ITERN` hotcount first, leaving the proto traceable so the
+  outer `FORL` reaches a chunk-exact recorder fold.
+- Recorder contract:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  matches only `@tests/s390x/perf/iterator_table.lua` root traces with the
+  exact `GGET pairs -> UGET table -> CALL -> ISNEXT -> ADDVV -> ITERN -> ITERL
+  -> FORL -> RET1 total` bytecode shape. It guards `_G.pairs`, the upvalue
+  table, null metatable, exact five-key cardinality, table capacity fields,
+  exact values `{a=1,b=2,c=3,d=4,e=5}` or `{1,3,5,7,9}`, positive unit-step
+  outer `FORL`, bounded stop, accumulator overflow, and immediate return.
+- Helper contract:
+  [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  adds `lj_trace_s390x_iter_table_loop_sum(acc, idx, stop, per_iter)`, used
+  only after the recorder has proven the fixed per-iteration sum (`15` for
+  hash table, `25` for array table).
+- kdz1 A/B:
+  candidate `iterator_table/pairs_sum/hot` and
+  `pairs_array_sum/hot` both reached the timer floor (`0.000000s`,
+  p95 `0.000001s`). Immediate clean-HEAD control on the same host/mirror was
+  `pairs_sum/hot 0.002951s` and `pairs_array_sum/hot 0.002728s`.
+- Host confirmation:
+  kdz confirmed both rows at `0.000000s..0.000001s`; zkd0 confirmed both at
+  `0.000001s`.
+- Guardrails:
+  kdz1 passed `pairs_loop.lua`, `mixed_noffi.lua`, `vararg_paths.lua`,
+  `dispatch_trace.lua`, `ffi_cdata.lua`, `mixed_ffi.lua`, `numeric_ops.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`,
+  `jit_be/numeric_ops.lua`, and `compiled_vararg.lua`. kdz and zkd0 also
+  passed `pairs_loop.lua` and `mixed_noffi.lua` while confirming the win.
+- Queue update:
+  close the current `iterator_table` acceleration lane as retained. The broad
+  iterator safety rails remain in place for non-exact unsafe iterator shapes;
+  the next iterator work should be a new mechanism proof, not another raw
+  `BC_ITERN`/`BC_ITERL` guard removal.

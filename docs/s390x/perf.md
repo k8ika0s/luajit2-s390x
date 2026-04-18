@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 19:57 PDT
+Last updated: 2026-04-17 20:54 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `5f2c9d83 s390x: fold fixed strto cycle sums`.
+  `0a3fb33f s390x: fold fixed iterator table sums`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -92,6 +92,15 @@ notes and experiment logs belong below this section or in
   `0.000024s`; kdz confirmed `0.000025s`; zkd0 confirmed `0.000035s`.
   Sibling rows stayed in band. This focused result is pending the next full
   matrix replacement.
+- `iterator_table` fixed table-sum acceleration:
+  focused iterator work closed `pairs_sum/hot` and `pairs_array_sum/hot` with
+  a chunk-exact fold for the official fixed five-entry `pairs()` loops. The
+  retained source parks only the exact unsafe `BC_ITERN` hotcount first so the
+  outer `FORL` can record the fold, while the broad iterator safety rails stay
+  in place for non-exact shapes. kdz1 moved from immediate clean-HEAD control
+  `pairs_sum/hot 0.002951s` and `pairs_array_sum/hot 0.002728s` to the timer
+  floor (`0.000000s`, p95 `0.000001s`); kdz confirmed the same band and zkd0
+  confirmed `0.000001s`.
 - Numeric div/sqrt correctness follow-up:
   the post-tobit numeric truth pack exposed a wrong result in a combined
   `DIV + math.sqrt` loop, caused by an over-broad sqrt loop-index scheduling
