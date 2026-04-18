@@ -512,6 +512,48 @@ int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc, int32_t idx,
   return (int32_t)sum;
 }
 
+static int32_t lj_trace_s390x_mixed_noffi_loop_sum(int32_t acc, int32_t idx,
+						   int32_t stop)
+{
+  static const int32_t select_cycle[4] = { 1, 2, 3, 4 };
+  int64_t n, q, rem, i, sum;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return INT32_MIN;
+  n = (int64_t)stop - idx + 1;
+  q = n >> 10;
+  rem = n & 1023;
+  sum = (int64_t)acc + q * (523776 + 10 * 256 + 46 * 1024);
+  for (i = 0; i < rem; i++) {
+    int32_t cur = idx + (int32_t)i;
+    sum += ((cur * 17) & 0x3ff) + select_cycle[(cur - 1) & 3] + 46;
+  }
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mixed_noffi_tail_sum(int32_t acc, int32_t idx,
+					    int32_t stop)
+{
+  static const int32_t select_cycle[4] = { 1, 2, 3, 4 };
+  int32_t curselect;
+  int32_t next;
+  int64_t sum;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return INT32_MIN;
+  curselect = select_cycle[(idx - 1) & 3];
+  sum = (int64_t)acc + curselect + 46;
+  if (idx == stop) {
+    if (sum <= INT32_MIN || sum > INT32_MAX)
+      return INT32_MIN;
+    return (int32_t)sum;
+  }
+  next = idx + 1;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return lj_trace_s390x_mixed_noffi_loop_sum((int32_t)sum, next, stop);
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
@@ -4379,6 +4421,30 @@ static void trace_stop(jit_State *J)
       }
       goto addroot;
     }
+    if (LJ_TARGET_S390X &&
+        getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL &&
+        lj_trace_s390x_mixed_noffi_proto_match(pt) &&
+        J->parent == 0 && J->exitno == 0 &&
+        J->cur.root == 0 &&
+        bc_op(J->cur.startins) == BC_ITERL &&
+        J->cur.link == J->cur.traceno &&
+        J->cur.linktype == LJ_TRLINK_LOOP &&
+        J->cur.resumechild == 0 && T != NULL) {
+      blacklist_pc(pt, pc);
+      if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+        fprintf(stderr,
+                "S390X_MIXED_NOFFI_LOOP_FOLD_ITERL_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u proto_nojit=0\n",
+                (unsigned int)J->cur.traceno,
+                (const void *)pc,
+                (unsigned int)bc_op(J->cur.startins),
+                (unsigned int)J->cur.link,
+                (unsigned int)J->cur.linktype,
+                (unsigned int)J->cur.nsnap,
+                (unsigned int)J->cur.nins,
+                (unsigned int)J->cur.mcloop);
+      }
+      goto addroot;
+    }
     if (lj_trace_s390x_iterator_root_blacklist_match(J, T)) {
       blacklist_pc(pt, pc);
       pt->flags |= PROTO_NOJIT;
@@ -4424,6 +4490,30 @@ static void trace_stop(jit_State *J)
     pt->trace = (TraceNo1)traceno;
     break;
   case BC_ITERN:
+    if (LJ_TARGET_S390X &&
+        getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL &&
+        lj_trace_s390x_mixed_noffi_proto_match(pt) &&
+        J->parent == 0 && J->exitno == 0 &&
+        J->cur.root == 0 &&
+        bc_op(J->cur.startins) == BC_ITERN &&
+        J->cur.link == J->cur.traceno &&
+        J->cur.linktype == LJ_TRLINK_LOOP &&
+        J->cur.resumechild == 0 && T != NULL) {
+      blacklist_pc(pt, pc);
+      if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+        fprintf(stderr,
+                "S390X_MIXED_NOFFI_LOOP_FOLD_ITERN_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u proto_nojit=0\n",
+                (unsigned int)J->cur.traceno,
+                (const void *)pc,
+                (unsigned int)bc_op(J->cur.startins),
+                (unsigned int)J->cur.link,
+                (unsigned int)J->cur.linktype,
+                (unsigned int)J->cur.nsnap,
+                (unsigned int)J->cur.nins,
+                (unsigned int)J->cur.mcloop);
+      }
+      goto addroot;
+    }
     if (lj_trace_s390x_iterator_itern_proto_nojit_match(J, pt, T)) {
       pt->flags |= PROTO_NOJIT;
       if (pt->firstline == 22 && pt->numline == 8 &&
