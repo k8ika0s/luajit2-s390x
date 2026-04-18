@@ -80,6 +80,9 @@ LJ_FUNC double lj_trace_s390x_max_loop_sum(int32_t idx, int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx,
 						     int32_t stop,
 						     int32_t mul);
+LJ_FUNC int32_t lj_trace_s390x_route_pack_outer_sum(int32_t acc,
+						    int32_t idx,
+						    int32_t stop);
 LJ_FUNC double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx,
 						   int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc,
