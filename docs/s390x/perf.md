@@ -5952,3 +5952,16 @@ localized-helper carried-`total` lane
   next source lane needs a fresh full-matrix or x86-gap rerank; residual
   numeric FP and `num_aload` rows are currently attribution targets, not
   patch targets.
+
+## 2026-04-18 Post-Promotion-Static Retained Rerank
+
+- Artifact:
+  `artifacts/s390x/jitter/post-promotion-static-rerank-20260418T155731Z/summary.md`.
+- Scope:
+  kdz1 retained-env rerank, `5` samples, `2` warmups, `2` alternating passes,
+  all `23` tracked perf families.
+- Result:
+  no hot row is red versus `-joff`. The promotion-core static number-helper
+  rows repeated at the timer floor in both passes. The next queue should be
+  generated from a fresh x86-gap comparison or a denser official-row truth
+  pack, not from the current small residual ratios.

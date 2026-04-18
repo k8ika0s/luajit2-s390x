@@ -35557,3 +35557,25 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   source read found no concrete next source patch in residual numeric
   `div_loop`/`sqrt_loop` or `be_helpers/num_aload_loop`; rerank from the next
   full retained/x86 comparison before opening another source lane.
+
+## 2026-04-18: post-promotion-static retained rerank is clean
+
+- Artifact:
+  `artifacts/s390x/jitter/post-promotion-static-rerank-20260418T155731Z/summary.md`.
+- Read:
+  kdz1 retained-env rerank, `5` samples, `2` warmups, `2` alternating passes
+  across the current `23` tracked perf families. No hot row was red versus
+  `-joff`.
+- Promotion-core status:
+  `promotion_core_static_stop/number_helper_literal_stop_real/hot` and
+  `number_helper_literal_stop_real_local_tobit/hot` repeated at the timer
+  floor in both passes. The be-pack sibling stayed in the retained fast band
+  at `0.000037s`.
+- Next target read:
+  the largest remaining non-floor hot rows are acceleration-only residuals:
+  `numeric_ops/div_loop/hot 0.000178s`, `numeric_ops/sqrt_loop/hot
+  0.000224s`, `route_around_reducers_truth_pack/be_pack_literal_stop/hot
+  0.000125s..0.000128s`, and `be_helpers/num_aload_loop/hot 0.000111s`.
+  Prior source reads do not name a safe patch for these rows, so the next
+  tranche should start from a fresh full x86-gap comparison or denser
+  official-row truth pack.

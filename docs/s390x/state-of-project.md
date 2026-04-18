@@ -205,6 +205,11 @@ Historical experiment detail lives in
   hosts). kdz1 guardrails passed be-helper siblings, route reducers, numeric
   overflow, dispatch, iterator, mixed-noffi, vararg, pairs-loop,
   compiled-vararg, and exact mixed/hash/ipairs probes.
+- Post-promotion-static retained rerank:
+  `artifacts/s390x/jitter/post-promotion-static-rerank-20260418T155731Z/summary.md`
+  covers all `23` tracked perf families with `5` samples, `2` warmups, and
+  `2` alternating passes on kdz1. No hot row was red versus `-joff`; the two
+  promotion-core static number-helper rows repeated at the timer floor.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
