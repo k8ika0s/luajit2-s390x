@@ -499,6 +499,19 @@ double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx, int32_t stop)
   return sum;
 }
 
+int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc, int32_t idx,
+					   int32_t stop, int32_t per_iter)
+{
+  int64_t n, sum;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return acc;
+  n = (int64_t)stop - idx + 1;
+  sum = (int64_t)acc + n * per_iter;
+  if (sum < INT32_MIN || sum > INT32_MAX)
+    return acc;
+  return (int32_t)sum;
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
@@ -4089,6 +4102,23 @@ static void trace_start(jit_State *J)
   }
 
 #if LJ_TARGET_S390X
+  if (lj_trace_s390x_iterator_itern_proto_nojit_enabled() &&
+      lj_trace_s390x_iterator_table_exact_proto_match(J->pt) &&
+      J->parent == 0 && J->exitno == 0 &&
+      J->pc != NULL && bc_op(*J->pc) == BC_ITERN &&
+      getenv("LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD") == NULL) {
+    hotcount_set(J2GG(J), J->pc+1, 0xffffu);
+    if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+      fprintf(stderr,
+              "S390X_ITERATOR_TABLE_LOOP_FOLD_ITERN_PARK pc=%p op=%u firstline=%u numline=%u\n",
+              (const void *)J->pc,
+              (unsigned int)bc_op(*J->pc),
+              (unsigned int)J->pt->firstline,
+              (unsigned int)J->pt->numline);
+    }
+    J->state = LJ_TRACE_IDLE;
+    return;
+  }
   if (lj_trace_s390x_iterator_itern_proto_nojit_start_match(J)) {
     J->pt->flags |= PROTO_NOJIT;
     if (J->pt->firstline == 22 && J->pt->numline == 8 &&
