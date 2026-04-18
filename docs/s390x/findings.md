@@ -35277,3 +35277,41 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   open acceleration work should rerank from the next full matrix; do not
   reopen old mixed stitched/hotside or raw iterator trace-control lanes without
   a new official-row payer.
+
+## 2026-04-17: retained lower-frame fixed `%17` abs loop fold
+
+- Source:
+  `456d140e s390x: fold lower frame abs17 loop`.
+- Mechanism:
+  the post-mixed rerank named
+  `lower_frame_same_callsite/lua_abs_same_callsite/hot` as the largest
+  remaining non-floor official row. The retained recorder fold matches only
+  `@tests/s390x/perf/lower_frame_same_callsite.lua` and the exact
+  `MODVN 17 -> SUBVN 8 -> ISGE/JMP/UNM -> ADDVV -> FORL -> RET1` body. It
+  folds the remaining positive unit-step range into
+  `lj_trace_s390x_lower_frame_abs17_loop_sum(acc, idx, stop)`.
+- Contract:
+  the matcher keeps the exact chunk/proto/root trace shape, requires integer
+  loop index/stop/step state, accepts integer or numeric accumulator state, and
+  guards the bounded stop and live index before replacing the accumulator. The
+  helper sums the fixed 17-value centered-abs cycle (`72` per full cycle) and
+  handles the short tail explicitly.
+- kdz1 A/B:
+  immediate same-mirror control was
+  `lua_abs_same_callsite/hot 0.000576s`; the candidate reached
+  `0.000001s`. IR proof showed the intended
+  `CALLN lj_trace_s390x_lower_frame_abs17_loop_sum`.
+- Host confirmation:
+  kdz confirmed `lua_abs_same_callsite/hot 0.000001s`; zkd0 confirmed
+  `0.000002s`.
+- Guardrails:
+  kdz1 passed `pairs_loop.lua`, `compiled_vararg.lua`, the mixed exact probes
+  (`mixedprobe`, `hash_value`, `ipairs_only_probe`), `dispatch_trace.lua`,
+  `iterator_table.lua`, `mixed_noffi.lua`, `vararg_paths.lua`, `ffi_calls.lua`,
+  `be_helpers.lua`, `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, and `jit_be/numeric_ops.lua`.
+- Queue update:
+  close the current lower-frame acceleration lane as retained. The next
+  absolute-time targets are the `ffi_fixed_struct_calls` take6/take7 rows, then
+  the remaining `numeric_ops/div_loop` and `sqrt_loop` backend-quality lane if
+  fixed-struct call pressure does not produce a material payer.

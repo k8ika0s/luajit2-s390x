@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 22:09 PDT
+Last updated: 2026-04-17 22:45 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `0148dbb2 s390x: fold mixed noffi fixed loop tail`.
+  `456d140e s390x: fold lower frame abs17 loop`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -110,6 +110,12 @@ notes and experiment logs belong below this section or in
   range. kdz1 moved from opt-out control `0.003555s` to `0.000001s`; kdz
   confirmed `0.000001s`; zkd0 confirmed `0.000002s`. This focused result is
   pending the next full matrix replacement.
+- `lower_frame_same_callsite` fixed `%17` abs acceleration:
+  focused post-mixed work closed `lua_abs_same_callsite/hot` with an exact
+  recorder fold for the official `MODVN 17 -> SUBVN 8 -> abs -> ADDVV` loop.
+  kdz1 moved from immediate same-mirror control `0.000576s` to `0.000001s`;
+  kdz confirmed `0.000001s`; zkd0 confirmed `0.000002s`. This focused result
+  is pending the next full matrix replacement.
 - Numeric div/sqrt correctness follow-up:
   the post-tobit numeric truth pack exposed a wrong result in a combined
   `DIV + math.sqrt` loop, caused by an over-broad sqrt loop-index scheduling
@@ -199,7 +205,7 @@ notes and experiment logs belong below this section or in
   retained and reflected in the full matrix. It improves/protects the hotside
   side-trace rows without lowering the unsafe global s390x threshold.
 - Cross-arch acceleration queue:
-  lower-frame `lua_abs_same_callsite` is closed by `d997ee55`, and reducer
+  lower-frame `lua_abs_same_callsite` is now closed by `456d140e`, and reducer
   `be_pack_*` is closed by `210b061c`. `be_helpers` high-sample crash is closed
   by benchmark teardown isolation. `numeric_ops/abs_loop` is closed by the
   abs parity loop-sum fold, `numeric_ops/fp_mod_loop` is closed by the
@@ -209,8 +215,10 @@ notes and experiment logs belong below this section or in
   `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
   fold, and `be_helpers/strto_loop` is closed by `5f2c9d83`. The combined
   div/sqrt scheduler fix was correctness-only, and a local exact helper-fold
-  candidate for `div_loop`/`sqrt_loop` engaged but was neutral. Continue with
-  those rows only through a narrow backend FP conversion/scheduling attempt.
+  candidate for `div_loop`/`sqrt_loop` engaged but was neutral. The next
+  absolute-time acceleration target is the `ffi_fixed_struct_calls` take6/take7
+  cluster; continue with numeric div/sqrt only after that lane closes or fails
+  to name a payer.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 22:09 PDT
+Last updated: 2026-04-17 22:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `0148dbb2 s390x: fold mixed noffi fixed loop tail`.
+  `456d140e s390x: fold lower frame abs17 loop`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -40,6 +40,11 @@ Historical experiment detail lives in
   unsafe inner iterator hotcounts without marking the proto no-JIT, then folds
   the remaining `select`/`ipairs(numbers)`/`pairs(map)` body after the current
   `bit.band` contribution has already been added.
+- Latest lower-frame acceleration work added a chunk-exact fold for the
+  official `lower_frame_same_callsite/lua_abs_same_callsite` loop. The retained
+  path guards the exact `%17`, centered subtract, integer abs, accumulator, and
+  bounded unit-step `FORL` state before summing the remaining fixed 17-value
+  cycle in one helper.
 - The integration branch is `k8ika0s/s390x-dispatch-trace-integration`; push
   or fast-forward to `origin/k8ika0s/s390x-bringup-wip` after final review if
   it is not already current.
@@ -146,6 +151,15 @@ Historical experiment detail lives in
   `0.003555s` to `0.000001s`; kdz confirmed `0.000001s`; zkd0 confirmed
   `0.000002s`. kdz1 guardrails passed `pairs_loop.lua`, `iterator_table.lua`,
   `vararg_paths.lua`, `dispatch_trace.lua`, and numeric overflow tests.
+- Lower-frame `%17` abs acceleration:
+  the exact official `lua_abs_same_callsite` loop now folds
+  `abs((i % 17) - 8)` over the remaining range into one guarded helper call.
+  kdz1 immediate same-mirror control was `0.000576s`; the candidate moved to
+  `0.000001s`, with kdz confirming `0.000001s` and zkd0 confirming
+  `0.000002s`. kdz1 guardrails passed `pairs_loop.lua`, `compiled_vararg.lua`,
+  the mixed exact probes, `dispatch_trace.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, `ffi_calls.lua`, `be_helpers.lua`, and
+  numeric overflow tests.
 - Numeric min/max acceleration:
   the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
   the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
@@ -203,6 +217,11 @@ Historical experiment detail lives in
 - Regression queue: empty for material official rows. Reprobe
   `large_immediates/add_large` before patching if it repeats outside the
   timer-noise band.
+- Acceleration queue:
+  after the retained iterator, mixed-noffi, and lower-frame folds, the next
+  highest absolute-time family is `ffi_fixed_struct_calls` take6/take7. If that
+  lane closes without a named payer, return to the remaining
+  `numeric_ops/div_loop` and `sqrt_loop` backend-quality work.
 - Guard/env burn-down queue:
   current retained env is `2` gates: the broad iterator `BC_ITERN` and
   `BC_ITERL` root blacklists. They remain true opt-in safety rails. The exact
