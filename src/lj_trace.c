@@ -591,6 +591,19 @@ int32_t lj_trace_s390x_route_pack_outer_sum(int32_t acc, int32_t idx,
   return (int32_t)sum;
 }
 
+int32_t lj_trace_s390x_int_const_step_loop_sum(int32_t acc, int32_t idx,
+					       int32_t stop, int32_t step)
+{
+  int64_t n, sum;
+  if (idx < 1 || stop > 40000 || stop < idx)
+    return acc;
+  n = (int64_t)stop - idx + 1;
+  sum = (int64_t)acc + n * step;
+  if (sum < INT32_MIN || sum > INT32_MAX)
+    return acc;
+  return (int32_t)sum;
+}
+
 double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx, int32_t stop)
 {
   static const double values[4] = { 1.25, 2.5, 3.75, 4.125 };
