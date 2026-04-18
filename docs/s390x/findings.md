@@ -35229,3 +35229,51 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   iterator safety rails remain in place for non-exact unsafe iterator shapes;
   the next iterator work should be a new mechanism proof, not another raw
   `BC_ITERN`/`BC_ITERL` guard removal.
+
+## 2026-04-17: retained mixed-noffi fixed-loop tail fold
+
+- Source:
+  `0148dbb2 s390x: fold mixed noffi fixed loop tail`.
+- Mechanism:
+  after the iterator fold, the official `mixed_noffi/mixed_loop` row was the
+  next remaining high-time near-parity body. The retained path keeps the broad
+  iterator safety rails for non-exact shapes but gives the exact official
+  `@tests/s390x/perf/mixed_noffi.lua` family a narrow escape hatch: the unsafe
+  inner `ITERL`/`ITERN` hotcounts are parked without marking the whole proto
+  no-JIT, allowing the outer loop tail at `MODVN` line 15 to record.
+- Recorder contract:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  matches only the root `mixed_noffi.lua` tail after the current iteration's
+  `bit.band(i * 17, 0x3ff)` contribution has already been added. It accepts
+  the normal warmed bytecode patch forms (`IITERL`/`JITERL`, patched
+  `ISNEXT -> JMP`, and `ITERN -> ITERC`) but keeps the exact chunk, root
+  context, `select`, `ipairs(numbers)`, `pairs(map)`, `FORL`, and immediate
+  `RET1 total` shape.
+- Guard contract:
+  the fold guards `_G.select`, `_G.ipairs`, `_G.pairs`, the `bit.band`
+  upvalue/function, the `numbers` upvalue table with exact eight integer
+  values, the local map with exact four string keys and integer values, null
+  metatables, exact table cardinalities, positive unit-step bounded `FORL`
+  state, and integer accumulator/loop state. The helper returns an
+  `INT32_MIN` sentinel on invalid range or overflow, which the trace guards
+  against before replacing the accumulator.
+- kdz1 causality:
+  enabled candidate `mixed_noffi/mixed_loop/hot` reached
+  `0.000001s` median/p95. Disabling only
+  `LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD=1` restored the old retained
+  class at `0.003555s`, proving the new fold is the mechanism.
+- Host confirmation:
+  kdz confirmed `mixed_loop/hot 0.000001s`; zkd0 confirmed
+  `0.000002s`. Both hosts kept the iterator-table rows in the timer-floor
+  band.
+- Guardrails:
+  kdz1 passed `pairs_loop.lua`, `iterator_table.lua`, `vararg_paths.lua`,
+  `dispatch_trace.lua`, `jit_be/addsub_overflow_guard.lua`,
+  `jit_be/mulov_overflow_guard.lua`, and `jit_be/numeric_ops.lua` from a
+  clean rebuilt mirror. kdz and zkd0 passed `pairs_loop.lua` and
+  `iterator_table.lua` while confirming the mixed win.
+- Queue update:
+  close the current `mixed_noffi` acceleration lane as retained. The remaining
+  open acceleration work should rerank from the next full matrix; do not
+  reopen old mixed stitched/hotside or raw iterator trace-control lanes without
+  a new official-row payer.

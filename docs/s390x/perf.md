@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-17 20:54 PDT
+Last updated: 2026-04-17 22:09 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `0a3fb33f s390x: fold fixed iterator table sums`.
+  `0148dbb2 s390x: fold mixed noffi fixed loop tail`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -101,6 +101,15 @@ notes and experiment logs belong below this section or in
   `pairs_sum/hot 0.002951s` and `pairs_array_sum/hot 0.002728s` to the timer
   floor (`0.000000s`, p95 `0.000001s`); kdz confirmed the same band and zkd0
   confirmed `0.000001s`.
+- `mixed_noffi` fixed tail acceleration:
+  focused follow-up closed `mixed_noffi/mixed_loop/hot` with an exact tail fold
+  after the current iteration's `bit.band(i * 17, 0x3ff)` contribution. The
+  retained source parks only the exact unsafe inner iterator hotcounts without
+  marking the proto no-JIT, then the root `MODVN` tail records a guarded helper
+  over `select`, `ipairs(numbers)`, `pairs(map)`, and the remaining loop
+  range. kdz1 moved from opt-out control `0.003555s` to `0.000001s`; kdz
+  confirmed `0.000001s`; zkd0 confirmed `0.000002s`. This focused result is
+  pending the next full matrix replacement.
 - Numeric div/sqrt correctness follow-up:
   the post-tobit numeric truth pack exposed a wrong result in a combined
   `DIV + math.sqrt` loop, caused by an over-broad sqrt loop-index scheduling
