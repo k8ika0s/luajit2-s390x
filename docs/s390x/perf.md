@@ -86,6 +86,12 @@ notes and experiment logs belong below this section or in
   `small 0.000007s` to `0.000000s..0.000001s`; kdz confirmed the same band and
   zkd0 confirmed `0.000001s..0.000002s`. This focused result is pending the
   next full matrix.
+- Numeric div/sqrt correctness follow-up:
+  the post-tobit numeric truth pack exposed a wrong result in a combined
+  `DIV + math.sqrt` loop, caused by an over-broad sqrt loop-index scheduling
+  shortcut. The shortcut is now narrowed to direct sqrt-accumulator shapes.
+  kdz1/kdz/zkd0 passed the new guard; official `div_loop` and `sqrt_loop`
+  remained in their previous timing band.
 - `be_helpers` harness caveat:
   high-sample full-suite runs needed a per-case teardown after `strto_loop` to
   prevent accumulated fresh `loadstring` traces from poisoning later rows. The
@@ -177,8 +183,10 @@ notes and experiment logs belong below this section or in
   closed by the closed-form loop-sum fold, and the `ffi_cdata` width/FREF
   cluster is closed by the cdata and buffer loop-sum folds.
   `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
-  fold. Continue with remaining numeric `div_loop`/`sqrt_loop` or Clang
-  `be_helpers/strto_loop` only from fresh focused truth-pack evidence.
+  fold. The combined div/sqrt scheduler fix was correctness-only; continue
+  with remaining numeric `div_loop`/`sqrt_loop` only after a corrected fresh
+  truth pack names a concrete payer, or with Clang `be_helpers/strto_loop` from
+  fresh focused truth-pack evidence.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

@@ -134,6 +134,12 @@ Historical experiment detail lives in
   `hot 0.000105s`, `medium 0.000026s..0.000027s`, and `small 0.000007s`; the
   candidate moved all target rows to `0.000000s..0.000001s`. kdz confirmed the
   same timer-floor band, and zkd0 confirmed `0.000001s..0.000002s`.
+- Combined numeric div/sqrt correctness:
+  the post-tobit numeric truth pack exposed a mixed `DIV + math.sqrt` loop
+  wrong result caused by an over-broad sqrt loop-index scheduling shortcut.
+  The shortcut now stays on direct sqrt-accumulator shapes and falls back for
+  mixed numeric `ADD` inputs. kdz1, kdz, and zkd0 passed the new
+  `jit_be/numeric_div_sqrt_loop.lua` guard and retained numeric backend tests.
 
 ## Latest Matrix
 
@@ -199,7 +205,8 @@ Historical experiment detail lives in
   `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`,
   `be_helpers/number_helper_loop`, and high-sample `be_helpers` crash
   remediation are closed for the current tranche. Continue
-  from remaining numeric `div_loop`/`sqrt_loop` or Clang
+  from remaining numeric `div_loop`/`sqrt_loop` only after a corrected fresh
+  truth pack names a concrete payer, or from Clang
   `be_helpers/strto_loop` only after a fresh focused truth pack names a payer.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
