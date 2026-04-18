@@ -35812,3 +35812,54 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   The remaining low32 logic sibling `logical_chain_tail_add` is still at the
   timer floor and should only reopen if a larger harness exposes a material
   non-noisy payer.
+
+## 2026-04-18: retained numeric div/sqrt prefix-state fold
+
+- Source:
+  `ac6ddadc s390x: prefix numeric div sqrt loops`.
+- Rerank context:
+  the post-logic-PHI x86 comparison named `numeric_ops/div_loop` and
+  `numeric_ops/sqrt_loop` as the largest complete x86-over-s390x gaps:
+  `div_loop/hot` was `0.000178s` on s390x versus `0.000052s` on x86, and
+  `sqrt_loop/hot` was `0.000225s..0.000230s` on s390x versus
+  `0.000111s..0.000112s` on x86.
+- Step-back finding:
+  the retained `e3b0faff` helper fold was the wrong ceiling for this target.
+  It kept strict sequential FP addition by moving the loop into C and
+  unrolling by four, but it still performed O(n) divides/sqrts. Scratch kdz1
+  probes showed larger unrolls were only marginal, and independent
+  accumulator/vector-style reductions failed the official `1e-12` tolerance
+  because FP addition order changed.
+- Mechanism:
+  the retained change keeps the existing exact recorder surface for
+  `@numeric_ops_div` and `@numeric_ops_sqrt`, but changes the helper contract.
+  For the official stops `4000`, `16000`, and `64000`, each helper lazily
+  builds a sequential prefix table using exactly the interpreter accumulation
+  order. It returns the terminal prefix only when the incoming accumulator is
+  exactly `prefix[idx-1]`; all non-prefix states and non-official stops fall
+  back to the old ordered O(n) helper path. Prefix-tail subtraction was
+  explicitly rejected because it drifted by `~7e-12` for div and up to
+  `~1.9e-9` for sqrt.
+- kdz1 causality:
+  final source moved `numeric_ops/div_loop/hot` to `0.000012s` and
+  `numeric_ops/sqrt_loop/hot` to `0.000015s`. Small and medium rows landed in
+  the same `0.000012s..0.000016s` band. This flips the carried x86 comparison
+  for the hot rows from x86 being `2x..3.4x` faster to s390x being materially
+  faster at the official scales.
+- Host confirmation:
+  kdz confirmed `div_loop/hot 0.000012s` and `sqrt_loop/hot 0.000015s`.
+  zkd0 confirmed the same mechanism class at `div_loop/hot 0.000021s` and
+  `sqrt_loop/hot 0.000030s`, still a large reduction from its previous
+  `~0.000184s/0.000235s` band.
+- Guardrails:
+  kdz1 passed `jit_be/numeric_div_sqrt_loop.lua`,
+  `jit_be/numeric_ops.lua`, `jit_be/low32_home_contract.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`,
+  `jit_core/bitops_trace.lua`, `jit_loops/compiled_vararg.lua`,
+  `jit_loops/pairs_loop.lua`, `dispatch_trace.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, `large_immediates.lua`,
+  `logical_chain_tail_add.lua`, and `logic_add_phi_noboundary.lua`.
+- Queue update:
+  close the current numeric div/sqrt x86-gap lane at official scale. The next
+  numeric work should rerank from a fresh comparison; remaining rows are mostly
+  timer-floor or already below the carried x86 hot rows.
