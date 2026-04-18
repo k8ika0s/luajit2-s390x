@@ -93,8 +93,14 @@ int64_t sum_varargs_i32_callbacks(int32_t seed, int count, ...);
 uint64_t boundary_mix(uint8_t a, uint16_t b, uint32_t c, uint64_t d);
 uint64_t sum7_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
                   uint64_t e, uint64_t f, uint64_t g);
+uint64_t sum5_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
+                  uint64_t e);
+uint64_t sum6_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
+                  uint64_t e, uint64_t f);
 int64_t sum7_i32(int32_t a, int32_t b, int32_t c, int32_t d,
                  int32_t e, int32_t f, int32_t g);
+double sum4_double(double a, double b, double c, double d);
+double sum5_double(double a, double b, double c, double d, double e);
 double sum6_double(double a, double b, double c, double d, double e, double f);
 ]])
 
@@ -305,6 +311,10 @@ t.eq(tonumber(lib.sum_varargs_i32_callbacks(10, 3, lib.echo_i32, lib.echo_i32,
                                             lib.echo_i32)),
      16, "sum_varargs_i32_callbacks")
 t.eq(tonumber(lib.boundary_mix(1, 2, 3, u64(4))), 10, "boundary_mix")
+t.eq(tonumber(lib.sum5_u64(u64(1), u64(2), u64(3), u64(4), u64(5))), 15, "sum5_u64")
+t.eq(tonumber(lib.sum6_u64(u64(1), u64(2), u64(3), u64(4), u64(5), u64(6))), 21, "sum6_u64")
 t.eq(tonumber(lib.sum7_u64(u64(1), u64(2), u64(3), u64(4), u64(5), u64(6), u64(7))), 28, "sum7_u64")
 t.eq(tonumber(lib.sum7_i32(1, -2, 3, -4, 5, -6, 7)), 4, "sum7_i32")
+t.approx(lib.sum4_double(1.25, 2.5, 3.75, 4.5), 12.0, 1e-12, "sum4_double")
+t.approx(lib.sum5_double(1.25, 2.5, 3.75, 4.5, 5.25), 17.25, 1e-12, "sum5_double")
 t.approx(lib.sum6_double(1.25, 2.5, 3.75, 4.5, 5.25, 6.75), 24.0, 1e-12, "sum6_double")

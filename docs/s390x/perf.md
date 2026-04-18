@@ -82,6 +82,13 @@ notes and experiment logs belong below this section or in
   `logical_chain_tail_add` and `logical_chain_tail_store` show s390x already
   beats x86 at measurable scale; the new `ffi_fixed_call_pressure/xhot` scale
   confirms fixed `CALLXS` call-boundary overhead as the next live x86-gap lane.
+- Focused coverage source delta:
+  fixed FFI pressure now has ABI-depth rows for register-only and stack-arg
+  GPR/FPR calls. kdz1 measured `xhot` medians of `0.000067s` register-only GPR,
+  `0.000079s` seven-arg GPR, `0.000063s` register-only FPR, and `0.000073s`
+  six-arg FPR. The matching x86 side check clustered all depths at
+  `0.000030s..0.000032s`, so the remaining gap is fixed `CALLXS`
+  call-boundary overhead rather than just stack-arg count.
 - Retained acceleration source delta:
   `1427b080 s390x: fold ffi abs17 call loops`. The recorder now matches only
   the official dynamic and static-stop `ffi_calls` abs rows after the lookup
