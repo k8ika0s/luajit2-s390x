@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-17 18:18 PDT
+Last updated: 2026-04-17 18:38 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `b0c1d54c s390x: fold FFI cdata mixed-width loop sums`, plus the focused
-  buffer FREF loop-sum fold pending commit.
+  `91e1024b s390x: fold buffer FREF loop sums`, plus the focused numeric
+  min/max loop-sum fold pending commit.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -120,25 +120,31 @@ Historical experiment detail lives in
   function returns `total` immediately after the loop. kdz1 moved from
   immediate reverted control `0.000228s` to the timer floor; kdz and zkd0
   confirmed. The new guard test checks an observed-after-loop buffer variant.
+- Numeric min/max acceleration:
+  the exact `numeric_ops/min_loop` and `numeric_ops/max_loop` bodies now fold
+  the symmetric `math.min(i, n+1-i)` / `math.max(i, n+1-i)` accumulation into
+  closed-form loop-sum helpers. kdz1 immediate controls were `min_loop/hot
+  0.000081s` and `max_loop/hot 0.000128s`; the candidate moved both to
+  `0.000015s..0.000016s`, and zkd0 confirmed `0.000038s..0.000039s`.
 
 ## Latest Matrix
 
 - s390x artifact:
-  `artifacts/s390x/post-reducer-20260417T230334Z`.
+  `artifacts/s390x/post-buffer-20260418T011933Z`.
 - x86 comparison:
-  `artifacts/s390x/compare-post-reducer-kdz1-ka0s01-20260417T230334Z`, compared against
+  `artifacts/s390x/compare-post-buffer-kdz1-ka0s01-20260418T011933Z`, compared against
   `artifacts/s390x/x86-ka0s01-20260415T191112Z`.
 - Run health:
   `720` s390x benchmark records, `360` comparison rows, `0` s390x failures,
   GCC/Clang, JIT-on/`-joff`, full-family selector.
 - Regression posture:
   no requested-family official row is currently red. The earlier
-  `large_immediates/add_large` concern is green in the post-reducer full matrix
+  `large_immediates/add_large` concern is green in the post-buffer full matrix
   and in dense focused reruns. Clang `mixed_noffi/mixed_loop` is the only
   material red row in the current comparison and needs fresh attribution before
   any source change.
 - Cross-arch acceleration artifact:
-  `artifacts/s390x/x86-gap/x86-gap-20260417T-crossarch-baseline`, generated
+  `artifacts/s390x/x86-gap/post-buffer-20260418T011933Z`, generated
   from the current comparison. This is the queue source for making x86 chase
   s390x; it ranks complete x86/s390x JIT-on rows by absolute s390x runtime and
   x86-over-s390x ratio.
@@ -179,13 +185,13 @@ Historical experiment detail lives in
   current comparison lacks x86 JIT-on data for those families. Fix x86 harness
   coverage before using them for x86-gap ranking.
 - Current requested-family acceleration queue:
-  re-run the full post-abs comparison first. `large_immediates`,
-  `logic_add_phi_noboundary`, lower-frame `lua_abs_same_callsite`, reducer
-  `be_pack_*`, `numeric_ops/abs_loop`, `numeric_ops/fp_mod_loop`,
+  `large_immediates`, `logic_add_phi_noboundary`, lower-frame
+  `lua_abs_same_callsite`, reducer `be_pack_*`, `numeric_ops/abs_loop`,
+  `numeric_ops/fp_mod_loop`, `numeric_ops/min_loop`, `numeric_ops/max_loop`,
   `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`, and high-sample
   `be_helpers` crash remediation are closed for the current tranche. Continue
-  from remaining numeric `div_loop`/`sqrt_loop` only after a fresh focused
-  truth pack names a payer, or rerun the full x86 comparison.
+  from remaining numeric `div_loop`/`sqrt_loop` or Clang
+  `be_helpers/strto_loop` only after a fresh focused truth pack names a payer.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp

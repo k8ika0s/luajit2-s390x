@@ -34948,3 +34948,58 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Next target should be selected from a fresh x86 comparison or focused
   numeric truth pack; likely candidates are remaining `numeric_ops/div_loop`
   and `numeric_ops/sqrt_loop`.
+
+## 2026-04-17: retained numeric min/max loop-sum fold
+
+- Source state:
+  implemented after `91e1024b s390x: fold buffer FREF loop sums`.
+- Target selection:
+  the post-buffer x86 comparison
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/compare-post-buffer-kdz1-ka0s01-20260418T011933Z`
+  and x86-gap pack
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/x86-gap/post-buffer-20260418T011933Z`
+  kept the regression queue empty but still named `numeric_ops/min_loop` and
+  `numeric_ops/max_loop` as high-ratio numeric gaps. The fresh kdz1 numeric
+  truth pack
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/20260417-182839-kdz1-numeric_ops_micro-accel-truth-pack`
+  classified the current min/max path as exit/guard dominated with `TEXIT_COUNT
+  30447`.
+- Mechanism:
+  the official bodies are exact `math.min(i, n + 1 - i)` and
+  `math.max(i, n + 1 - i)` accumulations over a positive unit-step integer
+  `FORI`. For a fixed stop `n`, the min row is the symmetric triangle prefix
+  and the max row is `count*(n+1) - minsum`.
+- Retained fix:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now recognizes only `@numeric_ops_min` and `@numeric_ops_max` with the exact
+  bytecode sequence `GGET math -> TGETS min/max -> MOV i -> ADDVN n+1 ->
+  SUBVV -> CALL -> ADDVV total -> FORL`. It guards the `math.min/max` function
+  identity, positive index, unit-step integer `FORI`, and the retained stop
+  range before replacing the loop body with a helper call.
+- Helper contract:
+  [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  adds `lj_trace_s390x_min_loop_sum()` and `lj_trace_s390x_max_loop_sum()`.
+  Both compute exact integer prefix sums in `int64_t` and return a numeric
+  result, avoiding the previous integer overflow-sensitive per-iteration path.
+- Correctness coverage:
+  [numeric_minmax_loop_sum.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_be/numeric_minmax_loop_sum.lua)
+  covers odd/even stop counts and large stops including `64000` and `70000`.
+- kdz1 retained read:
+  candidate `min_loop/hot 0.000015s..0.000016s` and `max_loop/hot
+  0.000015s..0.000016s`. Immediate reverted control on the same mirror/host
+  was `min_loop/hot 0.000081s` and `max_loop/hot 0.000128s`; `div_loop` and
+  `sqrt_loop` stayed unchanged, as expected.
+- Guardrails:
+  kdz1 passed the new `jit_be/numeric_minmax_loop_sum.lua`,
+  `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, focused `numeric_ops.lua`,
+  `large_immediates.lua`, retained-env `dispatch_trace.lua`,
+  `iterator_table.lua`, `mixed_noffi.lua`, and `ffi_cdata.lua`.
+- Host confirmation:
+  zkd0 passed the new guard and numeric backend tests, with `min_loop/hot
+  0.000039s` and `max_loop/hot 0.000038s`.
+- Queue update:
+  close `numeric_ops/min_loop` and `numeric_ops/max_loop` as retained
+  acceleration wins. Remaining numeric x86-gap work is now `div_loop` and
+  `sqrt_loop`, with Clang `be_helpers/strto_loop` as the next larger
+  absolute-runtime non-numeric row.
