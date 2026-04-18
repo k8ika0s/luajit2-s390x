@@ -10,8 +10,8 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `09ab8664 s390x: fold positive abs parity loop sums`, plus the focused
-  numeric FP modulo quarter-period fold pending commit.
+  `2795e27b s390x: fold numeric fp modulo loop sums`, plus the focused
+  FFI cdata mixed-width loop-sum fold pending commit.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -60,6 +60,12 @@ notes and experiment logs belong below this section or in
   exact quarter-period loop fold. kdz1 moved from immediate reverted control
   `0.000277s` to `0.000016s`; kdz confirmed `0.000016s`; zkd0 confirmed
   `0.000031s`. This focused result is pending the next full matrix replacement.
+- FFI cdata mixed-width acceleration:
+  focused post-fpmod work closed `ffi_cdata/mixed_width_loop/hot` with an exact
+  loop-sum fold that only engages when the local cdata state is not observed
+  after the loop. kdz1 moved from immediate reverted control `0.000253s` to
+  `0.000000s..0.000001s`; kdz confirmed the timer-floor band; zkd0 confirmed
+  `0.000001s..0.000002s`. This focused result is pending the next full matrix.
 - `be_helpers` harness caveat:
   high-sample full-suite runs needed a per-case teardown after `strto_loop` to
   prevent accumulated fresh `loadstring` traces from poisoning later rows. The
@@ -146,10 +152,11 @@ notes and experiment logs belong below this section or in
   lower-frame `lua_abs_same_callsite` is closed by `d997ee55`, and reducer
   `be_pack_*` is closed by `210b061c`. `be_helpers` high-sample crash is closed
   by benchmark teardown isolation. `numeric_ops/abs_loop` is closed by the
-  abs parity loop-sum fold, and `numeric_ops/fp_mod_loop` is closed by the
-  quarter-period fold, both pending the next full matrix. Continue with
-  `ffi_cdata` width/FREF or remaining numeric `div_loop`/`sqrt_loop` only from
-  fresh focused truth-pack evidence.
+  abs parity loop-sum fold, `numeric_ops/fp_mod_loop` is closed by the
+  quarter-period fold, and `ffi_cdata/mixed_width_loop` is closed by the cdata
+  loop-sum fold, all pending the next full matrix. Continue with
+  `ffi_cdata/buffer_fref_loop` or remaining numeric `div_loop`/`sqrt_loop` only
+  from fresh focused truth-pack evidence.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat

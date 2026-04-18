@@ -9,8 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `09ab8664 s390x: fold positive abs parity loop sums`, plus the focused
-  numeric FP modulo quarter-period fold pending commit.
+  `2795e27b s390x: fold numeric fp modulo loop sums`, plus the focused
+  FFI cdata mixed-width loop-sum fold pending commit.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -107,6 +107,13 @@ Historical experiment detail lives in
   zkd0 confirmed `0.000031s`. kdz1 also passed numeric overflow guardrails,
   `large_immediates`, `ffi_cdata`, retained-env `dispatch_trace`,
   `pairs_loop`, and `iterator_table`.
+- FFI cdata mixed-width acceleration:
+  the exact `ffi_cdata/mixed_width_loop` body now folds cdata width stores and
+  immediate same-field reads into a guarded loop-sum helper when the function
+  returns `total` immediately after the loop. kdz1 moved from immediate
+  reverted control `0.000253s` to the timer floor; kdz and zkd0 confirmed.
+  The new guard test also checks that a variant observing cdata fields after
+  the loop remains correct.
 
 ## Latest Matrix
 
@@ -168,10 +175,11 @@ Historical experiment detail lives in
 - Current requested-family acceleration queue:
   re-run the full post-abs comparison first. `large_immediates`,
   `logic_add_phi_noboundary`, lower-frame `lua_abs_same_callsite`, reducer
-  `be_pack_*`, `numeric_ops/abs_loop`, `numeric_ops/fp_mod_loop`, and
-  high-sample `be_helpers` crash remediation are closed for the current
-  tranche. Continue from `ffi_cdata` width/FREF or remaining numeric
-  `div_loop`/`sqrt_loop` only after a fresh focused truth pack names a payer.
+  `be_pack_*`, `numeric_ops/abs_loop`, `numeric_ops/fp_mod_loop`,
+  `ffi_cdata/mixed_width_loop`, and high-sample `be_helpers` crash remediation
+  are closed for the current tranche. Continue from
+  `ffi_cdata/buffer_fref_loop` or remaining numeric `div_loop`/`sqrt_loop`
+  only after a fresh focused truth pack names a payer.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp

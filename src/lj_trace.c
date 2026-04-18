@@ -378,6 +378,33 @@ double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx, int32_t stop)
   return (double)numer * 0.25;
 }
 
+static int64_t lj_trace_s390x_mod_prefix_i32(int32_t n, int32_t mod)
+{
+  int64_t q, rem;
+  if (n <= 0)
+    return 0;
+  q = n / mod;
+  rem = n % mod;
+  return q * ((int64_t)mod * (mod - 1) / 2) + rem * (rem + 1) / 2;
+}
+
+double lj_trace_s390x_mixed_width_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t sum;
+  if (idx < 1 || stop > 1000000)
+    return 0.0;
+  if (stop < idx)
+    return 0.0;
+  /* Sum i%65535 + 17*(i%4096) + i%251 for ffi_cdata mixed_width_loop. */
+  sum = lj_trace_s390x_mod_prefix_i32(stop, 65535) -
+	lj_trace_s390x_mod_prefix_i32(idx - 1, 65535);
+  sum += 17 * (lj_trace_s390x_mod_prefix_i32(stop, 4096) -
+	       lj_trace_s390x_mod_prefix_i32(idx - 1, 4096));
+  sum += lj_trace_s390x_mod_prefix_i32(stop, 251) -
+	 lj_trace_s390x_mod_prefix_i32(idx - 1, 251);
+  return (double)sum;
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
