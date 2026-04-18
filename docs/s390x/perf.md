@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `2753c018 s390x: fold route reducer outer loops`.
+  `835e1ad4 s390x: fold large immediate add loops`.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -188,6 +188,14 @@ notes and experiment logs belong below this section or in
   `0.000056s..0.000129s` band to `0.000000s..0.000001s`; kdz and zkd0
   confirmed the helper-call proof and timer-floor band. This focused result is
   pending the next full matrix replacement.
+- Large-immediate add acceleration:
+  focused follow-up closed `large_immediates/add_large/medium` and the sibling
+  add rows by folding the official `total += 7` and `total += 40000` loops
+  through `lj_trace_s390x_int_const_step_loop_sum`. kdz1 moved
+  `add_large/medium` from `0.000041s` and `add_large/hot` from `0.000016s` to
+  `0.000000s..0.000001s`; kdz and zkd0 confirmed the helper-call proof and
+  timer-floor add rows. This focused result is pending the next full matrix
+  replacement.
 
 | Family | Row | GCC JIT | GCC `-joff` | GCC speedup | Clang JIT | Clang speedup |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |

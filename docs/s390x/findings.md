@@ -35669,3 +35669,46 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   The remaining complete x86 gaps are mostly numeric FP residuals,
   `large_immediates/add_large/medium`, and small logic/BE-helper rows; rerank
   from the next full comparison before opening another source lane.
+
+## 2026-04-18: retained large-immediate add loop fold
+
+- Source:
+  `835e1ad4 s390x: fold large immediate add loops`.
+- Rerank context:
+  after the route outer-loop fold, the complete x86-gap list still had
+  `large_immediates/add_large/medium` as the next non-numeric row with a clear
+  ratio gap. A dense kdz1 truth pack showed `add_large/hot` was already fast
+  but `add_large/medium` paid side-trace/setup cost because the hot trace
+  specialized the loop stop.
+- Mechanism:
+  the retained path matches only the official
+  `@tests/s390x/perf/large_immediates.lua` add-small and add-large loop
+  protos. It verifies the paired `FORI/JFORI` and `FORL/JFORL`, accepts only
+  `total += 7` or `total += 40000`, guards positive unit-step loop state with
+  `stop <= 40000`, then folds the remaining range through
+  `lj_trace_s390x_int_const_step_loop_sum(acc, idx, stop, step)`. This removes
+  the stop equality that made medium/small scales take side paths after the
+  hot trace compiled.
+- kdz1 causality:
+  control artifact
+  `artifacts/s390x/accel/large_immediates-nextgap-20260418T162706Z` had
+  `add_large/medium 0.000041s`, `add_large/small 0.000010s`, and
+  `add_large/hot 0.000016s`. Candidate artifact
+  `artifacts/s390x/accel/large_immediates-add-fold-candidate-20260418T162706Z`
+  showed `CALLN lj_trace_s390x_int_const_step_loop_sum` for both add loops
+  and moved `add_small`/`add_large` hot, medium, and small rows to
+  `0.000000s..0.000001s`.
+- Host confirmation:
+  kdz confirmed the helper-call proof and timer-floor add rows in
+  `artifacts/s390x/accel/large_immediates-add-fold-kdz-20260418T162706Z`;
+  zkd0 confirmed the same in
+  `artifacts/s390x/accel/large_immediates-add-fold-zkd0-20260418T162706Z`.
+- Guardrails:
+  kdz1 passed `large_immediates.lua`, `jit_be/numeric_ops.lua`,
+  `jit_be/addsub_overflow_guard.lua`, `jit_be/mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, `dispatch_trace.lua`, and `route_around_reducers.lua`.
+- Queue update:
+  close `large_immediates/add_large` as retained at current scale. Remaining
+  complete x86 gaps are now mostly numeric FP residuals and small low32/logic
+  timer-floor rows; rerun the x86 comparison after this source point before
+  selecting the next patch.
