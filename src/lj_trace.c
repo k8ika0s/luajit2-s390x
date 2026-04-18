@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 static int64_t lj_trace_s390x_sum_mod97_seq(int32_t first, int32_t count,
 					    int32_t step)
@@ -460,6 +461,50 @@ double lj_trace_s390x_lower_frame_abs17_loop_sum(double acc, int32_t idx,
     sum += x < 0 ? -x : x;
   }
   return acc + (double)sum;
+}
+
+double lj_trace_s390x_div_loop_accum4(double acc, int32_t idx, int32_t stop)
+{
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return acc;
+  while (idx + 3 <= stop) {
+    double t0 = ((double)idx + 0.5) / ((double)idx + 1.25);
+    double t1 = ((double)(idx + 1) + 0.5) / ((double)(idx + 1) + 1.25);
+    double t2 = ((double)(idx + 2) + 0.5) / ((double)(idx + 2) + 1.25);
+    double t3 = ((double)(idx + 3) + 0.5) / ((double)(idx + 3) + 1.25);
+    acc += t0;
+    acc += t1;
+    acc += t2;
+    acc += t3;
+    idx += 4;
+  }
+  while (idx <= stop) {
+    acc += ((double)idx + 0.5) / ((double)idx + 1.25);
+    idx++;
+  }
+  return acc;
+}
+
+double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx, int32_t stop)
+{
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return acc;
+  while (idx + 3 <= stop) {
+    double t0 = sqrt((double)idx + 0.25);
+    double t1 = sqrt((double)(idx + 1) + 0.25);
+    double t2 = sqrt((double)(idx + 2) + 0.25);
+    double t3 = sqrt((double)(idx + 3) + 0.25);
+    acc += t0;
+    acc += t1;
+    acc += t2;
+    acc += t3;
+    idx += 4;
+  }
+  while (idx <= stop) {
+    acc += sqrt((double)idx + 0.25);
+    idx++;
+  }
+  return acc;
 }
 
 double lj_trace_s390x_min_loop_sum(int32_t idx, int32_t stop)

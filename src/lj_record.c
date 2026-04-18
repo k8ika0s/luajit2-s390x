@@ -1004,6 +1004,24 @@ static int lj_record_s390x_ffi_fixed_struct_proto_match(GCproto *pt)
 	 memcmp(strdata(chunk), fixed_struct, sizeof(fixed_struct) - 1) == 0;
 }
 
+static int lj_record_s390x_numeric_divsqrt_proto_match(GCproto *pt,
+						       int issqrt)
+{
+  GCstr *chunk;
+  const char *want = issqrt ? "@numeric_ops_sqrt" : "@numeric_ops_div";
+  const char *want_noat = issqrt ? "numeric_ops_sqrt" : "numeric_ops_div";
+  size_t len = issqrt ? sizeof("@numeric_ops_sqrt") - 1 :
+		       sizeof("@numeric_ops_div") - 1;
+  if (pt == NULL)
+    return 0;
+  chunk = proto_chunkname(pt);
+  return chunk != NULL &&
+	 ((chunk->len == (MSize)len &&
+	   memcmp(strdata(chunk), want, len) == 0) ||
+	  (chunk->len == (MSize)(len - 1) &&
+	   memcmp(strdata(chunk), want_noat, len - 1) == 0));
+}
+
 static int lj_record_s390x_route_reducer_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -1306,6 +1324,153 @@ static int lj_record_s390x_route_reducer_pack_loop_sum(jit_State *J,
   sum = lj_ir_call(J, IRCALL_lj_trace_s390x_scaled_tobit_loop_sum, idx,
 		   stopref, lj_ir_kint(J, 1));
   sum = emitir(IRTGI(IR_ADDOV), acc, sum);
+  J->base[accslot] = sum;
+  if (accslot >= J->maxslot)
+    J->maxslot = accslot + 1;
+  J->pc = forl + 1;
+  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
+  return 1;
+}
+
+static int lj_record_s390x_numeric_div_loop_accum4(jit_State *J,
+						   const BCIns *body)
+{
+  const BCIns *forl, *proto;
+  BCIns add05, add125, div, add;
+  BCReg forbase, idxslot, tmp, den, accslot;
+  TRef idx, stopref, acc, sum;
+  cTValue *base;
+  int32_t stopv;
+
+  if (!lj_record_s390x_root_frame(J) ||
+      !lj_record_s390x_numeric_divsqrt_proto_match(J->pt, 0) ||
+      J->parent != 0 || J->exitno != 0)
+    return 0;
+  proto = proto_bc(J->pt);
+  if (body < proto + 5 || (MSize)((body + 5) - proto) >= J->pt->sizebc)
+    return 0;
+
+  add05 = body[0]; add125 = body[1]; div = body[2]; add = body[3];
+  forl = body + 4;
+  if (bc_op(add05) != BC_ADDVN || bc_op(add125) != BC_ADDVN ||
+      bc_op(div) != BC_DIVVV || bc_op(add) != BC_ADDVV ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
+      bc_op(forl[1]) != BC_RET1)
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  tmp = bc_a(add05);
+  den = bc_a(add125);
+  accslot = bc_b(add);
+  if (bc_b(add05) != idxslot ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(add05), 0.5) ||
+      bc_b(add125) != idxslot ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(add125), 1.25) ||
+      bc_a(div) != tmp || bc_b(div) != tmp || bc_c(div) != den ||
+      bc_a(add) != accslot || bc_b(add) != accslot || bc_c(add) != tmp ||
+      forl + 1 + bc_j(*forl) != body ||
+      bc_a(forl[1]) != accslot)
+    return 0;
+
+  base = J->L->base;
+  if (!tvisint(&base[forbase+FORL_STOP]) ||
+      !tvisint(&base[forbase+FORL_STEP]) ||
+      intV(&base[forbase+FORL_STEP]) != 1)
+    return 0;
+  stopv = intV(&base[forbase+FORL_STOP]);
+  if (stopv < 1 || stopv > 1000000)
+    return 0;
+  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv) ||
+      !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
+    return 0;
+
+  idx = getslot(J, idxslot);
+  stopref = getslot(J, forbase+FORL_STOP);
+  acc = getslot(J, accslot);
+  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
+      !(tref_isinteger(acc) || tref_isnum(acc)))
+    return 0;
+  if (tref_isinteger(acc))
+    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
+  emitir(IRTGI(IR_LE), idx, stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_div_loop_accum4, acc, idx,
+		   stopref);
+  J->base[accslot] = sum;
+  if (accslot >= J->maxslot)
+    J->maxslot = accslot + 1;
+  J->pc = forl + 1;
+  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
+  return 1;
+}
+
+static int lj_record_s390x_numeric_sqrt_loop_accum4(jit_State *J,
+						    const BCIns *body)
+{
+  const BCIns *forl, *proto;
+  BCIns gget, tgets, add025, call, add;
+  BCReg forbase, idxslot, callbase, arg0, accslot;
+  TRef idx, stopref, acc, sum;
+  cTValue *base;
+  int32_t stopv;
+
+  if (!lj_record_s390x_root_frame(J) ||
+      !lj_record_s390x_numeric_divsqrt_proto_match(J->pt, 1) ||
+      J->parent != 0 || J->exitno != 0)
+    return 0;
+  proto = proto_bc(J->pt);
+  if (body < proto + 5 || (MSize)((body + 6) - proto) >= J->pt->sizebc)
+    return 0;
+
+  gget = body[0]; tgets = body[1]; add025 = body[2]; call = body[3];
+  add = body[4]; forl = body + 5;
+  if (bc_op(gget) != BC_GGET || bc_op(tgets) != BC_TGETS ||
+      bc_op(add025) != BC_ADDVN || bc_op(call) != BC_CALL ||
+      bc_op(add) != BC_ADDVV ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
+      bc_op(forl[1]) != BC_RET1)
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  callbase = bc_a(call);
+  arg0 = (BCReg)(callbase + 1 + LJ_FR2);
+  accslot = bc_b(add);
+  if (bc_a(tgets) != callbase || bc_b(tgets) != callbase ||
+      bc_a(add025) != arg0 || bc_b(add025) != idxslot ||
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(add025), 0.25) ||
+      bc_b(call) != 2 || bc_c(call) != 2 ||
+      bc_a(add) != accslot || bc_b(add) != accslot ||
+      bc_c(add) != callbase ||
+      forl + 1 + bc_j(*forl) != body ||
+      bc_a(forl[1]) != accslot)
+    return 0;
+  if (!lj_record_s390x_guard_global_math_func(J, &gget, &tgets, FF_math_sqrt))
+    return 0;
+
+  base = J->L->base;
+  if (!tvisint(&base[forbase+FORL_STOP]) ||
+      !tvisint(&base[forbase+FORL_STEP]) ||
+      intV(&base[forbase+FORL_STEP]) != 1)
+    return 0;
+  stopv = intV(&base[forbase+FORL_STOP]);
+  if (stopv < 1 || stopv > 1000000)
+    return 0;
+  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv) ||
+      !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
+    return 0;
+
+  idx = getslot(J, idxslot);
+  stopref = getslot(J, forbase+FORL_STOP);
+  acc = getslot(J, accslot);
+  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
+      !(tref_isinteger(acc) || tref_isnum(acc)))
+    return 0;
+  if (tref_isinteger(acc))
+    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
+  emitir(IRTGI(IR_LE), idx, stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_sqrt_loop_accum4, acc, idx,
+		   stopref);
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -8187,6 +8352,10 @@ void lj_record_ins(jit_State *J)
     return;
   if ((op == BC_UGET || op == BC_MOV) &&
       lj_record_s390x_route_reducer_pack_loop_sum(J, pc))
+    return;
+  if (op == BC_ADDVN && lj_record_s390x_numeric_div_loop_accum4(J, pc))
+    return;
+  if (op == BC_GGET && lj_record_s390x_numeric_sqrt_loop_accum4(J, pc))
     return;
   if ((op == BC_GGET || op == BC_UGET) &&
       lj_record_s390x_ffi_fixed_struct_loop_sum(J, pc))
