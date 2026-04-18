@@ -1136,6 +1136,107 @@ static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
   return 1;
 }
 
+static int lj_record_s390x_numeric_minmax_proto_match(GCproto *pt, int ismax)
+{
+  GCstr *chunk;
+  const char *want = ismax ? "@numeric_ops_max" : "@numeric_ops_min";
+  size_t len = ismax ? sizeof("@numeric_ops_max") - 1 :
+		       sizeof("@numeric_ops_min") - 1;
+  if (pt == NULL)
+    return 0;
+  chunk = proto_chunkname(pt);
+  return chunk != NULL && chunk->len == (MSize)len &&
+	 memcmp(strdata(chunk), want, len) == 0;
+}
+
+static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
+					   int ismax)
+{
+  const BCIns *forl, *proto;
+  BCIns gget, tgets, mov_i, add_n1, sub_mirror, call, add_total;
+  BCReg forbase, idxslot, callbase, arg0, tmp, accslot;
+  TRef idx, stopref, acc, sum;
+  cTValue *base;
+  int32_t stopv;
+
+  if (!lj_record_s390x_root_frame(J) ||
+      !lj_record_s390x_numeric_minmax_proto_match(J->pt, ismax) ||
+      J->parent != 0 || J->exitno != 0)
+    return 0;
+  proto = proto_bc(J->pt);
+  if (body < proto + 5 ||
+      (MSize)((body + 8) - proto) >= J->pt->sizebc)
+    return 0;
+
+  gget = body[0]; tgets = body[1]; mov_i = body[2];
+  add_n1 = body[3]; sub_mirror = body[4]; call = body[5];
+  add_total = body[6]; forl = body + 7;
+
+  if (bc_op(gget) != BC_GGET || bc_op(tgets) != BC_TGETS ||
+      bc_op(mov_i) != BC_MOV || bc_op(add_n1) != BC_ADDVN ||
+      bc_op(sub_mirror) != BC_SUBVV || bc_op(call) != BC_CALL ||
+      bc_op(add_total) != BC_ADDVV ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  callbase = bc_a(call);
+  arg0 = (BCReg)(callbase + 1 + LJ_FR2);
+  tmp = bc_a(add_n1);
+  accslot = bc_a(add_total);
+  if (bc_a(gget) != callbase ||
+      bc_a(tgets) != callbase || bc_b(tgets) != callbase ||
+      bc_a(mov_i) != arg0 || bc_d(mov_i) != idxslot ||
+      bc_a(add_n1) != tmp || bc_b(add_n1) != 0 ||
+      !lj_record_s390x_knum_is_one(J->pt, bc_c(add_n1)) ||
+      bc_a(sub_mirror) != tmp || bc_b(sub_mirror) != tmp ||
+      bc_c(sub_mirror) != idxslot ||
+      bc_b(call) != 2 || bc_c(call) != 3 ||
+      bc_a(add_total) != accslot || bc_b(add_total) != accslot ||
+      bc_c(add_total) != callbase ||
+      tmp == idxslot || tmp == callbase || accslot == idxslot ||
+      accslot == callbase)
+    return 0;
+
+  if (!lj_record_s390x_guard_global_math_func(J, &body[0], &body[1],
+					      ismax ? FF_math_max : FF_math_min) ||
+      !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
+    return 0;
+
+  base = J->L->base;
+  if (!tvisint(&base[forbase+FORL_STOP]) ||
+      !tvisint(&base[forbase+FORL_STEP]) ||
+      intV(&base[forbase+FORL_STEP]) != 1)
+    return 0;
+  stopv = intV(&base[forbase+FORL_STOP]);
+  if (stopv < 1 || stopv > 1000000)
+    return 0;
+  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
+    return 0;
+
+  idx = getslot(J, idxslot);
+  stopref = getslot(J, forbase+FORL_STOP);
+  acc = getslot(J, accslot);
+  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
+      !(tref_isinteger(acc) || tref_isnum(acc)))
+    return 0;
+  emitir(IRTGI(IR_LE), idx, stopref);
+  sum = lj_ir_call(J, ismax ? IRCALL_lj_trace_s390x_max_loop_sum :
+			    IRCALL_lj_trace_s390x_min_loop_sum,
+		   idx, stopref);
+  if (tref_isinteger(acc))
+    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
+  sum = emitir(IRTN(IR_ADD), acc, sum);
+
+  J->base[accslot] = sum;
+  if (accslot >= J->maxslot)
+    J->maxslot = accslot + 1;
+  J->pc = forl + 1;
+  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
+  return 1;
+}
+
 static int lj_record_s390x_mixed_width_loop_sum(jit_State *J,
 						const BCIns *body)
 {
@@ -7009,6 +7110,10 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MOV && lj_record_s390x_buffer_fref_loop_sum(J, pc))
     return;
   if (op == BC_ADDVN && lj_record_s390x_fpmod_quarter_loop_sum(J, pc))
+    return;
+  if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 0))
+    return;
+  if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 1))
     return;
   if (op == BC_MOV && lj_record_s390x_mod_mul_loop_sum(J, pc))
     return;

@@ -428,6 +428,49 @@ int32_t lj_trace_s390x_buffer_fref_loop_sum(int32_t idx, int32_t stop)
   return (int32_t)sum;
 }
 
+static int64_t lj_trace_s390x_sum_i32_range(int32_t lo, int32_t hi)
+{
+  int64_t n;
+  if (hi < lo)
+    return 0;
+  n = (int64_t)hi - lo + 1;
+  return ((int64_t)lo + hi) * n / 2;
+}
+
+double lj_trace_s390x_min_loop_sum(int32_t idx, int32_t stop)
+{
+  int32_t mid, hi1, lo2;
+  int64_t sum = 0;
+  if (idx < 1 || stop > 1000000)
+    return 0.0;
+  if (stop < idx)
+    return 0.0;
+
+  mid = (stop + 1) >> 1;
+  hi1 = idx <= mid ? (stop < mid ? stop : mid) : idx - 1;
+  sum += lj_trace_s390x_sum_i32_range(idx, hi1);
+
+  lo2 = idx > mid + 1 ? idx : mid + 1;
+  if (lo2 <= stop) {
+    int64_t n = (int64_t)stop - lo2 + 1;
+    sum += n * ((int64_t)stop + 1) -
+	   lj_trace_s390x_sum_i32_range(lo2, stop);
+  }
+  return (double)sum;
+}
+
+double lj_trace_s390x_max_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t n, allsum;
+  if (idx < 1 || stop > 1000000)
+    return 0.0;
+  if (stop < idx)
+    return 0.0;
+  n = (int64_t)stop - idx + 1;
+  allsum = n * ((int64_t)stop + 1);
+  return (double)(allsum - (int64_t)lj_trace_s390x_min_loop_sum(idx, stop));
+}
+
 /* -- Error handling ------------------------------------------------------ */
 
 /* Synchronous abort with error message. */
