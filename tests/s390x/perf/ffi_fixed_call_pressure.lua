@@ -59,6 +59,7 @@ local scales = {
   small = 1000,
   medium = 5000,
   hot = 20000,
+  xhot = 200000,
 }
 
 local workloads = {
