@@ -35402,3 +35402,22 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   remaining non-floor candidates are now the numeric `div_loop`/`sqrt_loop`
   hardware-quality lane and smaller FFI/helper residuals; subagent attribution
   did not name a stronger FFI/helper payer.
+
+## 2026-04-17: closed numeric FP div add-order experiment as neutral
+
+- Candidate:
+  tested the only narrow scheduler variant left by current numeric attribution:
+  inside `asm_s390x_fpdiv_same_conv_addk_sched`, swap the two independent
+  `ADBR` emissions so execution computes the denominator add before the
+  numerator add while preserving the same `CDFBR -> AGHI -> copy -> adds ->
+  DDBR` contract.
+- Result:
+  kdz1 correctness passed `tests/s390x/jit_be/numeric_ops.lua` and
+  `tests/s390x/jit_be/numeric_div_sqrt_loop.lua`, but focused
+  `numeric_ops.lua` was unchanged: `div_loop/hot 0.000180`,
+  `sqrt_loop/hot 0.000228`, with small/medium rows also in the retained band.
+- Decision:
+  reverted locally and close this instruction-order variant. The current
+  numeric `div_loop`/`sqrt_loop` path remains a hardware-quality/x86-gap lane,
+  but no retained source change is justified without a new payer beyond the
+  existing FP operation latency and conversion schedule.
