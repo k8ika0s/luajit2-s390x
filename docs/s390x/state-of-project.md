@@ -212,9 +212,10 @@ Historical experiment detail lives in
   `numeric_ops/fp_mod_loop`, `numeric_ops/min_loop`, `numeric_ops/max_loop`,
   `ffi_cdata/mixed_width_loop`, `ffi_cdata/buffer_fref_loop`,
   `be_helpers/number_helper_loop`, `be_helpers/strto_loop`, and high-sample
-  `be_helpers` crash remediation are closed for the current tranche. Continue
-  from remaining numeric `div_loop`/`sqrt_loop` only after a corrected fresh
-  truth pack names a concrete payer.
+  `be_helpers` crash remediation are closed for the current tranche. A local
+  exact helper-fold candidate for numeric `div_loop`/`sqrt_loop` engaged but
+  was neutral; continue there only through a narrow backend FP
+  conversion/scheduling attempt.
 - Lower-frame truth pack:
   `artifacts/s390x/truth-packs/20260417-133150-kdz1-lower_frame_body-accel-truth-pack`.
   The current-source restamp

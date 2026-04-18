@@ -35141,3 +35141,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   under current artifacts, so the next acceleration work should continue from
   a fresh rerank or from corrected numeric `div_loop`/`sqrt_loop` truth packs
   only if they name a concrete payer.
+
+## 2026-04-17: closed numeric div/sqrt helper-fold lane as neutral
+
+- Candidate:
+  tested a local-only exact recorder fold for `@numeric_ops_div` and
+  `@numeric_ops_sqrt` that replaced the official loop bodies with one
+  `CALLN` helper accumulating in order from the current accumulator. This was
+  designed to test whether the remaining x86 gap was loop dispatch/body
+  overhead rather than FP operation latency.
+- Mechanism proof:
+  the IR dump showed the candidate engaged on both official rows:
+  `lj_trace_s390x_div_loop_accum` and `lj_trace_s390x_sqrt_loop_accum` were
+  present in the hot traces.
+- Result:
+  kdz1 focused `numeric_ops.lua` stayed effectively unchanged:
+  `div_loop/hot 0.000178s` versus the retained `~0.000180s` band, and
+  `sqrt_loop/hot 0.000225s` versus the retained `~0.000227s` band. This is not
+  material enough to retain, and the candidate was reverted locally.
+- Interpretation:
+  helper folding is not the missing acceleration mechanism for these two rows.
+  The remaining payer is generated-code quality in the FP conversion/schedule
+  seam around the s390x `CDFBR` plus `DDBR`/`SQDBR` hot path, specifically the
+  existing `asm_s390x_fpdiv_same_conv_addk_sched` and
+  `asm_s390x_fpsqrt_addk_sched` families.
+- Queue update:
+  keep `numeric_ops/div_loop` and `numeric_ops/sqrt_loop` open only for a
+  narrow backend scheduling attempt. Do not retry broad helper-loop folding
+  unless a new benchmark shape names a different payer.
