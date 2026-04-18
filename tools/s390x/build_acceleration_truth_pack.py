@@ -151,6 +151,167 @@ local function reference_result(run, iterations)
 end
 """
 
+FFI_FIXED_PRESSURE_COMMON = LUA_COMMON + """\
+local ffi = require("ffi")
+local libpath = arg[1] or "tests/s390x/ffi_abi/build/liboracle.so"
+ffi.cdef[[
+uint64_t sum7_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
+                  uint64_t e, uint64_t f, uint64_t g);
+uint64_t sum5_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
+                  uint64_t e);
+uint64_t sum6_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
+                  uint64_t e, uint64_t f);
+double sum4_double(double a, double b, double c, double d);
+double sum5_double(double a, double b, double c, double d, double e);
+double sum6_double(double a, double b, double c, double d, double e, double f);
+]]
+local lib = ffi.load(libpath)
+local u64 = ffi.typeof("uint64_t")
+
+local function gpr_reg5_pressure(n)
+  local total = u64(0)
+  local i = 1
+  while i <= n - 15 do
+    local a0 = 16 * i + 120
+    local a = a0
+    local b = a0 + 16
+    local c = a0 + 32
+    local d = a0 + 48
+    total = total + lib.sum5_u64(a, b, c, d, a)
+    i = i + 16
+  end
+  while i <= n do
+    local a = u64(i)
+    local b = u64(i + 1)
+    local c = u64(i + 2)
+    local d = u64(i + 3)
+    total = total + lib.sum5_u64(a, b, c, d, a)
+    i = i + 1
+  end
+  return tonumber(total)
+end
+
+local function gpr_stack6_pressure(n)
+  local total = u64(0)
+  local i = 1
+  while i <= n - 15 do
+    local a0 = 16 * i + 120
+    local a = a0
+    local b = a0 + 16
+    local c = a0 + 32
+    local d = a0 + 48
+    total = total + lib.sum6_u64(a, b, c, d, a, b)
+    i = i + 16
+  end
+  while i <= n do
+    local a = u64(i)
+    local b = u64(i + 1)
+    local c = u64(i + 2)
+    local d = u64(i + 3)
+    total = total + lib.sum6_u64(a, b, c, d, a, b)
+    i = i + 1
+  end
+  return tonumber(total)
+end
+
+local function gpr_stack7_pressure(n)
+  local total = u64(0)
+  local i = 1
+  while i <= n - 15 do
+    local a0 = 16 * i + 120
+    local a = a0
+    local b = a0 + 16
+    local c = a0 + 32
+    local d = a0 + 48
+    total = total + lib.sum7_u64(a, b, c, d, a, b, c)
+    i = i + 16
+  end
+  while i <= n do
+    local a = u64(i)
+    local b = u64(i + 1)
+    local c = u64(i + 2)
+    local d = u64(i + 3)
+    total = total + lib.sum7_u64(a, b, c, d, a, b, c)
+    i = i + 1
+  end
+  return tonumber(total)
+end
+
+local function fpr_reg4_pressure(n)
+  local total = 0
+  local i = 1
+  while i <= n - 15 do
+    local a = 16 * i + 124
+    local b = a + 20
+    local c = a + 40
+    total = total + lib.sum4_double(a, b, c, a)
+    i = i + 16
+  end
+  while i <= n do
+    local a = i + 0.25
+    local b = i + 1.5
+    local c = i + 2.75
+    total = total + lib.sum4_double(a, b, c, a)
+    i = i + 1
+  end
+  return total
+end
+
+local function fpr_stack5_pressure(n)
+  local total = 0
+  local i = 1
+  while i <= n - 15 do
+    local a = 16 * i + 124
+    local b = a + 20
+    local c = a + 40
+    total = total + lib.sum5_double(a, b, c, a, b)
+    i = i + 16
+  end
+  while i <= n do
+    local a = i + 0.25
+    local b = i + 1.5
+    local c = i + 2.75
+    total = total + lib.sum5_double(a, b, c, a, b)
+    i = i + 1
+  end
+  return total
+end
+
+local function fpr_stack6_pressure(n)
+  local total = 0
+  local i = 1
+  while i <= n - 15 do
+    local a = 16 * i + 124
+    local b = a + 20
+    local c = a + 40
+    total = total + lib.sum6_double(a, b, c, a, b, c)
+    i = i + 16
+  end
+  while i <= n do
+    local a = i + 0.25
+    local b = i + 1.5
+    local c = i + 2.75
+    total = total + lib.sum6_double(a, b, c, a, b, c)
+    i = i + 1
+  end
+  return total
+end
+
+local function run_pressure(label, run, cmp)
+  local n = 200000
+  local expected = reference_result(run, n)
+  run_with_counters(label, n, run, function(result)
+    if cmp == "float" then
+      if math.abs(result - expected) > 1e-9 then
+        error(label .. ": expected " .. tostring(expected) .. ", got " .. tostring(result))
+      end
+    else
+      testlib.eq(result, expected, label)
+    end
+  end)
+end
+"""
+
 
 FOCUSED_SCRIPTS = {
     "ffi_cdata_mixed_width": LUA_COMMON
@@ -175,33 +336,18 @@ run_with_counters("ffi_cdata_mixed_width", 32000, run, function(result)
   testlib.eq(result, expected, "ffi_cdata_mixed_width")
 end)
 """,
-    "ffi_fixed_gpr_pressure": LUA_COMMON
-    + """\
-local ffi = require("ffi")
-local libpath = arg[1] or "tests/s390x/ffi_abi/build/liboracle.so"
-ffi.cdef[[
-uint64_t echo_u64(uint64_t value);
-uint64_t sum7_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
-                  uint64_t e, uint64_t f, uint64_t g);
-]]
-local lib = ffi.load(libpath)
-local u64 = ffi.typeof("uint64_t")
-local function run(n)
-  local total = u64(0)
-  for i = 1, n do
-    local a = lib.echo_u64(u64(i))
-    local b = lib.echo_u64(u64(i + 1))
-    local c = lib.echo_u64(u64(i + 2))
-    local d = lib.echo_u64(u64(i + 3))
-    total = total + lib.sum7_u64(a, b, c, d, a, b, c)
-  end
-  return tonumber(total)
-end
-local expected = reference_result(run, 20000)
-run_with_counters("ffi_fixed_gpr_pressure", 20000, run, function(result)
-  testlib.eq(result, expected, "ffi_fixed_gpr_pressure")
-end)
-""",
+    "ffi_fixed_gpr_reg5_pressure": FFI_FIXED_PRESSURE_COMMON
+    + 'run_pressure("ffi_fixed_gpr_reg5_pressure", gpr_reg5_pressure, "int")\n',
+    "ffi_fixed_gpr_stack6_pressure": FFI_FIXED_PRESSURE_COMMON
+    + 'run_pressure("ffi_fixed_gpr_stack6_pressure", gpr_stack6_pressure, "int")\n',
+    "ffi_fixed_gpr_stack7_pressure": FFI_FIXED_PRESSURE_COMMON
+    + 'run_pressure("ffi_fixed_gpr_stack7_pressure", gpr_stack7_pressure, "int")\n',
+    "ffi_fixed_fpr_reg4_pressure": FFI_FIXED_PRESSURE_COMMON
+    + 'run_pressure("ffi_fixed_fpr_reg4_pressure", fpr_reg4_pressure, "float")\n',
+    "ffi_fixed_fpr_stack5_pressure": FFI_FIXED_PRESSURE_COMMON
+    + 'run_pressure("ffi_fixed_fpr_stack5_pressure", fpr_stack5_pressure, "float")\n',
+    "ffi_fixed_fpr_stack6_pressure": FFI_FIXED_PRESSURE_COMMON
+    + 'run_pressure("ffi_fixed_fpr_stack6_pressure", fpr_stack6_pressure, "float")\n',
     "iterator_pairs_loop_chain": LUA_COMMON
     + """\
 local tab = {}
@@ -788,13 +934,30 @@ TARGETS: dict[str, dict[str, Any]] = {
         ],
     },
     "ffi_fixed_gpr": {
-        "summary": "fixed FFI GPR call setup, spill, return-value handoff attribution",
+        "summary": "fixed FFI CALLXS setup, ABI-depth, return-value handoff attribution",
         "families": ["ffi_fixed_call_pressure", "ffi_fixed_struct_calls"],
-        "focus": ["ffi_fixed_gpr_pressure"],
+        "focus": [
+            "ffi_fixed_gpr_reg5_pressure",
+            "ffi_fixed_gpr_stack6_pressure",
+            "ffi_fixed_gpr_stack7_pressure",
+            "ffi_fixed_fpr_reg4_pressure",
+            "ffi_fixed_fpr_stack5_pressure",
+            "ffi_fixed_fpr_stack6_pressure",
+        ],
         "oracle": True,
         "target_rows": [
             "ffi_fixed_call_pressure/gpr_pressure/hot",
+            "ffi_fixed_call_pressure/gpr_pressure/xhot",
+            "ffi_fixed_call_pressure/gpr_reg5_pressure/hot",
+            "ffi_fixed_call_pressure/gpr_reg5_pressure/xhot",
+            "ffi_fixed_call_pressure/gpr_stack6_pressure/hot",
+            "ffi_fixed_call_pressure/gpr_stack6_pressure/xhot",
             "ffi_fixed_call_pressure/fpr_pressure/hot",
+            "ffi_fixed_call_pressure/fpr_pressure/xhot",
+            "ffi_fixed_call_pressure/fpr_reg4_pressure/hot",
+            "ffi_fixed_call_pressure/fpr_reg4_pressure/xhot",
+            "ffi_fixed_call_pressure/fpr_stack5_pressure/hot",
+            "ffi_fixed_call_pressure/fpr_stack5_pressure/xhot",
         ],
     },
     "iterator_safety": {
@@ -967,6 +1130,15 @@ def run_official_ab(
                     joff_records=joff_records,
                 )
             )
+            pass_rows.extend(
+                summarize_target_pass(
+                    pass_no=pass_no,
+                    order=order,
+                    jit_records=jit_records,
+                    joff_records=joff_records,
+                    target_rows=set(target["target_rows"]),
+                )
+            )
             all_records.extend(jit_records)
             all_records.extend(joff_records)
             print(f"pass {pass_no} {order}")
@@ -976,6 +1148,40 @@ def run_official_ab(
     write_text(output_dir / "official-pass-rows.json", json.dumps(pass_rows, indent=2, sort_keys=True) + "\n")
     write_text(output_dir / "official-aggregate.json", json.dumps(aggregate, indent=2, sort_keys=True) + "\n")
     return pass_rows, aggregate
+
+
+def summarize_target_pass(
+    *,
+    pass_no: int,
+    order: str,
+    jit_records: list[dict[str, Any]],
+    joff_records: list[dict[str, Any]],
+    target_rows: set[str],
+) -> list[dict[str, Any]]:
+    """Summarize explicitly requested target rows, including non-hot scales."""
+    joff_by_key = {jitter.record_key(record): record for record in joff_records}
+    rows: list[dict[str, Any]] = []
+    for jit_record in jit_records:
+        key = jitter.record_key(jit_record)
+        if key not in target_rows or jit_record.get("scale") == "hot":
+            continue
+        joff_record = joff_by_key.get(key)
+        if joff_record is None:
+            continue
+        jit_median = jitter.record_median(jit_record)
+        joff_median = jitter.record_median(joff_record)
+        rows.append(
+            {
+                "pass": pass_no,
+                "order": order,
+                "row": key,
+                "jit": jit_median,
+                "joff": joff_median,
+                "ratio": jit_median / joff_median if joff_median else None,
+                "delta": jit_median - joff_median,
+            }
+        )
+    return rows
 
 
 def run_trace_count(
