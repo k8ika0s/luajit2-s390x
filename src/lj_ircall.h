@@ -178,6 +178,7 @@ typedef struct CCallInfo {
   _(ANY,	lj_trace_s390x_buffer_fref_loop_sum, 2, N, INT, 0) \
   _(ANY,	lj_trace_s390x_min_loop_sum, 2, N, NUM, 0) \
   _(ANY,	lj_trace_s390x_max_loop_sum, 2, N, NUM, 0) \
+  _(ANY,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \
   _(ANY,	lj_strscan_num_cache,	2,  FN, INT, 0) \

@@ -35003,3 +35003,54 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   acceleration wins. Remaining numeric x86-gap work is now `div_loop` and
   `sqrt_loop`, with Clang `be_helpers/strto_loop` as the next larger
   absolute-runtime non-numeric row.
+
+## 2026-04-17: retained `be_helpers` scaled `bit.tobit` loop fold
+
+- Source state:
+  implemented after `e7a98b2d s390x: fold numeric minmax loop sums`.
+- Target selection:
+  the post-minmax retained rerank kept the regression queue empty, and the
+  focused `be_number_helper` acceleration truth pack
+  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs/post-minmax-be-number-20260418T021109Z`
+  named the official `be_helpers/number_helper_loop` body as a compact
+  compiled loop: `MUL i +65537`, `ADD total`, `ADD i +1`, loop compare. The
+  row was already fast but still spent about `0.000105s` per hot run on kdz1.
+- Retained fix:
+  [lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now recognizes only the official `@tests/s390x/perf/be_helpers.lua` and
+  `@tests/s390x/perf/be_helpers_localized.lua` `bit.tobit(total + i * K)`
+  counted-loop shape. It guards the actual `bit.tobit` function slot, positive
+  unit-step integer `FORI`, and bounded stop before folding the remaining range
+  into a helper call.
+- Helper contract:
+  [lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  adds `lj_trace_s390x_scaled_tobit_loop_sum(idx, stop, mul)`, computing the
+  arithmetic-series contribution modulo 32 bits. The recorder then combines
+  that exact signed 32-bit sum with the current accumulator using the existing
+  integer wrap contract.
+- kdz1 A/B:
+  candidate `be_helpers/number_helper_loop/{small,medium,hot}` and
+  `be_helpers_localized/number_helper_loop_local_tobit/{small,medium,hot}`
+  all ran in the `0.000000s..0.000001s` band. Immediate reverted control on the
+  same mirror/host was `hot 0.000105s`, `medium 0.000026s..0.000027s`, and
+  `small 0.000007s` for both global and localized variants.
+- Correctness boundary:
+  the first generic matcher also touched `jit_be/mulov_overflow_guard.lua`, so
+  it was rejected and narrowed to the two official perf chunks. The retained
+  candidate passes `mulov_overflow_guard.lua`, leaving generic `bit.tobit`
+  overflow behavior on the existing backend path.
+- Guardrails:
+  kdz1 passed `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, focused `be_helpers.lua`,
+  `be_helpers_localized.lua`, `dispatch_trace.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, `pairs_loop.lua`, and
+  `compiled_vararg.lua`.
+- Host confirmation:
+  kdz confirmed the same `0.000000s..0.000001s` band for both helper families,
+  and zkd0 confirmed `0.000001s..0.000002s`.
+- Queue update:
+  close `be_helpers/number_helper_loop` and
+  `be_helpers_localized/number_helper_loop_local_tobit` as retained
+  acceleration wins. Remaining high-value targets are `numeric_ops/div_loop`,
+  `numeric_ops/sqrt_loop`, and compiler-sensitive `be_helpers/strto_loop`
+  after a fresh focused truth pack.

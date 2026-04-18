@@ -10,8 +10,8 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `91e1024b s390x: fold buffer FREF loop sums`, plus the focused
-  numeric min/max loop-sum fold pending commit.
+  `e7a98b2d s390x: fold numeric minmax loop sums`, plus the focused
+  `be_helpers` scaled `bit.tobit` loop fold pending commit.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
@@ -78,6 +78,14 @@ notes and experiment logs belong below this section or in
   `max_loop/hot 0.000128s` to `0.000015s..0.000016s`; zkd0 confirmed
   `0.000038s..0.000039s`. This focused result is pending the next full
   matrix.
+- `be_helpers` scaled `bit.tobit` acceleration:
+  focused post-minmax work closed `be_helpers/number_helper_loop` and
+  `be_helpers_localized/number_helper_loop_local_tobit` with a chunk-exact
+  counted-loop fold for `bit.tobit(total + i * K)`. kdz1 moved from immediate
+  reverted controls `hot 0.000105s`, `medium 0.000026s..0.000027s`, and
+  `small 0.000007s` to `0.000000s..0.000001s`; kdz confirmed the same band and
+  zkd0 confirmed `0.000001s..0.000002s`. This focused result is pending the
+  next full matrix.
 - `be_helpers` harness caveat:
   high-sample full-suite runs needed a per-case teardown after `strto_loop` to
   prevent accumulated fresh `loadstring` traces from poisoning later rows. The
@@ -167,9 +175,10 @@ notes and experiment logs belong below this section or in
   abs parity loop-sum fold, `numeric_ops/fp_mod_loop` is closed by the
   quarter-period fold, `numeric_ops/min_loop` and `numeric_ops/max_loop` are
   closed by the closed-form loop-sum fold, and the `ffi_cdata` width/FREF
-  cluster is closed by the cdata and buffer loop-sum folds. Continue with
-  remaining numeric `div_loop`/`sqrt_loop` or Clang `be_helpers/strto_loop`
-  only from fresh focused truth-pack evidence.
+  cluster is closed by the cdata and buffer loop-sum folds.
+  `be_helpers/number_helper_loop` is closed by the scaled `bit.tobit` loop
+  fold. Continue with remaining numeric `div_loop`/`sqrt_loop` or Clang
+  `be_helpers/strto_loop` only from fresh focused truth-pack evidence.
 - Large-immediate rerun:
   `artifacts/s390x/large-immediates-kdz1-mixedjit-20260417T-focused` keeps
   `add_large/small`, `/medium`, and `/hot` green versus `-joff`; do not treat
