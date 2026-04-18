@@ -34,6 +34,9 @@ LJ_FUNC void lj_trace_freestate(global_State *g);
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
 LJ_FUNC int lj_trace_s390x_iterator_itern_nohot_dispatch_active(void);
+LJ_FUNC double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
+						  int32_t stop,
+						  double per_iter);
 LJ_FUNC double lj_trace_s390x_lower_frame_abs17_loop_sum(double acc,
 							int32_t idx,
 							int32_t stop);
