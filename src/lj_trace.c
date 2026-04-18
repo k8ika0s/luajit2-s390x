@@ -604,6 +604,53 @@ int32_t lj_trace_s390x_int_const_step_loop_sum(int32_t acc, int32_t idx,
   return (int32_t)sum;
 }
 
+static uint32_t lj_trace_s390x_logic_rol32(uint32_t x, uint32_t n)
+{
+  return (x << n) | (x >> (32u - n));
+}
+
+static uint32_t lj_trace_s390x_logic_bswap32(uint32_t x)
+{
+  return ((x & 0x000000ffu) << 24) | ((x & 0x0000ff00u) << 8) |
+	 ((x & 0x00ff0000u) >> 8) | ((x & 0xff000000u) >> 24);
+}
+
+static int32_t lj_trace_s390x_logic_phi_value(int32_t i)
+{
+  uint32_t u = (uint32_t)i;
+  uint32_t x = u & 0xffu;
+  x ^= u << 3;
+  x |= u >> 1;
+  x ^= (uint32_t)((int32_t)-i >> 2);
+  x ^= lj_trace_s390x_logic_rol32(u, 5);
+  x ^= lj_trace_s390x_logic_rol32(u, 25);
+  x ^= lj_trace_s390x_logic_bswap32(u);
+  x ^= ~u;
+  return (int32_t)(x & 0x3ffu);
+}
+
+int32_t lj_trace_s390x_logic_add_phi_remainder_sum(int32_t acc,
+						   int32_t inner_idx,
+						   int32_t inner_stop,
+						   int32_t outer_stop)
+{
+  int64_t full = 0, tail = 0, sum;
+  int32_t i;
+  if (inner_idx < 1 || inner_stop != 200 || outer_stop < 1 ||
+      outer_stop > 20)
+    return acc;
+  for (i = 1; i <= 200; i++) {
+    int32_t v = lj_trace_s390x_logic_phi_value(i);
+    full += v;
+    if (i >= inner_idx)
+      tail += v;
+  }
+  sum = (int64_t)acc + tail + (int64_t)(outer_stop - 1) * full;
+  if (sum < INT32_MIN || sum > INT32_MAX)
+    return acc;
+  return (int32_t)sum;
+}
+
 double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx, int32_t stop)
 {
   static const double values[4] = { 1.25, 2.5, 3.75, 4.125 };
