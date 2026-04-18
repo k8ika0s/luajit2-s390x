@@ -35054,3 +35054,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   acceleration wins. Remaining high-value targets are `numeric_ops/div_loop`,
   `numeric_ops/sqrt_loop`, and compiler-sensitive `be_helpers/strto_loop`
   after a fresh focused truth pack.
+
+## 2026-04-17: fixed combined numeric div/sqrt loop scheduling correctness
+
+- Source state:
+  discovered immediately after `b304b2d9 s390x: fold bit.tobit helper loop
+  sums` while rerunning the `numeric_ops_micro` acceleration truth pack.
+- Failure:
+  the focused combined loop
+  `total = total + ((i + 0.5) / (i + 1.25)) + math.sqrt(i + 0.25)` returned
+  about `252.982706918872` for `n=64000`, while the interpreter reference was
+  `10858089.203574074432`. Separate official `numeric_ops/div_loop` and
+  `numeric_ops/sqrt_loop` remained correct.
+- Mechanism:
+  the s390x sqrt loop-index scheduling shortcut assumed the `sqrt(i + K)`
+  result fed the loop accumulator directly. In the combined div/sqrt body, the
+  sqrt add consumed an intermediate numeric `ADD` from the div side, so the
+  shortcut was too broad and skipped/reshaped the wrong arithmetic.
+- Fix:
+  [lj_asm_s390x.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_asm_s390x.h)
+  now rejects the sqrt loop-index scheduling shortcut when the accumulator
+  input is itself another numeric `ADD`. That keeps the fast path for direct
+  sqrt accumulator loops while falling back to ordinary lowering for mixed
+  numeric bodies.
+- Coverage:
+  [numeric_div_sqrt_loop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/jit_be/numeric_div_sqrt_loop.lua)
+  covers the combined div/sqrt loop at `n=64000` with warmup counts `0..4`.
+- Validation:
+  kdz1 passed the new guard, `jit_be/numeric_ops.lua`, all `jit_be/*.lua`, and
+  focused `numeric_ops.lua`. Official hot rows stayed in band:
+  `div_loop/hot 0.000182s`, `sqrt_loop/hot 0.000228s`,
+  `min_loop/hot 0.000014s`, and `max_loop/hot 0.000014s`.
+- Host confirmation:
+  kdz passed the new guard and numeric backend test with `div_loop/hot
+  0.000181s` and `sqrt_loop/hot 0.000228s`. zkd0 passed the same guard/test
+  with `div_loop/hot 0.000219s` and `sqrt_loop/hot 0.000251s`.
+- Queue update:
+  keep `numeric_ops/div_loop` and `numeric_ops/sqrt_loop` in the acceleration
+  queue only if a fresh truth pack names a real codegen payer. The immediate
+  work here was correctness, not a speed win.

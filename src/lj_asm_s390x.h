@@ -3730,6 +3730,8 @@ static int asm_s390x_sqrt_loop_index_add_deferred(ASMState *as, IRIns *ir,
   fadd = ir - 1;
   if (fadd->o != IR_ADD || !irt_isnum(fadd->t) || irref_isk(fadd->op1))
     return 0;
+  if (!irref_isk(fadd->op2) && IR(fadd->op2)->o == IR_ADD)
+    return 0;
   sqrtir = IR(fadd->op1);
   if (sqrtir != ir - 2 || sqrtir->o != IR_FPMATH ||
       !irt_isnum(sqrtir->t) || sqrtir->op2 != IRFPM_SQRT ||
@@ -5270,6 +5272,8 @@ static int asm_s390x_fpsqrt_addk_sched(ASMState *as, IRIns *ir)
   if (xadd->o != IR_ADD || !irt_isnum(xadd->t) ||
       irref_isk(xadd->op1) || !irref_isk(xadd->op2) ||
       !mayfuse(as, xadd->op1))
+    return 0;
+  if (!irref_isk((ir + 1)->op2) && IR((ir + 1)->op2)->o == IR_ADD)
     return 0;
   conv = IR(xadd->op1);
   if (conv->o != IR_CONV || !irt_isnum(conv->t) ||
