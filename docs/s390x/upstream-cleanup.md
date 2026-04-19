@@ -115,6 +115,8 @@ Latest artifacts:
   `/tmp/kdz1-bench-fastpath-debt-20260419093522`.
 - Focused fixed-struct post-migration rerun:
   `/tmp/kdz1-bench-fastpath-debt-20260419114227`.
+- Focused large-immediates post-migration rerun:
+  `/tmp/kdz1-bench-fastpath-debt-20260419114902`.
 
 The higher-sample rerun built default WIP and generic-only
 `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
@@ -123,13 +125,12 @@ and ran the top debt families with `S390X_PERF_SAMPLES=11`,
 
 Current replacement order by absolute generic-only slowdown:
 
-- `large_immediates`: smaller absolute debts remain, mostly timer-floor
-  default rows against small generic-only runtimes.
 - Remaining recorder folds in `src/lj_record.c`: continue migrating chunk/file
   matchers to semantic contracts one family at a time. `ffi_calls` now uses
   `CTF_CONSTFUNC` plus the `(i % 17) - 8` call shape, and
   `ffi_fixed_struct_calls` now uses `CTF_CONSTFUNC` plus proved by-value struct
-  argument layouts.
+  argument layouts. `large_immediates` now relies on bytecode/literal/table
+  guards instead of file/line gates.
 
 No family failed or timed out in the focused generic-only pass. That means the
 cleanup problem is primarily preserving acceleration, not preserving basic
@@ -302,3 +303,17 @@ generic-only slowdown. kdz1 direct validation also passed
 `tests/s390x/jit_core/ffi_fixed_struct_call_trace.lua`,
 `tests/s390x/ffi_abi/run.lua`, and
 `tests/s390x/perf/ffi_fixed_struct_calls.lua`.
+
+### Large Immediates Status
+
+The large-immediate recorder folds no longer depend on benchmark file or line
+identity:
+
+- The old `@tests/s390x/perf/large_immediates.lua` and `pt->firstline` gates
+  for add/sub/compare/table-reference folds are gone.
+- The retained folds still prove the root counted loop, owned `FORI/FORL`
+  body, literal constants, loop bounds, and table key/value guard before
+  replacing the body with `lj_trace_s390x_int_const_step_loop_sum`.
+- kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419114902`.
+- Result: no failed rows and only `0.000001s` timer jitter in the focused
+  generic-only debt pack; kdz1 and zkd0 direct focused validation both pass.

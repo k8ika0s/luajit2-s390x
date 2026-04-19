@@ -36788,3 +36788,29 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   rows and no material `ffi_fixed_struct_calls` generic-only slowdown. This
   removes the largest FFI fixed-struct benchmark-shaped upstream blocker while
   preserving the retained speed floor.
+
+## 2026-04-19: `large_immediates` recorder folds moved off file/line gates
+
+- Change:
+  the `large_immediates` add/sub/compare/table-reference folds no longer use
+  exact `@tests/s390x/perf/large_immediates.lua` chunk names or
+  `pt->firstline` filters. They now rely on the existing bytecode, loop-bound,
+  literal constant, and table-value guards.
+- Mechanism:
+  the add/sub/compare folds still require a root counted integer loop, owned
+  `FORI/FORL` body, bounded stop, and the existing literal constants before
+  using `lj_trace_s390x_int_const_step_loop_sum`. The table-reference fold
+  still guards the upvalue table and the integer key/value pair before folding
+  the repeated load into the same loop-sum helper.
+- Validation:
+  kdz1 remote mirror
+  `/root/luajit2-s390x/workstreams/large-immediates-generic/canon/repo`
+  passed `tests/s390x/perf/large_immediates.lua`,
+  `tests/s390x/jit_be/large_immediates.lua`, and
+  `tests/s390x/jit_be/numeric_ops.lua`. zkd0 passed the same focused set.
+- Debt status:
+  focused kdz1 debt pack
+  `/tmp/kdz1-bench-fastpath-debt-20260419114902` shows no failed or timed-out
+  rows and only `0.000001s` timer jitter in the generic-only comparison. This
+  removes the named `large_immediates` upstream cleanup debt without losing the
+  retained acceleration.
