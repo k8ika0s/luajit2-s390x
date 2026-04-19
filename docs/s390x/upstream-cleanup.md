@@ -121,10 +121,6 @@ and ran the top debt families with `S390X_PERF_SAMPLES=11`,
 
 Current replacement order by absolute generic-only slowdown:
 
-- `iterator_table/pairs_sum` and `pairs_array_sum`: largest retained debt.
-  Default WIP is at timer floor, while generic-only returns to about
-  `0.010309s` and `0.008121s` on kdz1. This should become a semantic iterator
-  reducer/loop-fold mechanism, not an exact chunk/proto gate.
 - `mixed_noffi/mixed_loop`: default WIP is about `0.000001s`; generic-only is
   about `0.003567s`. This is the next highest absolute retained debt after the
   iterator family.
@@ -141,3 +137,23 @@ Current replacement order by absolute generic-only slowdown:
 No family failed or timed out in the focused generic-only pass. That means the
 cleanup problem is primarily preserving acceleration, not preserving basic
 correctness.
+
+### Iterator Table Status
+
+The first retained debt item is now converted from benchmark identity to a
+semantic bytecode/upvalue-table shape:
+
+- Source change: the iterator fold no longer requires
+  `@tests/s390x/perf/iterator_table.lua`, and trace start now parks matching
+  `pairs()` `BC_ITERN` loop-fold candidates by bytecode/control shape rather
+  than file name.
+- kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419095408`.
+- zkd0 artifact: `/tmp/zkd0-bench-fastpath-debt-20260419095717`.
+- Result: both `pairs_sum` and `pairs_array_sum` stay at timer floor with
+  `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0`, while `mixed_noffi` remains a
+  separate retained-debt item.
+
+This does not remove all benchmark-shaped iterator source yet; the old exact
+helpers remain for branch compatibility until the broader trace-control cleanup
+can delete dead code safely. It does replace the official iterator-table
+performance dependency with a generic mechanism.

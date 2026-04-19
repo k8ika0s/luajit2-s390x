@@ -3447,7 +3447,6 @@ static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
   int32_t stopv, per_iter = 0;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_iterator_table_proto_match(J->pt) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);

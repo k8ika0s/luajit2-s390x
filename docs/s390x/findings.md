@@ -36553,3 +36553,35 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   generic-only floor. The next source work should replace the iterator-table
   benchmark-shaped path with a semantic iterator reducer/loop-fold mechanism
   before removing the exact chunk/proto gate.
+
+## 2026-04-19: iterator debt converted to semantic loop-fold reachability
+
+- Change:
+  the official iterator-table loop fold no longer depends on
+  `@tests/s390x/perf/iterator_table.lua` in the recorder. Trace start now parks
+  matching `pairs()` `BC_ITERN` fold candidates by bytecode/control shape and
+  upvalue-table/no-metatable state, instead of relying on the exact
+  iterator-table chunk/proto matcher.
+- Mechanism:
+  the semantic trace-start matcher recognizes the stable
+  `GGET pairs -> UGET table -> CALL -> ISNEXT -> ADDVV -> ITERN -> ITERL ->
+  FORL -> RET1` nested loop shape. The recorder fold still owns the strict
+  replacement contract and guards root-frame state, loop bounds, table size,
+  metatable, key/value layout, accumulator range, and the closed-form sum.
+- kdz1 validation:
+  `/tmp/kdz1-bench-fastpath-debt-20260419095408` with
+  `S390X_PERF_SAMPLES=11`, `S390X_PERF_WARMUP=3` shows generic-only
+  `iterator_table/pairs_sum` and `pairs_array_sum` at `0.000000s..0.000001s`.
+  kdz1 generic-only guardrails passed `pairs_loop.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, and `vararg_paths.lua`. kdz1 default WIP rebuilt and
+  passed `pairs_loop.lua`, `iterator_table.lua`, `mixed_noffi.lua`, and
+  `dispatch_trace.lua`.
+- zkd0 validation:
+  `/tmp/zkd0-bench-fastpath-debt-20260419095717` with
+  `S390X_PERF_SAMPLES=7`, `S390X_PERF_WARMUP=2` confirms generic-only
+  `iterator_table` remains at timer floor.
+- Queue update:
+  iterator-table is no longer the largest benchmark-fastpath debt. The next
+  retained-debt target is `mixed_noffi/mixed_loop`, which remains slow under
+  `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` while default WIP stays at timer
+  floor.
