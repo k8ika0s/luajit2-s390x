@@ -36201,3 +36201,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   source lane is either fixed `CALLXS` boundary design with an amplified
   pressure harness, or x86 coverage completion for the missing xhot /
   iterator / mixed rows before using them for cross-arch ranking.
+
+## 2026-04-18: fixed CALLXS duplicate GPR fanout retained
+
+- Source:
+  `f784bd45 s390x: fan out duplicate fixed-call GPR args`.
+- Artifacts:
+  baseline kdz1 truth pack
+  `artifacts/s390x/truth-packs/20260418-170627-kdz1-ffi_fixed_gpr-accel-truth-pack`;
+  retained GPR-only truth pack
+  `artifacts/s390x/truth-packs/20260418-172821-kdz1-ffi_fixed_gpr-accel-truth-pack`.
+- Mechanism:
+  `asm_gencall()` now records the assigned ABI location for each fixed-call
+  argument and, for duplicate non-constant GPR arguments, emits later
+  register/stack fanout from the first ABI GPR home. This avoids the old
+  `S390X_CALL_PRESERVE` temporary-save path for the high-arity fixed-call
+  pressure trace while leaving FPR duplicate handling unchanged.
+- Mechanism gate:
+  kdz1 `LUAJIT_S390X_CALL_LOG=1` on
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua` reports
+  `preserve_count=0`.
+- Performance:
+  kdz1 moved `ffi_fixed_call_pressure/gpr_pressure/xhot` from the immediate
+  clean control band `0.000078s` to `0.000070s`. kdz confirmed
+  `0.000079s` control versus `0.000070s..0.000071s` candidate. zkd0 was noisy
+  but pinned target reruns were neutral/slightly positive
+  (`0.000121s` control versus `0.000120s` candidate). GPR register-only and
+  stack-depth siblings stayed in band; FPR fanout was intentionally not
+  retained after an earlier broader prototype showed possible zkd0 sibling
+  noise.
+- Guardrails:
+  kdz1 rebuilt source passed `ffi_fixed_call_pressure_trace.lua`,
+  `ffi_stack_call_trace.lua`, `ffi_abi/run.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, and focused `ffi_calls`, `ffi_cdata`, `mixed_ffi`,
+  `dispatch_trace`, `iterator_table`, `vararg_paths`, and `mixed_noffi`
+  screens.
+- Queue update:
+  the local duplicate-GPR preserve debt is closed. Fixed `CALLXS` remains an
+  x86-gap family only for larger call-boundary design work or an amplified
+  harness that names a new payer; do not reopen FPR duplicate fanout without a
+  separate host-pair signal.

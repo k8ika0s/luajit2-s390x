@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 16:45 PDT
+Last updated: 2026-04-18 17:32 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `cbdf6b38 tools: refresh acceleration truth pack targets`.
+  `f784bd45 s390x: fan out duplicate fixed-call GPR args`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -123,6 +123,13 @@ Historical experiment detail lives in
   faster even on register-only calls. The next FFI source target is therefore
   the fixed `CALLXS` boundary itself, not another duplicate-arg or stack-store
   micro-cut.
+- Latest fixed `CALLXS` boundary work closes one local GPR preserve/copy debt:
+  duplicate non-constant GPR arguments now fan out from their first ABI GPR
+  home to later register/stack homes. kdz1/kdz confirm
+  `ffi_fixed_call_pressure/gpr_pressure/xhot` improves from the
+  `0.000078s..0.000079s` control band to `0.000070s..0.000071s`, with zkd0
+  neutral/slightly positive under pinned rerun. FPR duplicate fanout remains
+  unmodified after the broader prototype showed possible host noise.
 - Current full matrix:
   `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z` and comparison
   `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`.

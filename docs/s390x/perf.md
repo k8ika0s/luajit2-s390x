@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 16:45 PDT
+Last updated: 2026-04-18 17:32 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `cbdf6b38 tools: refresh acceleration truth pack targets`.
+  `f784bd45 s390x: fan out duplicate fixed-call GPR args`.
 - Current s390x artifact:
   `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z`.
 - Current x86 comparison:
@@ -33,9 +33,21 @@ notes and experiment logs belong below this section or in
   (`~0.000111s` vs `~0.000146s`). The remaining complete x86-faster rows are
   timer-floor scale, led by `ffi_fixed_call_pressure` hot rows
   (`~0.000007s..0.000008s`) and small/medium `numeric_ops`
-  (`~0.000012s..0.000016s`). Treat the next source lane as fixed `CALLXS`
-  boundary design or a larger amplified numeric/FFI harness, not a broad
-  regression repair.
+  (`~0.000012s..0.000016s`). The retained fixed `CALLXS` GPR duplicate-fanout
+  patch below closes the first local preserve/copy debt; further fixed-call
+  work needs a larger call-boundary design or amplified harness, not another
+  broad regression repair.
+- Retained acceleration source delta:
+  `f784bd45 s390x: fan out duplicate fixed-call GPR args`. The backend now
+  fans out duplicate non-constant GPR call arguments from the first ABI GPR
+  home to later GPR/stack homes, avoiding the old temporary
+  `S390X_CALL_PRESERVE` path in high-arity fixed `CALLXS` pressure traces.
+  kdz1 moved `ffi_fixed_call_pressure/gpr_pressure/xhot` from the immediate
+  clean control band `0.000078s` to `0.000070s`; kdz confirmed
+  `0.000079s` control versus `0.000070s..0.000071s` candidate. zkd0 pinned
+  target reruns were neutral/slightly positive (`0.000121s` control versus
+  `0.000120s` candidate). The broader FPR fanout prototype was not retained;
+  FPR duplicate behavior remains unchanged.
 - Retained acceleration source delta:
   `d997ee55 s390x: lower centered modulo abs branchlessly`. Focused
   kdz1/kdz/zkd0 validation moved
