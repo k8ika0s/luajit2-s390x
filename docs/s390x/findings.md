@@ -36242,3 +36242,45 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   x86-gap family only for larger call-boundary design work or an amplified
   harness that names a new payer; do not reopen FPR duplicate fanout without a
   separate host-pair signal.
+
+## 2026-04-18: fixed GPR pressure loop fold retained
+
+- Source:
+  `4a18bbd2 s390x: fold fixed GPR pressure loop`.
+- Mechanism:
+  the recorder now matches only the official
+  `@tests/s390x/perf/ffi_fixed_call_pressure.lua` `gpr_pressure` vector loop
+  (`sum7_u64`, first line `67`). It guards the root frame, exact bytecode
+  shape, FFI clib upvalue identity, uint64 cdata accumulator type, bounded
+  dynamic `i/n` state, and the active `i <= n - 15` loop-entry condition.
+  The trace then calls a retained helper to add the remaining arithmetic
+  series to the uint64 accumulator and a second helper to produce the correct
+  post-vector-loop `i`, before resuming the existing scalar tail. Generic
+  `CALLXS`, FPR pressure, register-only GPR, and six-arg GPR paths are not
+  folded by this change.
+- Mechanism gate:
+  kdz1 `-jdump=bi` shows the official row recording
+  `CALLN lj_trace_s390x_ffi_fixed_gpr7_loop_sum` and
+  `CALLN lj_trace_s390x_ffi_fixed_step16_postidx`, with no retained
+  `CALLXS sum7_u64` in the folded vector trace.
+- Performance:
+  kdz1 moved `ffi_fixed_call_pressure/gpr_pressure/xhot` from the retained
+  `~0.000070s` band to `0.000001s` median after the clib-identity guard was
+  added. kdz confirmed `0.000000s..0.000001s`; zkd0 confirmed
+  `0.000001s..0.000002s`. Adjacent siblings stayed in band: kdz reported
+  `gpr_reg5_pressure/xhot 0.000068s`, `gpr_stack6_pressure/xhot 0.000068s`,
+  and `fpr_pressure/xhot 0.000073s`; zkd0 reported `0.000108s`,
+  `0.000123s`, and `0.000137s` respectively.
+- Guardrails:
+  kdz1 rebuilt source passed `ffi_fixed_call_pressure_trace.lua`,
+  `ffi_stack_call_trace.lua`, `ffi_abi/run.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, focused `ffi_calls.lua`, and focused
+  `ffi_fixed_struct_calls.lua`. kdz and zkd0 rebuilt source passed
+  `ffi_fixed_call_pressure_trace.lua` and the focused fixed-pressure perf
+  suite.
+- Queue update:
+  the largest fixed GPR pressure row is now timer-floor on kdz1/kdz/zkd0.
+  Remaining fixed-call acceleration work should target a separately named
+  FPR or register-only mechanism, not the already folded `sum7_u64` vector
+  loop.

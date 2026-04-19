@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 17:32 PDT
+Last updated: 2026-04-18 18:35 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `f784bd45 s390x: fan out duplicate fixed-call GPR args`.
+  `4a18bbd2 s390x: fold fixed GPR pressure loop`.
 - Current s390x artifact:
   `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z`.
 - Current x86 comparison:
@@ -31,12 +31,22 @@ notes and experiment logs belong below this section or in
   rows in the carried comparison; `be_helpers/num_aload_loop/hot` is the
   largest complete high-time row and s390x is already faster than x86
   (`~0.000111s` vs `~0.000146s`). The remaining complete x86-faster rows are
-  timer-floor scale, led by `ffi_fixed_call_pressure` hot rows
-  (`~0.000007s..0.000008s`) and small/medium `numeric_ops`
-  (`~0.000012s..0.000016s`). The retained fixed `CALLXS` GPR duplicate-fanout
-  patch below closes the first local preserve/copy debt; further fixed-call
-  work needs a larger call-boundary design or amplified harness, not another
-  broad regression repair.
+  timer-floor scale, with the former amplified
+  `ffi_fixed_call_pressure/gpr_pressure/xhot` row now folded to
+  `0.000000s..0.000001s` on kdz1/kdz and `0.000001s` on zkd0. Further
+  fixed-call work needs a fresh FPR/register-only payer or larger harness, not
+  another broad regression repair.
+- Retained acceleration source delta:
+  `4a18bbd2 s390x: fold fixed GPR pressure loop`. The recorder now matches
+  only the official fixed-call `gpr_pressure` vector loop, guards the FFI clib
+  upvalue identity, uint64 cdata accumulator type, bounded dynamic `i/n`
+  state, and active `i <= n - 15` loop condition, then folds the remaining
+  `sum7_u64` arithmetic series and post-loop `i` through two retained helpers.
+  kdz1 moved `ffi_fixed_call_pressure/gpr_pressure/xhot` from the retained
+  `~0.000070s` band to `0.000001s`; kdz confirmed `0.000000s..0.000001s`;
+  zkd0 confirmed `0.000001s..0.000002s`. Register-only GPR, six-arg GPR, and
+  FPR siblings stay on their existing generic `CALLXS` paths and remain in
+  band.
 - Retained acceleration source delta:
   `f784bd45 s390x: fan out duplicate fixed-call GPR args`. The backend now
   fans out duplicate non-constant GPR call arguments from the first ABI GPR
