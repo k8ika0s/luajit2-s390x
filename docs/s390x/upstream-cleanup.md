@@ -32,14 +32,14 @@ Primary source files:
 
 Representative current examples:
 
-- Lower-frame exact chunk matcher at `src/lj_record.c` near
-  `lj_record_s390x_lower_frame_proto_match()`.
 - Dispatch trace route-around matchers in `src/lj_trace.c` near
   `lj_trace_s390x_dispatch_proto_match()` and
   `lj_trace_s390x_dispatch_forl_proto_nojit_match()`.
 - Promotion-core and route-around matchers in `src/lj_trace.c` that combine
   benchmark chunk names with `nins` / `nsnap` / `mcloop`.
 - Iterator/mixed/ffi exact root blacklists in `src/lj_trace.c`.
+- Remaining recorder-side synthetic or benchmark chunk matchers such as the
+  strto helper probe and FFI call-pressure shapes in `src/lj_record.c`.
 
 ## Resolution Policy
 
@@ -117,6 +117,14 @@ Latest artifacts:
   `/tmp/kdz1-bench-fastpath-debt-20260419114227`.
 - Focused large-immediates post-migration rerun:
   `/tmp/kdz1-bench-fastpath-debt-20260419114902`.
+- Lower-frame post-migration rerun:
+  `/tmp/kdz1-bench-fastpath-debt-20260419124510`.
+- Route-reducer post-migration rerun:
+  `/tmp/kdz1-bench-fastpath-debt-20260419124836`.
+- Scaled-tobit post-migration reruns:
+  `/tmp/kdz1-debt-be-helpers-generic-202604191253`,
+  `/tmp/kdz1-debt-be-localized-generic-202604191254`, and
+  `/tmp/kdz1-debt-promotion-static-generic-202604191255`.
 
 The higher-sample rerun built default WIP and generic-only
 `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
@@ -129,8 +137,9 @@ Current replacement order by absolute generic-only slowdown:
   matchers to semantic contracts one family at a time. `ffi_calls` now uses
   `CTF_CONSTFUNC` plus the `(i % 17) - 8` call shape, and
   `ffi_fixed_struct_calls` now uses `CTF_CONSTFUNC` plus proved by-value struct
-  argument layouts. `large_immediates` now relies on bytecode/literal/table
-  guards instead of file/line gates.
+  argument layouts. `large_immediates`, lower-frame `%17`, route reducers, and
+  scaled `bit.tobit` now rely on bytecode/literal/table/function guards instead
+  of file/line gates.
 
 No family failed or timed out in the focused generic-only pass. That means the
 cleanup problem is primarily preserving acceleration, not preserving basic
@@ -172,9 +181,11 @@ semantic loop-fold shape:
   `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` on both hosts.
 
 This retires the second largest benchmark-fastpath debt from the generic-only
-profile. The remaining high-value cleanup targets are now the smaller FFI
-call/struct and numeric-op debts, plus removing dead exact trace-control
-helpers once their semantic replacements are fully in place.
+profile. Later cleanup batches migrated the FFI call/struct, numeric-op,
+large-immediate, lower-frame, route-reducer, and scaled-tobit recorder folds.
+The remaining high-value cleanup is now concentrated in exact trace-control
+helpers and the smaller residual recorder probes named by the latest debt
+pack.
 
 ### Logical Chain Tail Status
 
@@ -208,10 +219,10 @@ synthetic benchmark chunk names:
   deltas. kdz1 has no material numeric slowdown; zkd0 shows only tiny
   microsecond-level jitter, including rows this patch does not affect.
 
-The remaining high-value benchmark-fastpath debt is now FFI call/struct folds.
-Those are not safe to genericize by pattern alone because they erase arbitrary
-C calls. They need either a real C-call purity contract or must remain
-branch-local.
+The original post-numeric cleanup target was FFI call/struct folding. That is
+now handled through the explicit FFI const-function contract below. Remaining
+source debt should be ranked from the latest debt pack rather than from this
+historical numeric-op handoff note.
 
 ### FFI Purity Contract
 
@@ -317,3 +328,37 @@ identity:
 - kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419114902`.
 - Result: no failed rows and only `0.000001s` timer jitter in the focused
   generic-only debt pack; kdz1 and zkd0 direct focused validation both pass.
+
+### Lower-Frame, Route-Reducer, And Scaled-Tobit Status
+
+The next recorder debt batch also moved off benchmark file identity:
+
+- Lower-frame `%17` absolute-value loop folds no longer require
+  `@tests/s390x/perf/lower_frame_same_callsite.lua`. The recorder now proves
+  the root frame, loop ownership, `% 17`, signed absolute-value branch, loop
+  bounds, and accumulator update before calling
+  `lj_trace_s390x_lower_frame_abs17_loop_sum`.
+- Route-reducer folds no longer require
+  `@tests/s390x/perf/route_around_reducers.lua` or `pt->firstline`. The
+  recorder chooses the literal or localized `bit.*` table shape by bytecode
+  and guarded function identity, then proves the counted loop before using the
+  scaled-tobit loop helper.
+- Scaled `bit.tobit(total + i*K)` folds no longer require `be_helpers`,
+  `be_helpers_localized`, or `promotion_core_static_stop` chunk names. The
+  recorder now proves the `MULVN -> ADDVV -> bit.tobit()` body, positive
+  counted loop, constant multiplier, and guarded `bit.tobit` callee.
+
+Validation artifacts:
+
+- Lower-frame: `/tmp/kdz1-bench-fastpath-debt-20260419124510`.
+- Route reducers: `/tmp/kdz1-bench-fastpath-debt-20260419124836`.
+- Scaled tobit: `/tmp/kdz1-debt-be-helpers-generic-202604191253`,
+  `/tmp/kdz1-debt-be-localized-generic-202604191254`, and
+  `/tmp/kdz1-debt-promotion-static-generic-202604191255`.
+
+Direct host validation passed on kdz1 and zkd0 for the focused lower-frame,
+route-reducer, be-helper, localized be-helper, promotion-core static-stop, and
+numeric correctness rows. The focused generic-only debt for these migrated rows
+is now at timer/noise floor. The remaining `be_helpers` generic-only deltas in
+the latest focused run are different mechanisms: `num_aload_loop` and `strto`
+helper rows, not the scaled `bit.tobit` fold.

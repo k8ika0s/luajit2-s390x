@@ -36814,3 +36814,39 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   rows and only `0.000001s` timer jitter in the generic-only comparison. This
   removes the named `large_immediates` upstream cleanup debt without losing the
   retained acceleration.
+
+## 2026-04-19: lower-frame, route-reducer, and scaled-tobit folds moved off file gates
+
+- Change:
+  three recorder-side fast paths no longer depend on benchmark chunk names or
+  `pt->firstline` identity. The lower-frame `%17` fold now proves the root
+  frame, loop ownership, modulo/absolute-value bytecode body, bounds, and
+  accumulator update. The route-reducer folds now choose literal or localized
+  `bit.*` shapes from bytecode and guarded function identity. The scaled
+  `bit.tobit(total + i*K)` fold now proves the `MULVN -> ADDVV ->
+  bit.tobit()` body and constant multiplier without matching `be_helpers`,
+  `be_helpers_localized`, or `promotion_core_static_stop` chunk names.
+- Mechanism:
+  this keeps the retained closed-form helpers, but changes admission from
+  benchmark identity to semantic bytecode/function-shape proof. The route
+  reducer still validates the `bit.*` callee identities, and the scaled-tobit
+  fold still requires a positive root counted loop with a bounded stop and
+  guarded `bit.tobit` call.
+- Validation:
+  kdz1 focused mirrors passed `tests/s390x/perf/lower_frame_same_callsite.lua`,
+  `tests/s390x/perf/route_around_reducers.lua`,
+  `tests/s390x/perf/be_helpers.lua`,
+  `tests/s390x/perf/be_helpers_localized.lua`,
+  `tests/s390x/perf/promotion_core_static_stop.lua`, and
+  `tests/s390x/jit_be/numeric_ops.lua`. zkd0 passed the same focused family
+  set plus the lower-frame, route-reducer, and helper rows under a clean remote
+  rebuild.
+- Debt status:
+  focused kdz1 generic-only packs show the migrated rows at timer/noise floor:
+  lower-frame `/tmp/kdz1-bench-fastpath-debt-20260419124510`, route reducers
+  `/tmp/kdz1-bench-fastpath-debt-20260419124836`, be helpers
+  `/tmp/kdz1-debt-be-helpers-generic-202604191253`, localized be helpers
+  `/tmp/kdz1-debt-be-localized-generic-202604191254`, and promotion-core
+  static stop `/tmp/kdz1-debt-promotion-static-generic-202604191255`.
+  Remaining be-helper generic-only deltas are now separate `num_aload_loop` and
+  `strto` mechanisms, not the scaled `bit.tobit` fold.
