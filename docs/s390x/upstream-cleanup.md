@@ -129,6 +129,10 @@ Latest artifacts:
   `/tmp/kdz1-bench-fastpath-debt-20260419130126`.
 - Logic-add PHI post-migration rerun:
   `/tmp/kdz1-debt-logic-add-phi-generic-202604191313`.
+- FFI fixed call-pressure post-migration rerun:
+  `/tmp/kdz1-debt-ffi-pressure-sumargs-202604191345`.
+- Full post-sumargs rerank:
+  `/tmp/kdz1-bench-fastpath-debt-post-sumargs-202604191352`.
 
 The higher-sample rerun built default WIP and generic-only
 `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
@@ -392,10 +396,44 @@ debt pack.
 
 The full post-migration rerank
 `/tmp/kdz1-bench-fastpath-debt-20260419130126` reports no failed or timed-out
-families. The only material remaining generic-only slowdown is
-`ffi_fixed_call_pressure` xhot. That fold still assumes the arithmetic
-semantics of the local oracle functions, so simply removing its file gate would
-not make it upstream-safe. It needs a stronger const-call linear/closed-form
-contract or should remain branch-local. The rest of the source cleanup is now
-mostly trace-control matcher deletion/quarantine and small residual recorder
-probes.
+families. That rerank named `ffi_fixed_call_pressure` xhot as the last material
+recorder-side generic-only slowdown.
+
+### FFI Fixed Call-Pressure Status
+
+The FFI fixed call-pressure fold now uses an explicit const-call closed-form
+contract instead of benchmark identity:
+
+- The FFI ctype parser recognizes `__attribute__((luajit_sumargs))` and stores
+  `CTF_SUMARGS` on function ctypes. This is separate from `CTF_CONSTFUNC`:
+  `const` proves the call is side-effect-free, while `luajit_sumargs` states
+  the scalar return value is the sum of its scalar arguments.
+- The recorder fold requires both `CTF_CONSTFUNC` and `CTF_SUMARGS`, verifies
+  the CLIB function signature (`uint64_t` sumargs for the GPR rows or `double`
+  sumargs for the FPR rows), proves the step-16 bytecode call shape, derives
+  the affine coefficients by calling the annotated function at record time,
+  and falls back to normal FFI recording if any part of the contract is absent.
+- The official `ffi_fixed_call_pressure` cdefs opt into this contract with
+  `__attribute__((const, luajit_sumargs))`.
+
+Validation artifacts:
+
+- kdz1 focused debt pack:
+  `/tmp/kdz1-debt-ffi-pressure-sumargs-202604191345`.
+- kdz1 direct validation passed `ffi_fixed_call_pressure_trace`,
+  `ffi_stack_call_trace`, `ffi_abi/run.lua`, `numeric_ops.lua`, and a
+  21-sample `ffi_fixed_call_pressure.lua` run. IR proof shows
+  `CALLN lj_trace_s390x_ffi_fixed_gpr_loop_sum` and
+  `CALLN lj_trace_s390x_ffi_fixed_fpr_loop_sum` for the six hot loop bodies.
+- zkd0 passed the same focused correctness set and an 11-sample
+  `ffi_fixed_call_pressure.lua` confirmation.
+
+The focused debt pack shows no failed rows and no material generic-only
+slowdown. The remaining audit output is now dominated by `src/lj_trace.c`
+exact trace-control matchers plus a small residual synthetic numeric max probe;
+the last material recorder-side FFI pressure debt is closed.
+
+The full post-sumargs rerank
+`/tmp/kdz1-bench-fastpath-debt-post-sumargs-202604191352` also reports no failed
+or timed-out families. Its largest remaining deltas are microsecond-level
+timer noise, not material retained-performance dependencies.

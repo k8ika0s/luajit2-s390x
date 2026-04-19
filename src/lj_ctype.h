@@ -76,6 +76,7 @@ LJ_STATIC_ASSERT(((int)CT_STRUCT & (int)CT_ARRAY) == CT_STRUCT);
 #define CTF_SSEREGPARM	0x00400000u	/* SSE register parameters: FUNC. */
 #define CTF_PUREFUNC	0x00200000u	/* No side effects, may read memory: FUNC. */
 #define CTF_CONSTFUNC	0x00100000u	/* No side effects, no memory reads: FUNC. */
+#define CTF_SUMARGS	0x01000000u	/* Returns sum of scalar arguments: FUNC. */
 
 #define CTF_QUAL	(CTF_CONST|CTF_VOLATILE)
 #define CTF_ALIGN	(CTMASK_ALIGN<<CTSHIFT_ALIGN)
@@ -208,6 +209,7 @@ typedef struct CTState {
 #define ctype_isfunc(info)	(ctype_type((info)) == CT_FUNC)
 #define ctype_func_ispure(info)	(((info) & (CTF_PUREFUNC|CTF_CONSTFUNC)) != 0)
 #define ctype_func_isconst(info) (((info) & CTF_CONSTFUNC) != 0)
+#define ctype_func_issumargs(info) (((info) & CTF_SUMARGS) != 0)
 #define ctype_isenum(info)	(ctype_type((info)) == CT_ENUM)
 #define ctype_istypedef(info)	(ctype_type((info)) == CT_TYPEDEF)
 #define ctype_isattrib(info)	(ctype_type((info)) == CT_ATTRIB)

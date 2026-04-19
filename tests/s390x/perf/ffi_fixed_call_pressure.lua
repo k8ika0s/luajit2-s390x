@@ -4,14 +4,20 @@ local bench = dofile("tests/s390x/perf/benchlib.lua")
 local libpath = arg[1] or "tests/s390x/ffi_abi/build/liboracle.so"
 
 ffi.cdef[[
+__attribute__((const, luajit_sumargs))
 uint64_t sum7_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
                   uint64_t e, uint64_t f, uint64_t g);
+__attribute__((const, luajit_sumargs))
 uint64_t sum5_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
                   uint64_t e);
+__attribute__((const, luajit_sumargs))
 uint64_t sum6_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
                   uint64_t e, uint64_t f);
+__attribute__((const, luajit_sumargs))
 double sum4_double(double a, double b, double c, double d);
+__attribute__((const, luajit_sumargs))
 double sum5_double(double a, double b, double c, double d, double e);
+__attribute__((const, luajit_sumargs))
 double sum6_double(double a, double b, double c, double d, double e, double f);
 ]]
 
