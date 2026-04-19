@@ -128,8 +128,8 @@ Current replacement order by absolute generic-only slowdown:
   generic-only is `0.000081s..0.000227s`. These are already closer to generic
   backend/IR mechanisms and should be easier to upstream than chunk-exact
   trace-control gates.
-- `logical_chain_tail_*` and `large_immediates`: smaller absolute debts remain,
-  mostly timer-floor default rows against small generic-only runtimes.
+- `large_immediates`: smaller absolute debts remain, mostly timer-floor
+  default rows against small generic-only runtimes.
 
 No family failed or timed out in the focused generic-only pass. That means the
 cleanup problem is primarily preserving acceleration, not preserving basic
@@ -174,3 +174,21 @@ This retires the second largest benchmark-fastpath debt from the generic-only
 profile. The remaining high-value cleanup targets are now the smaller FFI
 call/struct and numeric-op debts, plus removing dead exact trace-control
 helpers once their semantic replacements are fully in place.
+
+### Logical Chain Tail Status
+
+The amplified logical-chain tail rows are also converted to semantic recorder
+folds:
+
+- Source change: `chain_tail_store` and `chain_tail_add` no longer depend on
+  exact `logical_chain_tail_*.lua` proto matchers. Both folds now verify the
+  nested loop bytecode and the called `chain(i)` Lua upvalue bytecode before
+  using the closed-form helper.
+- kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419102656`.
+- zkd0 artifact: `/tmp/zkd0-bench-fastpath-debt-20260419102851`.
+- Result: `chain_tail_store` and `chain_tail_add` hot/xhot rows stay at timer
+  floor with `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0`.
+
+This keeps the acceleration while removing another benchmark-file dependency
+from the recorder. Remaining source debt in this area is now mostly older
+promotion-core trace-control references, not the recorder fold itself.

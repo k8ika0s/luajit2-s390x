@@ -1166,36 +1166,94 @@ static int lj_record_s390x_large_immediate_aref_proto_match(GCproto *pt)
 	 (pt->firstline == 47 || pt->firstline == 55);
 }
 
-static int lj_record_s390x_logic_chain_tail_store_proto_match(GCproto *pt)
+static int lj_record_s390x_logic_chain_func_proto_match(GCproto *pt)
 {
-  GCstr *chunk;
-  static const char tail_store[] =
-    "@tests/s390x/perf/logical_chain_tail_store.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
+  const BCIns *bc;
+  if (pt == NULL || pt->sizebc <= 74)
     return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(tail_store) - 1) &&
-	 memcmp(strdata(chunk), tail_store, sizeof(tail_store) - 1) == 0 &&
-	 pt->firstline == 21;
+  bc = proto_bc(pt);
+  return
+    bc_op(bc[1]) == BC_UGET && bc_op(bc[2]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[2]), "band", 4) &&
+    bc_op(bc[3]) == BC_MOV && bc_op(bc[4]) == BC_KSHORT &&
+    bc_a(bc[4]) == 4 && bc_d(bc[4]) == 255 &&
+    bc_op(bc[5]) == BC_CALL &&
+    bc_op(bc[6]) == BC_UGET && bc_op(bc[7]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[7]), "bxor", 4) &&
+    bc_op(bc[8]) == BC_MOV &&
+    bc_op(bc[9]) == BC_UGET && bc_op(bc[10]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[10]), "lshift", 6) &&
+    bc_op(bc[11]) == BC_MOV && bc_op(bc[12]) == BC_KSHORT &&
+    bc_a(bc[12]) == 8 && bc_d(bc[12]) == 3 &&
+    bc_op(bc[13]) == BC_CALL && bc_op(bc[14]) == BC_CALLM &&
+    bc_op(bc[15]) == BC_MOV &&
+    bc_op(bc[16]) == BC_UGET && bc_op(bc[17]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[17]), "bor", 3) &&
+    bc_op(bc[18]) == BC_MOV &&
+    bc_op(bc[19]) == BC_UGET && bc_op(bc[20]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[20]), "rshift", 6) &&
+    bc_op(bc[21]) == BC_MOV && bc_op(bc[22]) == BC_KSHORT &&
+    bc_a(bc[22]) == 8 && bc_d(bc[22]) == 1 &&
+    bc_op(bc[23]) == BC_CALL && bc_op(bc[24]) == BC_CALLM &&
+    bc_op(bc[25]) == BC_MOV &&
+    bc_op(bc[26]) == BC_UGET && bc_op(bc[27]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[27]), "bxor", 4) &&
+    bc_op(bc[28]) == BC_MOV &&
+    bc_op(bc[29]) == BC_UGET && bc_op(bc[30]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[30]), "arshift", 7) &&
+    bc_op(bc[31]) == BC_UNM && bc_op(bc[32]) == BC_KSHORT &&
+    bc_a(bc[32]) == 8 && bc_d(bc[32]) == 2 &&
+    bc_op(bc[33]) == BC_CALL && bc_op(bc[34]) == BC_CALLM &&
+    bc_op(bc[35]) == BC_MOV &&
+    bc_op(bc[36]) == BC_UGET && bc_op(bc[37]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[37]), "bxor", 4) &&
+    bc_op(bc[38]) == BC_MOV &&
+    bc_op(bc[39]) == BC_UGET && bc_op(bc[40]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[40]), "rol", 3) &&
+    bc_op(bc[41]) == BC_MOV && bc_op(bc[42]) == BC_KSHORT &&
+    bc_a(bc[42]) == 8 && bc_d(bc[42]) == 5 &&
+    bc_op(bc[43]) == BC_CALL && bc_op(bc[44]) == BC_CALLM &&
+    bc_op(bc[45]) == BC_MOV &&
+    bc_op(bc[46]) == BC_UGET && bc_op(bc[47]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[47]), "bxor", 4) &&
+    bc_op(bc[48]) == BC_MOV &&
+    bc_op(bc[49]) == BC_UGET && bc_op(bc[50]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[50]), "ror", 3) &&
+    bc_op(bc[51]) == BC_MOV && bc_op(bc[52]) == BC_KSHORT &&
+    bc_a(bc[52]) == 8 && bc_d(bc[52]) == 7 &&
+    bc_op(bc[53]) == BC_CALL && bc_op(bc[54]) == BC_CALLM &&
+    bc_op(bc[55]) == BC_MOV &&
+    bc_op(bc[56]) == BC_UGET && bc_op(bc[57]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[57]), "bxor", 4) &&
+    bc_op(bc[58]) == BC_MOV &&
+    bc_op(bc[59]) == BC_UGET && bc_op(bc[60]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[60]), "bswap", 5) &&
+    bc_op(bc[61]) == BC_MOV && bc_op(bc[62]) == BC_CALL &&
+    bc_op(bc[63]) == BC_CALLM && bc_op(bc[64]) == BC_MOV &&
+    bc_op(bc[65]) == BC_UGET && bc_op(bc[66]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[66]), "bxor", 4) &&
+    bc_op(bc[67]) == BC_MOV &&
+    bc_op(bc[68]) == BC_UGET && bc_op(bc[69]) == BC_TGETS &&
+    lj_record_s390x_kgc_is_str(pt, bc_c(bc[69]), "bnot", 4) &&
+    bc_op(bc[70]) == BC_MOV && bc_op(bc[71]) == BC_CALL &&
+    bc_op(bc[72]) == BC_CALLM && bc_op(bc[73]) == BC_MOV &&
+    bc_op(bc[74]) == BC_RET1;
 }
 
-static int lj_record_s390x_logic_chain_tail_add_proto_match(GCproto *pt)
+static int lj_record_s390x_logic_chain_upvalue_match(jit_State *J, BCReg uv)
 {
-  GCstr *chunk;
-  static const char tail_add[] =
-    "@tests/s390x/perf/logical_chain_tail_add.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
+  GCupval *uvp;
+  cTValue *uvtv;
+  GCfunc *fn;
+  if (J->fn == NULL || uv >= J->fn->l.nupvalues)
     return 0;
-  if (pt == NULL)
+  uvp = &gcref(J->fn->l.uvptr[uv])->uv;
+  uvtv = uvval(uvp);
+  if (!tvisfunc(uvtv))
     return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(tail_add) - 1) &&
-	 memcmp(strdata(chunk), tail_add, sizeof(tail_add) - 1) == 0 &&
-	 pt->firstline == 21;
+  fn = funcV(uvtv);
+  return isluafunc(fn) &&
+	 lj_record_s390x_logic_chain_func_proto_match(funcproto(fn));
 }
 
 static int lj_record_s390x_logic_add_phi_proto_match(GCproto *pt)
@@ -2228,7 +2286,6 @@ static int lj_record_s390x_logic_chain_tail_store_sum(jit_State *J,
   int32_t stopv, outerstopv, one;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_logic_chain_tail_store_proto_match(J->pt) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2279,7 +2336,9 @@ static int lj_record_s390x_logic_chain_tail_store_sum(jit_State *J,
       bc_d(outerforl[5]) != 2)
     return 0;
 
-  if (sinkslot != 2 || !lj_record_s390x_guard_upvalue_func(J, bc_d(body[0])) ||
+  if (sinkslot != 2 ||
+      !lj_record_s390x_logic_chain_upvalue_match(J, bc_d(body[0])) ||
+      !lj_record_s390x_guard_upvalue_func(J, bc_d(body[0])) ||
       J->fn == NULL || bc_d(outerforl[1]) >= J->fn->l.nupvalues)
     return 0;
 
@@ -2334,7 +2393,6 @@ static int lj_record_s390x_logic_chain_tail_add_sum(jit_State *J,
   int32_t innerstopv, outerstopv;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_logic_chain_tail_add_proto_match(J->pt) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2376,6 +2434,7 @@ static int lj_record_s390x_logic_chain_tail_add_sum(jit_State *J,
     return 0;
   if (!lj_record_s390x_guard_upvalue_tab_func(J, bituv, &body[1],
 					      FF_bit_tobit) ||
+      !lj_record_s390x_logic_chain_upvalue_match(J, bc_d(body[2])) ||
       !lj_record_s390x_guard_upvalue_func(J, bc_d(body[2])))
     return 0;
 

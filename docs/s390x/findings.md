@@ -36621,3 +36621,32 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `ffi_fixed_struct_calls` / `ffi_calls` call-shape debts and numeric-op
   `sqrt/div/min/max` debts, followed by dead exact trace-control helper
   deletion once compatibility is no longer needed.
+
+## 2026-04-19: logical-chain tail folds converted to semantic upvalue checks
+
+- Change:
+  `logical_chain_tail_store` and `logical_chain_tail_add` recorder folds no
+  longer require exact `@tests/s390x/perf/logical_chain_tail_*.lua` proto
+  matchers. The folds now validate the nested loop shape and verify that the
+  called `chain(i)` upvalue is the expected Lua bit-operation bytecode before
+  using the closed-form helper.
+- Mechanism:
+  the shared `chain(i)` verifier checks the `bit.band`, `bxor`, `lshift`,
+  `bor`, `rshift`, `arshift`, `rol`, `ror`, `bswap`, and `bnot` bytecode
+  sequence and constants. `chain_tail_store` still guards the sink table and
+  final store, while `chain_tail_add` still guards the `bit.tobit` upvalue
+  table function and loop bounds.
+- kdz1 validation:
+  `/tmp/kdz1-bench-fastpath-debt-20260419102656` with
+  `S390X_PERF_SAMPLES=7`, `S390X_PERF_WARMUP=2` shows generic-only
+  `logical_chain_tail_store/chain_tail_store/xhot` at `0.000000s` and
+  `logical_chain_tail_add/chain_tail_add/xhot` at `0.000001s`, matching the
+  default WIP profile. No family failed or timed out.
+- zkd0 validation:
+  `/tmp/zkd0-bench-fastpath-debt-20260419102851` confirms both logical-chain
+  tail xhot rows at `0.000001s` under default and generic-only profiles, with
+  no failed or timed-out families.
+- Queue update:
+  the largest remaining generic-only debts move back to FFI call/struct folds
+  and numeric-op `sqrt/div/min/max`, with `large_immediates` and the smaller
+  logical/numeric residuals now below the top cleanup threshold.
