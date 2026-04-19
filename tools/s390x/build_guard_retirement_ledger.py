@@ -294,12 +294,12 @@ META: dict[str, GateMeta] = {
     ),
     "LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT": GateMeta(
         group="promotion_core",
-        kind="opt-in broad proto-NOJIT with exact exclusions",
-        classification="still unsafe",
+        kind="removed broad proto-NOJIT with exact exclusions",
+        classification="retired source guard",
         owner="trace/promotion_core",
         protected_rows=("promotion_core_static_stop", "route_around_reducers"),
-        evidence="Broad removal was unsafe; exact official rows are now excluded only where host-pair proof exists.",
-        next_step="Continue replacing this with exact safe compiled-shape exclusions; do not remove broadly.",
+        evidence="Removed from lj_trace.c after recorder/backend semantic replacements made the current generic-only debt flat.",
+        next_step="Do not restore benchmark-shaped promotion-core proto parking; re-attribute any future regression to a generic mechanism.",
     ),
 }
 
