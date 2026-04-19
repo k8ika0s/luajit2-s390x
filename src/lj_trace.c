@@ -2040,6 +2040,65 @@ LJ_FUNC int lj_trace_s390x_iterator_itern_nohot_dispatch_active(void)
   return s390x_iterator_itern_nohot_dispatch_active;
 }
 
+static int lj_trace_s390x_iterator_loop_fold_start_match(jit_State *J)
+{
+  const BCIns *pc, *proto, *body, *forl;
+  BCIns gget, uget, call, isnext, add, itern, iterl;
+  BCReg forbase, idxslot, accslot, callbase, tabslot;
+  GCupval *uvp;
+  cTValue *uvtv;
+  GCtab *tabv;
+  if (!(LJ_TARGET_S390X &&
+	J->parent == 0 && J->exitno == 0 &&
+	J->pt != NULL && J->pc != NULL && J->fn != NULL &&
+	bc_op(*J->pc) == BC_ITERN))
+    return 0;
+  pc = J->pc;
+  proto = proto_bc(J->pt);
+  if (pc < proto + 5 || (MSize)((pc + 3) - proto) >= J->pt->sizebc)
+    return 0;
+
+  body = pc - 5;
+  gget = body[0]; uget = body[1]; call = body[2]; isnext = body[3];
+  add = body[4]; itern = body[5]; iterl = body[6]; forl = body + 7;
+  if (bc_op(gget) != BC_GGET || bc_op(uget) != BC_UGET ||
+      bc_op(call) != BC_CALL || bc_op(isnext) != BC_ISNEXT ||
+      bc_op(add) != BC_ADDVV || bc_op(itern) != BC_ITERN ||
+      bc_op(iterl) != BC_ITERL ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
+      bc_op(forl[1]) != BC_RET1)
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  accslot = bc_b(add);
+  callbase = bc_a(call);
+  tabslot = bc_a(uget);
+  if (bc_a(gget) != callbase ||
+      bc_a(call) != callbase || bc_b(call) != 4 || bc_c(call) != 2 ||
+      bc_a(isnext) != (BCReg)(callbase + 3) ||
+      body + 4 + bc_j(isnext) != body + 5 ||
+      bc_a(add) != accslot || bc_b(add) != accslot ||
+      bc_c(add) != (BCReg)(callbase + 4) ||
+      bc_a(itern) != (BCReg)(callbase + 3) ||
+      bc_b(itern) != 3 || bc_c(itern) != 3 ||
+      body + 7 + bc_j(iterl) != body + 4 ||
+      forl + 1 + bc_j(*forl) != body ||
+      bc_a(forl[1]) != accslot || bc_d(forl[1]) != 2 ||
+      accslot == idxslot || callbase == idxslot || tabslot == idxslot ||
+      bc_d(uget) >= J->fn->l.nupvalues)
+    return 0;
+
+  uvp = &gcref(J->fn->l.uvptr[bc_d(uget)])->uv;
+  uvtv = uvval(uvp);
+  if (!tvistab(uvtv))
+    return 0;
+  tabv = tabV(uvtv);
+  if (tabref(tabv->metatable) != NULL)
+    return 0;
+  return 1;
+}
+
 static int lj_trace_s390x_iterator_root_blacklist_enabled(void)
 {
   static int enabled = -1;
@@ -4473,6 +4532,20 @@ static void trace_start(jit_State *J)
   }
 
 #if LJ_TARGET_S390X
+  if (lj_trace_s390x_iterator_loop_fold_start_match(J) &&
+      getenv("LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD") == NULL) {
+    hotcount_set(J2GG(J), J->pc+1, 0xffffu);
+    if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
+      fprintf(stderr,
+              "S390X_ITERATOR_SEMANTIC_LOOP_FOLD_ITERN_PARK pc=%p op=%u firstline=%u numline=%u\n",
+              (const void *)J->pc,
+              (unsigned int)bc_op(*J->pc),
+              (unsigned int)J->pt->firstline,
+              (unsigned int)J->pt->numline);
+    }
+    J->state = LJ_TRACE_IDLE;
+    return;
+  }
   if (lj_trace_s390x_iterator_itern_proto_nojit_enabled() &&
       lj_trace_s390x_iterator_table_exact_proto_match(J->pt) &&
       J->parent == 0 && J->exitno == 0 &&
