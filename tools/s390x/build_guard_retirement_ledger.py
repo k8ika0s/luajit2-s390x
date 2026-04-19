@@ -285,12 +285,12 @@ META: dict[str, GateMeta] = {
     ),
     "LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV": GateMeta(
         group="promotion_core",
-        kind="opt-in localized hotside equivalence",
-        classification="bake-in candidate",
+        kind="removed opt-in localized hotside equivalence",
+        classification="retired source guard",
         owner="trace/promotion_core",
         protected_rows=("be_helpers_localized", "promotion_core_static_stop", "route_around_reducers"),
-        evidence="Localized hotside equivalence is retained for exact safe shapes.",
-        next_step="Candidate for exact-shape bake-in after promotion-core and route-around rows pass without explicit env.",
+        evidence="Removed from lj_trace.c after semantic recorder/backend folds covered the localized rows and kdz1/zkd0 focused validation stayed clean.",
+        next_step="Do not restore benchmark-shaped localized hotside matching; future hotside work must be bytecode/IR semantic.",
     ),
     "LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT": GateMeta(
         group="lower_frame",
