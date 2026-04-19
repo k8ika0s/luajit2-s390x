@@ -995,21 +995,6 @@ static int lj_record_s390x_kshort_is(const BCIns *pc, BCReg slot, int32_t k)
 	 (int32_t)(int16_t)bc_d(*pc) == k;
 }
 
-static int lj_record_s390x_lower_frame_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char lower_frame[] =
-    "@tests/s390x/perf/lower_frame_same_callsite.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(lower_frame) - 1) &&
-	 memcmp(strdata(chunk), lower_frame, sizeof(lower_frame) - 1) == 0;
-}
-
 static int lj_record_s390x_ffi_fixed_call_pressure_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -1071,22 +1056,6 @@ static int lj_record_s390x_guard_const_i32_cfunc(jit_State *J, BCReg slot,
   return 1;
 }
 #endif
-
-static int lj_record_s390x_route_reducer_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char route[] =
-    "@tests/s390x/perf/route_around_reducers.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(route) - 1) &&
-	 memcmp(strdata(chunk), route, sizeof(route) - 1) == 0 &&
-	 (pt->firstline == 9 || pt->firstline == 23 || pt->firstline == 41);
-}
 
 static int lj_record_s390x_logic_chain_func_proto_match(GCproto *pt)
 {
@@ -1938,28 +1907,29 @@ static int lj_record_s390x_route_reducer_local_shape(jit_State *J,
 static int lj_record_s390x_route_reducer_pack_loop_sum(jit_State *J,
 						       const BCIns *body)
 {
-  const BCIns *forl = NULL, *proto;
+  const BCIns *forl = NULL, *proto, *end;
   BCReg forbase, idxslot, accslot = 0;
   TRef idx, stopref, acc, sum;
   cTValue *base;
   int32_t stopv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_route_reducer_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
-  if (body < proto + 8 ||
-      (MSize)((body + (J->pt->firstline == 9 ? 56 : 45)) - proto) >=
-      J->pt->sizebc)
+  end = proto + J->pt->sizebc;
+  if (body < proto + 8 || body >= end)
     return 0;
 
-  if (J->pt->firstline == 9) {
-    if (!lj_record_s390x_route_reducer_literal_shape(J, body, &forl, &accslot))
-      return 0;
+  if (body + 56 < end &&
+      lj_record_s390x_route_reducer_literal_shape(J, body, &forl, &accslot)) {
+    /* Literal bit.* table shape. */
+  } else if (body + 45 < end &&
+	     lj_record_s390x_route_reducer_local_shape(J, body, &forl,
+						       &accslot)) {
+    /* Localized bit operation shape. */
   } else {
-    if (!lj_record_s390x_route_reducer_local_shape(J, body, &forl, &accslot))
-      return 0;
+    return 0;
   }
   if (forl + 1 + bc_j(*forl) != body)
     return 0;
@@ -1999,21 +1969,19 @@ static int lj_record_s390x_route_reducer_outer_sum(jit_State *J,
 						   const BCIns *body)
 {
   const BCIns *innerfori, *innerforl = NULL, *outerfori, *outerforl, *proto;
+  const BCIns *end;
   BCReg innerbase, outerbase, idxslot, accslot = 0;
   TRef idx, stopref, acc, sum;
   cTValue *base;
   int32_t stopv;
 
-  if (!lj_record_s390x_root_frame(J))
-    return 0;
-  if (!lj_record_s390x_route_reducer_proto_match(J->pt))
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL)
     return 0;
   if (J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
-  if (body < proto + 4 ||
-      (MSize)((body + (J->pt->firstline == 9 ? 61 : 50)) - proto) >=
-      J->pt->sizebc)
+  end = proto + J->pt->sizebc;
+  if (body < proto + 4 || body >= end)
     return 0;
   if (bc_op(body[0]) != BC_KSHORT || bc_op(body[1]) != BC_KSHORT ||
       bc_op(body[2]) != BC_KSHORT ||
@@ -2027,14 +1995,16 @@ static int lj_record_s390x_route_reducer_outer_sum(jit_State *J,
       (int32_t)(int16_t)bc_d(body[2]) != 1)
     return 0;
 
-  if (J->pt->firstline == 9) {
-    if (!lj_record_s390x_route_reducer_literal_shape(J, body + 4,
-						     &innerforl, &accslot))
-      return 0;
+  if (body + 61 < end &&
+      lj_record_s390x_route_reducer_literal_shape(J, body + 4,
+						  &innerforl, &accslot)) {
+    /* Literal bit.* table shape. */
+  } else if (body + 50 < end &&
+	     lj_record_s390x_route_reducer_local_shape(J, body + 4,
+						       &innerforl, &accslot)) {
+    /* Localized bit operation shape. */
   } else {
-    if (!lj_record_s390x_route_reducer_local_shape(J, body + 4,
-						   &innerforl, &accslot))
-      return 0;
+    return 0;
   }
   innerfori = body + 3;
   if (innerfori + bc_j(*innerfori) != innerforl ||
@@ -2924,8 +2894,7 @@ static int lj_record_s390x_lower_frame_abs17_loop_sum(jit_State *J,
   cTValue *base;
   int32_t stopv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_lower_frame_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -3188,43 +3157,6 @@ static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_be_helpers_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char be_helpers[] = "@tests/s390x/perf/be_helpers.lua";
-  static const char be_helpers_localized[] =
-    "@tests/s390x/perf/be_helpers_localized.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 ((chunk->len == (MSize)(sizeof(be_helpers) - 1) &&
-	   memcmp(strdata(chunk), be_helpers, sizeof(be_helpers) - 1) == 0) ||
-	  (chunk->len == (MSize)(sizeof(be_helpers_localized) - 1) &&
-	   memcmp(strdata(chunk), be_helpers_localized,
-		  sizeof(be_helpers_localized) - 1) == 0));
-}
-
-static int lj_record_s390x_scaled_tobit_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char promotion_core_static[] =
-    "@tests/s390x/perf/promotion_core_static_stop.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (lj_record_s390x_be_helpers_proto_match(pt))
-    return 1;
-  if (pt == NULL || (pt->firstline != 4 && pt->firstline != 12))
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(promotion_core_static) - 1) &&
-	 memcmp(strdata(chunk), promotion_core_static,
-		sizeof(promotion_core_static) - 1) == 0;
-}
-
 static int lj_record_s390x_be_helpers_strto_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -3336,8 +3268,7 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
   cTValue *base;
   int32_t stopv, mulv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_scaled_tobit_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
