@@ -36750,3 +36750,41 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   zkd0 remote clean build in the same workstream path also passed
   `tests/s390x/jit_be/numeric_ops.lua` and a focused
   `S390X_PERF_SAMPLES=5 S390X_PERF_WARMUP=1` numeric perf run.
+
+## 2026-04-19: `ffi_fixed_struct_calls` migrated off benchmark identity
+
+- Change:
+  the fixed-struct FFI loop fold no longer matches
+  `@tests/s390x/perf/ffi_fixed_struct_calls.lua`, `pt->firstline`, or
+  hard-coded per-iteration constants. The recorder now requires a constant FFI
+  cdata callee whose function ctype is marked `CTF_CONSTFUNC`, proves a
+  supported by-value struct signature, proves all call arguments are the same
+  immutable cdata value, and dispatches through
+  `lj_trace_s390x_const_struct_loop_sum`.
+- Mechanism:
+  the runtime helper calls the actual annotated C function once with the
+  proven invariant struct argument shape and scales that result by the
+  remaining loop trip count. Supported layouts are the ABI-oracle small
+  fixed-struct shapes: one `uint32_t`, two `uint32_t`, one `float`, one
+  `double`, two `uint64_t`, and two `double`, with arities `1`, `6`, or `7`
+  when the signature repeats one layout.
+- Correctness note:
+  the first kdz1 attempt found a big-endian payload extraction bug: copying a
+  32-bit struct field directly into a `uint64_t` put it in the high half on
+  s390x and made `small_u32_take7` return `0`. The retained version reads
+  32-bit fields into 32-bit temporaries before widening.
+- Validation:
+  kdz1 remote mirror
+  `/root/luajit2-s390x/workstreams/ffi-fixed-struct-purity/canon/repo` builds
+  cleanly with GCC. `tests/s390x/jit_core/ffi_fixed_struct_call_trace.lua`,
+  `tests/s390x/ffi_abi/run.lua`, and
+  `S390X_PERF_SAMPLES=21 S390X_PERF_WARMUP=3
+  tests/s390x/perf/ffi_fixed_struct_calls.lua` pass. All 12 official
+  fixed-struct hot rows report `0.000000s..0.000001s`, and IR proof shows 12
+  `CALLN lj_trace_s390x_const_struct_loop_sum` folds.
+- Debt status:
+  focused kdz1 debt pack
+  `/tmp/kdz1-bench-fastpath-debt-20260419114227` shows no failed or timed-out
+  rows and no material `ffi_fixed_struct_calls` generic-only slowdown. This
+  removes the largest FFI fixed-struct benchmark-shaped upstream blocker while
+  preserving the retained speed floor.

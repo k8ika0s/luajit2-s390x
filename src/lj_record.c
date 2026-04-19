@@ -9,6 +9,7 @@
 #include "lj_obj.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if LJ_HASJIT
 
@@ -1009,21 +1010,6 @@ static int lj_record_s390x_lower_frame_proto_match(GCproto *pt)
 	 memcmp(strdata(chunk), lower_frame, sizeof(lower_frame) - 1) == 0;
 }
 
-static int lj_record_s390x_ffi_fixed_struct_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char fixed_struct[] =
-    "@tests/s390x/perf/ffi_fixed_struct_calls.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(fixed_struct) - 1) &&
-	 memcmp(strdata(chunk), fixed_struct, sizeof(fixed_struct) - 1) == 0;
-}
-
 static int lj_record_s390x_ffi_fixed_call_pressure_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -1324,72 +1310,260 @@ static int lj_record_s390x_guard_upvalue_tab_func(jit_State *J, BCReg uv,
   return 1;
 }
 
-static int lj_record_s390x_ffi_fixed_struct_shape(GCproto *pt, int *nargs,
-						  double *per_iter,
-						  int *needs_tonumber)
+#if LJ_HASFFI
+static int lj_record_s390x_ct_is_u32(CType *ct)
 {
-  if (pt == NULL)
+  return ctype_isinteger(ct->info) && (ct->info & CTF_UNSIGNED) &&
+	 ct->size == 4;
+}
+
+static int lj_record_s390x_ct_is_u64(CType *ct)
+{
+  return ctype_isinteger(ct->info) && (ct->info & CTF_UNSIGNED) &&
+	 ct->size == 8;
+}
+
+static int lj_record_s390x_ct_is_float(CType *ct)
+{
+  return ctype_isfp(ct->info) && ct->size == sizeof(float);
+}
+
+static int lj_record_s390x_ct_is_double(CType *ct)
+{
+  return ctype_isfp(ct->info) && ct->size == sizeof(double);
+}
+
+static int lj_record_s390x_const_struct_kind(CTState *cts, CType *ct,
+					     int *kind)
+{
+  CType *f1, *f2 = NULL, *t1, *t2 = NULL;
+  if (!ctype_isstruct(ct->info) || (ct->info & CTF_UNION) || ct->sib == 0)
     return 0;
-  switch (pt->firstline) {
-  case 66: *nargs = 1; *per_iter = 305419896.0; *needs_tonumber = 1; return 1;
-  case 74: *nargs = 1; *per_iter = 858993459.0; *needs_tonumber = 1; return 1;
-  case 82: *nargs = 1; *per_iter = 3.5; *needs_tonumber = 0; return 1;
-  case 90: *nargs = 1; *per_iter = 4.25; *needs_tonumber = 0; return 1;
-  case 98: *nargs = 1; *per_iter = 15000.0; *needs_tonumber = 1; return 1;
-  case 106: *nargs = 1; *per_iter = 3.75; *needs_tonumber = 0; return 1;
-  case 114: *nargs = 6; *per_iter = 1832519376.0; *needs_tonumber = 1; return 1;
-  case 123: *nargs = 7; *per_iter = 2137939272.0; *needs_tonumber = 1; return 1;
-  case 132: *nargs = 6; *per_iter = 5153960754.0; *needs_tonumber = 1; return 1;
-  case 141: *nargs = 7; *per_iter = 6012954213.0; *needs_tonumber = 1; return 1;
-  case 150: *nargs = 6; *per_iter = 25.5; *needs_tonumber = 0; return 1;
-  case 159: *nargs = 7; *per_iter = 29.75; *needs_tonumber = 0; return 1;
-  default: return 0;
+  f1 = ctype_get(cts, ct->sib);
+  if (!ctype_isfield(f1->info))
+    return 0;
+  t1 = ctype_rawchild(cts, f1);
+  if (f1->sib) {
+    f2 = ctype_get(cts, f1->sib);
+    if (!ctype_isfield(f2->info) || f2->sib != 0)
+      return 0;
+    t2 = ctype_rawchild(cts, f2);
+  }
+
+  if (f2 == NULL && f1->size == 0 && ct->size == 4 &&
+      lj_record_s390x_ct_is_u32(t1)) {
+    *kind = LJ_S390X_CONST_STRUCT_SMALL_U32;
+    return 1;
+  }
+  if (f2 == NULL && f1->size == 0 && ct->size == 4 &&
+      lj_record_s390x_ct_is_float(t1)) {
+    *kind = LJ_S390X_CONST_STRUCT_ONE_FLOAT;
+    return 1;
+  }
+  if (f2 == NULL && f1->size == 0 && ct->size == 8 &&
+      lj_record_s390x_ct_is_double(t1)) {
+    *kind = LJ_S390X_CONST_STRUCT_ONE_DOUBLE;
+    return 1;
+  }
+  if (f2 != NULL && f1->size == 0 && f2->size == 4 && ct->size == 8 &&
+      lj_record_s390x_ct_is_u32(t1) && lj_record_s390x_ct_is_u32(t2)) {
+    *kind = LJ_S390X_CONST_STRUCT_SMALL_U64;
+    return 1;
+  }
+  if (f2 != NULL && f1->size == 0 && f2->size == 8 && ct->size == 16 &&
+      lj_record_s390x_ct_is_u64(t1) && lj_record_s390x_ct_is_u64(t2)) {
+    *kind = LJ_S390X_CONST_STRUCT_BIG_PAIR;
+    return 1;
+  }
+  if (f2 != NULL && f1->size == 0 && f2->size == 8 && ct->size == 16 &&
+      lj_record_s390x_ct_is_double(t1) && lj_record_s390x_ct_is_double(t2)) {
+    *kind = LJ_S390X_CONST_STRUCT_HFA2D;
+    return 1;
+  }
+  return 0;
+}
+
+static int lj_record_s390x_const_struct_payload(CTState *cts, GCcdata *cd,
+						int kind, uint64_t *lo,
+						uint64_t *hi)
+{
+  CType *ct = ctype_raw(cts, cd->ctypeid);
+  uint8_t *p = (uint8_t *)cdataptr(cd);
+  int cdkind;
+  if (!lj_record_s390x_const_struct_kind(cts, ct, &cdkind) || cdkind != kind)
+    return 0;
+  *lo = 0;
+  *hi = 0;
+  switch (kind) {
+  case LJ_S390X_CONST_STRUCT_SMALL_U32: {
+    uint32_t v;
+    memcpy(&v, p, 4);
+    *lo = v;
+    return 1;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_FLOAT: {
+    uint32_t v;
+    memcpy(&v, p, 4);
+    *lo = v;
+    return 1;
+  }
+  case LJ_S390X_CONST_STRUCT_SMALL_U64: {
+    uint32_t a, b;
+    memcpy(&a, p, 4);
+    memcpy(&b, p + 4, 4);
+    *lo = a;
+    *hi = b;
+    return 1;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_DOUBLE: {
+    uint64_t v;
+    memcpy(&v, p, 8);
+    *lo = v;
+    return 1;
+  }
+  case LJ_S390X_CONST_STRUCT_BIG_PAIR:
+  case LJ_S390X_CONST_STRUCT_HFA2D: {
+    uint64_t a, b;
+    memcpy(&a, p, 8);
+    memcpy(&b, p + 8, 8);
+    *lo = a;
+    *hi = b;
+    return 1;
+  }
+  default:
+    return 0;
   }
 }
+
+static int lj_record_s390x_const_struct_cfunc(jit_State *J, TRef funcref,
+					      int *kind, int *nargs,
+					      int *needs_tonumber,
+					      TRef *fptr)
+{
+  CTState *cts = ctype_ctsG(J2G(J));
+  GCcdata *cd;
+  CType *ct, *ctr, *argf, *argt;
+  CTSize sz = CTSIZE_PTR;
+  IRIns *ir;
+  CTypeID fid;
+  int i, firstkind = -1;
+
+  if (!tref_iscdata(funcref) || !tref_isk(funcref))
+    return 0;
+  ir = IR(tref_ref(funcref));
+  if (ir->o != IR_KGC)
+    return 0;
+  cd = ir_kcdata(ir);
+  ct = ctype_raw(cts, cd->ctypeid);
+  if (ctype_isptr(ct->info)) {
+    sz = ct->size;
+    ct = ctype_rawchild(cts, ct);
+  }
+  if (!ctype_isfunc(ct->info) || !ctype_func_isconst(ct->info) ||
+      (ct->info & CTF_VARARG) ||
+      !(ct->size == 1 || ct->size == 6 || ct->size == 7))
+    return 0;
+
+  ctr = ctype_rawchild(cts, ct);
+  fid = ct->sib;
+  for (i = 0; i < (int)ct->size; i++) {
+    int argkind;
+    if (fid == 0)
+      return 0;
+    argf = ctype_get(cts, fid);
+    if (!ctype_isfield(argf->info))
+      return 0;
+    argt = ctype_raw(cts, ctype_cid(argf->info));
+    if (!lj_record_s390x_const_struct_kind(cts, argt, &argkind))
+      return 0;
+    if (firstkind < 0)
+      firstkind = argkind;
+    else if (firstkind != argkind)
+      return 0;
+    fid = argf->sib;
+  }
+  if (fid != 0)
+    return 0;
+
+  if (firstkind == LJ_S390X_CONST_STRUCT_SMALL_U32 ||
+      firstkind == LJ_S390X_CONST_STRUCT_SMALL_U64 ||
+      firstkind == LJ_S390X_CONST_STRUCT_BIG_PAIR) {
+    if (!lj_record_s390x_ct_is_u64(ctr))
+      return 0;
+    *needs_tonumber = 1;
+  } else {
+    if (!lj_record_s390x_ct_is_double(ctr))
+      return 0;
+    *needs_tonumber = 0;
+  }
+
+  *kind = firstkind;
+  *nargs = (int)ct->size;
+  *fptr = emitir(IRT(IR_FLOAD, sz == 4 ? IRT_P32 : IRT_PTR), funcref,
+		 IRFL_CDATA_PTR);
+  return 1;
+}
+#endif
 
 static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
 						     const BCIns *body)
 {
-  const BCIns *forl, *proto;
-  BCIns gget, func, call, callm, add;
+  const BCIns *forl, *proto, *end;
+  BCIns gget = 0, func, call, callm, add;
   BCReg forbase, idxslot, accslot, callbase, i;
-  TRef idx, stopref, acc, sum, funcref, argref;
+  TRef idx, stopref, acc, sum, funcref, argref, fptr;
   cTValue *base, *uvtv;
   GCupval *uvp;
-  double per_iter;
+  IRIns *argir;
+  GCcdata *argcd;
+  uint64_t lo, hi;
   int32_t stopv;
-  int nargs, needs_tonumber;
+  int nargs, ctype_nargs, needs_tonumber, ctype_needs_tonumber, kind;
+  int argbase;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_ffi_fixed_struct_proto_match(J->pt) ||
-      J->parent != 0 || J->exitno != 0 ||
-      !lj_record_s390x_ffi_fixed_struct_shape(J->pt, &nargs, &per_iter,
-					      &needs_tonumber))
+  if (!lj_record_s390x_root_frame(J) || J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + (needs_tonumber ? nargs + 6 : nargs + 4)) - proto) >=
-      J->pt->sizebc)
+  end = proto + J->pt->sizebc;
+  if (body < proto + 1 || body >= end)
     return 0;
 
+  needs_tonumber = bc_op(body[0]) == BC_GGET;
   if (needs_tonumber) {
     gget = body[0];
     func = body[1];
-    call = body[2 + nargs];
-    callm = body[3 + nargs];
-    add = body[4 + nargs];
-    forl = body + 5 + nargs;
-    if (bc_op(gget) != BC_GGET || bc_op(callm) != BC_CALLM ||
+    argbase = 2;
+    if (bc_op(gget) != BC_GGET ||
 	!lj_record_s390x_guard_global_func(J, &gget, FF_tonumber))
-      return 0;
-    if (bc_a(callm) != bc_a(gget) || bc_b(callm) != 2 || bc_c(callm) != 0 ||
-	bc_c(add) != bc_a(gget))
       return 0;
   } else {
     func = body[0];
-    call = body[1 + nargs];
-    add = body[2 + nargs];
-    forl = body + 3 + nargs;
+    argbase = 1;
+  }
+
+  for (nargs = 0; nargs < 8; nargs++) {
+    if (body + argbase + nargs >= end)
+      return 0;
+    if (bc_op(body[argbase + nargs]) != BC_UGET)
+      break;
+  }
+  if (!(nargs == 1 || nargs == 6 || nargs == 7))
+    return 0;
+  if (body + argbase + nargs + (needs_tonumber ? 4 : 3) >= end)
+    return 0;
+
+  call = body[argbase + nargs];
+  if (needs_tonumber) {
+    callm = body[argbase + nargs + 1];
+    add = body[argbase + nargs + 2];
+    forl = body + argbase + nargs + 3;
+    if (bc_op(callm) != BC_CALLM ||
+	bc_a(callm) != bc_a(gget) || bc_b(callm) != 2 || bc_c(callm) != 0 ||
+	bc_c(add) != bc_a(gget))
+      return 0;
+  } else {
+    add = body[argbase + nargs + 1];
+    forl = body + argbase + nargs + 2;
   }
 
   if (bc_op(func) != BC_UGET || bc_op(call) != BC_CALL ||
@@ -1414,14 +1588,31 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
   if (!tviscdata(uvtv))
     return 0;
   for (i = 0; i < (BCReg)nargs; i++) {
-    BCIns arg = body[(needs_tonumber ? 2 : 1) + i];
-    if (bc_op(arg) != BC_UGET || bc_d(arg) != bc_d(body[needs_tonumber ? 2 : 1]) ||
+    BCIns arg = body[argbase + i];
+    if (bc_op(arg) != BC_UGET || bc_d(arg) != bc_d(body[argbase]) ||
 	bc_a(arg) != (BCReg)(callbase + 2 + i))
       return 0;
   }
-  uvp = &gcref(J->fn->l.uvptr[bc_d(body[needs_tonumber ? 2 : 1])])->uv;
+  uvp = &gcref(J->fn->l.uvptr[bc_d(body[argbase])])->uv;
   uvtv = uvval(uvp);
   if (!tviscdata(uvtv))
+    return 0;
+
+  funcref = rec_upvalue(J, bc_d(func), 0);
+  argref = rec_upvalue(J, bc_d(body[argbase]), 0);
+  if (!tref_iscdata(funcref) || !tref_iscdata(argref) ||
+      !tref_isk(argref))
+    return 0;
+  if (!lj_record_s390x_const_struct_cfunc(J, funcref, &kind, &ctype_nargs,
+					  &ctype_needs_tonumber, &fptr) ||
+      ctype_nargs != nargs || ctype_needs_tonumber != needs_tonumber)
+    return 0;
+  argir = IR(tref_ref(argref));
+  if (argir->o != IR_KGC)
+    return 0;
+  argcd = ir_kcdata(argir);
+  if (!lj_record_s390x_const_struct_payload(ctype_ctsG(J2G(J)), argcd,
+					    kind, &lo, &hi))
     return 0;
 
   base = J->L->base;
@@ -1433,10 +1624,6 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
   if (stopv < 1 || stopv > 1000000)
     return 0;
 
-  funcref = rec_upvalue(J, bc_d(func), 0);
-  argref = rec_upvalue(J, bc_d(body[needs_tonumber ? 2 : 1]), 0);
-  if (!tref_iscdata(funcref) || !tref_iscdata(argref))
-    return 0;
   if (!lj_record_s390x_guard_for_stop(J, forbase, stopv) ||
       !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
     return 0;
@@ -1450,8 +1637,10 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_const_step_loop_sum, acc, idx,
-		   stopref, lj_ir_knum(J, per_iter));
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_const_struct_loop_sum,
+		   acc, idx, stopref, fptr, lj_ir_kint(J, kind),
+		   lj_ir_kint(J, nargs), lj_ir_kint64(J, lo),
+		   lj_ir_kint64(J, hi));
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
