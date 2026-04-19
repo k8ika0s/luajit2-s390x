@@ -1537,30 +1537,6 @@ void lj_trace_s390x_vm_root_entry_log(GCtrace *T, const TValue *base)
   dump_count++;
 }
 
-static int lj_trace_s390x_ffi_cdata_proto_match(GCproto *pt)
-{
-  static const char chunkname[] = "@tests/s390x/perf/ffi_cdata.lua";
-  GCstr *chunk;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-         chunk->len == (MSize)(sizeof(chunkname) - 1) &&
-         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
-}
-
-static int lj_trace_s390x_mixed_noffi_proto_match(GCproto *pt)
-{
-  static const char chunkname[] = "@tests/s390x/perf/mixed_noffi.lua";
-  GCstr *chunk;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-         chunk->len == (MSize)(sizeof(chunkname) - 1) &&
-         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
-}
-
 static int lj_trace_s390x_kgc_is_str(GCproto *pt, BCReg idx,
 				     const char *name, size_t len)
 {
@@ -4754,18 +4730,6 @@ static void trace_hotside(jit_State *J, const BCIns *pc)
   MSize hotexit = J->param[JIT_P_hotexit];
   int scoped_hotside_ok;
   int allow_general_hotside;
-#if LJ_TARGET_S390X
-  if (hotexit > 100) {
-    GCproto *pt = J->pt ? J->pt : &gcref(T->startpt)->pt;
-    /* These exact retained families are guarded against the low-threshold
-    ** side-trace failures that forced the global s390x hotexit=200 default.
-    */
-    if (lj_trace_s390x_ffi_cdata_proto_match(pt) ||
-	lj_trace_s390x_mixed_noffi_proto_match(pt) ||
-	lj_trace_s390x_iterator_table_proto_match(pt))
-      hotexit = 100;
-  }
-#endif
   scoped_hotside_ok = lj_trace_s390x_hotside_uget_looproot_match(J, pc, T,
 								  J->exitno,
 								  snap);
