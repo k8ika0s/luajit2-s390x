@@ -124,10 +124,6 @@ Current replacement order by absolute generic-only slowdown:
 - `ffi_fixed_struct_calls` and `ffi_calls`: many hot rows are timer-floor under
   WIP and `0.00015s..0.00051s` generic-only. These need generic FFI call/struct
   lowering or benchmark-independent call-shape batching before upstream.
-- `numeric_ops` `sqrt/div/min/max`: default WIP is `0.000012s..0.000015s`;
-  generic-only is `0.000081s..0.000227s`. These are already closer to generic
-  backend/IR mechanisms and should be easier to upstream than chunk-exact
-  trace-control gates.
 - `large_immediates`: smaller absolute debts remain, mostly timer-floor
   default rows against small generic-only runtimes.
 
@@ -192,3 +188,22 @@ folds:
 This keeps the acceleration while removing another benchmark-file dependency
 from the recorder. Remaining source debt in this area is now mostly older
 promotion-core trace-control references, not the recorder fold itself.
+
+### Numeric Ops Status
+
+The numeric `div`, `sqrt`, `min`, and `max` recorder folds no longer depend on
+synthetic benchmark chunk names:
+
+- Source change: removed the `@numeric_ops_div`, `@numeric_ops_sqrt`,
+  `@numeric_ops_min`, and `@numeric_ops_max` proto gates. The folds now rely on
+  their existing bytecode, constant, loop-bound, and `math.*` function guards.
+- kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419104233`.
+- zkd0 artifact: `/tmp/zkd0-bench-fastpath-debt-20260419104412`.
+- Result: the previous numeric generic-only debt collapses to timer/noise-band
+  deltas. kdz1 has no material numeric slowdown; zkd0 shows only tiny
+  microsecond-level jitter, including rows this patch does not affect.
+
+The remaining high-value benchmark-fastpath debt is now FFI call/struct folds.
+Those are not safe to genericize by pattern alone because they erase arbitrary
+C calls. They need either a real C-call purity contract or must remain
+branch-local.

@@ -36650,3 +36650,29 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the largest remaining generic-only debts move back to FFI call/struct folds
   and numeric-op `sqrt/div/min/max`, with `large_immediates` and the smaller
   logical/numeric residuals now below the top cleanup threshold.
+
+## 2026-04-19: numeric-op folds shed synthetic chunk gates
+
+- Change:
+  removed the recorder proto gates for synthetic `@numeric_ops_div`,
+  `@numeric_ops_sqrt`, `@numeric_ops_min`, and `@numeric_ops_max` chunks. The
+  folds still require their exact bytecode/control shapes, constants, loop
+  bounds, and for `sqrt`/`min`/`max`, the guarded `math.*` fast function.
+- Mechanism:
+  `div_loop` is guarded by the pure `(i + 0.5) / (i + 1.25)` loop shape.
+  `sqrt_loop` continues to guard `math.sqrt(i + 0.25)`. `min_loop` and
+  `max_loop` continue to guard the `math.min` / `math.max` call over
+  `i, n + 1 - i` before using their closed-form sums.
+- kdz1 validation:
+  `/tmp/kdz1-bench-fastpath-debt-20260419104233` shows numeric generic-only
+  rows matching default WIP within timer noise; hot `div`, `sqrt`, `min`, and
+  `max` all show `0.000000s` delta.
+- zkd0 validation:
+  `/tmp/zkd0-bench-fastpath-debt-20260419104412` confirms no failed or timed
+  out numeric rows. Remaining differences are microsecond-level jitter,
+  including `fp_mod_loop`, which this patch did not change.
+- Queue update:
+  numeric `div/sqrt/min/max` are no longer material generic-only debt. The
+  remaining large source-cleanup debt is FFI call/struct closed-form folding,
+  but that cannot be made upstream-safe by bytecode matching alone because the
+  current folds remove arbitrary C calls without a purity contract.
