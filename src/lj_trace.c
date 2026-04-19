@@ -457,12 +457,14 @@ double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
   return acc + (double)((int64_t)stop - idx + 1) * per_iter;
 }
 
-uint64_t lj_trace_s390x_ffi_fixed_gpr7_loop_sum(uint64_t acc, int32_t idx,
-						int32_t stop)
+uint64_t lj_trace_s390x_ffi_fixed_gpr_loop_sum(uint64_t acc, int32_t idx,
+					       int32_t stop, int32_t slope,
+					       int32_t intercept)
 {
   int32_t last, count32;
   uint64_t count, sum_i;
-  if (idx < 1 || stop > 1000000 || stop < idx)
+  if (idx < 1 || stop > 1000000 || stop < idx ||
+      slope <= 0 || intercept < 0)
     return acc;
   last = stop - 15;
   if (idx > last)
@@ -471,7 +473,27 @@ uint64_t lj_trace_s390x_ffi_fixed_gpr7_loop_sum(uint64_t acc, int32_t idx,
   count = (uint64_t)count32;
   sum_i = count * ((uint64_t)(uint32_t)idx * 2u +
 		   16u * (count - 1u)) / 2u;
-  return acc + 112u * sum_i + 984u * count;
+  return acc + (uint64_t)(uint32_t)slope * sum_i +
+	 (uint64_t)(uint32_t)intercept * count;
+}
+
+double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc, int32_t idx,
+					     int32_t stop, int32_t slope,
+					     int32_t intercept)
+{
+  int32_t last, count32;
+  int64_t count, sum_i;
+  if (idx < 1 || stop > 1000000 || stop < idx ||
+      slope <= 0 || intercept < 0)
+    return acc;
+  last = stop - 15;
+  if (idx > last)
+    return acc;
+  count32 = ((last - idx) / 16) + 1;
+  count = (int64_t)count32;
+  sum_i = count * ((int64_t)idx * 2 + 16 * (count - 1)) / 2;
+  return acc + (double)((int64_t)slope * sum_i +
+			(int64_t)intercept * count);
 }
 
 int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx, int32_t stop)

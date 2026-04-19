@@ -164,7 +164,8 @@ typedef struct CCallInfo {
   _(ANY,	lj_str_manual_find_cycle_sum, 3, N, INT, 0) \
   _(ANY,	lj_str_byte_scan_cycle_sum, 2, N, INT, 0) \
   _(ANY,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_ffi_fixed_gpr7_loop_sum, 3, N, U64, 0) \
+  _(ANY,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \
+  _(ANY,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
   _(ANY,	lj_trace_s390x_ffi_fixed_step16_postidx, 2, N, INT, 0) \
   _(ANY,	lj_trace_s390x_lower_frame_abs17_loop_sum, 3, N, NUM, 0) \
   _(ANY,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
