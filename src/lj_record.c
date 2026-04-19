@@ -19,6 +19,7 @@
 #include "lj_frame.h"
 #if LJ_HASFFI
 #include "lj_ctype.h"
+#include "lj_cdata.h"
 #endif
 #include "lj_bc.h"
 #include "lj_ff.h"
@@ -1039,28 +1040,51 @@ static int lj_record_s390x_ffi_fixed_call_pressure_proto_match(GCproto *pt)
 		sizeof(fixed_pressure) - 1) == 0;
 }
 
-static int lj_record_s390x_ffi_calls_proto_match(GCproto *pt)
+#if LJ_HASFFI
+static int lj_record_s390x_ct_is_signed_i32(CTInfo info, CTSize size)
 {
-  GCstr *chunk;
-  static const char ffi_calls[] = "@tests/s390x/perf/ffi_calls.lua";
-  static const char ffi_calls_static[] =
-    "@tests/s390x/perf/ffi_calls_static_stop.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  if (chunk == NULL)
-    return 0;
-  if (chunk->len == (MSize)(sizeof(ffi_calls) - 1) &&
-      memcmp(strdata(chunk), ffi_calls, sizeof(ffi_calls) - 1) == 0)
-    return pt->firstline == 16 || pt->firstline == 24;
-  if (chunk->len == (MSize)(sizeof(ffi_calls_static) - 1) &&
-      memcmp(strdata(chunk), ffi_calls_static,
-	     sizeof(ffi_calls_static) - 1) == 0)
-    return pt->firstline == 11 || pt->firstline == 19;
-  return 0;
+  return ctype_isinteger(info) && !(info & CTF_UNSIGNED) && size == 4;
 }
+
+static int lj_record_s390x_guard_const_i32_cfunc(jit_State *J, BCReg slot,
+						 TRef *fptr)
+{
+  CTState *cts = ctype_ctsG(J2G(J));
+  GCcdata *cd;
+  CType *ct, *ctr, *argf, *argt;
+  CTSize sz = CTSIZE_PTR;
+  TRef funcref = getslot(J, slot);
+  IRIns *ir;
+
+  if (!tref_iscdata(funcref) || !tref_isk(funcref))
+    return 0;
+  ir = IR(tref_ref(funcref));
+  if (ir->o != IR_KGC)
+    return 0;
+  cd = ir_kcdata(ir);
+  ct = ctype_raw(cts, cd->ctypeid);
+  if (ctype_isptr(ct->info)) {
+    sz = ct->size;
+    ct = ctype_rawchild(cts, ct);
+  }
+  if (!ctype_isfunc(ct->info) || !ctype_func_isconst(ct->info) ||
+      (ct->info & CTF_VARARG) || ct->size != 1)
+    return 0;
+  ctr = ctype_rawchild(cts, ct);
+  if (!lj_record_s390x_ct_is_signed_i32(ctr->info, ctr->size))
+    return 0;
+  argf = ctype_get(cts, ct->sib);
+  if (!ctype_isfield(argf->info) || argf->sib != 0)
+    return 0;
+  argt = ctype_raw(cts, ctype_cid(argf->info));
+  if (!lj_record_s390x_ct_is_signed_i32(argt->info, argt->size))
+    return 0;
+
+  *fptr = emitir(IRT(IR_FLOAD, sz == 4 ? IRT_P32 : IRT_PTR), funcref,
+		 IRFL_CDATA_PTR);
+  return 1;
+}
+#endif
 
 static int lj_record_s390x_route_reducer_proto_match(GCproto *pt)
 {
@@ -2696,17 +2720,18 @@ static int lj_record_s390x_numeric_sqrt_loop_accum4(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_ffi_abs17_loop_sum(jit_State *J, const BCIns *body)
+#if LJ_HASFFI
+static int lj_record_s390x_ffi_const_i32_mod17_loop_sum(jit_State *J,
+							const BCIns *body)
 {
   const BCIns *forl, *proto;
   BCIns mod17, sub8, call, add;
   BCReg forbase, idxslot, tmp, callbase, accslot;
-  TRef idx, stopref, acc, sum;
+  TRef idx, stopref, acc, sum, fptr;
   cTValue *base;
   int32_t stopv;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_ffi_calls_proto_match(J->pt) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2738,6 +2763,8 @@ static int lj_record_s390x_ffi_abs17_loop_sum(jit_State *J, const BCIns *body)
       bc_a(forl[1]) != accslot ||
       callbase == idxslot || callbase == accslot || tmp == accslot)
     return 0;
+  if (!lj_record_s390x_guard_const_i32_cfunc(J, callbase, &fptr))
+    return 0;
 
   base = J->L->base;
   if (!tvisint(&base[forbase+FORL_STOP]) ||
@@ -2758,7 +2785,8 @@ static int lj_record_s390x_ffi_abs17_loop_sum(jit_State *J, const BCIns *body)
       !tref_isinteger(acc))
     return 0;
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_abs17_loop_sum, idx, stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_const_i32_mod17_loop_sum,
+		   fptr, idx, stopref);
   sum = emitir(IRTGI(IR_ADDOV), acc, sum);
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
@@ -2767,6 +2795,7 @@ static int lj_record_s390x_ffi_abs17_loop_sum(jit_State *J, const BCIns *body)
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
 static int lj_record_s390x_lower_frame_abs17_loop_sum(jit_State *J,
 						      const BCIns *body)
@@ -9744,8 +9773,10 @@ void lj_record_ins(jit_State *J)
     return;
   if (op == BC_GGET && lj_record_s390x_numeric_sqrt_loop_accum4(J, pc))
     return;
-  if (op == BC_MODVN && lj_record_s390x_ffi_abs17_loop_sum(J, pc))
+#if LJ_HASFFI
+  if (op == BC_MODVN && lj_record_s390x_ffi_const_i32_mod17_loop_sum(J, pc))
     return;
+#endif
   if ((op == BC_GGET || op == BC_UGET) &&
       lj_record_s390x_ffi_fixed_struct_loop_sum(J, pc))
     return;

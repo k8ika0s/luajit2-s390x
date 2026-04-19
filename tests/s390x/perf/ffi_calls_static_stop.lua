@@ -3,7 +3,7 @@ local jit = require("jit")
 local bench = dofile("tests/s390x/perf/benchlib.lua")
 
 ffi.cdef[[
-int abs(int x);
+__attribute__((const)) int abs(int x);
 ]]
 
 local cabs = ffi.C.abs

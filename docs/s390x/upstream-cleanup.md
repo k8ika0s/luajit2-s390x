@@ -247,3 +247,27 @@ recoverable without treating repository benchmarks as language semantics. The
 next implementation step is to migrate one current FFI fold to consume
 `CTF_CONSTFUNC` and either compute the invariant call result through a safe
 record-time call path or fall back to normal `CALLXS`.
+
+#### `ffi_calls` Migration
+
+The `ffi_calls` abs-loop fold is the first consumer of the contract:
+
+- The old recorder path no longer accepts `@tests/s390x/perf/ffi_calls.lua` or
+  `pt->firstline` as proof.
+- The fold now requires the live callee slot to be a constant FFI cdata
+  function with `CTF_CONSTFUNC`, exactly one signed 32-bit integer argument,
+  and a signed 32-bit integer return.
+- The helper receives the guarded function pointer and evaluates the period-17
+  residue values through that annotated function. This preserves the
+  closed-form loop win without hard-coding libc `abs`.
+- If the cdef omits `__attribute__((const))`, the recorder falls back to
+  normal `CALLXS`.
+
+The performance tests annotate `abs` with prefix GCC attribute syntax:
+
+```c
+__attribute__((const)) int abs(int x);
+```
+
+Postfix attribute syntax still parses as a regular declaration attribute in
+this branch but is not relied on for this migration.
