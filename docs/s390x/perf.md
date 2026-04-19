@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 20:14 PDT
+Last updated: 2026-04-18 21:20 PDT
 
 ## Current Matrix
 
@@ -10,11 +10,12 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
+  `68a8c11a docs: record fixed pressure family fold` with retained code delta
   `8d398781 s390x: fold fixed FFI pressure loops`.
 - Current s390x artifact:
-  `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z`.
+  `artifacts/s390x/post-fixed-pressure-20260419T040244Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`,
+  `artifacts/s390x/compare-post-fixed-pressure-kdz1-ka0s01-20260419T040244Z`,
   compared against refreshed x86 artifact
   `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
 - Run health:
@@ -26,15 +27,17 @@ notes and experiment logs belong below this section or in
   no s390x JIT-on row in the current full comparison is slower than `-joff`.
   The regression queue is empty at official matrix scale.
 - Current acceleration queue:
-  `logical_chain_tail_add`/`logical_chain_tail_store` `xhot` rows are now the
-  largest absolute s390x JIT-on rows (`~0.00009s..0.000135s`) but lack x86
-  rows in the carried comparison; `be_helpers/num_aload_loop/hot` is the
-  largest complete high-time row and s390x is already faster than x86
-  (`~0.000111s` vs `~0.000146s`). The remaining complete x86-faster rows are
-  timer-floor scale, with all amplified `ffi_fixed_call_pressure/xhot` rows
-  now folded to `0.000000s..0.000001s` on kdz1/kdz and `0.000001s` on zkd0.
-  Further fixed-call work needs a fresh non-pressure payer or larger harness,
-  not another broad regression repair.
+  `logical_chain_tail_add`/`logical_chain_tail_store` `xhot` rows remain the
+  largest absolute s390x JIT-on rows (`0.000092s..0.000143s`) but lack x86
+  `xhot` rows in the carried comparison; treat them as the next measurable
+  high-time lane if we want more absolute s390x reduction. The largest
+  complete high-time row is `be_helpers/num_aload_loop/hot`, where s390x is
+  already faster than x86 (`~0.000111s..0.000112s` vs
+  `~0.000146s..0.000147s`). The only complete x86-faster rows above `10us`
+  are `numeric_ops` small/medium timer-adjacent min/max/div/sqrt/fp-mod rows,
+  topped by `max_loop/small` and `min_loop/small` at roughly `2x` x86 faster
+  but only `0.000014s..0.000017s` s390x runtime. The focused min/max follow-up
+  below did not find a safe retained local win.
 - Retained acceleration source delta:
   `8d398781 s390x: fold fixed FFI pressure loops`. The recorder now folds all
   six official fixed-call pressure vector loops after guarding the exact
