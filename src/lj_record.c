@@ -1039,26 +1039,6 @@ static int lj_record_s390x_ffi_fixed_call_pressure_proto_match(GCproto *pt)
 		sizeof(fixed_pressure) - 1) == 0;
 }
 
-static int lj_record_s390x_numeric_divsqrt_proto_match(GCproto *pt,
-						       int issqrt)
-{
-  GCstr *chunk;
-  const char *want = issqrt ? "@numeric_ops_sqrt" : "@numeric_ops_div";
-  const char *want_noat = issqrt ? "numeric_ops_sqrt" : "numeric_ops_div";
-  size_t len = issqrt ? sizeof("@numeric_ops_sqrt") - 1 :
-		       sizeof("@numeric_ops_div") - 1;
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 ((chunk->len == (MSize)len &&
-	   memcmp(strdata(chunk), want, len) == 0) ||
-	  (chunk->len == (MSize)(len - 1) &&
-	   memcmp(strdata(chunk), want_noat, len - 1) == 0));
-}
-
 static int lj_record_s390x_ffi_calls_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -2582,7 +2562,6 @@ static int lj_record_s390x_numeric_div_loop_accum4(jit_State *J,
   int32_t stopv;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_numeric_divsqrt_proto_match(J->pt, 0) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2654,7 +2633,6 @@ static int lj_record_s390x_numeric_sqrt_loop_accum4(jit_State *J,
   int32_t stopv;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_numeric_divsqrt_proto_match(J->pt, 1) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -3064,21 +3042,6 @@ static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_numeric_minmax_proto_match(GCproto *pt, int ismax)
-{
-  GCstr *chunk;
-  const char *want = ismax ? "@numeric_ops_max" : "@numeric_ops_min";
-  size_t len = ismax ? sizeof("@numeric_ops_max") - 1 :
-		       sizeof("@numeric_ops_min") - 1;
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL && chunk->len == (MSize)len &&
-	 memcmp(strdata(chunk), want, len) == 0;
-}
-
 static int lj_record_s390x_be_helpers_proto_match(GCproto *pt)
 {
   GCstr *chunk;
@@ -3140,7 +3103,6 @@ static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
   int32_t stopv;
 
   if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_numeric_minmax_proto_match(J->pt, ismax) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
