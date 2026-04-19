@@ -36,6 +36,21 @@
 #include <string.h>
 #include <math.h>
 
+/*
+** Benchmark-shaped s390x trace-control route-arounds are branch-local bring-up
+** probes, not upstreamable JIT policy. They remain enabled on this performance
+** WIP branch to preserve the retained baseline while each route-around is
+** replaced by a generic mechanism. Upstream-prep builds can set this to 0.
+*/
+#ifndef LUAJIT_ENABLE_S390X_BENCH_FASTPATHS
+#define LUAJIT_ENABLE_S390X_BENCH_FASTPATHS 1
+#endif
+
+static int lj_trace_s390x_bench_fastpaths_enabled(void)
+{
+  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_BENCH_FASTPATHS;
+}
+
 static int64_t lj_trace_s390x_sum_mod97_seq(int32_t first, int32_t count,
 					    int32_t step)
 {
@@ -1152,7 +1167,8 @@ static int lj_trace_s390x_dispatch_forl_skip_jfori_enabled(void)
   if (enabled == -1) {
     const char *force = getenv("LUAJIT_S390X_DISPATCH_FORL_SKIP_JFORI");
     const char *disable = getenv("LUAJIT_S390X_DISABLE_DISPATCH_FORL_SKIP_JFORI");
-    enabled = (force != NULL && disable == NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       force != NULL && disable == NULL);
   }
   return enabled;
 }
@@ -1162,7 +1178,9 @@ static int lj_trace_s390x_dispatch_forl_park_root_hotexit_exact_cooldown_value(v
   static int value = -1;
   if (value == -1) {
     const char *p = getenv("LUAJIT_S390X_DISPATCH_FORL_PARK_ROOT_HOTEXIT_EXACT_COOLDOWN");
-    if (p && p[0]) {
+    if (!lj_trace_s390x_bench_fastpaths_enabled()) {
+      value = 0;
+    } else if (p && p[0]) {
       char *endp = NULL;
       long n = strtol(p, &endp, 10);
       value = (endp != p && n > 0 && n < 65536) ? (int)n : 8;
@@ -1486,7 +1504,8 @@ static int lj_trace_s390x_promotion_core_forl_proto_nojit_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_PROMOTION_CORE_FORL_PROTO_NOJIT") != NULL);
   return enabled;
 }
 
@@ -1659,7 +1678,8 @@ static int lj_trace_s390x_mixed_ffi_forl_proto_nojit_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT") != NULL);
   return enabled;
 }
 
@@ -1701,7 +1721,8 @@ static int lj_trace_s390x_lower_frame_lua_abs_proto_nojit_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT") != NULL);
   return enabled;
 }
 
@@ -1743,7 +1764,8 @@ static int lj_trace_s390x_ffi_cdata_pair_forl_blacklist_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST") != NULL);
   return enabled;
 }
 
@@ -1785,7 +1807,8 @@ static int lj_trace_s390x_mixed_noffi_iterl_blacklist_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_MIXED_NOFFI_ITERL_BLACKLIST") != NULL);
   return enabled;
 }
 
@@ -1793,7 +1816,8 @@ static int lj_trace_s390x_mixed_noffi_iterl_abort_blacklist_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_MIXED_NOFFI_ITERL_ABORT_BLACKLIST") != NULL);
   return enabled;
 }
 
@@ -1801,7 +1825,8 @@ static int lj_trace_s390x_mixed_noffi_early_proto_nojit_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_MIXED_NOFFI_EARLY_PROTO_NOJIT") != NULL);
   return enabled;
 }
 
@@ -1874,7 +1899,8 @@ static int lj_trace_s390x_mixed_noffi_forl_stitch_blacklist_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_MIXED_NOFFI_FORL_STITCH_BLACKLIST") != NULL);
   return enabled;
 }
 
@@ -1903,7 +1929,8 @@ static int lj_trace_s390x_mixed_noffi_itern_blacklist_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_MIXED_NOFFI_ITERN_BLACKLIST") != NULL);
   return enabled;
 }
 
@@ -1952,7 +1979,8 @@ static int lj_trace_s390x_iterator_itern_blacklist_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST") != NULL);
   return enabled;
 }
 
@@ -1960,7 +1988,8 @@ static int lj_trace_s390x_iterator_iterl_blacklist_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST") != NULL);
   return enabled;
 }
 
@@ -1969,7 +1998,7 @@ static int lj_trace_s390x_iterator_itern_proto_nojit_enabled(void)
   static int enabled = -1;
   if (enabled == -1) {
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_ITERATOR_ITERN_PROTO_NOJIT");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() && opt_out == NULL);
   }
   return enabled;
 }
@@ -1979,7 +2008,7 @@ static int lj_trace_s390x_iterator_array_itern_nojit_hotcount_park_enabled(void)
   static int enabled = -1;
   if (enabled == -1) {
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() && opt_out == NULL);
   }
   return enabled;
 }
@@ -1989,7 +2018,7 @@ static int lj_trace_s390x_iterator_hash_itern_nojit_hotcount_park_enabled(void)
   static int enabled = -1;
   if (enabled == -1) {
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() && opt_out == NULL);
   }
   return enabled;
 }
@@ -1999,7 +2028,7 @@ static int lj_trace_s390x_iterator_post_proto_itern_nohot_enabled(void)
   static int enabled = -1;
   if (enabled == -1) {
     const char *opt_out = getenv("LUAJIT_S390X_DISABLE_ITERATOR_POST_PROTO_ITERN_NOHOT");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() && opt_out == NULL);
   }
   return enabled;
 }
@@ -2154,7 +2183,8 @@ static int lj_trace_s390x_mixed_ffi_post_stitch_save_done_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_MIXED_FFI_POST_STITCH_SAVE_DONE") != NULL);
   return enabled;
 }
 
@@ -2215,7 +2245,8 @@ static int lj_trace_s390x_ffi_cdata_pair_save_done_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_FFI_CDATA_PAIR_SAVE_DONE") != NULL);
   return enabled;
 }
 
@@ -2566,7 +2597,8 @@ static int lj_trace_s390x_hotside_localized_equiv_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV") != NULL);
+    enabled = (lj_trace_s390x_bench_fastpaths_enabled() &&
+	       getenv("LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV") != NULL);
   return enabled;
 }
 
@@ -4719,6 +4751,7 @@ static void trace_stop(jit_State *J)
       goto addroot;
     }
     if (LJ_TARGET_S390X &&
+        lj_trace_s390x_bench_fastpaths_enabled() &&
         getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL &&
         lj_trace_s390x_mixed_noffi_proto_match(pt) &&
         J->parent == 0 && J->exitno == 0 &&
@@ -4788,6 +4821,7 @@ static void trace_stop(jit_State *J)
     break;
   case BC_ITERN:
     if (LJ_TARGET_S390X &&
+        lj_trace_s390x_bench_fastpaths_enabled() &&
         getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL &&
         lj_trace_s390x_mixed_noffi_proto_match(pt) &&
         J->parent == 0 && J->exitno == 0 &&

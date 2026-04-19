@@ -45,6 +45,11 @@ Representative current examples:
 
 Use this split for upstream prep:
 
+- Preserve the current WIP performance baseline while cleanup proceeds. The
+  branch-local benchmark fast paths are controlled by
+  `LUAJIT_ENABLE_S390X_BENCH_FASTPATHS`, which defaults to `1` on this WIP
+  branch. Upstream-prep validation can build with
+  `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` to expose the generic-only floor.
 - Keep or refine generic backend/codegen changes. Examples: instruction
   selection, ABI repair, register-state correctness, SLOAD ordering,
   overflow-guard correctness, VM helper implementations, and target-neutral
@@ -76,6 +81,11 @@ python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 
 The current WIP is expected to fail this audit. The upstream candidate should
 drive it to zero for production `src/` files.
+
+The audit is intentionally source-based, not build-profile-based. It still
+reports branch-local fast paths even when they are compiled out for an
+upstream-prep build, because the eventual upstream candidate needs the source
+removed or rewritten, not merely disabled.
 
 ## Cleanup Order
 
