@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 23:11 PDT
+Last updated: 2026-04-19 09:25 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `27462454 s390x: fold logical chain tail add`; the latest retained code
-  delta is the post-matrix low32 logic tail-store fold.
+  `71cf0b88 s390x: fold logical chain tail store`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -160,18 +159,18 @@ Historical experiment detail lives in
   in the `0.000000s..0.000001s` band; zkd0 confirms `0.000001s` medians
   across the family.
 - Current full matrix:
-  `artifacts/s390x/post-fixed-pressure-20260419T040244Z` and comparison
-  `artifacts/s390x/compare-post-fixed-pressure-kdz1-ka0s01-20260419T040244Z`.
+  `artifacts/s390x/post-tail-store-fullcomp-20260419T160100Z` and comparison
+  `artifacts/s390x/compare-post-tail-store-kdz1-ka0s01-20260419T160100Z`.
   The run has `800` s390x benchmark records, `400` comparison rows, `342`
   complete cross-arch rows, `0` s390x failures, `0` missing s390x rows, and no
   s390x JIT-on row slower than `-joff`.
 - Current caveat:
   the x86 comparison still has `58` missing x86 rows. These are from the
   carried x86 artifact timing out on JIT-on `iterator_table`/`mixed_noffi` and
-  from newer `xhot` pressure/logic rows. After the fixed-pressure fold, the
+  from newer `xhot` pressure/logic rows. After the tail-store full matrix, the
+  low32 logical-chain `xhot` rows are both represented at timer floor, and the
   only complete x86-faster rows above `10us` are timer-adjacent `numeric_ops`
-  small/medium rows; the prior s390x-owned logical-chain `xhot` high-time rows
-  are now both timer-floor.
+  small/medium rows.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane. The fixed-call pressure and low32 logical-chain `xhot` families

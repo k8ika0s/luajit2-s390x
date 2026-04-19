@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 23:11 PDT
+Last updated: 2026-04-19 09:25 PDT
 
 ## Current Matrix
 
@@ -10,12 +10,11 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `27462454 s390x: fold logical chain tail add` plus the retained
-  post-matrix `logical_chain_tail_store` fold in this tranche.
+  `71cf0b88 s390x: fold logical chain tail store`.
 - Current s390x artifact:
-  `artifacts/s390x/post-fixed-pressure-20260419T040244Z`.
+  `artifacts/s390x/post-tail-store-fullcomp-20260419T160100Z`.
 - Current x86 comparison:
-  `artifacts/s390x/compare-post-fixed-pressure-kdz1-ka0s01-20260419T040244Z`,
+  `artifacts/s390x/compare-post-tail-store-kdz1-ka0s01-20260419T160100Z`,
   compared against refreshed x86 artifact
   `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
 - Run health:
@@ -25,19 +24,17 @@ notes and experiment logs belong below this section or in
   `iterator_table`/`mixed_noffi` timeouts.
 - Regression read:
   no s390x JIT-on row in the current full comparison is slower than `-joff`.
-  The regression queue is empty at official matrix scale.
+  The regression queue remains empty at official matrix scale.
 - Current acceleration queue:
-  post-matrix focused work closed
-  `logical_chain_tail_add/chain_tail_add/xhot`, moving the kdz1 retained
-  control band `0.000135s..0.000143s` to `0.000001s` on kdz1/kdz/zkd0.
-  The follow-up fold closed `logical_chain_tail_store/chain_tail_store/xhot`,
-  moving the immediate kdz1 control `0.000097s` to `0.000000s..0.000001s` and
-  confirming timer-floor on kdz/zkd0. The largest complete high-time row is
-  now `be_helpers/num_aload_loop/hot`, where s390x is already faster than x86
-  (`~0.000111s..0.000112s` vs `~0.000146s..0.000147s`). The only complete
-  x86-faster rows above `10us` are `numeric_ops` small/medium timer-adjacent
-  min/max/div/sqrt/fp-mod rows; the focused min/max follow-up below did not
-  find a safe retained local win.
+  the new full comparison includes both retained low32 logical-chain xhot
+  folds. `logical_chain_tail_add/xhot` now reports `0.000001s` and
+  `logical_chain_tail_store/xhot` reports `0.000000s..0.000001s` in the full
+  kdz1 matrix, closing those previously high-time rows. The largest complete
+  high-time row is now `be_helpers/num_aload_loop/hot`, where s390x is already
+  faster than x86 (`0.000111s` vs `0.000146s..0.000147s`). The only complete
+  x86-faster rows above `10us` are timer-adjacent `numeric_ops` small/medium
+  min/max/div/sqrt/fp-mod variants; do not chase those without a larger
+  numeric harness or a new mechanism.
 - Retained acceleration source delta:
   post-matrix low32 store fold for the official
   `logical_chain_tail_store/chain_tail_store` row. The recorder now matches
