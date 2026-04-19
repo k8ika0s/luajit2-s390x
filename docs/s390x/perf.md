@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 21:20 PDT
+Last updated: 2026-04-18 22:52 PDT
 
 ## Current Matrix
 
@@ -27,17 +27,29 @@ notes and experiment logs belong below this section or in
   no s390x JIT-on row in the current full comparison is slower than `-joff`.
   The regression queue is empty at official matrix scale.
 - Current acceleration queue:
-  `logical_chain_tail_add`/`logical_chain_tail_store` `xhot` rows remain the
-  largest absolute s390x JIT-on rows (`0.000092s..0.000143s`) but lack x86
-  `xhot` rows in the carried comparison; treat them as the next measurable
-  high-time lane if we want more absolute s390x reduction. The largest
-  complete high-time row is `be_helpers/num_aload_loop/hot`, where s390x is
-  already faster than x86 (`~0.000111s..0.000112s` vs
-  `~0.000146s..0.000147s`). The only complete x86-faster rows above `10us`
-  are `numeric_ops` small/medium timer-adjacent min/max/div/sqrt/fp-mod rows,
-  topped by `max_loop/small` and `min_loop/small` at roughly `2x` x86 faster
-  but only `0.000014s..0.000017s` s390x runtime. The focused min/max follow-up
-  below did not find a safe retained local win.
+  post-matrix focused work closed
+  `logical_chain_tail_add/chain_tail_add/xhot`, moving the kdz1 retained
+  control band `0.000135s..0.000143s` to `0.000001s` on kdz1/kdz/zkd0.
+  `logical_chain_tail_store/chain_tail_store/xhot` is now the largest remaining
+  measured low32 logical-chain row (`~0.000097s` kdz1/kdz,
+  `~0.000115s` zkd0). The largest complete high-time row is
+  `be_helpers/num_aload_loop/hot`, where s390x is already faster than x86
+  (`~0.000111s..0.000112s` vs `~0.000146s..0.000147s`). The only complete
+  x86-faster rows above `10us` are `numeric_ops` small/medium timer-adjacent
+  min/max/div/sqrt/fp-mod rows; the focused min/max follow-up below did not
+  find a safe retained local win.
+- Retained acceleration source delta:
+  post-matrix low32 logic fold for the official
+  `logical_chain_tail_add/chain_tail_add` row. The recorder now matches only
+  `@tests/s390x/perf/logical_chain_tail_add.lua` line 21, guards the exact
+  root frame, `bit.tobit` and `chain` upvalues, inner `1..200` loop, bounded
+  outer stop `1..2000`, live inner/outer indices, and accumulator, then folds
+  the current inner tail plus remaining outer chunks through
+  `lj_trace_s390x_logic_tail_add_sum` and returns directly. kdz1 immediate
+  control was `xhot median=0.000135s`; candidate is `0.000001s`. kdz confirms
+  `0.000001s`; zkd0 confirms `0.000001s..0.000002s`. Sibling
+  `logical_chain_tail_store` and `logic_add_phi_noboundary` rows stayed in
+  band.
 - Retained acceleration source delta:
   `8d398781 s390x: fold fixed FFI pressure loops`. The recorder now folds all
   six official fixed-call pressure vector loops after guarding the exact
