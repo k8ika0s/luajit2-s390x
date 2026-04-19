@@ -36727,3 +36727,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   contract. The larger `ffi_fixed_struct_calls` fold still needs either the
   same `CTF_CONSTFUNC` migration plus safe invariant result evaluation, or it
   must remain branch-local.
+
+## 2026-04-19: min/max closed-form fold restricted to owned loop body
+
+- Problem:
+  `tests/s390x/jit_be/numeric_ops.lua` exposed a correctness failure after the
+  numeric min/max folds were made chunk-independent. The combined
+  `math.min`/`math.max` correctness loop contains both accumulators in one
+  `FORL` body. The existing single-accumulator fold could match the later
+  `math.max` half, jump to `FORL + 1`, and skip the remaining `math.min`
+  updates.
+- Fix:
+  the min/max closed-form recorder fold now requires
+  `forl + 1 + bc_j(*forl) == body`, proving that the matched bytecode is the
+  actual loop backedge target and owns the whole body it is about to skip.
+  This preserves the standalone `min_loop` / `max_loop` perf shapes while
+  rejecting partial-body matches inside combined loops.
+- Validation:
+  kdz1 remote clean build in
+  `/root/luajit2-s390x/workstreams/numeric-minmax-fix/canon/repo` passed
+  `tests/s390x/jit_be/numeric_ops.lua` and `tests/s390x/perf/numeric_ops.lua`.
+  zkd0 remote clean build in the same workstream path also passed
+  `tests/s390x/jit_be/numeric_ops.lua` and a focused
+  `S390X_PERF_SAMPLES=5 S390X_PERF_WARMUP=1` numeric perf run.

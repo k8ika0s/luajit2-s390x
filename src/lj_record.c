@@ -3166,6 +3166,7 @@ static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
       bc_b(call) != 2 || bc_c(call) != 3 ||
       bc_a(add_total) != accslot || bc_b(add_total) != accslot ||
       bc_c(add_total) != callbase ||
+      forl + 1 + bc_j(*forl) != body ||
       tmp == idxslot || tmp == callbase || accslot == idxslot ||
       accslot == callbase)
     return 0;
