@@ -37,9 +37,16 @@ LJ_FUNC int lj_trace_s390x_iterator_itern_nohot_dispatch_active(void);
 LJ_FUNC double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
 						  int32_t stop,
 						  double per_iter);
-LJ_FUNC uint64_t lj_trace_s390x_ffi_fixed_gpr7_loop_sum(uint64_t acc,
-							int32_t idx,
-							int32_t stop);
+LJ_FUNC uint64_t lj_trace_s390x_ffi_fixed_gpr_loop_sum(uint64_t acc,
+						       int32_t idx,
+						       int32_t stop,
+						       int32_t slope,
+						       int32_t intercept);
+LJ_FUNC double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc,
+						     int32_t idx,
+						     int32_t stop,
+						     int32_t slope,
+						     int32_t intercept);
 LJ_FUNC int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx,
 							int32_t stop);
 LJ_FUNC double lj_trace_s390x_lower_frame_abs17_loop_sum(double acc,
