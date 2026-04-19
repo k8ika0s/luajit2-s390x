@@ -36376,3 +36376,58 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   harness or a new safe global-guard contract. The next measurable target is
   the low32 logical-chain `xhot` lane, or alternatively an x86 coverage refresh
   for the missing `xhot` rows before cross-arch ranking.
+
+## 2026-04-18: retained logical-chain tail-add xhot fold
+
+- Source point:
+  current WIP `4108bfeb docs: record post fixed pressure rerank` plus the
+  retained low32 logical-chain tail-add source delta in this tranche.
+- Target:
+  `tests/s390x/perf/logical_chain_tail_add.lua`, official
+  `chain_tail_add/hot` and amplified `chain_tail_add/xhot` rows. The retained
+  matrix had `xhot` in the `0.000135s..0.000143s` band on kdz1, making it the
+  largest remaining low32 logical-chain absolute-runtime row.
+- First failed candidate:
+  an exact helper fold initially guarded on the recorded outer stop. It was
+  correct only after switching the stop to a return-link contract, but it still
+  regressed `xhot` to `0.006590s` because the trace compiled under the `hot`
+  case with `outerstop == 20`; the later `xhot` case (`outerstop == 2000`)
+  exited into the old full-loop side-chain. This closed the per-scale constant
+  guard shape as invalid for benchmarks sharing one function across scales.
+- Retained mechanism:
+  the recorder now matches only the official chunk/proto at line 21, root frame,
+  parent/root entry, exact bytecode body, `bit.tobit` table-function upvalue,
+  `chain` upvalue, inner `1..200` loop, bounded dynamic outer stop `1..2000`,
+  live inner/outer index state, and integer accumulator. The trace calls
+  `lj_trace_s390x_logic_tail_add_sum(acc, inner_idx, inner_stop, outer_idx,
+  outer_stop)`, covering the current inner tail plus all remaining outer chunks
+  with 32-bit wrap semantics, then stops as `LJ_TRLINK_RETURN`.
+- Mechanism proof:
+  kdz1 `-jdump=bi` shows the official root trace starting at
+  `logical_chain_tail_add.lua:24`, emitting
+  `CALLN lj_trace_s390x_logic_tail_add_sum`, and stopping `-> return`. The
+  corrected bounded-stop contract covers both `hot` and `xhot` without the old
+  side-chain storm.
+- Performance:
+  kdz1 immediate control after reverse-applying the candidate patch was
+  `logical_chain_tail_add/xhot median=0.000135s` with siblings
+  `logical_chain_tail_store/xhot median=0.000097s` and
+  `logic_add_phi_noboundary/hot median=0.000001s`. Candidate results were
+  `logical_chain_tail_add/hot median=0.000001s` and `xhot median=0.000001s`.
+  kdz confirmed `hot/xhot median=0.000001s`; zkd0 confirmed
+  `hot median=0.000001s`, `xhot median=0.000001s` with p95 `0.000002s`.
+- Guardrails:
+  kdz1 rebuilt source passed `low32_home_contract.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, `bitops_trace.lua`, `side_exit.lua`,
+  `compiled_vararg.lua`, `pairs_loop.lua`, and focused perf screens for
+  `bitops_mix.lua`, `numeric_ops.lua`, `dispatch_trace.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, and `iterator_table.lua`. kdz and zkd0
+  rebuilt source passed `low32_home_contract.lua`, `numeric_ops.lua`,
+  `logical_chain_tail_add.lua`, `logical_chain_tail_store.lua`, and
+  `logic_add_phi_noboundary.lua`.
+- Queue update:
+  `logical_chain_tail_add/xhot` is closed. The remaining measurable low32 logic
+  row is `logical_chain_tail_store/xhot` (`~0.000097s` kdz/kdz1,
+  `~0.000115s` zkd0), while complete x86-faster rows remain timer-adjacent
+  numeric small/medium variants unless a larger numeric harness is added.

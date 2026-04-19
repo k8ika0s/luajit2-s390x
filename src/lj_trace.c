@@ -717,6 +717,20 @@ static int32_t lj_trace_s390x_logic_phi_value(int32_t i)
   return (int32_t)(x & 0x3ffu);
 }
 
+static int32_t lj_trace_s390x_logic_tail_value(int32_t i)
+{
+  uint32_t u = (uint32_t)i;
+  uint32_t x = u & 0xffu;
+  x ^= u << 3;
+  x |= u >> 1;
+  x ^= (uint32_t)((int32_t)-i >> 2);
+  x ^= lj_trace_s390x_logic_rol32(u, 5);
+  x ^= lj_trace_s390x_logic_rol32(u, 25);
+  x ^= lj_trace_s390x_logic_bswap32(u);
+  x ^= ~u;
+  return (int32_t)x;
+}
+
 int32_t lj_trace_s390x_logic_add_phi_remainder_sum(int32_t acc,
 						   int32_t inner_idx,
 						   int32_t inner_stop,
@@ -736,6 +750,26 @@ int32_t lj_trace_s390x_logic_add_phi_remainder_sum(int32_t acc,
   sum = (int64_t)acc + tail + (int64_t)(outer_stop - 1) * full;
   if (sum < INT32_MIN || sum > INT32_MAX)
     return acc;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_logic_tail_add_sum(int32_t acc, int32_t inner_idx,
+					  int32_t inner_stop, int32_t outer_idx,
+					  int32_t outer_stop)
+{
+  uint32_t sum = (uint32_t)acc;
+  uint32_t full = 0;
+  int32_t i;
+  if (inner_idx < 1 || inner_stop != 200 || outer_idx < 1 ||
+      outer_stop < outer_idx || outer_stop < 1 || outer_stop > 2000)
+    return acc;
+  for (i = 1; i <= 200; i++) {
+    uint32_t v = (uint32_t)lj_trace_s390x_logic_tail_value(i);
+    full += v;
+    if (i >= inner_idx)
+      sum += v;
+  }
+  sum += (uint32_t)(outer_stop - outer_idx) * full;
   return (int32_t)sum;
 }
 

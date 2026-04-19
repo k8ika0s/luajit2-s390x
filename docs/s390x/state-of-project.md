@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 21:20 PDT
+Last updated: 2026-04-18 22:52 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `68a8c11a docs: record fixed pressure family fold`; the latest retained
-  code delta remains `8d398781 s390x: fold fixed FFI pressure loops`.
+  `4108bfeb docs: record post fixed pressure rerank`; the latest retained
+  code delta is the post-matrix low32 logic tail-add fold.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -79,12 +79,17 @@ Historical experiment detail lives in
   removes stop-specialized side paths for medium/small scales while keeping
   the change exact to `tests/s390x/perf/large_immediates.lua`.
 - Latest low32 logic acceleration work folds the official
+  `logical_chain_tail_add/chain_tail_add` loop. The retained path is exact to
+  `@tests/s390x/perf/logical_chain_tail_add.lua` line 21, validates
+  `bit.tobit`, the `chain` upvalue, the inner `1..200` loop, bounded outer
+  stop `1..2000`, live inner/outer index state, and the accumulator, then
+  returns through `lj_trace_s390x_logic_tail_add_sum`. kdz1 control was
+  `xhot 0.000135s`; kdz1/kdz/zkd0 now place `xhot` at `0.000001s` timer floor.
+- Previous low32 logic acceleration work folds the official
   `logical_chain_tail_store/chain_tail_store` inner loop. The retained path is
   exact to the side-effecting `chain(i) -> sink[1] -> equality -> total+1`
   shape, stores the final visible `chain(200)` value once, and advances the
-  accumulator by the remaining inner iteration count without touching the
-  already timer-floor `logical_chain_tail_add` and
-  `logic_add_phi_noboundary` siblings.
+  accumulator by the remaining inner iteration count.
 - Latest low32 PHI acceleration work folds the official
   `logic_add_phi_noboundary` loop from the first outer-loop state. The retained
   path validates the exact `chain(i)` call, inner `1..200` loop, bounded
@@ -161,13 +166,13 @@ Historical experiment detail lives in
   from newer `xhot` pressure/logic rows. After the fixed-pressure fold, the
   only complete x86-faster rows above `10us` are timer-adjacent `numeric_ops`
   small/medium rows; the high-time measurable queue is now dominated by
-  s390x-owned `logical_chain_tail_add`/`logical_chain_tail_store` `xhot`.
+  s390x-owned `logical_chain_tail_store/xhot` after the tail-add fold.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
   source lane. The fixed-call pressure family is closed at current scale; the
-  next source lane should either target the low32 logical-chain `xhot`
-  high-time rows or use a larger numeric harness before chasing min/max
-  timer-floor deltas.
+  next source lane should either target the remaining low32
+  `logical_chain_tail_store/xhot` high-time row or use a larger numeric harness
+  before chasing min/max timer-floor deltas.
 
 ## Latest Validation
 
