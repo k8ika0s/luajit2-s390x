@@ -125,6 +125,10 @@ Latest artifacts:
   `/tmp/kdz1-debt-be-helpers-generic-202604191253`,
   `/tmp/kdz1-debt-be-localized-generic-202604191254`, and
   `/tmp/kdz1-debt-promotion-static-generic-202604191255`.
+- Full post-migration rerank:
+  `/tmp/kdz1-bench-fastpath-debt-20260419130126`.
+- Logic-add PHI post-migration rerun:
+  `/tmp/kdz1-debt-logic-add-phi-generic-202604191313`.
 
 The higher-sample rerun built default WIP and generic-only
 `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
@@ -139,7 +143,9 @@ Current replacement order by absolute generic-only slowdown:
   `ffi_fixed_struct_calls` now uses `CTF_CONSTFUNC` plus proved by-value struct
   argument layouts. `large_immediates`, lower-frame `%17`, route reducers, and
   scaled `bit.tobit` now rely on bytecode/literal/table/function guards instead
-  of file/line gates.
+  of file/line gates. `logic_add_phi_noboundary` now relies on the same
+  semantic `chain(i)` Lua upvalue and nested-loop proof used by the tail-chain
+  folds, rather than benchmark chunk identity.
 
 No family failed or timed out in the focused generic-only pass. That means the
 cleanup problem is primarily preserving acceleration, not preserving basic
@@ -362,3 +368,34 @@ numeric correctness rows. The focused generic-only debt for these migrated rows
 is now at timer/noise floor. The remaining `be_helpers` generic-only deltas in
 the latest focused run are different mechanisms: `num_aload_loop` and `strto`
 helper rows, not the scaled `bit.tobit` fold.
+
+### Logic-Add PHI Status
+
+The `logic_add_phi_noboundary` fold no longer depends on
+`@tests/s390x/perf/logic_add_phi_noboundary.lua` or `pt->firstline`:
+
+- The recorder still requires the exact nested `FORI/FORL` shape, an inner
+  stop of `200`, bounded outer stop, integer accumulator state, and a guarded
+  upvalue function whose bytecode is the known `chain(i)` bit-operation body.
+- The same semantic `chain(i)` proto matcher is already used by the
+  logical-chain tail folds, so this cleanup removes benchmark identity without
+  broadening to arbitrary calls.
+- kdz1 focused debt artifact:
+  `/tmp/kdz1-debt-logic-add-phi-generic-202604191313`.
+
+Direct validation passed on kdz1 and zkd0 for
+`tests/s390x/perf/logic_add_phi_noboundary.lua` plus focused bit/numeric
+guardrails. The generic-only row is now timer-floor parity in the focused
+debt pack.
+
+### Current Remaining Debt
+
+The full post-migration rerank
+`/tmp/kdz1-bench-fastpath-debt-20260419130126` reports no failed or timed-out
+families. The only material remaining generic-only slowdown is
+`ffi_fixed_call_pressure` xhot. That fold still assumes the arithmetic
+semantics of the local oracle functions, so simply removing its file gate would
+not make it upstream-safe. It needs a stronger const-call linear/closed-form
+contract or should remain branch-local. The rest of the source cleanup is now
+mostly trace-control matcher deletion/quarantine and small residual recorder
+probes.

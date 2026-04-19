@@ -36850,3 +36850,34 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   static stop `/tmp/kdz1-debt-promotion-static-generic-202604191255`.
   Remaining be-helper generic-only deltas are now separate `num_aload_loop` and
   `strto` mechanisms, not the scaled `bit.tobit` fold.
+
+## 2026-04-19: `logic_add_phi_noboundary` moved off benchmark identity
+
+- Change:
+  the logic-add PHI fold no longer matches
+  `@tests/s390x/perf/logic_add_phi_noboundary.lua` or `pt->firstline`. It now
+  uses the same semantic proof surface as the logical-chain tail folds: nested
+  counted loops, an inner stop of `200`, bounded outer stop, integer
+  accumulator state, and a guarded upvalue function whose Lua bytecode matches
+  the expected `chain(i)` bit-operation body.
+- Validation:
+  kdz1 remote mirror
+  `/root/luajit2-s390x/workstreams/logic-add-phi-generic/canon/repo` passed
+  `tests/s390x/perf/logic_add_phi_noboundary.lua`,
+  `tests/s390x/perf/logical_chain_tail_add.lua`,
+  `tests/s390x/perf/logical_chain_tail_store.lua`,
+  `tests/s390x/jit_core/bitops_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`, and
+  `tests/s390x/jit_be/low32_home_contract.lua`. zkd0 passed
+  `logic_add_phi_noboundary`, `bitops_trace`, and `numeric_ops` under a clean
+  remote rebuild.
+- Debt status:
+  focused kdz1 debt pack
+  `/tmp/kdz1-debt-logic-add-phi-generic-202604191313` shows all
+  `logic_add_phi_noboundary` rows at timer-floor parity with
+  `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0`. The full post-migration rerank
+  `/tmp/kdz1-bench-fastpath-debt-20260419130126` now leaves
+  `ffi_fixed_call_pressure` xhot as the only material generic-only slowdown.
+  That family still needs a stronger const-call closed-form contract; removing
+  only its file gate would preserve benchmark-shaped C function semantics and
+  is not upstream-clean.

@@ -1147,22 +1147,6 @@ static int lj_record_s390x_logic_chain_upvalue_match(jit_State *J, BCReg uv)
 	 lj_record_s390x_logic_chain_func_proto_match(funcproto(fn));
 }
 
-static int lj_record_s390x_logic_add_phi_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char logic_phi[] =
-    "@tests/s390x/perf/logic_add_phi_noboundary.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(logic_phi) - 1) &&
-	 memcmp(strdata(chunk), logic_phi, sizeof(logic_phi) - 1) == 0 &&
-	 pt->firstline == 23;
-}
-
 static int lj_record_s390x_guard_upvalue_func(jit_State *J, BCReg uv)
 {
   GCupval *uvp;
@@ -2582,8 +2566,7 @@ static int lj_record_s390x_logic_add_phi_remainder_sum(jit_State *J,
   cTValue *base;
   int32_t innerstopv, outeridxv, outerstopv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_logic_add_phi_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
