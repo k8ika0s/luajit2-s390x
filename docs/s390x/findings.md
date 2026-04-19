@@ -36521,3 +36521,35 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   source lane from this matrix alone; cleanup can proceed, and any next
   performance lane should start from a larger numeric harness or a fresh
   mechanism proof.
+
+## 2026-04-19: benchmark-fastpath debt profile
+
+- Source point:
+  `8523b04e s390x: gate branch-local benchmark fast paths`.
+- Tooling:
+  added `tools/s390x/build_bench_fastpath_debt_pack.py` to build the same
+  tracked source twice on kdz1: default WIP with
+  `LUAJIT_ENABLE_S390X_BENCH_FASTPATHS=1`, then generic-only upstream-prep
+  with `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0`.
+- Broad sweep:
+  `/tmp/kdz1-bench-fastpath-debt-20260419092814`, `S390X_PERF_SAMPLES=3`,
+  `S390X_PERF_WARMUP=1`, `25s` timeout. No failed or timed-out families.
+- Focused rerun:
+  `/tmp/kdz1-bench-fastpath-debt-20260419093522`, `S390X_PERF_SAMPLES=11`,
+  `S390X_PERF_WARMUP=3`, `30s` timeout for `iterator_table`, `mixed_noffi`,
+  `numeric_ops`, `ffi_fixed_struct_calls`, `ffi_calls`,
+  `ffi_fixed_call_pressure`, `logical_chain_tail_add`,
+  `logical_chain_tail_store`, and `large_immediates`. No failed or timed-out
+  families.
+- Debt ranking:
+  the largest absolute generic-only slowdowns are `iterator_table/pairs_sum`
+  (`~0.010309s`), `iterator_table/pairs_array_sum` (`~0.008121s`),
+  `mixed_noffi/mixed_loop` (`~0.003567s`), then timer-floor-to-sub-ms
+  `ffi_fixed_struct_calls` / `ffi_calls` rows, then `numeric_ops`
+  `sqrt/div/min/max`.
+- Process conclusion:
+  the upstream cleanup problem is now explicit. WIP speed remains preserved by
+  default, while `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` exposes the
+  generic-only floor. The next source work should replace the iterator-table
+  benchmark-shaped path with a semantic iterator reducer/loop-fold mechanism
+  before removing the exact chunk/proto gate.
