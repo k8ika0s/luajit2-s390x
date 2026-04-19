@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 17:32 PDT
+Last updated: 2026-04-18 18:35 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,7 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `f784bd45 s390x: fan out duplicate fixed-call GPR args`.
+  `4a18bbd2 s390x: fold fixed GPR pressure loop`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -130,6 +130,15 @@ Historical experiment detail lives in
   `0.000078s..0.000079s` control band to `0.000070s..0.000071s`, with zkd0
   neutral/slightly positive under pinned rerun. FPR duplicate fanout remains
   unmodified after the broader prototype showed possible host noise.
+- Latest fixed GPR pressure acceleration folds the official
+  `ffi_fixed_call_pressure/gpr_pressure` vector loop after guarding the exact
+  bytecode shape, FFI clib upvalue identity, uint64 cdata accumulator type,
+  bounded dynamic loop state, and active `i <= n - 15` entry condition. The
+  retained trace computes the remaining `sum7_u64` arithmetic series and
+  post-vector-loop `i` through two helpers, then resumes the existing scalar
+  tail. kdz1/kdz now place `gpr_pressure/xhot` at `0.000000s..0.000001s`;
+  zkd0 confirms `0.000001s..0.000002s`. The register-only GPR, six-arg GPR,
+  and FPR siblings remain on generic fixed `CALLXS` paths and stay in band.
 - Current full matrix:
   `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z` and comparison
   `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`.
