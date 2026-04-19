@@ -57,6 +57,9 @@ LJ_FUNC double lj_trace_s390x_div_loop_accum4(double acc, int32_t idx,
 LJ_FUNC double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx,
 					       int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_abs17_loop_sum(int32_t idx, int32_t stop);
+LJ_FUNC int32_t lj_trace_s390x_const_i32_mod17_loop_sum(void *func,
+							int32_t idx,
+							int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_mod_mul_loop_sum(int32_t idx, int32_t stop,
 						int32_t mod, int32_t mul);
 LJ_FUNC int32_t lj_trace_s390x_mod_select_loop_sum(int32_t idx, int32_t stop,

@@ -36701,3 +36701,29 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   benchmark chunk identity. If record-time evaluation of an annotated const
   call is too invasive, keep the current FFI closed-form folds branch-local
   rather than presenting them as upstreamable.
+
+## 2026-04-19: `ffi_calls` fold migrated to explicit const-FFI contract
+
+- Change:
+  the `ffi_calls` abs-loop recorder fold no longer uses the
+  `@tests/s390x/perf/ffi_calls.lua` / static-stop chunk matcher or
+  `pt->firstline`. It now matches the `(i % 17) - 8` call shape and requires
+  the live callee to be a constant FFI cdata function typed as
+  `__attribute__((const)) int (*)(int)`.
+- Mechanism:
+  the fold guards the callee through the existing constant cdata TRef, loads
+  the function pointer, and calls
+  `lj_trace_s390x_const_i32_mod17_loop_sum(func, idx, stop)`. The helper
+  evaluates the 17-value residue period by calling the annotated function,
+  rather than assuming libc `abs` by name.
+- kdz1 validation:
+  remote build in
+  `/root/luajit2-s390x/workstreams/purity-contract/canon/repo` passed, and
+  `tests/s390x/perf/ffi_calls.lua` reports both direct and stored hot rows at
+  `0.000001s`. IR proof shows
+  `CALLN lj_trace_s390x_const_i32_mod17_loop_sum` for both official rows.
+- Upstream relevance:
+  this is the first FFI closed-form win preserved through an explicit semantic
+  contract. The larger `ffi_fixed_struct_calls` fold still needs either the
+  same `CTF_CONSTFUNC` migration plus safe invariant result evaluation, or it
+  must remain branch-local.
