@@ -1088,74 +1088,6 @@ static int lj_record_s390x_route_reducer_proto_match(GCproto *pt)
 	 (pt->firstline == 9 || pt->firstline == 23 || pt->firstline == 41);
 }
 
-static int lj_record_s390x_large_immediate_add_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char large_immediates[] =
-    "@tests/s390x/perf/large_immediates.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(large_immediates) - 1) &&
-	 memcmp(strdata(chunk), large_immediates,
-		sizeof(large_immediates) - 1) == 0 &&
-	 (pt->firstline == 13 || pt->firstline == 21);
-}
-
-static int lj_record_s390x_large_immediate_sub_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char large_immediates[] =
-    "@tests/s390x/perf/large_immediates.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(large_immediates) - 1) &&
-	 memcmp(strdata(chunk), large_immediates,
-		sizeof(large_immediates) - 1) == 0 &&
-	 pt->firstline == 29;
-}
-
-static int lj_record_s390x_large_immediate_cmp_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char large_immediates[] =
-    "@tests/s390x/perf/large_immediates.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(large_immediates) - 1) &&
-	 memcmp(strdata(chunk), large_immediates,
-		sizeof(large_immediates) - 1) == 0 &&
-	 pt->firstline == 37;
-}
-
-static int lj_record_s390x_large_immediate_aref_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char large_immediates[] =
-    "@tests/s390x/perf/large_immediates.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(large_immediates) - 1) &&
-	 memcmp(strdata(chunk), large_immediates,
-		sizeof(large_immediates) - 1) == 0 &&
-	 (pt->firstline == 47 || pt->firstline == 55);
-}
-
 static int lj_record_s390x_logic_chain_func_proto_match(GCproto *pt)
 {
   const BCIns *bc;
@@ -2155,8 +2087,7 @@ static int lj_record_s390x_large_immediate_add_sum(jit_State *J,
   cTValue *base;
   int32_t step, stopv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_large_immediate_add_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2221,8 +2152,7 @@ static int lj_record_s390x_large_immediate_sub_sum(jit_State *J,
   cTValue *base;
   int32_t step, stopv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_large_immediate_sub_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2287,8 +2217,7 @@ static int lj_record_s390x_large_immediate_cmp_sum(jit_State *J,
   cTValue *base;
   int32_t k, one, stopv, endv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_large_immediate_cmp_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2371,8 +2300,7 @@ static int lj_record_s390x_large_immediate_aref_sum(jit_State *J,
   GCtab *tabv;
   int32_t key, step, stopv;
 
-  if (!lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_large_immediate_aref_proto_match(J->pt) ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
