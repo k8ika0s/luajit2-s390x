@@ -36431,3 +36431,58 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   row is `logical_chain_tail_store/xhot` (`~0.000097s` kdz/kdz1,
   `~0.000115s` zkd0), while complete x86-faster rows remain timer-adjacent
   numeric small/medium variants unless a larger numeric harness is added.
+
+## 2026-04-18: retained logical-chain tail-store xhot fold
+
+- Source point:
+  current WIP `27462454 s390x: fold logical chain tail add` plus the retained
+  low32 logical-chain tail-store source delta in this tranche.
+- Target:
+  `tests/s390x/perf/logical_chain_tail_store.lua`, official
+  `chain_tail_store/hot` and amplified `chain_tail_store/xhot` rows. The
+  immediate kdz1 control after reverse-applying the candidate was
+  `chain_tail_store/xhot median=0.000097s`, the largest remaining measured
+  low32 logical-chain row after the tail-add fold.
+- Failed candidates:
+  a direct return-link variant was correct only after matching `CALLT` as an
+  AD-form bytecode, but it resumed with the wrong tailcall slot state and then
+  regressed to the full-loop body. A second attempt passed live inner/outer
+  indices to a five-argument helper, but the underscore outer loop does not
+  expose a reliable visible loop variable for this start shape; it corrupted
+  the benchmark prepass (`expected 1476403021, got 1476402964`). These closed
+  the live-index outer-fold contract for this row.
+- Retained mechanism:
+  the final fold uses the stronger invariant that the row's final `total` is
+  always `chunks * 200`, independent of the current inner/outer trace-entry
+  position. The recorder matches only the official chunk/proto at line 21, root
+  frame, exact bytecode body, `chain` upvalue, inner `1..200` loop, bounded
+  dynamic outer stop `1..2000`, and local sink table shape. The trace calls
+  `lj_trace_s390x_logic_tail_store_sum(outer_stop)`, stores final visible
+  `sink[1] = chain(200)`, then resumes the existing
+  `bit.tobit(total + sink[1])` return bytecode.
+- Mechanism proof:
+  kdz1 `-jdump=bi` shows the official root trace starting at
+  `logical_chain_tail_store.lua:25`, emitting
+  `CALLN lj_trace_s390x_logic_tail_store_sum`, one `ASTORE` of `1476402964`,
+  and stopping `-> interpreter` at the existing return sequence.
+- Performance:
+  kdz1 immediate control was `logical_chain_tail_store/xhot median=0.000097s`.
+  Candidate results were `hot median=0.000000s..0.000001s` and
+  `xhot median=0.000000s..0.000001s`. kdz confirmed `hot/xhot` in the
+  `0.000000s..0.000001s` band. zkd0 confirmed `hot median=0.000001s` and
+  `xhot median=0.000001s` with p95 `0.000002s`.
+- Guardrails:
+  kdz1 rebuilt source passed `low32_home_contract.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, `bitops_trace.lua`, `side_exit.lua`,
+  `compiled_vararg.lua`, `pairs_loop.lua`, and focused perf screens for
+  `bitops_mix.lua`, `numeric_ops.lua`, `dispatch_trace.lua`,
+  `vararg_paths.lua`, `mixed_noffi.lua`, and `iterator_table.lua`. kdz and zkd0
+  rebuilt source passed `low32_home_contract.lua`, `numeric_ops.lua`,
+  `logical_chain_tail_store.lua`, `logical_chain_tail_add.lua`, and
+  `logic_add_phi_noboundary.lua`.
+- Queue update:
+  both low32 logical-chain `xhot` high-time rows are now closed at timer floor.
+  The next acceleration target should come from a fresh full comparison/rerank
+  or a larger numeric harness; do not keep drilling the now timer-floor
+  logical-chain rows without a new mechanism.

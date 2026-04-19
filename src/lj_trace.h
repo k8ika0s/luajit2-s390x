@@ -108,6 +108,7 @@ LJ_FUNC int32_t lj_trace_s390x_logic_tail_add_sum(int32_t acc,
 						  int32_t inner_stop,
 						  int32_t outer_idx,
 						  int32_t outer_stop);
+LJ_FUNC int32_t lj_trace_s390x_logic_tail_store_sum(int32_t outer_stop);
 LJ_FUNC double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx,
 						   int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc,

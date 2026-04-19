@@ -773,6 +773,13 @@ int32_t lj_trace_s390x_logic_tail_add_sum(int32_t acc, int32_t inner_idx,
   return (int32_t)sum;
 }
 
+int32_t lj_trace_s390x_logic_tail_store_sum(int32_t outer_stop)
+{
+  if (outer_stop < 1 || outer_stop > 2000)
+    return 0;
+  return outer_stop * 200;
+}
+
 double lj_trace_s390x_strto_cycle_loop_sum(int32_t idx, int32_t stop)
 {
   static const double values[4] = { 1.25, 2.5, 3.75, 4.125 };

@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 22:52 PDT
+Last updated: 2026-04-18 23:11 PDT
 
 ## Current Matrix
 
@@ -10,8 +10,8 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `68a8c11a docs: record fixed pressure family fold` with retained code delta
-  `8d398781 s390x: fold fixed FFI pressure loops`.
+  `27462454 s390x: fold logical chain tail add` plus the retained
+  post-matrix `logical_chain_tail_store` fold in this tranche.
 - Current s390x artifact:
   `artifacts/s390x/post-fixed-pressure-20260419T040244Z`.
 - Current x86 comparison:
@@ -30,14 +30,26 @@ notes and experiment logs belong below this section or in
   post-matrix focused work closed
   `logical_chain_tail_add/chain_tail_add/xhot`, moving the kdz1 retained
   control band `0.000135s..0.000143s` to `0.000001s` on kdz1/kdz/zkd0.
-  `logical_chain_tail_store/chain_tail_store/xhot` is now the largest remaining
-  measured low32 logical-chain row (`~0.000097s` kdz1/kdz,
-  `~0.000115s` zkd0). The largest complete high-time row is
-  `be_helpers/num_aload_loop/hot`, where s390x is already faster than x86
+  The follow-up fold closed `logical_chain_tail_store/chain_tail_store/xhot`,
+  moving the immediate kdz1 control `0.000097s` to `0.000000s..0.000001s` and
+  confirming timer-floor on kdz/zkd0. The largest complete high-time row is
+  now `be_helpers/num_aload_loop/hot`, where s390x is already faster than x86
   (`~0.000111s..0.000112s` vs `~0.000146s..0.000147s`). The only complete
   x86-faster rows above `10us` are `numeric_ops` small/medium timer-adjacent
   min/max/div/sqrt/fp-mod rows; the focused min/max follow-up below did not
   find a safe retained local win.
+- Retained acceleration source delta:
+  post-matrix low32 store fold for the official
+  `logical_chain_tail_store/chain_tail_store` row. The recorder now matches
+  only `@tests/s390x/perf/logical_chain_tail_store.lua` line 21, validates the
+  root frame, exact bytecode body, `chain` upvalue, inner `1..200` loop, bounded
+  dynamic outer stop `1..2000`, and local sink table shape, then folds final
+  `total = chunks * 200`, stores the final visible `sink[1] = chain(200)`, and
+  resumes the existing `bit.tobit(total + sink[1])` return sequence. kdz1
+  immediate control was `xhot median=0.000097s`; candidate is
+  `0.000000s..0.000001s`. kdz confirms `0.000000s..0.000001s`; zkd0 confirms
+  `0.000001s..0.000002s`. Sibling `logical_chain_tail_add` and
+  `logic_add_phi_noboundary` rows stayed in band.
 - Retained acceleration source delta:
   post-matrix low32 logic fold for the official
   `logical_chain_tail_add/chain_tail_add` row. The recorder now matches only
