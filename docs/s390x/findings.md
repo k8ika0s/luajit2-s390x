@@ -37173,3 +37173,49 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1` and
   `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`, both still classified as unsafe
   to remove without a real iterator restart/control-state mechanism.
+
+## 2026-04-19: iterator trace-control rails retired after semantic-fold proof
+
+- Change:
+  removed the remaining iterator trace-control route-arounds from `src/lj_trace.c`:
+  the exact `iterator_table.lua` chunk/proto matcher, the ITERN/ITERL
+  trace-shape blacklists, the exact iterator proto-NOJIT path, the hash/array
+  hotcount parks, the post-proto ITERN no-hot dispatch override, and the broad
+  iterator root blacklist fallback.
+- Mechanism:
+  the retained fast path is now the semantic iterator loop-fold reachability
+  check plus the recorder fold. It recognizes the bytecode/control-state
+  `pairs()` reducer shape and guards table/metatable/layout, loop bounds, and
+  accumulator range; it no longer needs exact source chunks, line ranges, IR
+  counts, snapshot counts, or retained opt-in env gates.
+- kdz1 validation:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/iterator-terminal/canon/repo`.
+  `jit_loops/*.lua` passed, including `pairs_loop.lua`. Focused guardrails
+  passed `compiled_vararg.lua`, `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `iterator_table.lua`, `mixed_noffi.lua`, `vararg_paths.lua`, and
+  `dispatch_trace.lua`.
+- zkd0 validation:
+  clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/iterator-terminal/canon/repo`.
+  `jit_loops/*.lua` passed, and the same focused iterator/mixed/vararg/dispatch
+  perf guardrails stayed clean.
+- Performance:
+  kdz1 `iterator_table/pairs_sum/hot` and `pairs_array_sum/hot` stayed at
+  `0.000000s..0.000001s`; zkd0 confirmed `0.000000s..0.000001s`.
+  `mixed_noffi/mixed_loop/hot` stayed `0.000001s` on kdz1 and `0.000002s` on
+  zkd0.
+- Full retained matrix:
+  `/tmp/kdz1-post-iterator-rail-retire-202604191545/summary.md` completed with
+  no JIT-on family red versus `-joff`; iterator, mixed, numeric, FFI, string,
+  reducer, and dispatch rows remained accelerated under the now-empty retained
+  env.
+- Cleanup result:
+  `tools/s390x/audit_benchmark_fastpaths.py` is down to `8` findings, with no
+  iterator chunk/line/trace-shape entries left. The retained perf env contract
+  is empty: `tools/s390x/build_guard_retirement_ledger.py` reports gate count
+  `0`, and `build_env_surface_audit.py` reports retained perf env count `0`.
+- Boundary:
+  disabling `LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` still exposes the
+  old slow generic iterator trace floor (`~0.07s` hot rows). That is now a
+  diagnostic mechanism-debt path, not a retained performance dependency.

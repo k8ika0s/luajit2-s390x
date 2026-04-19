@@ -530,18 +530,57 @@ Validation summary:
   `/tmp/kdz1-trace-cleanup6-iterator-post-2026041915`.
 
 Both kdz1 and zkd0 passed clean GCC builds and focused validation for each
-affected family. The benchmark-shaped source audit is now at `28` findings.
-The remaining trace-control debt is not all removable as source hygiene:
-iterator safety rails still protect known unsafe restart paths, while
-trace-save fingerprints and the residual exact iterator hooks need separate
-classification before deletion or migration.
+affected family. The next iterator tranche removed the remaining iterator
+trace-control rails after current opt-out validation proved the semantic
+iterator fold carries the official rows and `pairs_loop.lua` no longer needs the
+fallback blacklists.
 
 Post-cleanup retained matrix:
 
 - `/tmp/kdz1-trace-cleanup-final-retained-2026041915`
 - No retained-env JIT-on family is red versus `-joff`.
-- The retained env ledger now reports only two gates:
-  `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1` and
-  `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`.
-- Remaining `lj_trace.c` source debt is therefore primarily live iterator
-  safety/mechanism debt, not stale exact-family perf hooks.
+- The retained env ledger now reports `0` gates after the iterator rail
+  retirement.
+- Remaining `lj_trace.c` source debt is trace-save/loop-desc fingerprint
+  cleanup, not iterator benchmark chunks or retained env gates.
+
+### Iterator Rail Retirement
+
+The iterator-specific trace-control rail family has now been removed from
+source:
+
+- exact `@tests/s390x/perf/iterator_table.lua` chunk/proto matcher
+- exact ITERN/ITERL trace-shape blacklist matchers
+- exact iterator proto-NOJIT path
+- hash/array ITERN hotcount parks
+- post-proto ITERN no-hot dispatch override
+- broad iterator root blacklist fallback
+
+Current validation after this cut:
+
+- kdz1 clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/iterator-terminal/canon/repo`.
+- zkd0 clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/iterator-terminal/canon/repo`.
+- kdz1 and zkd0 both passed `jit_loops/*.lua`, including `pairs_loop.lua`.
+- kdz1 and zkd0 focused perf guardrails passed `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, and `dispatch_trace.lua`.
+- kdz1 `iterator_table` hot rows stayed at `0.000000s..0.000001s`; zkd0
+  confirmed `0.000000s..0.000001s`.
+- kdz1 `mixed_noffi/mixed_loop/hot` stayed `0.000001s`; zkd0 confirmed
+  `0.000002s`.
+- Full retained kdz1 rerank
+  `/tmp/kdz1-post-iterator-rail-retire-202604191545/summary.md` completed with
+  no JIT-on family red versus `-joff`.
+
+Current cleanup metrics:
+
+- `tools/s390x/audit_benchmark_fastpaths.py`: `8` findings.
+- `tools/s390x/build_guard_retirement_ledger.py`: gate count `0`.
+- `tools/s390x/build_env_surface_audit.py`: retained perf env count `0`.
+
+The only important iterator caveat is diagnostic: if
+`LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` is set, the old generic
+iterator trace floor is still slow (`~0.07s` hot rows). That path is no longer
+part of the retained performance contract and should be treated as future
+mechanism debt, not a retained env dependency.
