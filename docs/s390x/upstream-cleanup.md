@@ -99,3 +99,45 @@ removed or rewritten, not merely disabled.
 4. Re-run correctness first, then a perf comparison. Expect many headline
    benchmark numbers to fall back until generic replacements are built.
 5. Rebuild performance from generic mechanisms only.
+
+## Current Debt Ranking
+
+Use:
+
+```sh
+python3 tools/s390x/build_bench_fastpath_debt_pack.py --host kdz1
+```
+
+Latest artifacts:
+
+- Broad sweep: `/tmp/kdz1-bench-fastpath-debt-20260419092814`.
+- Focused higher-sample rerun:
+  `/tmp/kdz1-bench-fastpath-debt-20260419093522`.
+
+The higher-sample rerun built default WIP and generic-only
+`-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
+and ran the top debt families with `S390X_PERF_SAMPLES=11`,
+`S390X_PERF_WARMUP=3`, and a `30s` per-family timeout.
+
+Current replacement order by absolute generic-only slowdown:
+
+- `iterator_table/pairs_sum` and `pairs_array_sum`: largest retained debt.
+  Default WIP is at timer floor, while generic-only returns to about
+  `0.010309s` and `0.008121s` on kdz1. This should become a semantic iterator
+  reducer/loop-fold mechanism, not an exact chunk/proto gate.
+- `mixed_noffi/mixed_loop`: default WIP is about `0.000001s`; generic-only is
+  about `0.003567s`. This is the next highest absolute retained debt after the
+  iterator family.
+- `ffi_fixed_struct_calls` and `ffi_calls`: many hot rows are timer-floor under
+  WIP and `0.00015s..0.00051s` generic-only. These need generic FFI call/struct
+  lowering or benchmark-independent call-shape batching before upstream.
+- `numeric_ops` `sqrt/div/min/max`: default WIP is `0.000012s..0.000015s`;
+  generic-only is `0.000081s..0.000227s`. These are already closer to generic
+  backend/IR mechanisms and should be easier to upstream than chunk-exact
+  trace-control gates.
+- `logical_chain_tail_*` and `large_immediates`: smaller absolute debts remain,
+  mostly timer-floor default rows against small generic-only runtimes.
+
+No family failed or timed out in the focused generic-only pass. That means the
+cleanup problem is primarily preserving acceleration, not preserving basic
+correctness.
