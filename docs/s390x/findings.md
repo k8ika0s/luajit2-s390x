@@ -36676,3 +36676,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   remaining large source-cleanup debt is FFI call/struct closed-form folding,
   but that cannot be made upstream-safe by bytecode matching alone because the
   current folds remove arbitrary C calls without a purity contract.
+
+## 2026-04-19: FFI purity metadata contract added for upstream cleanup
+
+- Change:
+  the FFI C parser now preserves GCC-style function purity declarations on
+  function ctypes. `__attribute__((const))` records `CTF_CONSTFUNC`, and
+  `__attribute__((pure))` records `CTF_PUREFUNC`.
+- Contract:
+  this is metadata only; it does not yet fold or remove any `CALLXS`.
+  `CTF_CONSTFUNC` is the required starting point for a future closed-form FFI
+  loop fold because it promises no side effects and no mutable memory reads.
+  `CTF_PUREFUNC` may be useful for future CSE/hoisting, but it is not enough
+  to erase a call from a loop without additional alias/order proof.
+- Upstream relevance:
+  the current `ffi_fixed_struct_calls` and `ffi_calls` fast paths still carry
+  benchmark-shaped assumptions. The new ctype metadata is the replacement
+  surface: a valid migration must guard callee identity and invariant
+  arguments, derive the per-iteration result from the real annotated function
+  semantics, preserve loop/overflow guards, and fall back to normal FFI
+  recording when the contract is absent.
+- Next step:
+  migrate one FFI fold to consume `CTF_CONSTFUNC` instead of `pt->firstline` or
+  benchmark chunk identity. If record-time evaluation of an annotated const
+  call is too invasive, keep the current FFI closed-form folds branch-local
+  rather than presenting them as upstreamable.

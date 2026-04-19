@@ -207,3 +207,43 @@ The remaining high-value benchmark-fastpath debt is now FFI call/struct folds.
 Those are not safe to genericize by pattern alone because they erase arbitrary
 C calls. They need either a real C-call purity contract or must remain
 branch-local.
+
+### FFI Purity Contract
+
+The first upstream-safe replacement surface for the FFI call/struct folds is
+now explicit function purity metadata in the FFI ctype layer:
+
+- `__attribute__((const))` on an FFI function declaration records
+  `CTF_CONSTFUNC`: the function is deterministic, has no observable side
+  effects, and does not read mutable memory other than its scalar/value
+  arguments.
+- `__attribute__((pure))` records `CTF_PUREFUNC`: the function has no
+  observable side effects, but may read memory. This is suitable for future
+  CSE/hoisting only under stronger alias/call-order checks; it is not enough
+  by itself to erase a C call from a loop.
+- Unknown attributes continue to be skipped as before.
+
+This metadata is only a contract surface. It intentionally does not fold or
+remove any `CALLXS` yet. A recorder optimization that wants to preserve the
+current FFI benchmark acceleration must prove all of the following before it
+can replace a repeated C call with a closed form:
+
+- The callee is a guarded FFI cdata function whose `CT_FUNC` type carries
+  `CTF_CONSTFUNC`. `CTF_PUREFUNC` is not sufficient for closed-form erasure.
+- All call arguments are trace-invariant and have no volatile or pointer
+  memory dependency that could change inside the loop.
+- The folded return value is obtained from the real function semantics, not
+  from benchmark file names, `pt->firstline`, line-number tables, or current
+  IR counts. A valid implementation may evaluate a `const` call once at
+  record time only after the no-side-effect contract and argument invariants
+  are proven.
+- The generated loop still guards the callee identity, argument identity/value,
+  loop bounds, and accumulator overflow/number semantics.
+- The fold must bail out to normal FFI recording if any part of the contract is
+  missing.
+
+This design keeps `ffi_calls` and `ffi_fixed_struct_calls` performance
+recoverable without treating repository benchmarks as language semantics. The
+next implementation step is to migrate one current FFI fold to consume
+`CTF_CONSTFUNC` and either compute the invariant call result through a safe
+record-time call path or fall back to normal `CALLXS`.
