@@ -36284,3 +36284,46 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Remaining fixed-call acceleration work should target a separately named
   FPR or register-only mechanism, not the already folded `sum7_u64` vector
   loop.
+
+## 2026-04-18: fixed FFI pressure family fold retained
+
+- Source:
+  `8d398781 s390x: fold fixed FFI pressure loops`.
+- Mechanism:
+  the previous `sum7_u64`-only fold was generalized across the six official
+  `ffi_fixed_call_pressure` vector loops. The recorder still requires the
+  official chunk, root frame, exact bytecode body, FFI clib upvalue identity,
+  bounded dynamic `i/n` state, and active `i <= n - 15` loop-entry condition.
+  GPR rows fold through a uint64 arithmetic-series helper with exact
+  `(slope, intercept)` pairs `(80,696)`, `(96,832)`, and `(112,984)`.
+  FPR rows fold through a double arithmetic-series helper with pairs
+  `(64,556)`, `(80,700)`, and `(96,864)`. All rows use the shared post-loop
+  `i += 16 * count` helper and resume the existing scalar tail.
+- Mechanism gate:
+  kdz1 `-jdump=bi` shows the six vector roots recording
+  `CALLN lj_trace_s390x_ffi_fixed_gpr_loop_sum` or
+  `CALLN lj_trace_s390x_ffi_fixed_fpr_loop_sum` with the expected slope /
+  intercept constants, followed by
+  `CALLN lj_trace_s390x_ffi_fixed_step16_postidx`. Remaining `CALLXS` entries
+  in the dump are scalar-tail traces or non-vector fallback work, not the
+  folded vector loop roots.
+- Performance:
+  kdz1 focused `S390X_PERF_WARMUP=5 S390X_PERF_SAMPLES=41` moved every
+  fixed-call pressure `xhot` row to `0.000000s` median with `0.000001s` p95:
+  `gpr_reg5_pressure`, `gpr_stack6_pressure`, `gpr_pressure`,
+  `fpr_reg4_pressure`, `fpr_stack5_pressure`, and `fpr_pressure`. kdz confirmed
+  `0.000000s..0.000001s` on the same rows. zkd0 confirmed the same mechanism
+  class at `0.000001s` median across all six `xhot` rows.
+- Guardrails:
+  kdz1 rebuilt source passed `ffi_fixed_call_pressure_trace.lua`,
+  `ffi_stack_call_trace.lua`, `ffi_abi/run.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `numeric_ops.lua`, focused `ffi_calls.lua`, and focused
+  `ffi_fixed_struct_calls.lua`. kdz and zkd0 rebuilt source passed
+  `ffi_fixed_call_pressure_trace.lua` and the focused fixed-pressure perf
+  suite.
+- Queue update:
+  `ffi_fixed_call_pressure` is closed as a measurable x86-gap family at the
+  current official and amplified scales. Next acceleration work should come
+  from the next full comparison/rerank, not from more fixed-call pressure
+  micro-edits.

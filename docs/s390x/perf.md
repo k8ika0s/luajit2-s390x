@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-18 18:35 PDT
+Last updated: 2026-04-18 20:14 PDT
 
 ## Current Matrix
 
@@ -10,7 +10,7 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `4a18bbd2 s390x: fold fixed GPR pressure loop`.
+  `8d398781 s390x: fold fixed FFI pressure loops`.
 - Current s390x artifact:
   `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z`.
 - Current x86 comparison:
@@ -31,11 +31,20 @@ notes and experiment logs belong below this section or in
   rows in the carried comparison; `be_helpers/num_aload_loop/hot` is the
   largest complete high-time row and s390x is already faster than x86
   (`~0.000111s` vs `~0.000146s`). The remaining complete x86-faster rows are
-  timer-floor scale, with the former amplified
-  `ffi_fixed_call_pressure/gpr_pressure/xhot` row now folded to
-  `0.000000s..0.000001s` on kdz1/kdz and `0.000001s` on zkd0. Further
-  fixed-call work needs a fresh FPR/register-only payer or larger harness, not
-  another broad regression repair.
+  timer-floor scale, with all amplified `ffi_fixed_call_pressure/xhot` rows
+  now folded to `0.000000s..0.000001s` on kdz1/kdz and `0.000001s` on zkd0.
+  Further fixed-call work needs a fresh non-pressure payer or larger harness,
+  not another broad regression repair.
+- Retained acceleration source delta:
+  `8d398781 s390x: fold fixed FFI pressure loops`. The recorder now folds all
+  six official fixed-call pressure vector loops after guarding the exact
+  benchmark chunk, root frame, bytecode body, FFI clib upvalue identity,
+  bounded dynamic `i/n` state, and active `i <= n - 15` loop condition. GPR
+  rows use a uint64 arithmetic-series helper, FPR rows use a double helper, and
+  all rows update the post-vector-loop `i` through the shared step-16 helper
+  before resuming the existing scalar tail. kdz1/kdz place every fixed-pressure
+  `xhot` row in the `0.000000s..0.000001s` band; zkd0 confirms `0.000001s`
+  medians across the family.
 - Retained acceleration source delta:
   `4a18bbd2 s390x: fold fixed GPR pressure loop`. The recorder now matches
   only the official fixed-call `gpr_pressure` vector loop, guards the FFI clib
