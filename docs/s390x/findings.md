@@ -36486,3 +36486,38 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   The next acceleration target should come from a fresh full comparison/rerank
   or a larger numeric harness; do not keep drilling the now timer-floor
   logical-chain rows without a new mechanism.
+
+## 2026-04-19: full comparison after tail-store fold
+
+- Source point:
+  `71cf0b88 s390x: fold logical chain tail store`.
+- s390x artifact:
+  `artifacts/s390x/post-tail-store-fullcomp-20260419T160100Z`.
+- Cross-arch comparison:
+  `artifacts/s390x/compare-post-tail-store-kdz1-ka0s01-20260419T160100Z`
+  against `artifacts/s390x/x86-ka0s01-20260418T203616Z`, using
+  `artifacts/s390x/compare-post-fixed-pressure-kdz1-ka0s01-20260419T040244Z`
+  as the previous comparison-format reference.
+- Run health:
+  the full kdz1 perf run completed with `800` benchmark records, `174`
+  s390x JIT-on/off comparisons, and `0` failures. The comparison doc has
+  `400` rows, `342` complete s390x/x86 rows, `0` missing s390x rows, `58`
+  missing x86 rows, and `12` x86 failures from the carried x86 artifact.
+- Regression read:
+  no s390x JIT-on row is slower than `-joff`. The regression queue is empty
+  for this matrix.
+- Acceleration read:
+  the matrix now includes the retained low32 logical-chain xhot folds.
+  `logical_chain_tail_add/chain_tail_add/xhot` is `0.000001s`, and
+  `logical_chain_tail_store/chain_tail_store/xhot` is
+  `0.000000s..0.000001s`. The previous high-time logical-chain rows are
+  therefore closed at matrix scale.
+- Remaining ranking:
+  the largest complete s390x JIT-on rows are `be_helpers/num_aload_loop/hot`
+  (`0.000111s`) and `mixed_ffi/mixed_ffi_loop/hot` (`0.000090s`), but both
+  are already faster than x86 JIT-on. The only complete x86-faster rows above
+  `10us` are timer-adjacent `numeric_ops` small/medium min/max/div/sqrt/fp-mod
+  variants, plus a tiny fixed-call pressure small row. Do not open another
+  source lane from this matrix alone; cleanup can proceed, and any next
+  performance lane should start from a larger numeric harness or a fresh
+  mechanism proof.
