@@ -121,9 +121,6 @@ and ran the top debt families with `S390X_PERF_SAMPLES=11`,
 
 Current replacement order by absolute generic-only slowdown:
 
-- `mixed_noffi/mixed_loop`: default WIP is about `0.000001s`; generic-only is
-  about `0.003567s`. This is the next highest absolute retained debt after the
-  iterator family.
 - `ffi_fixed_struct_calls` and `ffi_calls`: many hot rows are timer-floor under
   WIP and `0.00015s..0.00051s` generic-only. These need generic FFI call/struct
   lowering or benchmark-independent call-shape batching before upstream.
@@ -157,3 +154,23 @@ This does not remove all benchmark-shaped iterator source yet; the old exact
 helpers remain for branch compatibility until the broader trace-control cleanup
 can delete dead code safely. It does replace the official iterator-table
 performance dependency with a generic mechanism.
+
+### Mixed No-FFI Status
+
+The next retained debt item is also converted from benchmark identity to a
+semantic loop-fold shape:
+
+- Source change: the `mixed_noffi` recorder fold no longer requires
+  `@tests/s390x/perf/mixed_noffi.lua`. The trace stop route now recognizes the
+  mixed loop by bytecode/control shape for the `bit.band`, `select`, `ipairs`,
+  `pairs`, and outer `FORL` unit before the broad iterator fallback can
+  proto-park it.
+- kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419101025`.
+- zkd0 artifact: `/tmp/zkd0-bench-fastpath-debt-20260419101228`.
+- Result: `mixed_noffi/mixed_loop` stays at timer floor with
+  `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` on both hosts.
+
+This retires the second largest benchmark-fastpath debt from the generic-only
+profile. The remaining high-value cleanup targets are now the smaller FFI
+call/struct and numeric-op debts, plus removing dead exact trace-control
+helpers once their semantic replacements are fully in place.

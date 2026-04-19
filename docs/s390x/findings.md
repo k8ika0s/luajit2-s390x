@@ -36585,3 +36585,39 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   retained-debt target is `mixed_noffi/mixed_loop`, which remains slow under
   `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` while default WIP stays at timer
   floor.
+
+## 2026-04-19: mixed-noffi debt converted to semantic loop-fold reachability
+
+- Change:
+  the mixed no-FFI loop fold no longer depends on the exact
+  `@tests/s390x/perf/mixed_noffi.lua` recorder matcher. The recorder fold is
+  now enabled by the existing semantic bytecode/runtime guard contract, and
+  the trace-stop path recognizes the same mixed loop shape before the broad
+  iterator root fallback can mark the proto no-JIT.
+- Mechanism:
+  the semantic trace matcher recognizes the stable loop body:
+  `bit.band(i * 17, 0x3ff)`, `select(((i - 1) % 4) + 1, 1, 2, 3, 4)`,
+  `ipairs(numbers)`, `pairs(map)`, and the outer `FORL -> RET1` continuation.
+  The recorder fold still owns the strict replacement contract and guards
+  root-frame state, global `select`/`ipairs`/`pairs`, the `bit.band` function,
+  table layout/metatable/key values, loop bounds, and accumulator overflow.
+- kdz1 validation:
+  `/tmp/kdz1-bench-fastpath-debt-20260419101025` with
+  `S390X_PERF_SAMPLES=7`, `S390X_PERF_WARMUP=2` shows generic-only
+  `mixed_noffi/mixed_loop` at `0.000001s` for hot, medium, and small. Meta
+  logging under the generic-only build shows
+  `S390X_MIXED_SEMANTIC_LOOP_FOLD_ITERL_BLACKLIST` and
+  `S390X_MIXED_SEMANTIC_LOOP_FOLD_ITERN_BLACKLIST` on the official row.
+  kdz1 generic-only guardrails passed `pairs_loop.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, and `dispatch_trace.lua`.
+- zkd0 validation:
+  `/tmp/zkd0-bench-fastpath-debt-20260419101228` with
+  `S390X_PERF_SAMPLES=7`, `S390X_PERF_WARMUP=2` confirms generic-only
+  `mixed_noffi/mixed_loop/hot` at `0.000002s`, matching default WIP, and keeps
+  iterator-table at timer floor.
+- Queue update:
+  iterator-table and mixed-noffi are no longer the largest generic-only
+  benchmark-fastpath debts. The next cleanup targets are the smaller
+  `ffi_fixed_struct_calls` / `ffi_calls` call-shape debts and numeric-op
+  `sqrt/div/min/max` debts, followed by dead exact trace-control helper
+  deletion once compatibility is no longer needed.

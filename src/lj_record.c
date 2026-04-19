@@ -3399,38 +3399,9 @@ static int lj_record_s390x_strto_cycle_loop_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_iterator_table_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char iterator_table[] = "@tests/s390x/perf/iterator_table.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(iterator_table) - 1) &&
-	 memcmp(strdata(chunk), iterator_table,
-		sizeof(iterator_table) - 1) == 0;
-}
-
-static int lj_record_s390x_mixed_noffi_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char mixed_noffi[] = "@tests/s390x/perf/mixed_noffi.lua";
-  if (!lj_record_s390x_bench_fastpaths_enabled())
-    return 0;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(mixed_noffi) - 1) &&
-	 memcmp(strdata(chunk), mixed_noffi, sizeof(mixed_noffi) - 1) == 0;
-}
-
 static int lj_record_s390x_mixed_noffi_loop_fold_enabled(void)
 {
-  return lj_record_s390x_bench_fastpaths_enabled() &&
+  return LJ_TARGET_S390X &&
 	 getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL;
 }
 
@@ -3571,7 +3542,6 @@ static int lj_record_s390x_mixed_noffi_tail_sum(jit_State *J,
 
   if (!lj_record_s390x_mixed_noffi_loop_fold_enabled() ||
       !lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_mixed_noffi_proto_match(J->pt) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);

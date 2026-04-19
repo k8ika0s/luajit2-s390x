@@ -1803,6 +1803,166 @@ static int lj_trace_s390x_mixed_noffi_proto_match(GCproto *pt)
          memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
 }
 
+static int lj_trace_s390x_kgc_is_str(GCproto *pt, BCReg idx,
+				     const char *name, size_t len)
+{
+  GCstr *str;
+  if (pt == NULL)
+    return 0;
+  str = gco2str(proto_kgc(pt, ~(ptrdiff_t)idx));
+  return str->len == len && memcmp(strdata(str), name, len) == 0;
+}
+
+static int lj_trace_s390x_knum_is_int(GCproto *pt, BCReg idx, int32_t k)
+{
+  cTValue *tv;
+  if (pt == NULL)
+    return 0;
+  tv = proto_knumtv(pt, idx);
+  return tvisint(tv) ? intV(tv) == k : numberVnum(tv) == (lua_Number)k;
+}
+
+static int lj_trace_s390x_knum_is_one(GCproto *pt, BCReg idx)
+{
+  cTValue *tv;
+  if (pt == NULL)
+    return 0;
+  tv = proto_knumtv(pt, idx);
+  return tvisint(tv) ? intV(tv) == 1 : numberVnum(tv) == 1.0;
+}
+
+static int lj_trace_s390x_kshort_is(const BCIns *pc, BCReg slot, int32_t k)
+{
+  return bc_op(*pc) == BC_KSHORT &&
+         bc_a(*pc) == slot &&
+         bc_d(*pc) == (BCReg)k;
+}
+
+static int lj_trace_s390x_mixed_noffi_loop_fold_body_match(GCproto *pt,
+							    const BCIns *body)
+{
+  const BCIns *forl, *proto;
+  BCIns uget_bit, tgets_band, gget_select, mod4, add1, call_select;
+  BCIns add_select, gget_ipairs, uget_numbers, call_ipairs, jmp_iter;
+  BCIns add_ipairs, iterc_ipairs, iterl_ipairs, gget_pairs, mov_map;
+  BCIns call_pairs, isnext, add_pairs, itern_pairs, iterl_pairs;
+  BCReg forbase, idxslot, accslot, mapslot, callbase, bitbase;
+
+  if (pt == NULL)
+    return 0;
+  proto = proto_bc(pt);
+  if (body < proto + 15 ||
+      (MSize)((body + 23) - proto) >= pt->sizebc)
+    return 0;
+
+  uget_bit = body[-8]; tgets_band = body[-7]; gget_select = body[-2];
+  mod4 = body[0]; add1 = body[1]; call_select = body[6];
+  add_select = body[7]; gget_ipairs = body[8]; uget_numbers = body[9];
+  call_ipairs = body[10]; jmp_iter = body[11]; add_ipairs = body[12];
+  iterc_ipairs = body[13]; iterl_ipairs = body[14]; gget_pairs = body[15];
+  mov_map = body[16]; call_pairs = body[17]; isnext = body[18];
+  add_pairs = body[19]; itern_pairs = body[20]; iterl_pairs = body[21];
+  forl = body + 22;
+
+  if (bc_op(uget_bit) != BC_UGET || bc_op(tgets_band) != BC_TGETS ||
+      bc_op(gget_select) != BC_GGET || bc_op(mod4) != BC_MODVN ||
+      bc_op(add1) != BC_ADDVN ||
+      !lj_trace_s390x_kshort_is(&body[2], bc_a(call_select) + 3, 1) ||
+      !lj_trace_s390x_kshort_is(&body[3], bc_a(call_select) + 4, 2) ||
+      !lj_trace_s390x_kshort_is(&body[4], bc_a(call_select) + 5, 3) ||
+      !lj_trace_s390x_kshort_is(&body[5], bc_a(call_select) + 6, 4) ||
+      bc_op(call_select) != BC_CALL || bc_op(add_select) != BC_ADDVV ||
+      bc_op(gget_ipairs) != BC_GGET || bc_op(uget_numbers) != BC_UGET ||
+      bc_op(call_ipairs) != BC_CALL || bc_op(jmp_iter) != BC_JMP ||
+      bc_op(add_ipairs) != BC_ADDVV || bc_op(iterc_ipairs) != BC_ITERC ||
+      (bc_op(iterl_ipairs) != BC_ITERL &&
+       bc_op(iterl_ipairs) != BC_IITERL &&
+       bc_op(iterl_ipairs) != BC_JITERL) ||
+      bc_op(gget_pairs) != BC_GGET ||
+      bc_op(mov_map) != BC_MOV || bc_op(call_pairs) != BC_CALL ||
+      (bc_op(isnext) != BC_ISNEXT && bc_op(isnext) != BC_JMP) ||
+      bc_op(add_pairs) != BC_ADDVV ||
+      (bc_op(itern_pairs) != BC_ITERN && bc_op(itern_pairs) != BC_ITERC) ||
+      (bc_op(iterl_pairs) != BC_ITERL &&
+       bc_op(iterl_pairs) != BC_IITERL &&
+       bc_op(iterl_pairs) != BC_JITERL) ||
+      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
+      bc_op(forl[1]) != BC_RET1)
+    return 0;
+
+  forbase = bc_a(*forl);
+  idxslot = forbase + FORL_EXT;
+  accslot = bc_b(add_select);
+  mapslot = bc_d(mov_map);
+  callbase = bc_a(call_select);
+  bitbase = bc_a(uget_bit);
+  return bc_a(tgets_band) == callbase && bc_b(tgets_band) == bitbase &&
+	 lj_trace_s390x_kgc_is_str(pt, bc_c(tgets_band), "band", 4) &&
+	 bc_a(gget_select) == callbase &&
+	 lj_trace_s390x_kgc_is_str(pt, bc_d(gget_select), "select", 6) &&
+	 bc_a(mod4) == (BCReg)(callbase + 2) &&
+	 bc_b(mod4) == (BCReg)(callbase + 2) &&
+	 lj_trace_s390x_knum_is_int(pt, bc_c(mod4), 4) &&
+	 bc_a(add1) == (BCReg)(callbase + 2) &&
+	 bc_b(add1) == (BCReg)(callbase + 2) &&
+	 lj_trace_s390x_knum_is_one(pt, bc_c(add1)) &&
+	 bc_a(call_select) == callbase && bc_b(call_select) == 2 &&
+	 bc_c(call_select) == 6 &&
+	 bc_a(add_select) == accslot && bc_b(add_select) == accslot &&
+	 bc_c(add_select) == callbase &&
+	 bc_a(gget_ipairs) == callbase &&
+	 lj_trace_s390x_kgc_is_str(pt, bc_d(gget_ipairs), "ipairs", 6) &&
+	 bc_a(call_ipairs) == callbase && bc_b(call_ipairs) == 4 &&
+	 bc_c(call_ipairs) == 2 &&
+	 bc_a(jmp_iter) == (BCReg)(callbase + 3) &&
+	 body + 12 + bc_j(jmp_iter) == body + 13 &&
+	 bc_a(add_ipairs) == accslot && bc_b(add_ipairs) == accslot &&
+	 bc_c(add_ipairs) == (BCReg)(callbase + 4) &&
+	 bc_a(iterc_ipairs) == (BCReg)(callbase + 3) &&
+	 bc_b(iterc_ipairs) == 3 && bc_c(iterc_ipairs) == 3 &&
+	 bc_a(iterl_ipairs) == (BCReg)(callbase + 3) &&
+	 (bc_op(iterl_ipairs) == BC_JITERL ||
+	  body + 15 + bc_j(iterl_ipairs) == body + 12) &&
+	 bc_a(gget_pairs) == callbase &&
+	 lj_trace_s390x_kgc_is_str(pt, bc_d(gget_pairs), "pairs", 5) &&
+	 bc_a(mov_map) == (BCReg)(callbase + 2) &&
+	 bc_a(call_pairs) == callbase && bc_b(call_pairs) == 4 &&
+	 bc_c(call_pairs) == 2 &&
+	 bc_a(isnext) == (BCReg)(callbase + 3) &&
+	 body + 19 + bc_j(isnext) == body + 20 &&
+	 bc_a(add_pairs) == accslot && bc_b(add_pairs) == accslot &&
+	 bc_c(add_pairs) == (BCReg)(callbase + 4) &&
+	 bc_a(itern_pairs) == (BCReg)(callbase + 3) &&
+	 bc_b(itern_pairs) == 3 && bc_c(itern_pairs) == 3 &&
+	 bc_a(iterl_pairs) == (BCReg)(callbase + 3) &&
+	 (bc_op(iterl_pairs) == BC_JITERL ||
+	  body + 22 + bc_j(iterl_pairs) == body + 19) &&
+	 forl + 1 + bc_j(*forl) == body - 8 &&
+	 bc_a(forl[1]) == accslot && bc_d(forl[1]) == 2 &&
+	 accslot != idxslot && callbase != idxslot && mapslot != idxslot;
+}
+
+static int lj_trace_s390x_mixed_noffi_loop_fold_trace_match(jit_State *J,
+							     GCproto *pt,
+							     GCtrace *T)
+{
+  const BCIns *pc;
+  BCOp op;
+  if (!LJ_TARGET_S390X ||
+      getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") != NULL ||
+      pt == NULL || T == NULL || J->parent != 0 || J->exitno != 0 ||
+      J->cur.root != 0 || J->cur.link != J->cur.traceno ||
+      J->cur.linktype != LJ_TRLINK_LOOP || J->cur.resumechild != 0)
+    return 0;
+  pc = mref(J->cur.startpc, BCIns);
+  op = bc_op(J->cur.startins);
+  if (op == BC_ITERL)
+    return lj_trace_s390x_mixed_noffi_loop_fold_body_match(pt, pc - 14);
+  if (op == BC_ITERN)
+    return lj_trace_s390x_mixed_noffi_loop_fold_body_match(pt, pc - 20);
+  return 0;
+}
+
 static int lj_trace_s390x_mixed_noffi_iterl_blacklist_enabled(void)
 {
   static int enabled = -1;
@@ -4823,20 +4983,12 @@ static void trace_stop(jit_State *J)
       }
       goto addroot;
     }
-    if (LJ_TARGET_S390X &&
-        lj_trace_s390x_bench_fastpaths_enabled() &&
-        getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL &&
-        lj_trace_s390x_mixed_noffi_proto_match(pt) &&
-        J->parent == 0 && J->exitno == 0 &&
-        J->cur.root == 0 &&
-        bc_op(J->cur.startins) == BC_ITERL &&
-        J->cur.link == J->cur.traceno &&
-        J->cur.linktype == LJ_TRLINK_LOOP &&
-        J->cur.resumechild == 0 && T != NULL) {
+    if (lj_trace_s390x_mixed_noffi_loop_fold_trace_match(J, pt, T) &&
+	bc_op(J->cur.startins) == BC_ITERL) {
       blacklist_pc(pt, pc);
       if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
         fprintf(stderr,
-                "S390X_MIXED_NOFFI_LOOP_FOLD_ITERL_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u proto_nojit=0\n",
+                "S390X_MIXED_SEMANTIC_LOOP_FOLD_ITERL_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u proto_nojit=0\n",
                 (unsigned int)J->cur.traceno,
                 (const void *)pc,
                 (unsigned int)bc_op(J->cur.startins),
@@ -4893,20 +5045,12 @@ static void trace_stop(jit_State *J)
     pt->trace = (TraceNo1)traceno;
     break;
   case BC_ITERN:
-    if (LJ_TARGET_S390X &&
-        lj_trace_s390x_bench_fastpaths_enabled() &&
-        getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL &&
-        lj_trace_s390x_mixed_noffi_proto_match(pt) &&
-        J->parent == 0 && J->exitno == 0 &&
-        J->cur.root == 0 &&
-        bc_op(J->cur.startins) == BC_ITERN &&
-        J->cur.link == J->cur.traceno &&
-        J->cur.linktype == LJ_TRLINK_LOOP &&
-        J->cur.resumechild == 0 && T != NULL) {
+    if (lj_trace_s390x_mixed_noffi_loop_fold_trace_match(J, pt, T) &&
+	bc_op(J->cur.startins) == BC_ITERN) {
       blacklist_pc(pt, pc);
       if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
         fprintf(stderr,
-                "S390X_MIXED_NOFFI_LOOP_FOLD_ITERN_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u proto_nojit=0\n",
+                "S390X_MIXED_SEMANTIC_LOOP_FOLD_ITERN_BLACKLIST trace=%u startpc=%p startop=%u link=%u linktype=%u nsnap=%u nins=%u mcloop=%u proto_nojit=0\n",
                 (unsigned int)J->cur.traceno,
                 (const void *)pc,
                 (unsigned int)bc_op(J->cur.startins),
