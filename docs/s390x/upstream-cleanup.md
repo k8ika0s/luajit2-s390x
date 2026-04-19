@@ -133,6 +133,12 @@ Latest artifacts:
   `/tmp/kdz1-debt-ffi-pressure-sumargs-202604191345`.
 - Full post-sumargs rerank:
   `/tmp/kdz1-bench-fastpath-debt-post-sumargs-202604191352`.
+- Trace-control cleanup baseline:
+  `/tmp/kdz1-trace-cleanup-baseline-20260419143454`.
+- First `lj_trace.c` burn-down validation:
+  `/tmp/kdz1-trace-cleanup-dispatch-post-20260419144236`,
+  `/tmp/kdz1-trace-cleanup-mixed-ffi-post-20260419144313`, and
+  `/tmp/kdz1-trace-cleanup-ffi-cdata-post-20260419144351`.
 
 The higher-sample rerun built default WIP and generic-only
 `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
@@ -154,6 +160,32 @@ Current replacement order by absolute generic-only slowdown:
 No family failed or timed out in the focused generic-only pass. That means the
 cleanup problem is primarily preserving acceleration, not preserving basic
 correctness.
+
+### Trace-Control Burn-Down
+
+The first `src/lj_trace.c` cleanup tranche removes stale benchmark-shaped
+trace-control hooks that are no longer part of the retained environment:
+
+- Removed the obsolete `MIXED_FFI_POST_STITCH_SAVE_DONE` and
+  `FFI_CDATA_PAIR_SAVE_DONE` exact trace-number `SNAPCOUNT_DONE` hooks.
+- Removed the stale dispatch `FORL` skip/park/proto-NOJIT route-around and its
+  exact hotexit cooldown. Dispatch remains covered by the direct side-exit and
+  backend/codegen work; current retained env no longer carries these trace
+  admission gates.
+- Audit count moved from `155` benchmark-shaped source findings to `136`.
+
+Focused `kdz1` validation after the removal stayed in band:
+
+- `dispatch_trace`: all hot rows remained timer-floor versus `-joff`.
+- `mixed_ffi/mixed_ffi_loop/hot`: `0.000090s` in both focused passes.
+- `ffi_cdata`: `pair_loop`, `mixed_width_loop`, and `buffer_fref_loop` all
+  stayed timer-floor.
+
+The remaining high-density audit bucket is now the promotion-core
+`FORL_PROTO_NOJIT` matcher plus live iterator/mixed safety rails. The next
+safe cleanup order is: first remove or replace stale opt-in promotion-core
+trace-control if current generic-only debt remains flat, then tackle live
+iterator/mixed route-arounds only with mechanism proof.
 
 ### Iterator Table Status
 
