@@ -37,6 +37,21 @@
 #include "lj_vm.h"
 #include "lj_prng.h"
 
+/*
+** Benchmark-shaped s390x recorder shortcuts are branch-local bring-up probes.
+** They remain enabled on this performance WIP branch to preserve retained wins
+** while each shortcut is converted to a generic recorder/optimizer/backend
+** mechanism. Upstream-prep builds can set this to 0.
+*/
+#ifndef LUAJIT_ENABLE_S390X_BENCH_FASTPATHS
+#define LUAJIT_ENABLE_S390X_BENCH_FASTPATHS 1
+#endif
+
+static int lj_record_s390x_bench_fastpaths_enabled(void)
+{
+  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_BENCH_FASTPATHS;
+}
+
 /* Some local macros to save typing. Undef'd at the end. */
 #define IR(ref)			(&J->cur.ir[(ref)])
 
@@ -983,6 +998,8 @@ static int lj_record_s390x_lower_frame_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char lower_frame[] =
     "@tests/s390x/perf/lower_frame_same_callsite.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -996,6 +1013,8 @@ static int lj_record_s390x_ffi_fixed_struct_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char fixed_struct[] =
     "@tests/s390x/perf/ffi_fixed_struct_calls.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1009,6 +1028,8 @@ static int lj_record_s390x_ffi_fixed_call_pressure_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char fixed_pressure[] =
     "@tests/s390x/perf/ffi_fixed_call_pressure.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1026,6 +1047,8 @@ static int lj_record_s390x_numeric_divsqrt_proto_match(GCproto *pt,
   const char *want_noat = issqrt ? "numeric_ops_sqrt" : "numeric_ops_div";
   size_t len = issqrt ? sizeof("@numeric_ops_sqrt") - 1 :
 		       sizeof("@numeric_ops_div") - 1;
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1042,6 +1065,8 @@ static int lj_record_s390x_ffi_calls_proto_match(GCproto *pt)
   static const char ffi_calls[] = "@tests/s390x/perf/ffi_calls.lua";
   static const char ffi_calls_static[] =
     "@tests/s390x/perf/ffi_calls_static_stop.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1062,6 +1087,8 @@ static int lj_record_s390x_route_reducer_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char route[] =
     "@tests/s390x/perf/route_around_reducers.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1076,6 +1103,8 @@ static int lj_record_s390x_large_immediate_add_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char large_immediates[] =
     "@tests/s390x/perf/large_immediates.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1091,6 +1120,8 @@ static int lj_record_s390x_large_immediate_sub_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char large_immediates[] =
     "@tests/s390x/perf/large_immediates.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1106,6 +1137,8 @@ static int lj_record_s390x_large_immediate_cmp_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char large_immediates[] =
     "@tests/s390x/perf/large_immediates.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1121,6 +1154,8 @@ static int lj_record_s390x_large_immediate_aref_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char large_immediates[] =
     "@tests/s390x/perf/large_immediates.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1136,6 +1171,8 @@ static int lj_record_s390x_logic_chain_tail_store_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char tail_store[] =
     "@tests/s390x/perf/logical_chain_tail_store.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1150,6 +1187,8 @@ static int lj_record_s390x_logic_chain_tail_add_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char tail_add[] =
     "@tests/s390x/perf/logical_chain_tail_add.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -1164,6 +1203,8 @@ static int lj_record_s390x_logic_add_phi_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char logic_phi[] =
     "@tests/s390x/perf/logic_add_phi_noboundary.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -2970,6 +3011,8 @@ static int lj_record_s390x_numeric_minmax_proto_match(GCproto *pt, int ismax)
   const char *want = ismax ? "@numeric_ops_max" : "@numeric_ops_min";
   size_t len = ismax ? sizeof("@numeric_ops_max") - 1 :
 		       sizeof("@numeric_ops_min") - 1;
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -2983,6 +3026,8 @@ static int lj_record_s390x_be_helpers_proto_match(GCproto *pt)
   static const char be_helpers[] = "@tests/s390x/perf/be_helpers.lua";
   static const char be_helpers_localized[] =
     "@tests/s390x/perf/be_helpers_localized.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -2999,6 +3044,8 @@ static int lj_record_s390x_scaled_tobit_proto_match(GCproto *pt)
   GCstr *chunk;
   static const char promotion_core_static[] =
     "@tests/s390x/perf/promotion_core_static_stop.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (lj_record_s390x_be_helpers_proto_match(pt))
     return 1;
   if (pt == NULL || (pt->firstline != 4 && pt->firstline != 12))
@@ -3356,6 +3403,8 @@ static int lj_record_s390x_iterator_table_proto_match(GCproto *pt)
 {
   GCstr *chunk;
   static const char iterator_table[] = "@tests/s390x/perf/iterator_table.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -3369,6 +3418,8 @@ static int lj_record_s390x_mixed_noffi_proto_match(GCproto *pt)
 {
   GCstr *chunk;
   static const char mixed_noffi[] = "@tests/s390x/perf/mixed_noffi.lua";
+  if (!lj_record_s390x_bench_fastpaths_enabled())
+    return 0;
   if (pt == NULL)
     return 0;
   chunk = proto_chunkname(pt);
@@ -3379,7 +3430,8 @@ static int lj_record_s390x_mixed_noffi_proto_match(GCproto *pt)
 
 static int lj_record_s390x_mixed_noffi_loop_fold_enabled(void)
 {
-  return getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL;
+  return lj_record_s390x_bench_fastpaths_enabled() &&
+	 getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL;
 }
 
 static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
