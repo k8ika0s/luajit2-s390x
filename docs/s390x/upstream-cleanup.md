@@ -478,3 +478,41 @@ The full post-sumargs rerank
 `/tmp/kdz1-bench-fastpath-debt-post-sumargs-202604191352` also reports no failed
 or timed-out families. Its largest remaining deltas are microsecond-level
 timer noise, not material retained-performance dependencies.
+
+### Trace-Control Cleanup Status
+
+The first `lj_trace.c` cleanup tranche removed stale benchmark-shaped route
+arounds that no longer participate in the retained floor:
+
+- `MIXED_FFI_POST_STITCH_SAVE_DONE`
+- `FFI_CDATA_PAIR_SAVE_DONE`
+- dispatch `FORL` skip/park/proto-NOJIT matching and exact hotexit cooldown
+- `PROMOTION_CORE_FORL_PROTO_NOJIT`
+- `MIXED_FFI_FORL_PROTO_NOJIT`
+- `LOWER_FRAME_LUA_ABS_PROTO_NOJIT`
+- `FFI_CDATA_PAIR_FORL_BLACKLIST`
+
+Validation summary:
+
+- Current retained baseline before cleanup:
+  `/tmp/kdz1-trace-cleanup-baseline-20260419143454`.
+- First trace cleanup focused perf:
+  `/tmp/kdz1-trace-cleanup-dispatch-post-20260419144236`,
+  `/tmp/kdz1-trace-cleanup-mixed-ffi-post-20260419144313`, and
+  `/tmp/kdz1-trace-cleanup-ffi-cdata-post-20260419144351`.
+- Promotion-core removal focused perf:
+  `/tmp/kdz1-trace-cleanup-be-helpers-post-20260419144918`,
+  `/tmp/kdz1-trace-cleanup-be-localized-post-20260419144955`,
+  `/tmp/kdz1-trace-cleanup-promotion-static-post-20260419145032`, and
+  `/tmp/kdz1-trace-cleanup-route-reducers-post-20260419145110`.
+- Stale opt-in FORL/proto removal focused perf:
+  `/tmp/kdz1-trace-cleanup3-mixed-ffi-post-2026041915`,
+  `/tmp/kdz1-trace-cleanup3-ffi-cdata-post-2026041915`, and
+  `/tmp/kdz1-trace-cleanup3-lower-frame-post-2026041915`.
+
+Both kdz1 and zkd0 passed clean GCC builds and focused validation for each
+affected family. The benchmark-shaped source audit is now at `45` findings.
+The remaining trace-control debt is not all removable as source hygiene:
+iterator and mixed safety rails still protect known unsafe restart paths, while
+the hotside-localized and trace-save fingerprints need separate classification
+before deletion or migration.
