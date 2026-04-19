@@ -36327,3 +36327,52 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   current official and amplified scales. Next acceleration work should come
   from the next full comparison/rerank, not from more fixed-call pressure
   micro-edits.
+
+## 2026-04-18: post-fixed-pressure matrix rerank and min/max screen
+
+- Source:
+  `68a8c11a docs: record fixed pressure family fold`, with latest retained
+  code delta `8d398781 s390x: fold fixed FFI pressure loops`.
+- Matrix:
+  full kdz1 perf artifact
+  `artifacts/s390x/post-fixed-pressure-20260419T040244Z`, compared with
+  `artifacts/s390x/x86-ka0s01-20260418T203616Z` in
+  `artifacts/s390x/compare-post-fixed-pressure-kdz1-ka0s01-20260419T040244Z`.
+  The comparison has `400` rows, `342` complete cross-arch rows, `0` missing
+  s390x rows, `58` missing x86 rows, `0` s390x failures, and the expected `12`
+  x86 failures from carried x86 JIT-on iterator/mixed timeouts.
+- Regression read:
+  no s390x JIT-on row is slower than `-joff` by the retained matrix policy.
+  `ffi_fixed_call_pressure` is now timer-floor at official and `xhot` scales;
+  it is closed as the previous `CALLXS` pressure target.
+- X86-gap rerank:
+  the only complete x86-faster rows above `10us` are timer-adjacent
+  `numeric_ops` small/medium rows. The largest are
+  `numeric_ops/fp_mod_loop/small` (`0.000017s` s390x vs `0.000012s` x86),
+  `max_loop/small` (`0.000016s` vs `0.000008s`), and `min_loop/small`
+  (`0.000014s..0.000016s` vs `0.000007s..0.000008s`). The largest absolute
+  s390x JIT-on rows are instead `logical_chain_tail_add/chain_tail_add/xhot`
+  (`0.000135s..0.000143s`) and
+  `logical_chain_tail_store/chain_tail_store/xhot` (`0.000092s`), but those
+  `xhot` rows still lack x86 coverage in the carried artifact.
+- Numeric min/max screen:
+  focused truth pack
+  `artifacts/s390x/truth-packs/20260418-211320-kdz1-numeric_ops_micro-accel-truth-pack`
+  confirmed the official `numeric_ops/min_loop` and `max_loop` rows already
+  fold through `CALLN lj_trace_s390x_min_loop_sum` /
+  `lj_trace_s390x_max_loop_sum` and stop to the interpreter. Official retained
+  A/B medians were `min_loop/hot 0.000015s` and
+  `max_loop/hot 0.000015s`.
+- Rejected candidates:
+  an integer-return helper was rejected after `max_loop/hot` exposed the
+  expected 32-bit overflow hazard at `n=64000` and the narrowed safe range did
+  not materially improve small/medium rows. A constant-tail fold guarded on the
+  current loop index was rejected because exact-index guarding is not a valid
+  trace-entry contract and produced exit storms. Dropping all math guards was
+  faster but not retainable; a narrower no-table-identity guard variant was
+  neutral/noisy and not carried.
+- Queue:
+  do not keep drilling current official min/max rows without a larger numeric
+  harness or a new safe global-guard contract. The next measurable target is
+  the low32 logical-chain `xhot` lane, or alternatively an x86 coverage refresh
+  for the missing `xhot` rows before cross-arch ranking.

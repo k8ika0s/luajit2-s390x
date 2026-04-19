@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-18 20:14 PDT
+Last updated: 2026-04-18 21:20 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `8d398781 s390x: fold fixed FFI pressure loops`.
+  `68a8c11a docs: record fixed pressure family fold`; the latest retained
+  code delta remains `8d398781 s390x: fold fixed FFI pressure loops`.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -149,19 +150,24 @@ Historical experiment detail lives in
   in the `0.000000s..0.000001s` band; zkd0 confirms `0.000001s` medians
   across the family.
 - Current full matrix:
-  `artifacts/s390x/post-cbdf6b38-fullcomp-20260418T232903Z` and comparison
-  `artifacts/s390x/compare-post-cbdf6b38-kdz1-ka0s01-20260418T233742Z`.
-  The run has `800` s390x benchmark records, `0` s390x failures, `0` missing
-  s390x rows, and no s390x JIT-on row slower than `-joff`.
+  `artifacts/s390x/post-fixed-pressure-20260419T040244Z` and comparison
+  `artifacts/s390x/compare-post-fixed-pressure-kdz1-ka0s01-20260419T040244Z`.
+  The run has `800` s390x benchmark records, `400` comparison rows, `342`
+  complete cross-arch rows, `0` s390x failures, `0` missing s390x rows, and no
+  s390x JIT-on row slower than `-joff`.
 - Current caveat:
   the x86 comparison still has `58` missing x86 rows. These are from the
   carried x86 artifact timing out on JIT-on `iterator_table`/`mixed_noffi` and
-  from newer xhot pressure/logic rows that need x86 coverage before they can
-  drive cross-arch decisions.
+  from newer `xhot` pressure/logic rows. After the fixed-pressure fold, the
+  only complete x86-faster rows above `10us` are timer-adjacent `numeric_ops`
+  small/medium rows; the high-time measurable queue is now dominated by
+  s390x-owned `logical_chain_tail_add`/`logical_chain_tail_store` `xhot`.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
-  source lane. The next credible source work is fixed `CALLXS` boundary design
-  or an amplified harness that makes numeric/FFI timer-floor gaps measurable.
+  source lane. The fixed-call pressure family is closed at current scale; the
+  next source lane should either target the low32 logical-chain `xhot`
+  high-time rows or use a larger numeric harness before chasing min/max
+  timer-floor deltas.
 
 ## Latest Validation
 
