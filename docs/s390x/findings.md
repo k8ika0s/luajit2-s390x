@@ -37077,3 +37077,38 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   safety blacklists. The remaining benchmark-shaped findings are mostly live
   iterator/mixed safety hooks plus residual diagnostics, so further removal
   requires mechanism replacement rather than simple stale-hook deletion.
+
+## 2026-04-19: stale mixed-noffi exact blacklist family removed
+
+- Change:
+  removed the stale opt-in mixed-noffi exact trace-shape blacklist family from
+  `src/lj_trace.c`: `MIXED_NOFFI_ITERL_BLACKLIST`,
+  `MIXED_NOFFI_ITERN_BLACKLIST`, `MIXED_NOFFI_FORL_STITCH_BLACKLIST`,
+  `MIXED_NOFFI_ITERL_ABORT_BLACKLIST`, and `MIXED_NOFFI_EARLY_PROTO_NOJIT`.
+- Scope:
+  kept the semantic mixed-noffi loop-fold path and the mixed-noffi proto helper
+  used by the separate hotexit-threshold path. This cut removes only stale
+  opt-in exact trace-number / `nsnap` / `nins` / `mcloop` route-arounds that
+  were no longer in `RETAINED_BASELINE_ENV`.
+- Audit:
+  `tools/s390x/audit_benchmark_fastpaths.py` moved from `39` findings to
+  `30`, removing the mixed-noffi exact trace-shape fingerprint cluster.
+- kdz1 validation:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`. Focused
+  scripts passed for `mixed_noffi`, `iterator_table`, `pairs_loop`,
+  `dispatch_trace`, and `vararg_paths`.
+- zkd0 validation:
+  clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`, with the
+  same focused script set passing.
+- kdz1 focused performance:
+  `mixed_noffi/mixed_loop/hot` stayed timer-floor against `~0.00415s` `-joff`
+  (`/tmp/kdz1-trace-cleanup5-mixed-noffi-post-2026041915`), and
+  `iterator_table` stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup5-iterator-post-2026041915`).
+- Remaining cleanup target:
+  the only retained env gates are now broad iterator `ITERN`/`ITERL`
+  blacklists. Remaining exact iterator hooks are live safety/perf rails and
+  must be replaced by an iterator restart/control-state mechanism, not deleted
+  as stale source hygiene.
