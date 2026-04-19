@@ -492,6 +492,11 @@ arounds that no longer participate in the retained floor:
 - `LOWER_FRAME_LUA_ABS_PROTO_NOJIT`
 - `FFI_CDATA_PAIR_FORL_BLACKLIST`
 - `LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV`
+- `MIXED_NOFFI_ITERL_BLACKLIST`
+- `MIXED_NOFFI_ITERN_BLACKLIST`
+- `MIXED_NOFFI_FORL_STITCH_BLACKLIST`
+- `MIXED_NOFFI_ITERL_ABORT_BLACKLIST`
+- `MIXED_NOFFI_EARLY_PROTO_NOJIT`
 
 Validation summary:
 
@@ -514,10 +519,13 @@ Validation summary:
   `/tmp/kdz1-trace-cleanup4-be-localized-post-2026041915`,
   `/tmp/kdz1-trace-cleanup4-promotion-static-post-2026041915`, and
   `/tmp/kdz1-trace-cleanup4-lower-frame-post-2026041915`.
+- Mixed-noffi exact blacklist removal focused perf:
+  `/tmp/kdz1-trace-cleanup5-mixed-noffi-post-2026041915` and
+  `/tmp/kdz1-trace-cleanup5-iterator-post-2026041915`.
 
 Both kdz1 and zkd0 passed clean GCC builds and focused validation for each
-affected family. The benchmark-shaped source audit is now at `39` findings.
+affected family. The benchmark-shaped source audit is now at `30` findings.
 The remaining trace-control debt is not all removable as source hygiene:
-iterator and mixed safety rails still protect known unsafe restart paths, while
-trace-save fingerprints and the residual exact iterator/mixed hooks need
-separate classification before deletion or migration.
+iterator safety rails still protect known unsafe restart paths, while
+trace-save fingerprints and the residual exact iterator hooks need separate
+classification before deletion or migration.
