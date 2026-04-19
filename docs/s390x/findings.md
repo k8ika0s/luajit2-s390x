@@ -36922,3 +36922,41 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   retained speed. Full post-sumargs rerank
   `/tmp/kdz1-bench-fastpath-debt-post-sumargs-202604191352` reports no failed
   or timed-out families and only microsecond-level generic-only jitter.
+
+## 2026-04-19: first `lj_trace.c` benchmark-route cleanup
+
+- Baseline:
+  ran a current retained-env `kdz1` matrix snapshot before editing:
+  `/tmp/kdz1-trace-cleanup-baseline-20260419143454`. The run stayed strongly
+  accelerated across the matrix; this cleanup is upstream-source hygiene, not
+  a response to a JIT-on regression.
+- Change:
+  removed obsolete trace-control hooks from `src/lj_trace.c`:
+  `MIXED_FFI_POST_STITCH_SAVE_DONE`, `FFI_CDATA_PAIR_SAVE_DONE`, stale
+  dispatch `FORL` skip/park/proto-NOJIT matching, and the dispatch hotexit
+  exact cooldown. These hooks were either already removed from the canonical
+  retained env or superseded by generic/backend mechanisms.
+- Audit:
+  `tools/s390x/audit_benchmark_fastpaths.py` moved from `155` findings to
+  `136`. Remaining findings are mostly promotion-core exact trace-control,
+  live iterator/mixed safety rails, and one residual synthetic
+  `@numeric_ops_max` recorder chunk.
+- Validation:
+  synced the dirty tracked tree to
+  `kdz1:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`; clean GCC
+  build passed. Focused scripts passed for `dispatch_trace`, `mixed_ffi`,
+  `ffi_cdata`, `iterator_table`, and `mixed_noffi`. zkd0 clean GCC build also
+  passed focused `dispatch_trace`, `mixed_ffi`, and `ffi_cdata` scripts from
+  `zkd0:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`.
+- Focused post-edit performance:
+  `dispatch_trace` hot rows stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup-dispatch-post-20260419144236`);
+  `mixed_ffi/mixed_ffi_loop/hot` stayed at `0.000090s`
+  (`/tmp/kdz1-trace-cleanup-mixed-ffi-post-20260419144313`);
+  `ffi_cdata` hot rows stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup-ffi-cdata-post-20260419144351`).
+- Next cleanup target:
+  quantify the stale promotion-core `FORL_PROTO_NOJIT` matcher under current
+  generic-only debt, then either delete it or replace it with semantic proof.
+  Do not remove live iterator/mixed broad safety rails until a mechanism
+  replacement is proven.
