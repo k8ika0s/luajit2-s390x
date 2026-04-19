@@ -37112,3 +37112,41 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   blacklists. Remaining exact iterator hooks are live safety/perf rails and
   must be replaced by an iterator restart/control-state mechanism, not deleted
   as stale source hygiene.
+
+## 2026-04-19: exact-family hotside threshold override removed
+
+- Change:
+  removed the `trace_hotside()` exact-family hotexit threshold override for
+  `ffi_cdata`, `mixed_noffi`, and `iterator_table`. This also removed the last
+  standalone `ffi_cdata` and `mixed_noffi` benchmark chunk helpers from
+  `src/lj_trace.c`.
+- Reason:
+  the override was another benchmark-shaped default path. Current retained
+  behavior no longer depends on lowering these exact families from the global
+  s390x hotexit threshold to `100`; focused validation stayed clean without
+  it.
+- Audit:
+  `tools/s390x/audit_benchmark_fastpaths.py` moved from `30` findings to
+  `28`. `src/lj_trace.c` now has only the iterator-table chunk helper in the
+  `perf_chunk` category.
+- kdz1 validation:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`. Focused
+  scripts passed for `ffi_cdata`, `mixed_noffi`, `iterator_table`,
+  `pairs_loop`, and `dispatch_trace`.
+- zkd0 validation:
+  clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`, with the
+  same focused script set passing.
+- kdz1 focused performance:
+  `ffi_cdata` rows stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup6-ffi-cdata-post-2026041915`);
+  `mixed_noffi/mixed_loop/hot` stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup6-mixed-noffi-post-2026041915`);
+  `iterator_table` rows stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup6-iterator-post-2026041915`).
+- Remaining cleanup target:
+  the remaining `lj_trace.c` benchmark-shaped source is now almost entirely the
+  exact iterator safety/perf family plus trace-save fingerprint false positives.
+  Further iterator cleanup needs a replacement for the unsafe
+  `BC_ITERN`/`BC_ITERL` restart contract.

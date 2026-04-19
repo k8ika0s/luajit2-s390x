@@ -497,6 +497,8 @@ arounds that no longer participate in the retained floor:
 - `MIXED_NOFFI_FORL_STITCH_BLACKLIST`
 - `MIXED_NOFFI_ITERL_ABORT_BLACKLIST`
 - `MIXED_NOFFI_EARLY_PROTO_NOJIT`
+- the exact-family `trace_hotside()` hotexit threshold override for
+  `ffi_cdata`, `mixed_noffi`, and `iterator_table`
 
 Validation summary:
 
@@ -522,9 +524,13 @@ Validation summary:
 - Mixed-noffi exact blacklist removal focused perf:
   `/tmp/kdz1-trace-cleanup5-mixed-noffi-post-2026041915` and
   `/tmp/kdz1-trace-cleanup5-iterator-post-2026041915`.
+- Exact-family hotexit override removal focused perf:
+  `/tmp/kdz1-trace-cleanup6-ffi-cdata-post-2026041915`,
+  `/tmp/kdz1-trace-cleanup6-mixed-noffi-post-2026041915`, and
+  `/tmp/kdz1-trace-cleanup6-iterator-post-2026041915`.
 
 Both kdz1 and zkd0 passed clean GCC builds and focused validation for each
-affected family. The benchmark-shaped source audit is now at `30` findings.
+affected family. The benchmark-shaped source audit is now at `28` findings.
 The remaining trace-control debt is not all removable as source hygiene:
 iterator safety rails still protect known unsafe restart paths, while
 trace-save fingerprints and the residual exact iterator hooks need separate
