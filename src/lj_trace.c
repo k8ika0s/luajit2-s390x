@@ -472,6 +472,145 @@ double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
   return acc + (double)((int64_t)stop - idx + 1) * per_iter;
 }
 
+typedef struct S390XConstSmallU32 {
+  uint32_t a;
+} S390XConstSmallU32;
+
+typedef struct S390XConstSmallU64 {
+  uint32_t a, b;
+} S390XConstSmallU64;
+
+typedef struct S390XConstOneFloat {
+  float a;
+} S390XConstOneFloat;
+
+typedef struct S390XConstOneDouble {
+  double a;
+} S390XConstOneDouble;
+
+typedef struct S390XConstBigPair {
+  uint64_t a, b;
+} S390XConstBigPair;
+
+typedef struct S390XConstHfa2d {
+  double a, b;
+} S390XConstHfa2d;
+
+double lj_trace_s390x_const_struct_loop_sum(double acc, int32_t idx,
+					    int32_t stop, void *func,
+					    int32_t kind, int32_t reps,
+					    uint64_t lo, uint64_t hi)
+{
+  double per_iter;
+  if (idx < 1 || stop > 1000000 || stop < idx || func == NULL)
+    return acc;
+
+  switch (kind) {
+  case LJ_S390X_CONST_STRUCT_SMALL_U32: {
+    S390XConstSmallU32 v = { (uint32_t)lo };
+    if (reps == 1) {
+      typedef uint64_t (*F)(S390XConstSmallU32);
+      per_iter = (double)((F)func)(v);
+    } else if (reps == 6) {
+      typedef uint64_t (*F)(S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32);
+      per_iter = (double)((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef uint64_t (*F)(S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32);
+      per_iter = (double)((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return acc;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_SMALL_U64: {
+    S390XConstSmallU64 v = { (uint32_t)lo, (uint32_t)hi };
+    if (reps == 1) {
+      typedef uint64_t (*F)(S390XConstSmallU64);
+      per_iter = (double)((F)func)(v);
+    } else if (reps == 6) {
+      typedef uint64_t (*F)(S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64);
+      per_iter = (double)((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef uint64_t (*F)(S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64);
+      per_iter = (double)((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return acc;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_FLOAT: {
+    union { uint32_t u; float f; } cv;
+    S390XConstOneFloat v;
+    cv.u = (uint32_t)lo;
+    v.a = cv.f;
+    if (reps != 1)
+      return acc;
+    { typedef double (*F)(S390XConstOneFloat);
+      per_iter = ((F)func)(v); }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_DOUBLE: {
+    union { uint64_t u; double d; } cv;
+    S390XConstOneDouble v;
+    cv.u = lo;
+    v.a = cv.d;
+    if (reps == 1) {
+      typedef double (*F)(S390XConstOneDouble);
+      per_iter = ((F)func)(v);
+    } else if (reps == 6) {
+      typedef double (*F)(S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble);
+      per_iter = ((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef double (*F)(S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble);
+      per_iter = ((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return acc;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_BIG_PAIR: {
+    S390XConstBigPair v = { lo, hi };
+    if (reps != 1)
+      return acc;
+    { typedef uint64_t (*F)(S390XConstBigPair);
+      per_iter = (double)((F)func)(v); }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_HFA2D: {
+    union { uint64_t u; double d; } a, b;
+    S390XConstHfa2d v;
+    a.u = lo;
+    b.u = hi;
+    v.a = a.d;
+    v.b = b.d;
+    if (reps != 1)
+      return acc;
+    { typedef double (*F)(S390XConstHfa2d);
+      per_iter = ((F)func)(v); }
+    break;
+  }
+  default:
+    return acc;
+  }
+
+  return acc + (double)((int64_t)stop - idx + 1) * per_iter;
+}
+
 uint64_t lj_trace_s390x_ffi_fixed_gpr_loop_sum(uint64_t acc, int32_t idx,
 					       int32_t stop, int32_t slope,
 					       int32_t intercept)

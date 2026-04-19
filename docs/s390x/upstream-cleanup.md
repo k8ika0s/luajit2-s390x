@@ -113,6 +113,8 @@ Latest artifacts:
 - Broad sweep: `/tmp/kdz1-bench-fastpath-debt-20260419092814`.
 - Focused higher-sample rerun:
   `/tmp/kdz1-bench-fastpath-debt-20260419093522`.
+- Focused fixed-struct post-migration rerun:
+  `/tmp/kdz1-bench-fastpath-debt-20260419114227`.
 
 The higher-sample rerun built default WIP and generic-only
 `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
@@ -121,11 +123,13 @@ and ran the top debt families with `S390X_PERF_SAMPLES=11`,
 
 Current replacement order by absolute generic-only slowdown:
 
-- `ffi_fixed_struct_calls` and `ffi_calls`: many hot rows are timer-floor under
-  WIP and `0.00015s..0.00051s` generic-only. These need generic FFI call/struct
-  lowering or benchmark-independent call-shape batching before upstream.
 - `large_immediates`: smaller absolute debts remain, mostly timer-floor
   default rows against small generic-only runtimes.
+- Remaining recorder folds in `src/lj_record.c`: continue migrating chunk/file
+  matchers to semantic contracts one family at a time. `ffi_calls` now uses
+  `CTF_CONSTFUNC` plus the `(i % 17) - 8` call shape, and
+  `ffi_fixed_struct_calls` now uses `CTF_CONSTFUNC` plus proved by-value struct
+  argument layouts.
 
 No family failed or timed out in the focused generic-only pass. That means the
 cleanup problem is primarily preserving acceleration, not preserving basic
@@ -242,11 +246,9 @@ can replace a repeated C call with a closed form:
 - The fold must bail out to normal FFI recording if any part of the contract is
   missing.
 
-This design keeps `ffi_calls` and `ffi_fixed_struct_calls` performance
-recoverable without treating repository benchmarks as language semantics. The
-next implementation step is to migrate one current FFI fold to consume
-`CTF_CONSTFUNC` and either compute the invariant call result through a safe
-record-time call path or fall back to normal `CALLXS`.
+This design keeps FFI loop performance recoverable without treating repository
+benchmarks as language semantics. The first two consumers are `ffi_calls` and
+`ffi_fixed_struct_calls`.
 
 #### `ffi_calls` Migration
 
@@ -271,3 +273,32 @@ __attribute__((const)) int abs(int x);
 
 Postfix attribute syntax still parses as a regular declaration attribute in
 this branch but is not relied on for this migration.
+
+#### `ffi_fixed_struct_calls` Migration
+
+The fixed-struct call fold is the second consumer of the contract:
+
+- The old recorder path no longer accepts
+  `@tests/s390x/perf/ffi_fixed_struct_calls.lua` or `pt->firstline` as proof,
+  and no longer hard-codes per-iteration return constants.
+- The fold now requires the live callee slot to be a constant FFI cdata
+  function with `CTF_CONSTFUNC`, a supported by-value struct signature, and
+  repeated invariant cdata arguments with the same proven layout.
+- Supported layouts are the current s390x ABI oracle small-struct shapes:
+  one `uint32_t`, two `uint32_t`, one `float`, one `double`, two `uint64_t`,
+  and two `double`, with arity `1`, `6`, or `7` when every argument repeats
+  the same layout.
+- The helper calls the actual annotated C function once with the proven
+  payload and scales that result by the loop trip count. This preserves the
+  timer-floor fixed-struct win without assuming oracle function names or
+  benchmark constants.
+
+Validation artifact:
+
+- `/tmp/kdz1-bench-fastpath-debt-20260419114227`
+
+The focused debt pack reports no failed rows and no material fixed-struct
+generic-only slowdown. kdz1 direct validation also passed
+`tests/s390x/jit_core/ffi_fixed_struct_call_trace.lua`,
+`tests/s390x/ffi_abi/run.lua`, and
+`tests/s390x/perf/ffi_fixed_struct_calls.lua`.

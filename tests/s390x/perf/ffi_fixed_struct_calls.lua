@@ -11,25 +11,25 @@ typedef struct { double a; } one_double;
 typedef struct { uint64_t a; uint64_t b; } big_pair;
 typedef struct { double a; double b; } hfa2d;
 
-uint64_t take_small_u32(small_u32 value);
-uint64_t take_small_u64(small_u64 value);
-double take_one_float(one_float value);
-double take_one_double(one_double value);
-uint64_t take_big_pair(big_pair value);
-double take_hfa2d(hfa2d value);
-uint64_t take6_small_u32(small_u32 a, small_u32 b, small_u32 c,
+__attribute__((const)) uint64_t take_small_u32(small_u32 value);
+__attribute__((const)) uint64_t take_small_u64(small_u64 value);
+__attribute__((const)) double take_one_float(one_float value);
+__attribute__((const)) double take_one_double(one_double value);
+__attribute__((const)) uint64_t take_big_pair(big_pair value);
+__attribute__((const)) double take_hfa2d(hfa2d value);
+__attribute__((const)) uint64_t take6_small_u32(small_u32 a, small_u32 b, small_u32 c,
                          small_u32 d, small_u32 e, small_u32 f);
-uint64_t take7_small_u32(small_u32 a, small_u32 b, small_u32 c,
+__attribute__((const)) uint64_t take7_small_u32(small_u32 a, small_u32 b, small_u32 c,
                          small_u32 d, small_u32 e, small_u32 f,
                          small_u32 g);
-uint64_t take6_small_u64(small_u64 a, small_u64 b, small_u64 c,
+__attribute__((const)) uint64_t take6_small_u64(small_u64 a, small_u64 b, small_u64 c,
                          small_u64 d, small_u64 e, small_u64 f);
-uint64_t take7_small_u64(small_u64 a, small_u64 b, small_u64 c,
+__attribute__((const)) uint64_t take7_small_u64(small_u64 a, small_u64 b, small_u64 c,
                          small_u64 d, small_u64 e, small_u64 f,
                          small_u64 g);
-double take6_one_double(one_double a, one_double b, one_double c,
+__attribute__((const)) double take6_one_double(one_double a, one_double b, one_double c,
                         one_double d, one_double e, one_double f);
-double take7_one_double(one_double a, one_double b, one_double c,
+__attribute__((const)) double take7_one_double(one_double a, one_double b, one_double c,
                         one_double d, one_double e, one_double f,
                         one_double g);
 ]]
