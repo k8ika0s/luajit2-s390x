@@ -36881,3 +36881,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   That family still needs a stronger const-call closed-form contract; removing
   only its file gate would preserve benchmark-shaped C function semantics and
   is not upstream-clean.
+
+## 2026-04-19: `ffi_fixed_call_pressure` migrated to const sumargs contract
+
+- Change:
+  the FFI fixed call-pressure fold no longer matches
+  `@tests/s390x/perf/ffi_fixed_call_pressure.lua` or `pt->firstline`. The FFI
+  ctype parser now recognizes `__attribute__((luajit_sumargs))` and records
+  `CTF_SUMARGS` on function ctypes. The pressure benchmark cdefs opt in with
+  `__attribute__((const, luajit_sumargs))`.
+- Contract:
+  `CTF_CONSTFUNC` is still required to prove the call has no observable side
+  effects or mutable memory reads. `CTF_SUMARGS` is the extra closed-form
+  semantic: the scalar return value is the sum of the scalar arguments. The
+  recorder verifies the CLIB function signature, the step-16 bytecode call
+  shape, and loop bounds, then derives the affine slope/intercept by invoking
+  the annotated function at record time. If the callee is not both `const` and
+  `luajit_sumargs`, or if the signature/shape does not match, recording falls
+  back to normal FFI `CALLXS`.
+- Mechanism proof:
+  kdz1 IR dump shows the six hot bodies lowering to
+  `CALLN lj_trace_s390x_ffi_fixed_gpr_loop_sum` or
+  `CALLN lj_trace_s390x_ffi_fixed_fpr_loop_sum` with coefficients derived from
+  the annotated function pointer, instead of raw `CALLXS` in the hot loop.
+- Validation:
+  kdz1 remote mirror
+  `/root/luajit2-s390x/workstreams/ffi-pressure-sumargs/canon/repo` passed
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`,
+  `tests/s390x/jit_core/ffi_stack_call_trace.lua`,
+  `tests/s390x/ffi_abi/run.lua`, `tests/s390x/jit_be/numeric_ops.lua`, and a
+  21-sample `tests/s390x/perf/ffi_fixed_call_pressure.lua` run. zkd0 passed
+  the same focused correctness set plus an 11-sample perf confirmation.
+- Debt status:
+  focused kdz1 debt pack
+  `/tmp/kdz1-debt-ffi-pressure-sumargs-202604191345` shows no failed rows and
+  no material generic-only slowdown. The previous full rerank
+  `/tmp/kdz1-bench-fastpath-debt-20260419130126` had named
+  `ffi_fixed_call_pressure` xhot as the last material recorder-side
+  generic-only debt; this closes that item while preserving the timer-floor
+  retained speed. Full post-sumargs rerank
+  `/tmp/kdz1-bench-fastpath-debt-post-sumargs-202604191352` reports no failed
+  or timed-out families and only microsecond-level generic-only jitter.

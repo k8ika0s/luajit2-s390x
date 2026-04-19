@@ -790,7 +790,7 @@ static void cp_push_attributes(CPDecl *decl)
 {
   CType *ct = &decl->stack[decl->pos];
   if (ctype_isfunc(ct->info)) {  /* Ok to modify in-place. */
-    ct->info |= (decl->fattr & (CTF_PUREFUNC|CTF_CONSTFUNC));
+    ct->info |= (decl->fattr & (CTF_PUREFUNC|CTF_CONSTFUNC|CTF_SUMARGS));
 #if LJ_TARGET_X86
     if ((decl->fattr & CTFP_CCONV))
       ct->info = (ct->info & (CTMASK_NUM|CTF_VARARG|CTMASK_CID)) +
@@ -1100,6 +1100,7 @@ static void cp_decl_gccattribute(CPState *cp, CPDecl *decl)
 		"\004mode" "\010__mode__"
 		"\013vector_size" "\017__vector_size__"
 		"\004pure" "\010__pure__"
+		"\016luajit_sumargs" "\022__luajit_sumargs__"
 #if LJ_TARGET_X86
 		"\007regparm" "\013__regparm__"
 		"\005cdecl"  "\011__cdecl__"
@@ -1127,28 +1128,31 @@ static void cp_decl_gccattribute(CPState *cp, CPDecl *decl)
       case 8: case 9: /* pure */
 	decl->fattr |= CTF_PUREFUNC;
 	break;
+      case 10: case 11: /* luajit_sumargs */
+	decl->fattr |= CTF_SUMARGS;
+	break;
 #if LJ_TARGET_X86
-      case 10: case 11: /* regparm */
+      case 12: case 13: /* regparm */
 	CTF_INSERT(decl->fattr, REGPARM, cp_decl_sizeattr(cp));
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 12: case 13: /* cdecl */
+      case 14: case 15: /* cdecl */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_CDECL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 14: case 15: /* thiscall */
+      case 16: case 17: /* thiscall */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_THISCALL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 16: case 17: /* fastcall */
+      case 18: case 19: /* fastcall */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_FASTCALL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 18: case 19: /* stdcall */
+      case 20: case 21: /* stdcall */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_STDCALL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 20: case 21: /* sseregparm */
+      case 22: case 23: /* sseregparm */
 	decl->fattr |= CTF_SSEREGPARM;
 	decl->fattr |= CTFP_CCONV;
 	break;
