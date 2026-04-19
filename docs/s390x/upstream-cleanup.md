@@ -535,3 +535,13 @@ The remaining trace-control debt is not all removable as source hygiene:
 iterator safety rails still protect known unsafe restart paths, while
 trace-save fingerprints and the residual exact iterator hooks need separate
 classification before deletion or migration.
+
+Post-cleanup retained matrix:
+
+- `/tmp/kdz1-trace-cleanup-final-retained-2026041915`
+- No retained-env JIT-on family is red versus `-joff`.
+- The retained env ledger now reports only two gates:
+  `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1` and
+  `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`.
+- Remaining `lj_trace.c` source debt is therefore primarily live iterator
+  safety/mechanism debt, not stale exact-family perf hooks.

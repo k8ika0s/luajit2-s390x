@@ -37150,3 +37150,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   exact iterator safety/perf family plus trace-save fingerprint false positives.
   Further iterator cleanup needs a replacement for the unsafe
   `BC_ITERN`/`BC_ITERL` restart contract.
+
+## 2026-04-19: post-trace-cleanup retained matrix check
+
+- Run:
+  `/tmp/kdz1-trace-cleanup-final-retained-2026041915`, from current WIP after
+  the `lj_trace.c` cleanup checkpoints through the exact-family hotexit
+  override removal.
+- Result:
+  no retained-env JIT-on family is red versus `-joff`. The matrix remains
+  strongly accelerated while the benchmark-shaped source audit is down to `28`
+  findings.
+- Representative rows:
+  `iterator_table` and `ffi_cdata` hot rows stay timer-floor;
+  `mixed_noffi/mixed_loop/hot` is `0.000001s` versus `~0.00417s -joff`;
+  `mixed_ffi/mixed_ffi_loop/hot` is `0.000090s` versus `~0.0124s -joff`;
+  numeric hot rows remain in the `0.000012s..0.000019s` band; and
+  `vararg_paths/sum_loop/hot` stays `0.000022s` versus `~0.0044s -joff`.
+- Current cleanup boundary:
+  source-hygiene deletion is no longer the right default move for the remaining
+  iterator exact hooks. The retained env ledger has only
+  `LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST=1` and
+  `LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST=1`, both still classified as unsafe
+  to remove without a real iterator restart/control-state mechanism.
