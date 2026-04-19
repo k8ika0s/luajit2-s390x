@@ -36960,3 +36960,39 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   generic-only debt, then either delete it or replace it with semantic proof.
   Do not remove live iterator/mixed broad safety rails until a mechanism
   replacement is proven.
+
+## 2026-04-19: promotion-core trace-control matcher removed
+
+- Change:
+  removed `lj_trace_s390x_promotion_core_forl_proto_nojit_match()` and its
+  benchmark chunk helper stack from `src/lj_trace.c`. This deletes the broad
+  exact `PROMOTION_CORE_FORL_PROTO_NOJIT` source route-around instead of
+  carrying a benchmark-file abstraction forward.
+- Audit:
+  source audit moved from `136` findings after the first trace-control cleanup
+  to `55`. The removed promotion-core block accounted for the dominant
+  remaining `perf_chunk`, proto-line, and `nins/nsnap/mcloop` fingerprint
+  cluster.
+- kdz1 validation:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`. Focused
+  scripts passed for `be_helpers`, `be_helpers_localized`,
+  `promotion_core_static_stop`, `route_around_reducers`,
+  `logic_add_phi_noboundary`, `bitops_mix`, and `ffi_calls`.
+- zkd0 validation:
+  clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`, with the
+  same focused script set passing.
+- kdz1 focused performance:
+  `be_helpers` stayed in the retained band
+  (`/tmp/kdz1-trace-cleanup-be-helpers-post-20260419144918`);
+  localized helper rows stayed in band
+  (`/tmp/kdz1-trace-cleanup-be-localized-post-20260419144955`);
+  promotion-core static rows stayed far faster than `-joff`
+  (`/tmp/kdz1-trace-cleanup-promotion-static-post-20260419145032`);
+  route reducer rows stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup-route-reducers-post-20260419145110`).
+- Remaining cleanup map:
+  the audit is now mostly live iterator/mixed exact safety rails,
+  lower-frame/mixed-ffi/cdata exact guards, hotside-localized proto
+  fingerprints, and the residual synthetic `@numeric_ops_max` recorder chunk.

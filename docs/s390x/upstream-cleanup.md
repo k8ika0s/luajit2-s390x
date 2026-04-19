@@ -139,6 +139,11 @@ Latest artifacts:
   `/tmp/kdz1-trace-cleanup-dispatch-post-20260419144236`,
   `/tmp/kdz1-trace-cleanup-mixed-ffi-post-20260419144313`, and
   `/tmp/kdz1-trace-cleanup-ffi-cdata-post-20260419144351`.
+- Promotion-core trace-control cleanup validation:
+  `/tmp/kdz1-trace-cleanup-be-helpers-post-20260419144918`,
+  `/tmp/kdz1-trace-cleanup-be-localized-post-20260419144955`,
+  `/tmp/kdz1-trace-cleanup-promotion-static-post-20260419145032`, and
+  `/tmp/kdz1-trace-cleanup-route-reducers-post-20260419145110`.
 
 The higher-sample rerun built default WIP and generic-only
 `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` profiles from the same tracked source
@@ -173,6 +178,9 @@ trace-control hooks that are no longer part of the retained environment:
   backend/codegen work; current retained env no longer carries these trace
   admission gates.
 - Audit count moved from `155` benchmark-shaped source findings to `136`.
+- A second pass removed the stale promotion-core `FORL_PROTO_NOJIT` matcher,
+  which accounted for most of the remaining benchmark-shaped trace-control
+  findings. Audit count moved from `136` to `55`.
 
 Focused `kdz1` validation after the removal stayed in band:
 
@@ -181,11 +189,12 @@ Focused `kdz1` validation after the removal stayed in band:
 - `ffi_cdata`: `pair_loop`, `mixed_width_loop`, and `buffer_fref_loop` all
   stayed timer-floor.
 
-The remaining high-density audit bucket is now the promotion-core
-`FORL_PROTO_NOJIT` matcher plus live iterator/mixed safety rails. The next
-safe cleanup order is: first remove or replace stale opt-in promotion-core
-trace-control if current generic-only debt remains flat, then tackle live
-iterator/mixed route-arounds only with mechanism proof.
+The remaining high-density audit buckets are now live iterator/mixed safety
+rails, lower-frame/mixed-ffi/cdata exact trace guards, hotside-localized proto
+fingerprints, and one residual synthetic `@numeric_ops_max` recorder chunk.
+Tackle live iterator/mixed route-arounds only with mechanism proof; the next
+low-risk source cleanup is the residual synthetic recorder chunk or stale
+opt-in exact guards that no current retained env uses.
 
 ### Iterator Table Status
 
