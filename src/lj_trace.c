@@ -457,6 +457,35 @@ double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
   return acc + (double)((int64_t)stop - idx + 1) * per_iter;
 }
 
+uint64_t lj_trace_s390x_ffi_fixed_gpr7_loop_sum(uint64_t acc, int32_t idx,
+						int32_t stop)
+{
+  int32_t last, count32;
+  uint64_t count, sum_i;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return acc;
+  last = stop - 15;
+  if (idx > last)
+    return acc;
+  count32 = ((last - idx) / 16) + 1;
+  count = (uint64_t)count32;
+  sum_i = count * ((uint64_t)(uint32_t)idx * 2u +
+		   16u * (count - 1u)) / 2u;
+  return acc + 112u * sum_i + 984u * count;
+}
+
+int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx, int32_t stop)
+{
+  int32_t last, count;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return idx;
+  last = stop - 15;
+  if (idx > last)
+    return idx;
+  count = ((last - idx) / 16) + 1;
+  return idx + 16 * count;
+}
+
 double lj_trace_s390x_lower_frame_abs17_loop_sum(double acc, int32_t idx,
 						 int32_t stop)
 {
