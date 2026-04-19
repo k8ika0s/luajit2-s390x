@@ -54,10 +54,7 @@ AUTHORITATIVE_HASH_PATHS = [
     "tools/s390x/build_iterator_truth_pack.py",
     "docs/s390x/findings.md",
 ]
-RETAINED_BASELINE_ENV: dict[str, str] = {
-    "LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST": "1",
-    "LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST": "1",
-}
+RETAINED_BASELINE_ENV: dict[str, str] = {}
 CANDIDATE_ENVS: dict[str, dict[str, str]] = {
     "retained_baseline": RETAINED_BASELINE_ENV,
     "raw_jit": {},

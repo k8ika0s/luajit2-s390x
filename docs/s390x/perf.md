@@ -6146,3 +6146,35 @@ localized-helper carried-`total` lane
   `ffi_cdata` is closed as a current x86-gap family. Numeric FP helper variants
   were rechecked and not retained; regenerate the full x86 comparison before
   choosing the next source target.
+
+## 2026-04-19 Iterator Rails Removed From Retained Contract
+
+- Source:
+  current WIP after retiring the iterator trace-control rails in `src/lj_trace.c`.
+- Change:
+  removed the exact iterator chunk/proto matcher, ITERN/ITERL trace-shape
+  blacklists, exact proto-NOJIT path, hash/array hotcount parks, post-proto
+  ITERN no-hot dispatch override, broad iterator root blacklist fallback, and
+  the retained iterator env entries.
+- Mechanism:
+  retained iterator performance is now carried by the semantic `pairs()` loop
+  fold plus recorder guards, not exact benchmark source fingerprints.
+- kdz1:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/iterator-terminal/canon/repo`.
+  `jit_loops/*.lua` passed, including `pairs_loop.lua`. Focused `iterator_table`,
+  `mixed_noffi`, `vararg_paths`, and `dispatch_trace` passed with
+  `iterator_table` hot rows at `0.000000s..0.000001s` and
+  `mixed_noffi/mixed_loop/hot` at `0.000001s`.
+- zkd0:
+  clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/iterator-terminal/canon/repo`.
+  `jit_loops/*.lua` passed, and focused `iterator_table`, `mixed_noffi`,
+  `vararg_paths`, and `dispatch_trace` stayed clean. Iterator hot rows confirmed
+  at `0.000000s..0.000001s`.
+- Matrix impact:
+  retained perf env count is now `0`. The benchmark-shaped source audit is down
+  to `8` findings and has no iterator chunk/line/trace-shape entries left.
+- Full retained rerank:
+  `/tmp/kdz1-post-iterator-rail-retire-202604191545/summary.md` completed with
+  no JIT-on family red versus `-joff`.

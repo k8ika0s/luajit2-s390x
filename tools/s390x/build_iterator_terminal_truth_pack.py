@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Build the official iterator terminal-leave truth pack.
 
-This helper is intentionally non-mutating.  It compares the retained iterator
-floor with the terminal-unlocked mode that disables the iterator safety rails,
-then captures the trace/snapshot/JLOOP evidence needed to decide whether a
-future source change has a real terminal-state contract to implement.
+This helper is intentionally non-mutating.  It compares the retained semantic
+iterator fold with the raw terminal-restart mode exposed by disabling that
+fold, then captures the trace/snapshot/JLOOP evidence needed to decide whether
+a future source change has a real terminal-state contract to implement.
 """
 
 from __future__ import annotations
@@ -27,20 +27,8 @@ import restamp_iterator_perf as restamp
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_ROOT = ROOT / "artifacts" / "s390x" / "truth-packs"
 OFFICIAL_BENCH = "tests/s390x/perf/iterator_table.lua"
-ITERATOR_RAIL_KEYS = (
-    "LUAJIT_S390X_ITERATOR_ITERN_BLACKLIST",
-    "LUAJIT_S390X_ITERATOR_ITERL_BLACKLIST",
-    "LUAJIT_S390X_ITERATOR_ITERN_PROTO_NOJIT",
-    "LUAJIT_S390X_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK",
-    "LUAJIT_S390X_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK",
-    "LUAJIT_S390X_ITERATOR_POST_PROTO_ITERN_NOHOT",
-)
 TERMINAL_DISABLE_ENV = {
-    "LUAJIT_S390X_DISABLE_ITERATOR_ITERN_PROTO_NOJIT": "1",
-    "LUAJIT_S390X_DISABLE_ITERATOR_ARRAY_ITERN_NOJIT_HOTCOUNT_PARK": "1",
-    "LUAJIT_S390X_DISABLE_ITERATOR_HASH_ITERN_NOJIT_HOTCOUNT_PARK": "1",
-    "LUAJIT_S390X_DISABLE_ITERATOR_POST_PROTO_ITERN_NOHOT": "1",
-    "LUAJIT_S390X_DISABLE_ITERATOR_ROOT_BLACKLIST": "1",
+    "LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD": "1",
 }
 TERMINAL_FOCUS_ENV = {
     "LUAJIT_S390X_RECSTOP_LOG": "1",
@@ -266,8 +254,6 @@ def write_json(path: pathlib.Path, payload: object) -> None:
 
 def terminal_optout_env() -> dict[str, str]:
     env = dict(restamp.RETAINED_BASELINE_ENV)
-    for key in ITERATOR_RAIL_KEYS:
-        env.pop(key, None)
     env.update(TERMINAL_DISABLE_ENV)
     return env
 
@@ -952,7 +938,7 @@ def render_summary(
             "## Decision",
             "",
             "- This pack is read-only. It is a gate for a future terminal-leave contract, not a retained optimization by itself.",
-            f"- A candidate is allowed only if it changes the `trace {focus_trace} exit {focus_exit}` terminal contract without weakening retained iterator safety rails.",
+            f"- A candidate is allowed only if it changes the `trace {focus_trace} exit {focus_exit}` terminal contract without weakening the retained semantic iterator fold.",
             "",
             "## Raw Artifacts",
             "",
@@ -1098,7 +1084,7 @@ def main() -> int:
         "terminal_unlocked_env": terminal_env,
         "terminal_focus_env_extra": TERMINAL_FOCUS_ENV,
         "extra_env": extra_env,
-        "unset_for_terminal_unlock": list(ITERATOR_RAIL_KEYS),
+        "terminal_unlock_control": TERMINAL_DISABLE_ENV,
         "retained": retained,
         "terminal_unlocked": terminal,
         "terminal_focus_stdout": focus_stdout,

@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 """Measure dependency on branch-local benchmark-shaped s390x fast paths.
 
-The WIP branch keeps `LUAJIT_ENABLE_S390X_BENCH_FASTPATHS=1` by default to
-preserve retained performance. This pack builds the same tracked source twice:
-
-* default WIP profile (`LUAJIT_ENABLE_S390X_BENCH_FASTPATHS=1`)
-* generic-only upstream-prep profile (`LUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0`)
-
-It then runs official perf families with the retained env and reports which
-rows slow down, fail, or time out when benchmark-shaped route-arounds are
-compiled out.
+This is now a legacy comparison helper. Current WIP has retired the
+`LUAJIT_ENABLE_S390X_BENCH_FASTPATHS` source switch, so the default and
+generic-only builds should be equivalent unless a future tranche temporarily
+reintroduces compile-time benchmark fast paths. The pack still runs both
+profiles and reports any divergence.
 """
 
 from __future__ import annotations
