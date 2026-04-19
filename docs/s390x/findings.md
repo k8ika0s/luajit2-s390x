@@ -37037,3 +37037,43 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   classify the remaining `mixed_noffi` and `iterator_table` hooks separately:
   they are still safety rails, not stale opt-in perf hooks. Do not remove them
   without a mechanism replacement for the unsafe iterator/mixed restart paths.
+
+## 2026-04-19: localized hotside benchmark matcher removed
+
+- Change:
+  removed the opt-in `LUAJIT_S390X_LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV`
+  source path from `src/lj_trace.c`, including the benchmark-file allow-list,
+  proto line fingerprints, and localized hotside equivalence matcher. The
+  generic UGET loop-root hotside sharing path remains in place.
+- Reason:
+  the localized hotside route-around had already been removed from
+  `RETAINED_BASELINE_ENV`; the affected rows are now covered by semantic
+  recorder/backend folds rather than trace-control matching on benchmark
+  chunks and line numbers.
+- Audit:
+  `tools/s390x/audit_benchmark_fastpaths.py` moved from `45` findings to
+  `39`. This eliminated the lower-frame same-callsite trace chunk and the
+  localized hotside proto-line fingerprint cluster.
+- kdz1 validation:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`. Focused
+  scripts passed for `be_helpers_localized`, `be_helpers`,
+  `promotion_core_static_stop`, `route_around_reducers`,
+  `lower_frame_same_callsite`, and `dispatch_trace`.
+- zkd0 validation:
+  clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`, with the
+  same focused script set passing.
+- kdz1 focused performance:
+  localized helper rows stayed accelerated
+  (`/tmp/kdz1-trace-cleanup4-be-localized-post-2026041915`);
+  promotion-core static rows stayed accelerated
+  (`/tmp/kdz1-trace-cleanup4-promotion-static-post-2026041915`);
+  `lower_frame_same_callsite/lua_abs_same_callsite/hot` stayed timer-floor
+  against `~0.015s` `-joff`
+  (`/tmp/kdz1-trace-cleanup4-lower-frame-post-2026041915`).
+- Remaining cleanup target:
+  the retained env ledger now contains only the iterator `ITERN`/`ITERL`
+  safety blacklists. The remaining benchmark-shaped findings are mostly live
+  iterator/mixed safety hooks plus residual diagnostics, so further removal
+  requires mechanism replacement rather than simple stale-hook deletion.

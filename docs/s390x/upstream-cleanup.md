@@ -491,6 +491,7 @@ arounds that no longer participate in the retained floor:
 - `MIXED_FFI_FORL_PROTO_NOJIT`
 - `LOWER_FRAME_LUA_ABS_PROTO_NOJIT`
 - `FFI_CDATA_PAIR_FORL_BLACKLIST`
+- `LOCALIZED_HOTSIDE_CANON_SHARE_EQUIV`
 
 Validation summary:
 
@@ -509,10 +510,14 @@ Validation summary:
   `/tmp/kdz1-trace-cleanup3-mixed-ffi-post-2026041915`,
   `/tmp/kdz1-trace-cleanup3-ffi-cdata-post-2026041915`, and
   `/tmp/kdz1-trace-cleanup3-lower-frame-post-2026041915`.
+- Localized hotside removal focused perf:
+  `/tmp/kdz1-trace-cleanup4-be-localized-post-2026041915`,
+  `/tmp/kdz1-trace-cleanup4-promotion-static-post-2026041915`, and
+  `/tmp/kdz1-trace-cleanup4-lower-frame-post-2026041915`.
 
 Both kdz1 and zkd0 passed clean GCC builds and focused validation for each
-affected family. The benchmark-shaped source audit is now at `45` findings.
+affected family. The benchmark-shaped source audit is now at `39` findings.
 The remaining trace-control debt is not all removable as source hygiene:
 iterator and mixed safety rails still protect known unsafe restart paths, while
-the hotside-localized and trace-save fingerprints need separate classification
-before deletion or migration.
+trace-save fingerprints and the residual exact iterator/mixed hooks need
+separate classification before deletion or migration.
