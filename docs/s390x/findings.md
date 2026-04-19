@@ -36996,3 +36996,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the audit is now mostly live iterator/mixed exact safety rails,
   lower-frame/mixed-ffi/cdata exact guards, hotside-localized proto
   fingerprints, and the residual synthetic `@numeric_ops_max` recorder chunk.
+
+## 2026-04-19: stale exact FORL/proto trace hooks removed
+
+- Change:
+  removed three stale opt-in trace-control route-arounds from
+  `src/lj_trace.c`: `LUAJIT_S390X_MIXED_FFI_FORL_PROTO_NOJIT`,
+  `LUAJIT_S390X_LOWER_FRAME_LUA_ABS_PROTO_NOJIT`, and
+  `LUAJIT_S390X_FFI_CDATA_PAIR_FORL_BLACKLIST`. These had already fallen out
+  of the canonical retained env and were exact benchmark trace-shape hooks
+  (`traceno`, `nsnap`, `nins`, `mcloop`) rather than upstreamable mechanisms.
+- Scope:
+  kept the lower-frame and cdata proto helpers that are still referenced by
+  other diagnostic/fallback paths. This cut removes only the stale stop-path
+  actions and their exact trace-shape matchers.
+- Audit:
+  `tools/s390x/audit_benchmark_fastpaths.py` moved from `55` findings after
+  the promotion-core removal to `45`. The remaining source audit is dominated
+  by live iterator/mixed safety rails, hotside-localized diagnostic matching,
+  generic-looking trace-save fingerprints, and the residual synthetic
+  `@numeric_ops_max` recorder probe.
+- kdz1 validation:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`. Focused
+  scripts passed for `mixed_ffi`, `lower_frame_same_callsite`, `ffi_cdata`,
+  `iterator_table`, `mixed_noffi`, and `dispatch_trace`.
+- zkd0 validation:
+  clean GCC build passed in
+  `zkd0:/root/luajit2-s390x/workstreams/trace-cleanup/canon/repo`, with the
+  same focused script set passing.
+- kdz1 focused performance:
+  `mixed_ffi/mixed_ffi_loop/hot` stayed at `0.000090s`
+  (`/tmp/kdz1-trace-cleanup3-mixed-ffi-post-2026041915`);
+  `ffi_cdata` rows stayed timer-floor
+  (`/tmp/kdz1-trace-cleanup3-ffi-cdata-post-2026041915`);
+  `lower_frame_same_callsite/lua_abs_same_callsite/hot` stayed timer-floor
+  against a `~0.015s` `-joff` row
+  (`/tmp/kdz1-trace-cleanup3-lower-frame-post-2026041915`).
+- Next cleanup target:
+  classify the remaining `mixed_noffi` and `iterator_table` hooks separately:
+  they are still safety rails, not stale opt-in perf hooks. Do not remove them
+  without a mechanism replacement for the unsafe iterator/mixed restart paths.
