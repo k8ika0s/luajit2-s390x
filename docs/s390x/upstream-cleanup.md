@@ -27,11 +27,10 @@ calls:
 python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
-As of this note, the broader audit intentionally fails with `171` findings:
-`44` recorder reducer definitions, `43` root dispatch hooks, `44` emitted
-reducer IRCALLs, and `40` s390x reducer/string callinfo entries. These are no
-longer benchmark-name keyed in many cases, but they remain semantic loop
-substitution in the core recorder and are the main upstream blocker.
+As of this note, the broader semantic audit intentionally fails with `139`
+findings. These are no longer benchmark-name keyed in many cases, but they
+remain semantic loop substitution in the core recorder and are the main
+upstream blocker.
 
 Historical findings still mention benchmark identity patterns because they
 document the bring-up path. Current source should keep the identity audit clean
@@ -150,7 +149,7 @@ The expanded audit currently classifies the remaining reducer debt as:
   `lj_record_ins()`, plus byte-scan hooks at loop setup.
 - `semantic_reducer_ircall`: `34` emitted reducer helper calls from the
   recorder into s390x/string helpers.
-- `semantic_reducer_callinfo`: `34` s390x reducer/string helper callinfo
+- `semantic_reducer_callinfo`: `35` s390x reducer/string helper callinfo
   entries in `src/lj_ircall.h`.
 
 Burn-down order:
@@ -191,7 +190,7 @@ current splits are:
 
 ```sh
 -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0
--DLUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS=0
+-DLUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0
 -DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0
 -DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0
 -DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0
@@ -200,8 +199,10 @@ current splits are:
 ```
 
 The debt-pack helper accepts these as named `--profile` values; `default` is
-always included as the baseline. Removed reducer classes should not retain
-dead profile switches.
+always included as the baseline. `mixed-noffi-off` is still accepted as a
+compatibility alias for `component-loop-off`; new runs should use
+`component-loop-off`. Removed reducer classes should not retain dead profile
+switches.
 
 Use this helper to regenerate the reducer burn-down ledger from source:
 
@@ -215,7 +216,8 @@ Current ledger summary:
 - `ffi_cdata`: `6`
 - `logic_low32`: `3`
 - `string_cycle`: `3`
-- `iterator_mixed`: `2`
+- `component_loop`: `1`
+- `iterator_mixed`: `1`
 
 The current total is `34` reducer matcher definitions. The `be_helpers`,
 `route_reducer`, and `large_immediates` buckets have been removed; the former
@@ -329,6 +331,28 @@ zkd0 focused validation also kept `mixed_noffi`, `iterator_table`, and
 `pairs_loop.lua` clean. The remaining upstream debt is the recorder matcher
 itself; the next step is to split it into generic component matchers or delete
 it once those components are available from normal lowering.
+
+The production matcher and compile split have now been renamed away from
+mixed-noffi ownership:
+
+- Matcher: `lj_record_s390x_component_loop_tail_sum()`.
+- Compile split: `-DLUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0`.
+- Debt-pack profile: `component-loop-off`.
+
+The old `mixed-noffi-off` profile remains a debt-pack compatibility alias for
+the same compile split. Current ledger classification puts this debt in the
+`component_loop` bucket, leaving `iterator_mixed` with only the independent
+iterator-table reducer.
+
+Focused component-loop profile artifact:
+
+- `/tmp/kdz1-component-loop-profile-20260420102645`
+
+That run rebuilt `default` and `component-loop-off` for `mixed_noffi` and
+`iterator_table`. `mixed_noffi/mixed_loop/hot` moved from `0.000002s` default
+to `0.002869s` with only the component-loop matcher disabled. Iterator rows
+stayed at the timer floor, confirming that this is component-loop debt rather
+than iterator ownership.
 
 ## Current Debt Ranking
 

@@ -30,7 +30,8 @@ DEFAULT_PROFILES = ["default", "generic-only"]
 PROFILE_XCFLAGS = {
     "default": "",
     "generic-only": " -DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0",
-    "mixed-noffi-off": " -DLUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS=0",
+    "component-loop-off": " -DLUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0",
+    "mixed-noffi-off": " -DLUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0",
     "string-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0",
     "string-concat-slice-off": " -DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0",
     "string-manual-find-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0",

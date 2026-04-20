@@ -37934,3 +37934,43 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   helper was replaced by reusable helper callinfo/IRCALL surfaces; the next
   cleanup step is to split the recorder matcher into independent component
   recognizers or delete it once normal lowering provides the same route.
+
+## 2026-04-20: mixed-noffi matcher moved to component-loop ownership
+
+- Renamed the remaining production matcher and compile split away from
+  mixed-noffi ownership:
+  `lj_record_s390x_mixed_noffi_tail_sum()` is now
+  `lj_record_s390x_component_loop_tail_sum()`, and
+  `LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS` is now
+  `LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS`.
+- Added the debt-pack profile `component-loop-off`; the old
+  `mixed-noffi-off` profile remains only as a compatibility alias for the same
+  compile split. New cleanup runs should use `component-loop-off`.
+- The source identity audit remains clean:
+  `benchmark-shaped source findings: 0`.
+- Current semantic ledger remains `34` matcher definitions but is now split as
+  `numeric_mod 20`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
+  `component_loop 1`, and `iterator_mixed 1`. This makes the next debt unit
+  explicit: the remaining mixed speedup is a component-loop semantic matcher,
+  not iterator ownership and not a mixed-noffi-named helper.
+- Focused kdz1 component-loop profile:
+  `/tmp/kdz1-component-loop-profile-20260420102645`. `mixed_noffi/mixed_loop`
+  hot stays at `0.000002s` by default and moves to `0.002869s` with
+  `component-loop-off`; iterator rows stay at the timer floor.
+
+## 2026-04-20: scaled-tobit fold guard fixed for MULOV overflow guardrail
+
+- The `tests/s390x/jit_be/mulov_overflow_guard.lua` failure was not an
+  arithmetic failure. The localized and global `bit.tobit` loops returned the
+  correct result, but the trace recorded during `fn(20)` guarded against that
+  recording-time stop value, then exited once per iteration for `fn(64000)`.
+- Fixed `lj_record_s390x_scaled_tobit_loop_sum()` to guard the helper domain
+  (`stop <= 1000000`) instead of `stop <= recording_stop`, while preserving the
+  dynamic stop passed to `lj_trace_s390x_scaled_tobit_loop_sum()`.
+- kdz1 validation after the fix passed
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`, focused
+  `be_helpers.lua`, `be_helpers_localized.lua`,
+  `promotion_core_static_stop.lua`, `mixed_noffi.lua`, `iterator_table.lua`,
+  `vararg_paths.lua`, `pairs_loop.lua`, `addsub_overflow_guard.lua`,
+  `numeric_ops.lua`, and exact probes (`mixedprobe -> 553416`,
+  `hash_value -> 3000`, `ipairs_only_probe -> 576000`).
