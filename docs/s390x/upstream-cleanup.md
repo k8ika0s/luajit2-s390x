@@ -3,13 +3,13 @@
 This page tracks source patterns that are acceptable during bring-up but not
 acceptable in an upstreamable JIT implementation.
 
-## Benchmark-Shaped Optimizations
+## Benchmark-Shaped And Semantic Reducer Optimizations
 
-The current WIP branch no longer has production `src/` benchmark-shaped
-fastpaths according to:
+The current WIP branch no longer has production `src/` fastpaths that depend
+on benchmark identity according to:
 
 ```sh
-python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
+python3 tools/s390x/audit_benchmark_fastpaths.py --scope identity --fail-on-findings
 ```
 
 The upstream rule remains strict: a valid upstream patch can optimize IR,
@@ -18,22 +18,46 @@ instruction selection. It should not recognize repository performance tests,
 synthetic benchmark chunk names, line-number identity, current IR sizes,
 snapshot counts, or mcode-loop fingerprints to steer production JIT behavior.
 
-Historical findings still mention those patterns because they document the
-bring-up path. Current source should stay audit-clean.
+That narrow identity audit is not enough for upstream readiness. The broader
+default audit also flags semantic s390x recorder substitutions that recognize
+specific loop families and replace them with target helper/closed-form reducer
+calls:
+
+```sh
+python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
+```
+
+As of this note, the broader audit intentionally fails with `174` findings:
+`45` recorder reducer definitions, `45` root dispatch hooks, `44` emitted
+reducer IRCALLs, and `40` s390x reducer/string callinfo entries. These are no
+longer benchmark-name keyed in many cases, but they remain semantic loop
+substitution in the core recorder and are the main upstream blocker.
+
+Historical findings still mention benchmark identity patterns because they
+document the bring-up path. Current source should keep the identity audit clean
+while the semantic reducer audit is burned down.
 
 ## Current Blocker Map
 
 Current production-source status:
 
-- `src/lj_record.c`: benchmark-shaped recorder folds have been migrated to
-  semantic bytecode/IR/runtime contracts or removed.
+- `src/lj_record.c`: benchmark-shaped recorder folds have been migrated away
+  from file/chunk/line identity, but the remaining semantic reducer dispatch
+  remains upstream-risky. The main dispatch block in `lj_record_ins()` still
+  routes many root-loop bytecode shapes into `lj_record_s390x_*_sum()` or
+  related reducer functions, which emit helper calls instead of recording the
+  ordinary loop body.
 - `src/lj_trace.c`: exact benchmark trace-control steering has been removed,
   including exact proto no-JIT paths, hotcount parks, blacklists, stale
   loop-descendant trace-save experiments, and exact iterator/mixed semantic
-  fold parks.
+  fold parks. The remaining `lj_trace_s390x_*_sum()` helpers are part of the
+  semantic reducer debt until each is replaced by backend/IR lowering or moved
+  out of the upstream candidate.
 - `src/lj_ircall.h`: s390x reducer/string helper callinfo entries are now
   target-confined with `IRCALLCOND_S390X`, not exposed as active generic
-  architecture-neutral helper ABI.
+  architecture-neutral helper ABI. Target confinement fixed the ABI surface
+  issue, but it does not make the recorder-side semantic substitutions
+  upstream-clean by itself.
 - `src/lib_jit.c`: the broad s390x `hotexit=200` safety rail has been removed.
   The low-hotexit `vararg_paths.lua` crash was traced to missing numeric
   `ASTORE` lowering in `asm_ahustore()`, not to a need for target-specific JIT
@@ -52,8 +76,9 @@ benchmark-family identity.
 Use this split for upstream prep:
 
 - Preserve the current WIP performance baseline while cleanup proceeds, but do
-  not reintroduce benchmark-shaped production source. The benchmark-fastpath
-  audit is now a hard source gate, not just a generic-only comparison aid.
+  not reintroduce benchmark-shaped production source. The identity audit is a
+  hard source gate. The broader default audit is the semantic reducer burn-down
+  gate and is expected to fail until the reducer queue below is resolved.
 - Keep or refine generic backend/codegen changes. Examples: instruction
   selection, ABI repair, register-state correctness, SLOAD ordering,
   overflow-guard correctness, VM helper implementations, and target-neutral
@@ -70,9 +95,9 @@ Use this split for upstream prep:
   default is now retired; do not reintroduce target-specific JIT defaults
   without a fresh generic mechanism proof.
 
-## Audit Command
+## Audit Commands
 
-Run:
+Run the full upstream-risk audit:
 
 ```sh
 python3 tools/s390x/audit_benchmark_fastpaths.py
@@ -84,9 +109,18 @@ For a hard gate in an upstream-prep branch:
 python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
-The current WIP is expected to pass this audit for production `src/` files. A
-new finding means a cleanup regression unless it is an explicitly allowlisted
-generic mechanism.
+The current WIP is not expected to pass the full audit yet because semantic
+reducer substitution debt remains.
+
+For the narrower benchmark-identity audit, run:
+
+```sh
+python3 tools/s390x/audit_benchmark_fastpaths.py --scope identity --fail-on-findings
+```
+
+The current WIP is expected to pass the identity audit for production `src/`
+files. A new identity finding means a cleanup regression unless it is an
+explicitly allowlisted generic mechanism.
 
 The audit is intentionally source-based, not build-profile-based. It reports
 benchmark-shaped source even if a path could be compiled out, because an
@@ -94,13 +128,68 @@ upstream candidate needs the source removed or rewritten, not merely disabled.
 
 ## Cleanup Order
 
-1. Keep the benchmark-fastpath audit at zero findings for production `src/`.
+1. Keep the benchmark-identity audit at zero findings for production `src/`.
 2. Keep the generic LuaJIT hotexit default active on s390x; the previous
    `hotexit=200` safety rail has been removed.
-3. Continue shrinking diagnostic env and tooling-only historical references
+3. Burn down semantic reducer substitutions by family. Each retained win must
+   become backend lowering, target-neutral IR/bytecode canonicalization, or a
+   documented branch-local fastpath that is excluded from the upstream
+   candidate.
+4. Continue shrinking diagnostic env and tooling-only historical references
    where they no longer pay their way.
-4. Re-run correctness first, then perf comparison after each cleanup tranche.
-5. Rebuild any lost performance from semantic mechanisms only.
+5. Re-run correctness first, then perf comparison after each cleanup tranche.
+6. Rebuild any lost performance from upstreamable semantic mechanisms only.
+
+## Semantic Reducer Burn-Down Queue
+
+The expanded audit currently classifies the remaining reducer debt as:
+
+- `semantic_reducer_definition`: `45` recorder reducer matcher definitions in
+  `src/lj_record.c`.
+- `semantic_reducer_dispatch`: `45` default-on recorder dispatch hooks in
+  `lj_record_ins()`, plus byte-scan hooks at loop setup.
+- `semantic_reducer_ircall`: `44` emitted reducer helper calls from the
+  recorder into s390x/string helpers.
+- `semantic_reducer_callinfo`: `40` s390x reducer/string helper callinfo
+  entries in `src/lj_ircall.h`.
+
+Burn-down order:
+
+- Numeric and modulo reducers: replace closed-form helpers with generic
+  optimizer facts, backend modulo lowering, or leave them branch-local.
+- Logic/low32 reducers: keep only transformations expressible as demanded-bit
+  or low32-home contracts; remove whole-benchmark result folds.
+- Iterator and mixed reducers: keep the generic iterator control-state
+  contract; remove full-loop result helpers unless they can be expressed as a
+  target-neutral `pairs()` reduction optimization.
+- FFI/cdata reducers: preserve backend ABI and cdata load/store lowering, but
+  do not substitute whole FFI benchmark loops in the recorder.
+- String reducers: keep C helper improvements such as faster find/sum
+  primitives, but remove recorder whole-loop replacements unless they become
+  generic string IR operations.
+
+The first pass should not try to delete all reducers at once. For each family,
+measure the no-reducer baseline, classify the lost performance mechanism, and
+then rebuild the win through a proper lower-level mechanism or explicitly mark
+the fastpath as branch-local.
+
+Use this helper to regenerate the reducer burn-down ledger from source:
+
+```sh
+python3 tools/s390x/build_semantic_reducer_debt.py
+```
+
+Current ledger summary:
+
+- `numeric_mod`: `19`
+- `string`: `7`
+- `ffi_cdata`: `6`
+- `large_immediates`: `4`
+- `logic_low32`: `3`
+- `iterator_mixed`: `2`
+- `route_reducer`: `2`
+- `be_helpers`: `1`
+- `lower_frame`: `1`
 
 ## Current Debt Ranking
 
