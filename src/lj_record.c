@@ -524,10 +524,21 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS
+#define LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
 #define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 1
 #else
 #define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 0
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS
+#define LJ_RECORD_S390X_MIXED_NOFFI_REDUCERS 1
+#else
+#define LJ_RECORD_S390X_MIXED_NOFFI_REDUCERS 0
 #endif
 
 static int lj_record_s390x_string_key_lookup_enabled(void)
@@ -3485,7 +3496,7 @@ static int lj_record_s390x_strto_cycle_loop_sum(jit_State *J,
 
 static int lj_record_s390x_mixed_noffi_loop_fold_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_MIXED_NOFFI_REDUCERS;
 }
 
 static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,

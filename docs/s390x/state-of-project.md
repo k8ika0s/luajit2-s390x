@@ -54,6 +54,11 @@ Historical experiment detail lives in
   generic-only profile loses `+0.002808s` on `mixed_loop/hot`. The next
   follow-ups after that are string cycle reducers, `be_helpers/strto_loop`,
   numeric min/max, and logical-chain tail-store.
+- Focused mixed-noffi profile
+  `/tmp/kdz1-mixed-noffi-profile-20260420090000` shows `mixed-noffi-off`
+  matches `generic-only` for the official mixed row while iterator rows remain
+  at the timer floor. Current retained mixed speed is therefore one isolated
+  whole-loop semantic fold, not a reusable iterator/table mechanism.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
