@@ -424,11 +424,11 @@ Historical experiment detail lives in
 - Env-surface audit:
   `tools/s390x/build_env_surface_audit.py` now inventories the full s390x env
   surface across `src/`, `tests/s390x/`, and `tools/s390x/`. Current run
-  `/tmp/s390x-env-surface-20260420021532/env_surface.md` found `149` unique
-  env names: `86` debug/probe knobs, `62` tooling-only historical references,
-  and `1` test-only setup env. The next cleanup decision is whether to retain a
-  documented diagnostics subset or move s390x diagnostics behind a compile-time
-  diagnostics build option.
+  `/tmp/s390x-env-surface-20260420031430/env_surface.md` found `99` unique env
+  names: `16` retained high-value source diagnostics, `82` tooling-only
+  historical references, and `1` test-only setup env. The remaining source
+  diagnostics cover trace lifecycle/meta, exits, direct patchexit, RA/ASM/guard
+  state, recorder IR/stop state, and snapshot/restore state.
 - `dispatch_trace` is closed at the current matrix scale after direct
   patchexit and nonzero CIJ/CGIJ fusion. Rows are now effectively at the
   timer floor under the full matrix harness.

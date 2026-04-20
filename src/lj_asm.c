@@ -208,10 +208,7 @@ static RegSP ra_s390x_sanitize_regsp(ASMState *as, RegSP rs,
 
 static int lj_asm_s390x_phi_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_PHI_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_asm_s390x_force_phi_spill(void)
@@ -234,10 +231,7 @@ static void lj_asm_s390x_phi_log(const char *phase, ASMState *as, IRIns *ir,
 
 static int lj_asm_s390x_ra_trace_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RA_TRACE") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_asm_s390x_badra_log_enabled(void)
@@ -299,34 +293,22 @@ static void lj_asm_s390x_badra_log(ASMState *as)
 
 static int lj_asm_s390x_tail_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_TAIL_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_asm_s390x_save_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SAVE_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_asm_s390x_spill_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SPILL_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_asm_s390x_rename_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RENAME_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static void lj_asm_s390x_save_log(ASMState *as, IRIns *ir, Reg r)

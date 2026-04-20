@@ -108,10 +108,7 @@ static int asm_s390x_gc64_signed_int_sload_enabled(void)
 
 static int asm_s390x_call_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_CALL_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_direct_call_arg_enabled(void)
@@ -121,50 +118,32 @@ static int asm_s390x_direct_call_arg_enabled(void)
 
 static int asm_s390x_add_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ADD_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_addhome_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ADDHOME_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_low32home_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_LOW32HOME_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_low32cmp_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_LOW32CMP_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_bitop_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BITOP_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_bnorm_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BNORM_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_is_intarith_op(IROp op)
@@ -1098,18 +1077,12 @@ static void asm_s390x_low32cmp_log(ASMState *as, const char *phase, IROp op,
 
 static int asm_s390x_sload_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SLOAD_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_sloadmap_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SLOADMAP_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_forl_current_compare_fix_enabled(void)
@@ -1119,10 +1092,7 @@ static int asm_s390x_forl_current_compare_fix_enabled(void)
 
 static int asm_s390x_stack_restore_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_STACK_RESTORE_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_int_minmax_enabled(void)
@@ -1142,40 +1112,22 @@ static int asm_s390x_varg_bias_override(void)
 
 static int asm_s390x_varg_slot_bias_override(void)
 {
-  static int bias = -1000;
-  if (bias == -1000) {
-    const char *s = getenv("LUAJIT_S390X_VARG_SLOT_BIAS");
-    bias = s ? atoi(s) : 0;
-  }
-  return bias;
+  return 0;
 }
 
 static int asm_s390x_varg_slot_bias_root_override(void)
 {
-  static int bias = -1000;
-  if (bias == -1000) {
-    const char *s = getenv("LUAJIT_S390X_VARG_SLOT_BIAS_ROOT");
-    bias = s ? atoi(s) : -999;
-  }
-  return bias;
+  return -999;
 }
 
 static int asm_s390x_varg_slot_bias_loop_override(void)
 {
-  static int bias = -1000;
-  if (bias == -1000) {
-    const char *s = getenv("LUAJIT_S390X_VARG_SLOT_BIAS_LOOP");
-    bias = s ? atoi(s) : -999;
-  }
-  return bias;
+  return -999;
 }
 
 static int asm_s390x_varg_dump_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VARG_DUMP") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_is_varg_vload(ASMState *as, IRIns *ir)
@@ -4204,7 +4156,7 @@ static void asm_retf(ASMState *as, IRIns *ir)
 			   rset_exclude(rset_exclude(RSET_GPR_NOB, tmp), base));
   void *pc = ir_kptr(IR(ir->op2));
   int32_t delta = 1+LJ_FR2+bc_a(*((const BCIns *)pc - 1));
-  if (getenv("LUAJIT_S390X_RETF_LOG") != NULL) {
+  if (0) {
     fprintf(stderr,
 	    "S390X_RETF trace=%u curins=%d delta=%d pcop=%u base_r=%d base_s=%d topslot=%u\n",
 	    (unsigned int)as->T->traceno, (int)(as->curins - REF_BIAS), delta,

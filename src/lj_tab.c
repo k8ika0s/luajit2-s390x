@@ -22,22 +22,12 @@
 
 static int s390x_tabget_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *flag = getenv("LUAJIT_S390X_TABGET_LOG");
-    enabled = (flag && flag[0] != '\0' && flag[0] != '0') ? 1 : 0;
-  }
-  return enabled;
+  return 0;
 }
 
 static int s390x_tabset_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *flag = getenv("LUAJIT_S390X_TABSET_LOG");
-    enabled = (flag && flag[0] != '\0' && flag[0] != '0') ? 1 : 0;
-  }
-  return enabled;
+  return 0;
 }
 
 static void s390x_tabget_log_key(FILE *out, cTValue *key)

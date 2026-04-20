@@ -51,12 +51,7 @@
 
 static int s390x_recidx_log_enabled(void)
 {
-  static int state = -1;
-  if (state == -1) {
-    const char *flag = getenv("LUAJIT_S390X_RECIDX_LOG");
-    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
-  }
-  return state;
+  return 0;
 }
 
 static void s390x_recidx_log_key(FILE *out, cTValue *tv)
@@ -91,32 +86,17 @@ static void s390x_recidx_log(jit_State *J, RecordIndex *ix, const char *phase,
 
 static int s390x_recret_log_enabled(void)
 {
-  static int state = -1;
-  if (state == -1) {
-    const char *flag = getenv("LUAJIT_S390X_RECRET_LOG");
-    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
-  }
-  return state;
+  return 0;
 }
 
 static int s390x_recret_slots_log_enabled(void)
 {
-  static int state = -1;
-  if (state == -1) {
-    const char *flag = getenv("LUAJIT_S390X_RECRET_SLOTS_LOG");
-    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
-  }
-  return state;
+  return 0;
 }
 
 static int s390x_funcjit_log_enabled(void)
 {
-  static int state = -1;
-  if (state == -1) {
-    const char *flag = getenv("LUAJIT_S390X_FUNCJIT_LOG");
-    state = (flag && flag[0] && !(flag[0] == '0' && flag[1] == '\0')) ? 1 : 0;
-  }
-  return state;
+  return 0;
 }
 
 static void s390x_funcjit_log(jit_State *J, const char *site, TraceNo lnk,
@@ -6675,10 +6655,7 @@ static int lj_record_s390x_stop_log_enabled(void)
 
 static int lj_record_s390x_recloop_focus_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RECLOOP_FOCUS") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_no_extra_loop_cont_stub_enabled(void)
@@ -6791,82 +6768,47 @@ static int lj_record_s390x_jfori_interp_handoff_enabled(void)
 
 static int lj_record_s390x_fori_arg_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_FORI_ARG_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_forl_fastpath_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_FORL_FASTPATH_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_recbc_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RECBC_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_side_focus_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SIDE_FOCUS") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_side_focus_parent(void)
 {
-  static int parent = -2;
-  if (parent == -2) {
-    const char *s = getenv("LUAJIT_S390X_SIDE_FOCUS_PARENT");
-    parent = s ? atoi(s) : 4;
-  }
-  return parent;
+  return 4;
 }
 
 static int lj_record_s390x_side_focus_exit(void)
 {
-  static int exitno = -2;
-  if (exitno == -2) {
-    const char *s = getenv("LUAJIT_S390X_SIDE_FOCUS_EXIT");
-    exitno = s ? atoi(s) : 1;
-  }
-  return exitno;
+  return 1;
 }
 
 static int lj_record_s390x_itern_focus_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ITERN_FOCUS") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_itern_focus_parent(void)
 {
-  static int parent = -2;
-  if (parent == -2) {
-    const char *s = getenv("LUAJIT_S390X_ITERN_FOCUS_PARENT");
-    parent = s ? atoi(s) : 4;
-  }
-  return parent;
+  return 4;
 }
 
 static int lj_record_s390x_itern_focus_exit(void)
 {
-  static int exitno = -2;
-  if (exitno == -2) {
-    const char *s = getenv("LUAJIT_S390X_ITERN_FOCUS_EXIT");
-    exitno = s ? atoi(s) : 1;
-  }
-  return exitno;
+  return 1;
 }
 
 static void lj_record_s390x_setup_log(jit_State *J, const char *site)
@@ -6936,14 +6878,10 @@ static void lj_record_s390x_side_replay_log(jit_State *J, const char *site,
   BCOp prevop = J->pc > proto_bc(J->pt) ? bc_op(J->pc[-1]) : BC__MAX;
   static int focus_parent = -2;
   static int focus_exit = -2;
-  if (focus_parent == -2) {
-    const char *s = getenv("LUAJIT_S390X_SIDE_REPLAY_PARENT");
-    focus_parent = s ? atoi(s) : 1;
-  }
-  if (focus_exit == -2) {
-    const char *s = getenv("LUAJIT_S390X_SIDE_REPLAY_EXIT");
-    focus_exit = s ? atoi(s) : 1;
-  }
+  if (focus_parent == -2)
+    focus_parent = 1;
+  if (focus_exit == -2)
+    focus_exit = 1;
   if (!lj_record_s390x_stop_log_enabled() ||
       (focus_parent >= 0 && J->parent != (TraceNo)focus_parent) ||
       (focus_exit >= 0 && J->exitno != (SnapNo)focus_exit))
@@ -7988,10 +7926,7 @@ static TRef rec_call_specialize(jit_State *J, GCfunc *fn, TRef tr)
 #if LJ_TARGET_S390X
 static int rec_s390x_retlast_select_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled < 0)
-    enabled = (getenv("LUAJIT_S390X_RETLAST_SELECT_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static void rec_s390x_retlast_select_log(jit_State *J, const char *reason,
