@@ -37790,3 +37790,32 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the `string_cycle` family drops from `6` to `3` definitions. The remaining
   string-cycle debt is `concat_slice`, `manual_find_cycle`, and
   `byte_scan_cycle`.
+
+## 2026-04-20: strto semantic reducer removed
+
+- Removed the closed-form `be_helpers/strto_loop` semantic reducer from
+  production recorder dispatch. The deleted pieces are
+  `lj_record_s390x_strto_cycle_loop_sum()`, the exact `@be_helpers_strto`
+  proto matcher, the private table-value guards used only by that matcher, the
+  `IRCALL_lj_trace_s390x_strto_cycle_loop_sum` callinfo entry, and the
+  `lj_trace_s390x_strto_cycle_loop_sum()` helper declaration/definition.
+- Removed the `strto-cycle-off` debt-pack profile because the reducer no longer
+  exists.
+- Rationale:
+  unlike the remaining high-value string cycle folds, `strto_loop` already has
+  a lower-level upstreamable path: traced `IR_STRTO` lowered through
+  `asm_strto()` and the s390x short-string `lj_strscan_num_cache()` helper.
+  The whole-loop `@be_helpers_strto` shortcut was therefore pure semantic
+  substitution debt.
+- kdz1 validation artifact:
+  `/tmp/kdz1-strto-semantic-removed-20260420084000`.
+- Result:
+  `be_helpers` completed with no failed or timed-out families. The hot
+  `strto_loop` row now runs on the lower-level STRTO/cache path at
+  `0.000618s` default; the `generic-only` profile is `0.002055s`, so the lower
+  layer still provides a `3.3x` retained speedup without the closed-form loop
+  fold.
+- Current audit:
+  the semantic reducer ledger drops from `41` to `40` matcher definitions and
+  the `be_helpers` reducer bucket is gone. The semantic audit now reports
+  `155` upstream-risk findings.

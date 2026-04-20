@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 08:20 PDT
+Last updated: 2026-04-20 08:40 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -25,7 +25,7 @@ Historical experiment detail lives in
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
   `tools/s390x/audit_benchmark_fastpaths.py --scope semantic` currently
-  reports `159` s390x upstream-risk findings across recorder reducer
+  reports `155` s390x upstream-risk findings across recorder reducer
   definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
@@ -67,12 +67,11 @@ Historical experiment detail lives in
   the semantic reducer ledger from `44` to `41` definitions. The remaining
   high-value retained string folds are `manual_find_cycle`, `byte_scan_cycle`,
   and `concat_slice`.
-- The `be_helpers/strto_loop` residual is now isolated behind
-  `LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER`. Focused kdz1 artifact
-  `/tmp/kdz1-strto-cycle-profile-20260420095800` shows `strto-cycle-off`
-  reproduces the generic-only slowdown for `strto_loop/hot`
-  (`0.000024s` default to `0.000630s`) without moving sibling rows. This is one
-  closed-form `tonumber` cycle fold, not a broad be-helper issue.
+- The `be_helpers/strto_loop` semantic fold is removed. Focused kdz1 artifact
+  `/tmp/kdz1-strto-semantic-removed-20260420084000` shows the row now runs on
+  the lower-level traced STRTO/cache path at `0.000618s` hot versus
+  `0.002055s` under `generic-only`. The former `be_helpers` reducer bucket is
+  gone.
 - Numeric min/max semantic debt is now isolated behind
   `LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER`. Focused kdz1 artifact
   `/tmp/kdz1-numeric-minmax-profile-20260420100600` shows `numeric-minmax-off`

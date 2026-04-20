@@ -544,11 +544,6 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
 
-#ifndef LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER
-#define LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER \
-  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
-#endif
-
 #ifndef LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER
 #define LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
@@ -619,11 +614,6 @@ static int lj_record_s390x_mod97_if7_loop_sum_enabled(void)
 static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
 {
   return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
-}
-
-static int lj_record_s390x_strto_cycle_loop_sum_enabled(void)
-{
-  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER;
 }
 
 static int lj_record_s390x_minmax_loop_sum_enabled(void)
@@ -3173,19 +3163,6 @@ static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_be_helpers_strto_proto_match(GCproto *pt)
-{
-  GCstr *chunk;
-  static const char be_helpers_strto[] = "@be_helpers_strto";
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-	 chunk->len == (MSize)(sizeof(be_helpers_strto) - 1) &&
-	 memcmp(strdata(chunk), be_helpers_strto,
-		sizeof(be_helpers_strto) - 1) == 0;
-}
-
 static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
 					   int ismax)
 {
@@ -3349,29 +3326,6 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_guard_tab_int_str(jit_State *J, TRef tabref,
-					     GCtab *tabv, int32_t key,
-					     const char *want, size_t len)
-{
-  RecordIndex ix;
-  cTValue *tv = lj_tab_getint(tabv, key);
-  TRef val;
-  if (tv == NULL || !tvisstr(tv) || strV(tv)->len != (MSize)len ||
-      memcmp(strdata(strV(tv)), want, len) != 0)
-    return 0;
-  settabV(J->L, &ix.tabv, tabv);
-  setintV(&ix.keyv, key);
-  ix.tab = tabref;
-  ix.key = lj_ir_kint(J, key);
-  ix.val = 0;
-  ix.idxchain = 0;
-  val = lj_record_idx(J, &ix);
-  if (!tref_isstr(val))
-    return 0;
-  emitir(IRTG(IR_EQ, IRT_STR), val, lj_ir_kstr(J, strV(tv)));
-  return 1;
-}
-
 static int lj_record_s390x_guard_tab_int_int(jit_State *J, TRef tabref,
 					     GCtab *tabv, int32_t key,
 					     int32_t want)
@@ -3407,112 +3361,6 @@ static int lj_record_s390x_guard_tab_str_int(jit_State *J, TRef tabref,
   if (!tref_isinteger(val))
     return 0;
   emitir(IRTGI(IR_EQ), val, lj_ir_kint(J, want));
-  return 1;
-}
-
-static int lj_record_s390x_strto_cycle_loop_sum(jit_State *J,
-						const BCIns *body)
-{
-  const BCIns *forl, *proto;
-  BCIns gget, uget1, uget2, len, mod, add1, tget, call, addtotal;
-  BCReg forbase, idxslot, callbase, arg0, tabslot, tmpslot, accslot;
-  TRef idx, stopref, acc, sum, tabref, alen;
-  cTValue *base, *uvtv;
-  GCupval *uvp;
-  GCtab *tabv;
-  int32_t stopv;
-
-  if (!lj_record_s390x_strto_cycle_loop_sum_enabled() ||
-      !lj_record_s390x_root_frame(J) ||
-      !lj_record_s390x_be_helpers_strto_proto_match(J->pt) ||
-      J->parent != 0 || J->exitno != 0)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 10) - proto) >= J->pt->sizebc)
-    return 0;
-
-  gget = body[0]; uget1 = body[1]; uget2 = body[2]; len = body[3];
-  mod = body[4]; add1 = body[5]; tget = body[6]; call = body[7];
-  addtotal = body[8]; forl = body + 9;
-  if (bc_op(gget) != BC_GGET || bc_op(uget1) != BC_UGET ||
-      bc_op(uget2) != BC_UGET || bc_op(len) != BC_LEN ||
-      bc_op(mod) != BC_MODVV || bc_op(add1) != BC_ADDVN ||
-      bc_op(tget) != BC_TGETV || bc_op(call) != BC_CALL ||
-      bc_op(addtotal) != BC_ADDVV ||
-      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
-    return 0;
-
-  forbase = bc_a(*forl);
-  idxslot = forbase + FORL_EXT;
-  callbase = bc_a(call);
-  arg0 = (BCReg)(callbase + 1 + LJ_FR2);
-  tabslot = bc_a(uget1);
-  tmpslot = bc_a(uget2);
-  accslot = bc_b(addtotal);
-  if (bc_a(gget) != callbase ||
-      bc_a(uget2) != tmpslot || bc_d(uget1) != bc_d(uget2) ||
-      bc_a(len) != tmpslot || bc_d(len) != tmpslot ||
-      bc_a(mod) != tmpslot || bc_b(mod) != idxslot || bc_c(mod) != tmpslot ||
-      bc_a(add1) != tmpslot || bc_b(add1) != tmpslot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(add1)) ||
-      bc_a(tget) != arg0 || bc_b(tget) != tabslot || bc_c(tget) != tmpslot ||
-      bc_b(call) != 2 || bc_c(call) != 2 ||
-      bc_a(addtotal) != accslot || bc_b(addtotal) != accslot ||
-      bc_c(addtotal) != callbase ||
-      tabslot == idxslot || tmpslot == idxslot || accslot == idxslot ||
-      callbase == idxslot || arg0 != tabslot)
-    return 0;
-
-  uvp = &gcref(J->fn->l.uvptr[bc_d(uget1)])->uv;
-  uvtv = uvval(uvp);
-  if (!tvistab(uvtv))
-    return 0;
-  tabv = tabV(uvtv);
-  if (!lj_record_s390x_guard_global_func(J, &gget, FF_tonumber))
-    return 0;
-
-  tabref = rec_upvalue(J, bc_d(uget1), 0);
-  if (!tref_istab(tabref))
-    return 0;
-  alen = emitir(IRTI(IR_ALEN), tabref, TREF_NIL);
-  emitir(IRTGI(IR_EQ), alen, lj_ir_kint(J, 4));
-  if (!lj_record_s390x_guard_tab_int_str(J, tabref, tabv, 1, "1.25", 4) ||
-      !lj_record_s390x_guard_tab_int_str(J, tabref, tabv, 2, "2.5", 3) ||
-      !lj_record_s390x_guard_tab_int_str(J, tabref, tabv, 3, "3.75", 4) ||
-      !lj_record_s390x_guard_tab_int_str(J, tabref, tabv, 4, "4.125", 5) ||
-      !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
-    return 0;
-
-  idx = getslot(J, idxslot);
-  stopref = getslot(J, forbase+FORL_STOP);
-  acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !(tref_isinteger(acc) || tref_isnum(acc)))
-    return 0;
-  emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_strto_cycle_loop_sum, idx,
-		   stopref);
-  if (tref_isinteger(acc))
-    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
-  sum = emitir(IRTN(IR_ADD), acc, sum);
-
-  J->base[accslot] = sum;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
 
@@ -9331,8 +9179,6 @@ void lj_record_ins(jit_State *J)
   if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 0))
     return;
   if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 1))
-    return;
-  if (op == BC_GGET && lj_record_s390x_strto_cycle_loop_sum(J, pc))
     return;
   if (op == BC_GGET && lj_record_s390x_iterator_table_loop_sum(J, pc))
     return;
