@@ -1041,50 +1041,32 @@ static int lj_trace_s390x_exit_log_enabled(void)
 
 static int lj_trace_s390x_slot_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SLOT_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_iter_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ITER_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_varg_dump_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VARG_DUMP") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_vload_probe_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VLOAD_PROBE") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_sload_probe_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SLOAD_PROBE") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_traceconsts_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_TRACECONSTS_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 #if LJ_TARGET_S390X && LJ_GC64
@@ -1185,18 +1167,12 @@ static int lj_trace_s390x_jloop_exit_log_enabled(void)
 
 static int lj_trace_s390x_bridge_child_reenter_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BRIDGE_CHILD_REENTER_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_bridge_child_query_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BRIDGE_CHILD_QUERY_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_jloop_exit_focus_parent(void)
@@ -1249,34 +1225,22 @@ static int lj_trace_s390x_root_promote_loopdesc_owner_enabled(void)
 
 static int lj_trace_s390x_vm_child_entry_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VM_CHILD_ENTRY_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_vm_bridge_dispatch_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VM_BRIDGE_DISPATCH_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_vm_iterl_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VM_ITERL_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_vm_root_entry_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VM_ROOT_ENTRY_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_child_inherit_root_resume_enabled(void)
@@ -1311,10 +1275,7 @@ static int lj_trace_s390x_jloop_exec_self_reenter_enabled(void)
 
 static int lj_trace_s390x_jloop_exec_self_pred_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JLOOP_EXEC_SELF_PRED_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_jloop_exec_skip_mcloop_enabled(void)
@@ -1830,10 +1791,7 @@ static TraceNo lj_trace_s390x_runtime_owner_trace(GCtrace *T)
 
 static int lj_trace_s390x_bridge_meta_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BRIDGE_META_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static void lj_trace_s390x_bridge_meta_log(const char *phase, GCtrace *T,
@@ -1897,30 +1855,17 @@ static void lj_trace_s390x_bridge_meta_log(const char *phase, GCtrace *T,
 
 static int lj_trace_s390x_hotside_focus_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_FOCUS") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_focus_parent(void)
 {
-  static int parent = -2;
-  if (parent == -2) {
-    const char *s = getenv("LUAJIT_S390X_HOTSIDE_FOCUS_PARENT");
-    parent = s ? atoi(s) : 4;
-  }
-  return parent;
+  return 4;
 }
 
 static int lj_trace_s390x_hotside_focus_exit(void)
 {
-  static int exitno = -2;
-  if (exitno == -2) {
-    const char *s = getenv("LUAJIT_S390X_HOTSIDE_FOCUS_EXIT");
-    exitno = s ? atoi(s) : 1;
-  }
-  return exitno;
+  return 1;
 }
 
 static int lj_trace_s390x_hotside_uget_looproot_enabled(void);
@@ -1953,18 +1898,12 @@ static int lj_trace_s390x_hotside_manual_equiv_enabled(void)
 
 static int lj_trace_s390x_hotside_event_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_EVENT_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_equiv_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_EQUIV_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_uget_looproot_enabled(void)
@@ -1974,10 +1913,7 @@ static int lj_trace_s390x_hotside_uget_looproot_enabled(void)
 
 static int lj_trace_s390x_hotside_match_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_MATCH_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_prime_interp_enabled(void)
@@ -2362,10 +2298,7 @@ static void lj_trace_s390x_hotside_prime_interp(jit_State *J, const BCIns *pc,
 
 static int lj_trace_s390x_stitch_focus_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_STITCH_FOCUS") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_trace_meta_log_enabled(void)
@@ -2378,10 +2311,7 @@ static int lj_trace_s390x_trace_meta_log_enabled(void)
 
 static int lj_trace_s390x_root_freeze_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_FREEZE_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static void lj_trace_s390x_root_freeze_log(jit_State *J, const char *site)

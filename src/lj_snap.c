@@ -72,10 +72,7 @@ static void lj_snap_s390x_log_bad_parent(jit_State *J, GCtrace *T,
 
 static int lj_snap_s390x_retf_window_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RETF_WINDOW_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int snap_s390x_ipairs_exit1_skip_body_enabled(void)
@@ -516,22 +513,12 @@ static int snap_s390x_restore_log_enabled(void)
 
 static int snap_s390x_restore_focus_parent(void)
 {
-  static int parent = -2;
-  if (parent == -2) {
-    const char *s = getenv("LUAJIT_S390X_RESTORE_FOCUS_PARENT");
-    parent = s ? atoi(s) : 1;
-  }
-  return parent;
+  return 1;
 }
 
 static int snap_s390x_restore_focus_exit(void)
 {
-  static int exitno = -2;
-  if (exitno == -2) {
-    const char *s = getenv("LUAJIT_S390X_RESTORE_FOCUS_EXIT");
-    exitno = s ? atoi(s) : -1;
-  }
-  return exitno;
+  return -1;
 }
 
 static int snap_s390x_restore_focus_match(jit_State *J)
@@ -544,42 +531,23 @@ static int snap_s390x_restore_focus_match(jit_State *J)
 
 static int snap_s390x_restore_pref_reg_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *s = getenv("LUAJIT_S390X_RESTORE_PREF_REG");
-    enabled = s ? (atoi(s) != 0) : 0;
-  }
-  return enabled;
+  return 0;
 }
 
 static int snap_s390x_unsink_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_UNSINK_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int snap_s390x_bridge_restore_slot13_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BRIDGE_RESTORE_SLOT13_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int snap_s390x_bridge_restore_slot13_focus(jit_State *J)
 {
-  static int parent = -2;
-  static int exitno = -2;
-  if (parent == -2) {
-    const char *s = getenv("LUAJIT_S390X_BRIDGE_RESTORE_PARENT");
-    parent = s ? atoi(s) : -1;
-  }
-  if (exitno == -2) {
-    const char *s = getenv("LUAJIT_S390X_BRIDGE_RESTORE_EXIT");
-    exitno = s ? atoi(s) : -1;
-  }
+  int parent = -1;
+  int exitno = -1;
   return (parent < 0 || J->parent == (TraceNo)parent) &&
 	 (exitno < 0 || J->exitno == (ExitNo)exitno);
 }

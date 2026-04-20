@@ -42,10 +42,7 @@
 
 static int lj_lib_s390x_select_log_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SELECT_LOG") != NULL);
-  return enabled;
+  return 0;
 }
 
 static void lj_lib_s390x_dump_tv(FILE *out, cTValue *o)

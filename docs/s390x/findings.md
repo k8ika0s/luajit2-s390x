@@ -37333,7 +37333,30 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   therefore defensible short-term for bring-up, but the current source behavior
   no longer depends on hidden env gates.
 - Remaining cleanup:
-  the next upstream polish pass should either remove the `86` source diagnostic
-  envs or move them behind a compile-time diagnostics build option. Tooling-only
-  historical references can then be deleted from truth-pack scripts once their
-  old causality checks are no longer useful.
+  superseded by the next cleanup tranche below, which narrowed the live source
+  diagnostic set to `16` high-value bring-up logs. Tooling-only historical
+  references can then be deleted from truth-pack scripts once their old
+  causality checks are no longer useful.
+
+## 2026-04-19: s390x diagnostic env surface narrowed to high-value logs
+
+- Source cleanup:
+  removed narrow one-off source diagnostics and focus filters from production
+  env lookup: local arithmetic/low32/varg/table logs, stale hotside/stitch
+  focus logs, iterator side-focus filters, slot/VLOAD/SLOAD probes, bridge
+  child probes, VM entry probes, retlast/select logs, and obsolete restore
+  focus knobs now compile as disabled/default behavior.
+- Retained diagnostics:
+  the remaining source envs are limited to high-value bring-up diagnostics that
+  are difficult to recreate ad hoc: trace lifecycle/meta, exit/JLOOP exit,
+  direct patch-exit, RA/ASM/guard state, recorder IR/stop state, and
+  snapshot/restore state.
+- Audit result:
+  `tools/s390x/build_env_surface_audit.py` now reports total unique env names
+  `99`, retained perf env count `0`, and only `16` source diagnostic envs.
+  The remaining categories are `16` debug/probe-only source envs, `82`
+  tooling-only historical references, and `1` test-only setup.
+- Boundary:
+  this is intentionally not a blanket permission to keep arbitrary envs.
+  Anything outside the retained diagnostic set should be reintroduced only as a
+  short-lived local probe or under a compile-time diagnostics build option.

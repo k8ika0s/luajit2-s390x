@@ -580,9 +580,8 @@ Current cleanup metrics:
 - `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings`: `0`
   findings.
 - `tools/s390x/build_guard_retirement_ledger.py`: gate count `0`.
-- `tools/s390x/build_env_surface_audit.py`: total unique env names `149`,
-  retained perf env count `0`, and no live source env rows outside
-  `debug/probe only`.
+- `tools/s390x/build_env_surface_audit.py`: total unique env names `99`,
+  retained perf env count `0`, and only `16` live source diagnostic envs.
 
 The remaining iterator caveat is now narrower and diagnostic: if
 `LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` is set, the generic s390x
@@ -600,10 +599,10 @@ remaining raw `J->cur.nins` source references are generic ITERN root-loop
 detection and comparison snapshot PC fixup, and the audit tool now allowlists
 those as non-benchmark mechanisms.
 
-The latest env cleanup tranche removed all production-source behavior gates:
-stale experimental opt-ins now stay closed unconditionally, and retained
-default-on features no longer expose private rollback envs. The remaining
-source env surface is diagnostic/probe-only. This still needs a final upstream
-polish decision: either keep a documented diagnostics subset, following the
-existing LuaJIT precedent for dump/profile/list output envs, or move s390x
-diagnostics behind a compile-time diagnostics build option.
+The env cleanup tranches removed all production-source behavior gates and then
+narrowed diagnostics to a small high-value set. Stale experimental opt-ins stay
+closed unconditionally, retained default-on features no longer expose private
+rollback envs, and one-off focus/probe logs have been disabled in source. The
+remaining source envs are limited to trace lifecycle/meta, exits, direct
+patchexit, RA/ASM/guard state, recorder IR/stop state, and snapshot/restore
+state.
