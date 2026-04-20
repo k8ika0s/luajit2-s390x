@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-19 18:40 PDT
+Last updated: 2026-04-19 19:10 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,8 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `26b27bd1 s390x: retire iterator trace-control rails`, plus the current
-  iterator cleanup working tree.
+  `c1be7ea8 s390x: clean iterator and benchmark-shaped recorder debt`, plus
+  the current env-surface cleanup working tree.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -38,6 +38,10 @@ Historical experiment detail lives in
   for production fallback. The contract now validates visible key
   materialization, hidden control-index advancement, skipped nil slots,
   terminal nil, and table-shape invalidation.
+- Latest upstream cleanup removed all production-source s390x behavior env
+  gates. Stale experimental opt-ins stay closed unconditionally, retained
+  default-on features no longer expose private rollback envs, and the remaining
+  live source env surface is diagnostic/probe-only.
 - Latest mixed-noffi acceleration work added a chunk-exact fold for the
   official `mixed_noffi` loop tail. The retained path parks only the exact
   unsafe inner iterator hotcounts without marking the proto no-JIT, then folds
@@ -415,20 +419,16 @@ Historical experiment detail lives in
   terminal sums; further numeric work should rerank from a fresh comparison
   rather than reopening broad FP scheduling guesses.
 - Guard/env burn-down queue:
-  current retained env is `2` gates: the broad iterator `BC_ITERN` and
-  `BC_ITERL` root blacklists. They remain true opt-in safety rails. The exact
-  iterator proto/no-hot paths stay default-on in source and should be tested
-  with their `LUAJIT_S390X_DISABLE_*` opt-outs, not carried as positive
-  retained-env requirements.
+  current retained env is empty, and production source no longer has live
+  behavior env gates. Remaining source envs are diagnostic/probe only.
 - Env-surface audit:
   `tools/s390x/build_env_surface_audit.py` now inventories the full s390x env
-  surface across `src/`, `tests/s390x/`, and `tools/s390x/`. Current artifact
-  `artifacts/s390x/s390x-env-surface-20260417165424-aliascleanup-final` found
-  `199` unique env names: `2` retained opt-in safety rails, `31` default-on
-  feature opt-outs, `85` debug/probe knobs, `13` tooling-only historical
-  references, `67` experimental opt-ins or historical route-arounds, and `1`
-  test-only setup env left in `numeric_ops.lua` to preserve the historical perf
-  harness shape.
+  surface across `src/`, `tests/s390x/`, and `tools/s390x/`. Current run
+  `/tmp/s390x-env-surface-20260420021532/env_surface.md` found `149` unique
+  env names: `86` debug/probe knobs, `62` tooling-only historical references,
+  and `1` test-only setup env. The next cleanup decision is whether to retain a
+  documented diagnostics subset or move s390x diagnostics behind a compile-time
+  diagnostics build option.
 - `dispatch_trace` is closed at the current matrix scale after direct
   patchexit and nonzero CIJ/CGIJ fusion. Rows are now effectively at the
   timer floor under the full matrix harness.

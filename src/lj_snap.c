@@ -80,18 +80,12 @@ static int lj_snap_s390x_retf_window_log_enabled(void)
 
 static int snap_s390x_ipairs_exit1_skip_body_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_IPAIRS_EXIT1_SKIP_BODY") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_snap_s390x_root1_iterl_replay_triplet_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET") != NULL);
-  return enabled;
+  return 0;
 }
 
 static void lj_snap_s390x_log_retf_window(jit_State *J, const char *site,

@@ -270,12 +270,7 @@ static int loop_s390x_has_call(jit_State *J, IRRef invar);
 
 static int loop_s390x_count_lt_clip_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_COUNT_LT_CLIP");
-    enabled = (opt_out == NULL);
-  }
-  return enabled;
+  return 1;
 }
 
 static int loop_s390x_scev_ref_offset(jit_State *J, IRRef ref, int64_t *ofsp)

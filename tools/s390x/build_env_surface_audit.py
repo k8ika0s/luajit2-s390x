@@ -267,7 +267,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d%H%M%S")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M%S")
     outdir = pathlib.Path(args.output_dir) if args.output_dir else DEFAULT_OUTPUT_ROOT / f"s390x-env-surface-{stamp}"
     refs = {env: env_refs for env, env_refs in collect_refs().items() if not env.endswith("_")}
     retained = set(restamp.RETAINED_BASELINE_ENV)

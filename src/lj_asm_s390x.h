@@ -93,29 +93,17 @@ static int asm_s390x_guard_log_enabled(void)
 
 static int asm_s390x_guardmark_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_GUARDMARK") != NULL ||
-	       getenv("LUAJIT_S390X_GUARDMARK_TAKEN") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_guardmark_taken_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_GUARDMARK_TAKEN") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int asm_s390x_gc64_signed_int_sload_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_GC64_SIGNED_INT_SLOAD");
-    enabled = (LJ_GC64 && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_GC64;
 }
 
 static int asm_s390x_call_log_enabled(void)
@@ -128,12 +116,7 @@ static int asm_s390x_call_log_enabled(void)
 
 static int asm_s390x_direct_call_arg_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_DIRECT_CALL_ARG");
-    enabled = (opt_out == NULL);
-  }
-  return enabled;
+  return 1;
 }
 
 static int asm_s390x_add_log_enabled(void)
@@ -1129,12 +1112,7 @@ static int asm_s390x_sloadmap_log_enabled(void)
 
 static int asm_s390x_forl_current_compare_fix_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX");
-    enabled = (opt_out == NULL);
-  }
-  return enabled;
+  return 1;
 }
 
 static int asm_s390x_stack_restore_log_enabled(void)
@@ -1147,32 +1125,17 @@ static int asm_s390x_stack_restore_log_enabled(void)
 
 static int asm_s390x_int_minmax_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_INT_MINMAX");
-    enabled = (opt_out == NULL);
-  }
-  return enabled;
+  return 1;
 }
 
 static int asm_s390x_narrow_xstore_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_NARROW_XSTORE");
-    enabled = (opt_out == NULL);
-  }
-  return enabled;
+  return 1;
 }
 
 static int asm_s390x_varg_bias_override(void)
 {
-  static int bias = -1000;
-  if (bias == -1000) {
-    const char *s = getenv("LUAJIT_S390X_VARG_BIAS");
-    bias = s ? atoi(s) : -999;
-  }
-  return bias;
+  return -999;
 }
 
 static int asm_s390x_varg_slot_bias_override(void)
@@ -1455,10 +1418,7 @@ static Reg ra_dest_nobase(ASMState *as, IRIns *ir, RegSet allow, int32_t tag)
 
 static int lj_asm_s390x_aref_base_allgpr_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_DISABLE_AREF_BASE_ALLGPR") == NULL);
-  return enabled;
+  return 1;
 }
 
 /* Keep RID_BASE available for explicit REF_BASE materialization, but do not
@@ -6714,10 +6674,7 @@ static void asm_strto(ASMState *as, IRIns *ir)
 
 static int lj_asm_s390x_direct_patchexit_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_DISABLE_DIRECT_PATCHEXIT") == NULL);
-  return enabled;
+  return 1;
 }
 
 static int lj_asm_s390x_direct_patchexit_log_enabled(void)

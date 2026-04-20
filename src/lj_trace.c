@@ -1201,22 +1201,12 @@ static int lj_trace_s390x_bridge_child_query_log_enabled(void)
 
 static int lj_trace_s390x_jloop_exit_focus_parent(void)
 {
-  static int parent = -2;
-  if (parent == -2) {
-    const char *s = getenv("LUAJIT_S390X_JLOOP_EXIT_PARENT");
-    parent = s ? atoi(s) : -1;
-  }
-  return parent;
+  return -1;
 }
 
 static int lj_trace_s390x_jloop_exit_focus_exit(void)
 {
-  static int exitno = -2;
-  if (exitno == -2) {
-    const char *s = getenv("LUAJIT_S390X_JLOOP_EXIT_EXIT");
-    exitno = s ? atoi(s) : -1;
-  }
-  return exitno;
+  return -1;
 }
 
 static int lj_trace_s390x_jloop_exit_focus_match(jit_State *J)
@@ -1229,50 +1219,32 @@ static int lj_trace_s390x_jloop_exit_focus_match(jit_State *J)
 
 static int lj_trace_s390x_root_jloop_child_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_JLOOP_CHILD") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_jloop_loopdesc_child_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JLOOP_LOOPDESC_CHILD") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_jloop_exec_child_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JLOOP_EXEC_CHILD") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_sidetrace_typeins_done_disabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_DISABLE_SIDETRACE_TYPEINS_DONE") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_root_promote_child_loop_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_PROMOTE_CHILD_LOOP") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_root_promote_loopdesc_owner_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_PROMOTE_LOOPDESC_OWNER") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_vm_child_entry_log_enabled(void)
@@ -1309,50 +1281,32 @@ static int lj_trace_s390x_vm_root_entry_log_enabled(void)
 
 static int lj_trace_s390x_child_inherit_root_resume_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_CHILD_INHERIT_ROOT_RESUME") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_child_resume_stub_only_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_CHILD_RESUME_STUB_ONLY") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_bcjmp_mcloop_entry_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BCJMP_MCLOOP_ENTRY") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_bcjmp_self_jloop_resume_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BCJMP_SELF_JLOOP_RESUME") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_jloop_exec_resume_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JLOOP_EXEC_RESUME") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_jloop_exec_self_reenter_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JLOOP_EXEC_SELF_REENTER") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_jloop_exec_self_pred_log_enabled(void)
@@ -1365,18 +1319,12 @@ static int lj_trace_s390x_jloop_exec_self_pred_log_enabled(void)
 
 static int lj_trace_s390x_jloop_exec_skip_mcloop_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JLOOP_EXEC_SKIP_MCLOOP") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_vm_child_skip_mcloop_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_VM_CHILD_SKIP_MCLOOP") != NULL);
-  return enabled;
+  return 0;
 }
 
 void lj_trace_s390x_vm_child_entry_log(GCtrace *T, const TValue *base)
@@ -1636,7 +1584,6 @@ static int lj_trace_s390x_mixed_noffi_loop_fold_trace_match(jit_State *J,
   const BCIns *pc;
   BCOp op;
   if (!LJ_TARGET_S390X ||
-      getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") != NULL ||
       pt == NULL || T == NULL || J->parent != 0 || J->exitno != 0 ||
       J->cur.root != 0 || J->cur.link != J->cur.traceno ||
       J->cur.linktype != LJ_TRLINK_LOOP || J->cur.resumechild != 0)
@@ -1982,41 +1929,26 @@ static int lj_trace_s390x_hotside_canon_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (lj_trace_s390x_hotside_uget_looproot_enabled() ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
+    enabled = lj_trace_s390x_hotside_uget_looproot_enabled();
   return enabled;
 }
 
 static int lj_trace_s390x_hotside_canon_child_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_CANON_CHILD") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_share_equiv_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (lj_trace_s390x_hotside_uget_looproot_enabled() ||
-	       getenv("LUAJIT_S390X_HOTSIDE_SHARE_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL);
+    enabled = lj_trace_s390x_hotside_uget_looproot_enabled();
   return enabled;
 }
 
 static int lj_trace_s390x_hotside_manual_equiv_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_CANON_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_SHARE_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_SHARE_EQUIV") != NULL ||
-	       getenv("LUAJIT_S390X_HOTSIDE_CANON_CHILD") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_event_log_enabled(void)
@@ -2037,14 +1969,7 @@ static int lj_trace_s390x_hotside_equiv_log_enabled(void)
 
 static int lj_trace_s390x_hotside_uget_looproot_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    if (getenv("LUAJIT_S390X_DISABLE_HOTSIDE_CANON_SHARE_UGET_LOOPROOT") != NULL)
-      enabled = 0;
-    else
-      enabled = 1;
-  }
-  return enabled;
+  return 1;
 }
 
 static int lj_trace_s390x_hotside_match_log_enabled(void)
@@ -2057,34 +1982,22 @@ static int lj_trace_s390x_hotside_match_log_enabled(void)
 
 static int lj_trace_s390x_hotside_prime_interp_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_HOTSIDE_PRIME_INTERP_PAYLOAD") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_sideexit_mcloop_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SIDEEXIT_MCLOOP") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_skip_patch_bcjmp_loopdesc_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SKIP_PATCHEXIT_BCJMP_LOOPDESC") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_stop_retarget_loopdesc_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_STOP_RETARGET_LOOPDESC") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_match_exit(const GCtrace *a, ExitNo aexit,
@@ -2489,12 +2402,7 @@ static void lj_trace_s390x_root_freeze_log(jit_State *J, const char *site)
 
 static int lj_trace_s390x_varg_bias_override(void)
 {
-  static int bias = -1000;
-  if (bias == -1000) {
-    const char *s = getenv("LUAJIT_S390X_VARG_BIAS");
-    bias = s ? atoi(s) : -999;
-  }
-  return bias;
+  return -999;
 }
 
 static uint32_t lj_trace_s390x_load_be32(const uint8_t *p)
@@ -3617,8 +3525,7 @@ static void trace_start(jit_State *J)
   }
 
 #if LJ_TARGET_S390X
-  if (lj_trace_s390x_iterator_loop_fold_start_match(J) &&
-      getenv("LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD") == NULL) {
+  if (lj_trace_s390x_iterator_loop_fold_start_match(J)) {
     hotcount_set(J2GG(J), J->pc+1, 0xffffu);
     if (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL) {
       fprintf(stderr,
@@ -4510,7 +4417,7 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
       retop = bc_op(*retpc);
       if (execno != 0 && execno != targetT->traceno)
 	execT = traceref(J, execno);
-      if (getenv("LUAJIT_S390X_JLOOP_CURRENT_SELF_RESUME") != NULL &&
+      if (0 &&
 	  J->parent >= 3 && J->exitno == 0 &&
 	  T->root != 0 &&
 	  execno == T->traceno &&

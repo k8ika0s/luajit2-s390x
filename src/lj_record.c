@@ -396,10 +396,7 @@ static TRef getcurrf(jit_State *J)
 #if LJ_TARGET_S390X
 static int lj_record_s390x_string_sub_eq_memcmp_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled < 0)
-    enabled = (getenv("LUAJIT_S390X_DISABLE_STRING_SUB_EQ_MEMCMP") == NULL);
-  return enabled;
+  return 1;
 }
 
 static TRef lj_record_s390x_ref_tref(jit_State *J, IRRef ref)
@@ -534,193 +531,97 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 
 static int lj_record_s390x_byte_scan_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_BYTE_SCAN_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_manual_find_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MANUAL_FIND");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_string_key_lookup_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_STRING_KEY_LOOKUP");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD_BRANCH_IFCONV");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod97_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD97_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod97_sub_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD97_SUB_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod_mul_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD_MUL_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod_select_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD_SELECT_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod_rem_select_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out =
-      getenv("LUAJIT_S390X_DISABLE_MOD_REM_SELECT_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod_scaled_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD_SCALED_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod97_if5_else1_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD97_IF5_ELSE1_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod97_if7_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD97_IF7_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MOD97_IF5_IF3_LOOP_SUM");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_concat_slice_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_CONCAT_SLICE");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_miss_find_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MISS_FIND");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_prefix_eq_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_PREFIX_EQ");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_manual_find_cycle_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_MANUAL_FIND_CYCLE");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_byte_scan_cycle_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_BYTE_SCAN_CYCLE");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_kgc_str_eq(GCproto *pt, BCReg idx,
@@ -3593,8 +3494,7 @@ static int lj_record_s390x_strto_cycle_loop_sum(jit_State *J,
 
 static int lj_record_s390x_mixed_noffi_loop_fold_enabled(void)
 {
-  return LJ_TARGET_S390X &&
-	 getenv("LUAJIT_S390X_DISABLE_MIXED_NOFFI_LOOP_FOLD") == NULL;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
@@ -3609,8 +3509,6 @@ static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
   GCtab *tabv;
   int32_t stopv, per_iter = 0;
 
-  if (getenv("LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD") != NULL)
-    return 0;
   if (!lj_record_s390x_root_frame(J) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
@@ -6669,18 +6567,7 @@ static int fori_inherited_ref(jit_State *J, TRef tr)
 
 static int s390x_fori_force_stop_slot_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *optin = getenv("LUAJIT_S390X_FORI_FORCE_STOP_SLOT");
-    const char *disable = getenv("LUAJIT_S390X_DISABLE_FORI_FORCE_STOP_SLOT");
-    if (disable && disable[0] && !(disable[0] == '0' && disable[1] == '\0'))
-      enabled = 0;
-    else if (optin && optin[0] && !(optin[0] == '0' && optin[1] == '\0'))
-      enabled = 1;
-    else
-      enabled = 1;
-  }
-  return enabled;
+  return 1;
 }
 
 /* Peek before FORI to find a const initializer. Otherwise load from slot. */
@@ -6796,10 +6683,7 @@ static int lj_record_s390x_recloop_focus_enabled(void)
 
 static int lj_record_s390x_no_extra_loop_cont_stub_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_NO_EXTRA_LOOP_CONT_STUB") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_ir_log_enabled(void)
@@ -6852,96 +6736,57 @@ static void lj_record_s390x_loopslot_log(jit_State *J, const char *site)
 
 static int lj_record_s390x_recloop_exit2_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RECLOOP_EXIT2") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_allow_iter_desc_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ALLOW_ITER_DESC") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_restart_desc_loop_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RESTART_DESC_LOOP") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_root_itern_nil_desc_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ROOT_ITERN_NIL_DESC") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_itern_hash_payload_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = LJ_TARGET_S390X &&
-	      getenv("LUAJIT_S390X_DISABLE_ITERN_HASH_PAYLOAD") == NULL;
-  return enabled;
+  return LJ_TARGET_S390X;
 }
 
 static int lj_record_s390x_mark_nil_desc_done_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_MARK_NIL_DESC_DONE") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_skip_nil_desc_done_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SKIP_NIL_DESC_DONE") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_retry_first_array_exit_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RETRY_FIRST_ARRAY_EXIT") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_retry_first_array_exit_limit(void)
 {
-  static int limit = -1;
-  if (limit == -1) {
-    const char *s = getenv("LUAJIT_S390X_RETRY_FIRST_ARRAY_EXIT_LIMIT");
-    limit = s ? atoi(s) : 5;
-  }
-  return limit;
+  return 5;
 }
 
 static int lj_record_s390x_looplink_payload_desc_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_LOOPLINK_PAYLOAD_DESC") != NULL);
-  return enabled;
+  return 0;
 }
 
 static int lj_record_s390x_jfori_interp_handoff_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_in = getenv("LUAJIT_S390X_JFORI_INTERP_HANDOFF");
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_JFORI_INTERP_HANDOFF");
-    enabled = ((LJ_GC64 && opt_out == NULL) || opt_in != NULL);
-  }
-  return enabled;
+  return LJ_GC64;
 }
 
 static int lj_record_s390x_fori_arg_log_enabled(void)
@@ -7744,8 +7589,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *fori,
 	      "S390X_RECLOOP trace=%u parent=%u exit=%u payload_desc_loop=1 root=%u\n",
 	      (unsigned int)J->cur.traceno, (unsigned int)J->parent,
 	      (unsigned int)J->exitno, (unsigned int)J->cur.root);
-    if ((getenv("LUAJIT_S390X_LINK_LOOP_DESC") != NULL ||
-	 getenv("LUAJIT_S390X_LINK_LOOP_DESC_NONSTUB") != NULL) &&
+    if (0 &&
 	J->parent != 0 && J->parent != J->cur.root &&
 	J->exitno == 0 &&
 	J->cur.root != 0 &&
@@ -7754,7 +7598,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *fori,
 	bc_op(*J->pc) == BC_JLOOP &&
 	J->pc == J->startpc) {
       GCtrace *parentT = traceref(J, J->parent);
-      int nonstub_only = (getenv("LUAJIT_S390X_LINK_LOOP_DESC_NONSTUB") != NULL);
+      int nonstub_only = 0;
       int allow_link = (!nonstub_only || J->cur.nins != 32772);
       if (allow_link &&
 	  parentT->root == J->cur.root &&
@@ -7765,7 +7609,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *fori,
       if (allow_link)
 	s390x_link_loop_desc = 1;
     }
-    if (getenv("LUAJIT_S390X_LOOPDESC_SELF_OWNER_STOP") != NULL &&
+    if (0 &&
 	J->parent >= 3 && J->exitno == 0 &&
 	J->cur.root == 1 &&
 	J->framedepth + J->retdepth == 0 &&
@@ -7797,8 +7641,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *fori,
 	(unsigned int)J->exitno, (unsigned int)J->cur.root,
 	(unsigned int)lnk);
 #endif
-    if (getenv("LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET_LINK_PARENT") != NULL &&
-	getenv("LUAJIT_S390X_ROOT1_ITERL_REPLAY_TRIPLET") != NULL &&
+    if (0 &&
 	J->parent == 1 && J->exitno == 1 &&
 	J->cur.root == 1 &&
 	J->framedepth + J->retdepth == 0 &&
@@ -9373,19 +9216,12 @@ static void rec_tsetm(jit_State *J, BCReg ra, BCReg rn, int32_t i)
 #if LJ_TARGET_S390X
 static int rec_s390x_small_table_len_const_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled < 0)
-    enabled = (getenv("LUAJIT_S390X_DISABLE_SMALL_TABLE_LEN_CONST") == NULL);
-  return enabled;
+  return 1;
 }
 
 static int rec_s390x_small_table_upvalue_const_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled < 0)
-    enabled =
-      (getenv("LUAJIT_S390X_DISABLE_SMALL_TABLE_UPVALUE_CONST") == NULL);
-  return enabled;
+  return 1;
 }
 #endif
 
@@ -10804,8 +10640,8 @@ void lj_record_setup(jit_State *J)
       int snap_limit = (T->snap[J->exitno].count >= J->param[JIT_P_hotexit] +
 						J->param[JIT_P_tryside]);
       int loopdesc_interp_bypass = 0;
-      if ((root_limit || snap_limit) &&
-	  getenv("LUAJIT_S390X_LOOPDESC_SKIP_INTERP_GATE") != NULL &&
+      if (0 &&
+	  (root_limit || snap_limit) &&
 	  J->parent >= 3 && J->exitno == 0 && J->cur.root == 1 &&
 	  bc_op(J->cur.startins) == BC_JMP && bc_op(*J->pc) == BC_JLOOP)
 	loopdesc_interp_bypass = 1;
