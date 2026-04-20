@@ -53,6 +53,8 @@ def classify(name: str) -> str:
         return "numeric_mod"
     if name.startswith("lj_record_s390x_logic_"):
         return "logic_low32"
+    if "component_loop" in name:
+        return "component_loop"
     if "iterator" in name or "mixed_noffi" in name:
         return "iterator_mixed"
     if any(s in name for s in ("ffi", "mixed_width", "pair_loop", "buffer_fref")):

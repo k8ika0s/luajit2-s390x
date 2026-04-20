@@ -539,8 +539,8 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
   LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
 #endif
 
-#ifndef LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS
-#define LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS \
+#ifndef LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
+#define LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
 
@@ -560,10 +560,10 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 0
 #endif
 
-#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS
-#define LJ_RECORD_S390X_MIXED_NOFFI_REDUCERS 1
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
+#define LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS 1
 #else
-#define LJ_RECORD_S390X_MIXED_NOFFI_REDUCERS 0
+#define LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS 0
 #endif
 
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
@@ -2789,8 +2789,6 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
   stopv = intV(&base[forbase+FORL_STOP]);
   if (stopv < 1 || stopv > 1000000)
     return 0;
-  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
-    return 0;
 
   idx = getslot(J, idxslot);
   stopref = getslot(J, forbase+FORL_STOP);
@@ -2798,6 +2796,7 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
   if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
       !tref_isinteger(acc))
     return 0;
+  emitir(IRTGI(IR_LE), stopref, lj_ir_kint(J, 1000000));
   emitir(IRTGI(IR_LE), idx, stopref);
   sum = lj_ir_call(J, IRCALL_lj_trace_s390x_scaled_tobit_loop_sum, idx,
 		   stopref, lj_ir_kint(J, mulv));
@@ -2849,9 +2848,9 @@ static int lj_record_s390x_guard_tab_str_int(jit_State *J, TRef tabref,
   return 1;
 }
 
-static int lj_record_s390x_mixed_noffi_loop_fold_enabled(void)
+static int lj_record_s390x_component_loop_reducers_enabled(void)
 {
-  return LJ_RECORD_S390X_MIXED_NOFFI_REDUCERS;
+  return LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS;
 }
 
 static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
@@ -2974,8 +2973,8 @@ static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_mixed_noffi_tail_sum(jit_State *J,
-						const BCIns *body)
+static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
+						   const BCIns *body)
 {
   const BCIns *forl, *proto;
   BCIns gget_select, mod4, add1, call_select, add_select;
@@ -2990,7 +2989,7 @@ static int lj_record_s390x_mixed_noffi_tail_sum(jit_State *J,
   GCtab *numbers, *map;
   int32_t stopv;
 
-  if (!lj_record_s390x_mixed_noffi_loop_fold_enabled() ||
+  if (!lj_record_s390x_component_loop_reducers_enabled() ||
       !lj_record_s390x_root_frame(J) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
@@ -8652,7 +8651,7 @@ void lj_record_ins(jit_State *J)
     return;
   if (op == BC_MODVN && lj_record_s390x_abs_parity_loop_sum(J, pc))
     return;
-  if (op == BC_MODVN && lj_record_s390x_mixed_noffi_tail_sum(J, pc))
+  if (op == BC_MODVN && lj_record_s390x_component_loop_tail_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_mixed_width_loop_sum(J, pc))
     return;

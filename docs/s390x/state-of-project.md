@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 09:45 PDT
+Last updated: 2026-04-20 10:21 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -69,6 +69,23 @@ Historical experiment detail lives in
   mixed benchmark formula. Focused artifact:
   `/tmp/kdz1-mixed-noffi-component-route-20260420103000`; zkd0 focused
   validation kept `mixed_noffi` and iterator rows at timer floor.
+- The second mixed-noffi cleanup tranche renames the remaining production
+  matcher and compile split from mixed-noffi ownership to the component-loop
+  bucket. The active matcher is now
+  `lj_record_s390x_component_loop_tail_sum()`, with comparison profile
+  `component-loop-off` using
+  `-DLUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0`. The older
+  `mixed-noffi-off` debt-pack profile remains only as a compatibility alias.
+  Current semantic reducer ledger: `34` total definitions, split as
+  `numeric_mod 20`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
+  `component_loop 1`, and `iterator_mixed 1`.
+  Focused component profile artifact:
+  `/tmp/kdz1-component-loop-profile-20260420102645`.
+- The localized `bit.tobit`/MULOV guardrail failure was traced to the
+  scaled-`tobit` semantic fold guarding against the recording-time warmup stop
+  value. The fold now guards the helper domain (`stop <= 1000000`) while
+  still passing the dynamic stop to the helper. kdz1 passes
+  `tests/s390x/jit_be/mulov_overflow_guard.lua` after this fix.
 - The remaining string-cycle semantic reducer bucket is now split by
   compile-time profile. Focused kdz1 artifact
   `/tmp/kdz1-string-cycle-profile-split-20260420093000` shows clean one-row
