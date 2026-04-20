@@ -37497,15 +37497,15 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   still reports `benchmark-shaped source findings: 0`.
 - Broader audit:
   `python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` now
-  intentionally fails with `174` findings: `45` recorder reducer definitions,
-  `45` default dispatch hooks, `44` emitted reducer IRCALLs, and `40` s390x
+  intentionally fails with `177` findings: `46` recorder reducer definitions,
+  `47` default dispatch hooks, `44` emitted reducer IRCALLs, and `40` s390x
   reducer/string callinfo entries.
 - Ledger:
   added `tools/s390x/build_semantic_reducer_debt.py` to convert the raw audit
   into an actionable family ledger. Current reducer matcher definitions by
-  family: `numeric_mod 19`, `string 7`, `ffi_cdata 6`, `large_immediates 4`,
-  `logic_low32 3`, `iterator_mixed 2`, `route_reducer 2`, `be_helpers 1`, and
-  `lower_frame 1`.
+  family: `numeric_mod 19`, `string_cycle 6`, `string_primitive 2`,
+  `ffi_cdata 6`, `large_immediates 4`, `logic_low32 3`, `iterator_mixed 2`,
+  `route_reducer 2`, `be_helpers 1`, and `lower_frame 1`.
 - Policy:
   the branch should no longer be considered upstream-clean just because the
   identity audit passes. The semantic reducer queue must be burned down by
@@ -37566,3 +37566,40 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `concat_slice_loop/hot` default `0.000000` vs `0.000987`. This makes the
   string reducer family high-value mechanism debt, but the WIP default path is
   now correct.
+
+## 2026-04-20: string reducer debt split into primitive and cycle profiles
+
+- Added compile-time split switches for string reducer debt profiling:
+  `LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS` and
+  `LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS`. Both default to the retained
+  `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS` value, so default WIP behavior and
+  performance are unchanged.
+- The primitive profile covers the lower-level `manual_find` and
+  `byte_scan_sum` substitutions. The cycle profile covers the six whole-loop
+  string folds: string-key lookup, concat-slice, miss-find, prefix-eq,
+  manual-find-cycle, and byte-scan-cycle.
+- Updated `tools/s390x/audit_benchmark_fastpaths.py` and
+  `tools/s390x/build_semantic_reducer_debt.py` to include `manual_find`
+  explicitly. The semantic audit now reports `177` findings:
+  `46` reducer definitions, `47` dispatch hooks, `44` IRCALLs, and `40`
+  s390x callinfo entries. The source ledger now reports
+  `string_cycle 6` and `string_primitive 2` instead of a single string bucket.
+- kdz1 focused profile artifact:
+  `/tmp/kdz1-string-reducer-split-20260420072723`.
+- kdz1 profile read:
+  default retained string hot rows remained at the timer floor:
+  `manual_find_loop 0.000002s`, `byte_scan_loop 0.000001s`,
+  `prefix_eq_loop 0.000001s`, `string_key_lookup_loop 0.000000s`,
+  `concat_slice_loop 0.000000s`, and `miss_find_loop 0.000001s`.
+- With whole-loop string cycle reducers disabled but primitive reducers still
+  enabled, the same hot rows were `0.001855s`, `0.000292s`, `0.000191s`,
+  `0.000163s`, `0.000986s`, and `0.000403s`. With all semantic reducers
+  disabled, `manual_find_loop` and `byte_scan_loop` were `0.002543s` and
+  `0.002010s`.
+- Interpretation:
+  primitive string reducers preserve real acceleration for byte-scan and some
+  manual-find acceleration without relying on whole-loop cycle replacement.
+  The next string cleanup target is to convert or justify `string_primitive`
+  as an upstreamable string/IR helper mechanism. The `string_cycle` bucket
+  remains higher-risk branch-local debt until each whole-loop fold can be
+  rebuilt as a generic mechanism.

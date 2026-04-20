@@ -519,19 +519,41 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_SEMANTIC_REDUCERS 0
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS
+#define LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
+#ifndef LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#define LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS
+#define LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS 1
+#else
+#define LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS 0
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 1
+#else
+#define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 0
+#endif
+
 static int lj_record_s390x_byte_scan_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS;
 }
 
 static int lj_record_s390x_manual_find_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS;
 }
 
 static int lj_record_s390x_string_key_lookup_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_CYCLE_REDUCERS;
 }
 
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
@@ -591,27 +613,27 @@ static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
 
 static int lj_record_s390x_concat_slice_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_CYCLE_REDUCERS;
 }
 
 static int lj_record_s390x_miss_find_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_CYCLE_REDUCERS;
 }
 
 static int lj_record_s390x_prefix_eq_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_CYCLE_REDUCERS;
 }
 
 static int lj_record_s390x_manual_find_cycle_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_CYCLE_REDUCERS;
 }
 
 static int lj_record_s390x_byte_scan_cycle_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_STRING_CYCLE_REDUCERS;
 }
 
 static int lj_record_s390x_kgc_str_eq(GCproto *pt, BCReg idx,
