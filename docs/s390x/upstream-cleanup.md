@@ -1136,3 +1136,17 @@ kdz1 validation passed a warning-clean rebuild, numeric correctness, ADD/SUB
 overflow, MUL overflow, focused `numeric_ops.lua`, and focused
 `route_around_reducers.lua`. This is a source-surface cleanup only; the
 remaining debt is still the semantic closed-form reducer itself.
+
+#### Mod97 Add/Sub Matcher Consolidation
+
+The `%97` ADDVV and SUBVV accumulator matchers now share
+`lj_record_s390x_mod97_loop_sum()`. Both bytecode shapes still call
+`lj_trace_s390x_mod97_loop_sum()` and use the same sentinel guard; the SUBVV
+shape now emits the existing negation in IR instead of using a duplicate
+recorder matcher.
+
+The separate `lj_record_s390x_mod97_sub_loop_sum()` implementation and
+dispatch hook are gone. kdz1 validation passed a warning-clean rebuild,
+numeric correctness, ADD/SUB overflow, MUL overflow, focused
+`numeric_ops.lua`, and focused `route_around_reducers.lua`. This removes
+matcher/dispatch debt without changing the helper ABI or retained fast path.
