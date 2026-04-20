@@ -216,10 +216,7 @@ static int lj_asm_s390x_phi_log_enabled(void)
 
 static int lj_asm_s390x_force_phi_spill(void)
 {
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_FORCE_PHI_SPILL") != NULL);
-  return enabled;
+  return 0;
 }
 
 static void lj_asm_s390x_phi_log(const char *phase, ASMState *as, IRIns *ir,
@@ -358,12 +355,7 @@ static void lj_asm_s390x_spill_log(ASMState *as, const char *phase, IRIns *ir,
 
 static int lj_asm_s390x_phi_ref18_dupright_enabled(void)
 {
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out = getenv("LUAJIT_S390X_DISABLE_FORL_CURRENT_COMPARE_FIX");
-    enabled = (opt_out == NULL);
-  }
-  return enabled;
+  return 1;
 }
 
 static void lj_asm_s390x_rename_log(ASMState *as, Reg down, IRRef ref,

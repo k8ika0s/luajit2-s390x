@@ -37298,3 +37298,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   historical notebook entries that mention `@numeric_ops_max` remain as
   history, but the production recorder no longer contains a synthetic
   benchmark-chunk fast path for that row.
+
+## 2026-04-19: production behavior env gates removed from s390x source
+
+- Source cleanup:
+  removed the remaining live s390x experimental opt-in route-around envs from
+  production source. Stale iterator/JLOOP/loopdesc/hotside/varg experiments now
+  compile as the retained default behavior instead of being re-enabled through
+  private env knobs.
+- Default-on cleanup:
+  removed production-source reads for retained default opt-outs, including the
+  s390x string/memscan, modulo reducer, iterator/mixed loop-fold, direct call
+  arg, direct patchexit, AREF base, integer min/max, narrow XSTORE, signed
+  integer SLOAD, FORL compare, count clipping, small-table const, string-scan
+  numeric cache, and related default-on feature toggles. The features remain
+  default behavior; the rollback env surface is gone.
+- Audit result:
+  `tools/s390x/build_env_surface_audit.py` now reports total unique env names
+  `149`, retained perf env count `0`, and no source env rows outside
+  `debug/probe only`. Category counts are `86` debug/probe, `62`
+  tooling-only historical references, and `1` test-only setup.
+- Validation:
+  kdz1, kdz, and zkd0 clean GCC builds passed from tracked-file mirrors under
+  `/root/luajit2-s390x/workstreams/env-cleanup/canon/repo`. All three passed
+  `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings`,
+  `tests/s390x/jit_loops/iterator_contract.lua`,
+  `tests/s390x/jit_loops/pairs_loop.lua`, `tests/s390x/jit_be/numeric_ops.lua`,
+  and focused `tests/s390x/perf/iterator_table.lua`. kdz1 additionally passed
+  `addsub_overflow_guard.lua`, `numeric_minmax_loop_sum.lua`,
+  `numeric_ops.lua` perf, and retained-env `dispatch_trace.lua`.
+- Rationale:
+  LuaJIT already has a small precedent for env-driven diagnostics such as dump,
+  profile, list, and mcode test outputs. Keeping s390x diagnostic/probe envs is
+  therefore defensible short-term for bring-up, but the current source behavior
+  no longer depends on hidden env gates.
+- Remaining cleanup:
+  the next upstream polish pass should either remove the `86` source diagnostic
+  envs or move them behind a compile-time diagnostics build option. Tooling-only
+  historical references can then be deleted from truth-pack scripts once their
+  old causality checks are no longer useful.

@@ -556,16 +556,10 @@ int LJ_FASTCALL lj_strscan_num_cache(GCstr *str, TValue *o)
 {
 #if LJ_TARGET_S390X
   static __thread StrScanNumCache strscan_num_cache[STRSCAN_NUM_CACHE_SLOTS];
-  static __thread int cache_disabled = -1;
   MSize len = str->len;
   StrHash hash = str->hash;
   const uint8_t *data = (const uint8_t *)strdata(str);
   StrScanNumCache *cache;
-
-  if (LJ_UNLIKELY(cache_disabled < 0))
-    cache_disabled = getenv("LUAJIT_S390X_DISABLE_STRSCAN_NUM_CACHE") != NULL;
-  if (LJ_UNLIKELY(cache_disabled))
-    return lj_strscan_num(str, o);
 
   if (len == 0 || len > STRSCAN_NUM_CACHE_MAXLEN)
     return lj_strscan_num(str, o);
