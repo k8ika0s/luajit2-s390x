@@ -37389,3 +37389,38 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `addsub_overflow_guard.lua`, `iterator_contract.lua`, `pairs_loop.lua`,
   `string_heavy.lua`, `numeric_ops.lua` perf, `iterator_table.lua`,
   `mixed_noffi.lua`, and retained-env `dispatch_trace.lua`.
+
+## 2026-04-19: exact trace-policy steering removed; broad hotexit rail retained
+
+- Source cleanup:
+  removed the remaining exact iterator/mixed semantic-fold steering from
+  `src/lj_trace.c`. The old iterator fold hotcount park, mixed
+  `ITERL`/`ITERN` bytecode blacklists, and their now-dead exact matcher helpers
+  are gone. Current iterator and mixed-noffi retained rows are carried by
+  semantic mechanisms, not benchmark-family trace admission policy.
+- Hotexit experiment:
+  also tested removing the global s390x `hotexit=200` default in
+  `src/lib_jit.c`. That exposed a `vararg_paths.lua` segfault at the generic
+  hotexit default (`-Ohotexit=10`), while `-Ohotexit=200` passed the official
+  row with hot medians around `sum_loop 0.000022`, `retlast_loop 0.000025`,
+  and `retconst_loop 0.000010`.
+- Decision:
+  restored `hotexit=200` as a broad correctness safety rail with a clearer
+  source comment. This is tracked mechanism debt in side-exit/restore behavior,
+  not benchmark-family steering. It should be removed only after the generic
+  low-hotexit vararg crash is fixed.
+- Validation:
+  local `git diff --check` and
+  `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` passed. kdz1,
+  kdz, and zkd0 clean GCC builds passed from tracked-file mirrors under
+  `/root/luajit2-s390x/workstreams/trace-policy-cleanup/canon/repo`. Focused
+  rows passed on kdz1 for `iterator_contract.lua`, `pairs_loop.lua`,
+  `numeric_ops.lua`, `addsub_overflow_guard.lua`, `iterator_table.lua`,
+  `mixed_noffi.lua`, `vararg_paths.lua`, retained-env `dispatch_trace.lua`,
+  and `numeric_ops.lua` perf. kdz and zkd0 confirmed the key iterator,
+  pairs-loop, and vararg rows.
+- Audit state:
+  current source scan shows no exact `SEMANTIC_LOOP_FOLD_*` park/blacklist
+  paths and no s390x exact proto no-JIT or hotcount parks. The remaining
+  policy-like source item is the broad s390x `hotexit=200` default; generic
+  LuaJIT `blacklist_pc()` and `PROTO_NOJIT` checks remain as base mechanisms.

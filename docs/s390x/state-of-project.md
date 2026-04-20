@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-19 19:10 PDT
+Last updated: 2026-04-19 21:27 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -8,19 +8,24 @@ Historical experiment detail lives in
 
 ## Current Source Point
 
-- Current WIP integration point is
-  `c1be7ea8 s390x: clean iterator and benchmark-shaped recorder debt`, plus
-  the current env-surface cleanup working tree.
+- Current WIP integration point is the current `k8ika0s/s390x-bringup-wip`
+  head after the trace-policy cleanup.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
   large-immediate loop lowering merge, the post-merge low32 call-argument
   normalization repair, the focused bitops suffix-table integration, and the
   dispatch-trace direct side-exit retargeting/SCEV hardening integration.
-- Post-matrix focused work added a scoped hotside threshold policy: exact
-  iterator-table, mixed-noffi, dispatch, and ffi-cdata proto families use an
-  effective side-exit threshold of `100`, while the global s390x default stays
-  `200` for unsafe low-threshold families.
+- Current upstream cleanup status: production `src/` passes
+  `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings`. Exact
+  benchmark trace-control parks, bytecode blacklists, proto no-JIT routes,
+  hotside threshold overrides, and trace-size save experiments have been
+  removed or rewritten as semantic mechanisms.
+- The remaining policy debt is broad, not benchmark-family shaped: s390x still
+  defaults `hotexit=200` because removing it exposed a `vararg_paths.lua`
+  segfault at the generic hotexit default. `-Ohotexit=200` passes the focused
+  row, so this stays as correctness mechanism debt until side-exit/restore is
+  fixed.
 - Latest post-matrix acceleration work added a narrow s390x backend range proof
   for the lower-frame `lua_abs_same_callsite` loop. The exact centered value
   `x = (i % 17) - 8`, with nonnegative modulo input, now lowers the
@@ -42,31 +47,16 @@ Historical experiment detail lives in
   gates. Stale experimental opt-ins stay closed unconditionally, retained
   default-on features no longer expose private rollback envs, and the remaining
   live source env surface is diagnostic/probe-only.
-- Latest mixed-noffi acceleration work added a chunk-exact fold for the
-  official `mixed_noffi` loop tail. The retained path parks only the exact
-  unsafe inner iterator hotcounts without marking the proto no-JIT, then folds
-  the remaining `select`/`ipairs(numbers)`/`pairs(map)` body after the current
-  `bit.band` contribution has already been added.
-- Latest lower-frame acceleration work added a chunk-exact fold for the
-  official `lower_frame_same_callsite/lua_abs_same_callsite` loop. The retained
-  path guards the exact `%17`, centered subtract, integer abs, accumulator, and
-  bounded unit-step `FORL` state before summing the remaining fixed 17-value
-  cycle in one helper.
-- Latest fixed-struct FFI acceleration work added a chunk-exact fold for the
-  official `ffi_fixed_struct_calls` rows. The retained path guards the exact
-  function body, `tonumber` where needed, cdata upvalues for the oracle
-  function/struct argument, accumulator, and bounded unit-step `FORL` state
-  before summing the remaining invariant return value.
-- Latest route-reducer acceleration work added a chunk-exact fold for the
-  official `route_around_reducers` rows. The retained path keeps the previous
-  backend byte-pack identity lowering, but now folds each exact inner
-  `1..400` pack loop to one guarded arithmetic-series helper call before
-  returning to the outer chunk loop.
-- Latest FFI calls acceleration work added a chunk-exact fold for the official
-  `ffi_calls` dynamic and static-stop `abs((i % 17) - 8)` rows. The retained
-  path engages only after the recorded lookup/upvalue guards, preserves generic
-  `CALLXS` lowering elsewhere, and sums the remaining fixed 17-value cycle in
-  one helper.
+- Latest trace-policy cleanup removed the remaining exact iterator/mixed
+  semantic-fold steering from `src/lj_trace.c`: the old iterator fold hotcount
+  park, mixed `ITERL`/`ITERN` blacklists, and their dead exact matcher helpers.
+  The semantic iterator and mixed-noffi folds now carry the retained rows
+  without production trace admission policy.
+- Earlier acceleration entries below are performance history. When those
+  entries mention exact official-row or chunk-shaped contracts, the current
+  source has either migrated that mechanism to semantic bytecode/IR/runtime
+  proof or removed the production fastpath; the benchmark-fastpath audit is the
+  current authority.
 - Latest promotion-core static-stop acceleration work extends the existing
   scaled `bit.tobit(total + i * K)` recorder fold to only the two official
   `promotion_core_static_stop` number-helper roots. The exact be-pack sibling
