@@ -1095,3 +1095,16 @@ kdz1 validation after removal passed a clean tracked-mirror rebuild,
 `tests/s390x/jit_be/addsub_overflow_guard.lua`,
 `tests/s390x/jit_be/mulov_overflow_guard.lua`, and focused
 `tests/s390x/perf/numeric_ops.lua`.
+
+#### Mod97 Subtract Helper Fold
+
+The standalone `lj_trace_s390x_mod97_sub_loop_sum()` helper has been removed.
+The subtract-shape recorder still exists, but it now calls
+`lj_trace_s390x_mod97_loop_sum()`, checks the existing `INT32_MIN` sentinel,
+and emits an integer negation in IR. This removes one helper declaration,
+definition, and `IRCALL` entry without changing the helper ABI used by the
+positive `%97` reducer.
+
+kdz1 validation passed a warning-clean rebuild, confirmed the old helper
+symbol is absent, and passed `numeric_ops`, ADD/SUB overflow, MUL overflow,
+focused `numeric_ops.lua`, and focused `route_around_reducers.lua`.

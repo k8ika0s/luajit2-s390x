@@ -38314,3 +38314,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   Default focused checks kept `mixed_noffi/mixed_loop/hot` at `0.000001s`,
   `iterator_table` hot rows at timer floor, and `pairs_loop.lua` printed
   `pairs total 5050`.
+
+## 2026-04-20: mod97 subtract reducer helper folded into existing helper
+
+- Removed the private `lj_trace_s390x_mod97_sub_loop_sum()` helper,
+  declaration, and `IRCALL` entry. The subtract-shape recorder matcher now
+  calls the existing `lj_trace_s390x_mod97_loop_sum()` helper, guards the
+  `INT32_MIN` sentinel, and emits an integer `NEG` before converting for the
+  numeric accumulator path.
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `137` to
+  `136`, and `semantic_reducer_callinfo` dropped from `33` to `32`. The
+  matcher count is intentionally unchanged because this patch only removes
+  duplicate helper ABI surface.
+- kdz1 validation:
+  clean tracked-mirror rebuild passed warning-clean; the rebuilt binary
+  exported no `lj_trace_s390x_mod97_sub_loop_sum` symbol. Focused correctness
+  passed `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua` and
+  `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
+  in band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000014`, `min=0.000014`, `max=0.000014`).
