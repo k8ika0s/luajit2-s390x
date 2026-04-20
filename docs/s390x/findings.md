@@ -38039,3 +38039,24 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   an arbitrary side-trace current-entry nested iterator reducer. It needs an
   outer-loop ownership/continuation contract, or a reducer that proves it is
   still anchored at the outer loop state before consuming nested iterator work.
+
+## 2026-04-20: generic component table-total contract rejected
+
+- Tested a narrower outer-loop-owned generalization of the retained
+  `component_loop` matcher. The candidate kept root-only admission and the
+  current `nextidx` continuation contract, but replaced the hard-coded
+  `numbers={1..8}` and `map={a=1,b=2,c=3,d=4}` checks with guarded dense-array
+  and string-key integer table total discovery.
+- Official retained rows stayed correct and fast on kdz1:
+  `mixed_noffi/mixed_loop/hot 0.000002s`, `iterator_table.lua` at the timer
+  floor, `pairs_loop.lua` passed, and `vararg_paths.lua` stayed in its retained
+  fast band.
+- A same-bytecode diagnostic variant with different table contents failed:
+  `numbers={2,4,6}` and `map={x=7,y=-3}` returned `8473469` instead of
+  `8473472`; the all-positive map variant also stayed off by `3`. The original
+  table contents still passed.
+- Reverted the candidate. This proves the current continuation contract is not
+  merely "sum the current iterator table values and fold the tail." The exact
+  current-iteration ownership depends on the nested iterator trip/recording
+  state. A correct replacement must first make that consumed-state boundary
+  explicit, then generalize table totals.
