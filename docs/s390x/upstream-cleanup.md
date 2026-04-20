@@ -186,6 +186,20 @@ removed. This is a measurement and staging tool, not an upstream solution by
 itself: source remains upstream-risky until each reducer is rewritten or
 excluded from the upstream candidate.
 
+Some families have narrower comparison switches for staged burn-down. The
+first split is string:
+
+```sh
+-DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0
+-DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0
+```
+
+The debt-pack helper accepts these as named profiles with `--profile
+string-cycle-off`, `--profile string-primitive-off`, and `--profile
+string-all-off`; `default` is always included as the baseline. The primitive
+profile is most useful together with cycle-off or all-off because the
+whole-loop cycle reducers intercept the default string rows first.
+
 Use this helper to regenerate the reducer burn-down ledger from source:
 
 ```sh

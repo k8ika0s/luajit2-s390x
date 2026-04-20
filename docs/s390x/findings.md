@@ -37586,6 +37586,12 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `string_cycle 6` and `string_primitive 2` instead of a single string bucket.
 - kdz1 focused profile artifact:
   `/tmp/kdz1-string-reducer-split-20260420072723`.
+- Standard debt-pack profile validation:
+  `/tmp/kdz1-string-profile-tool-20260420074500` ran `string_heavy` with
+  default, `string-cycle-off`, `string-primitive-off`, and `generic-only`
+  profiles. It passed with no failed families and confirmed that
+  `string-primitive-off` alone barely moves default rows because cycle reducers
+  intercept first.
 - kdz1 profile read:
   default retained string hot rows remained at the timer floor:
   `manual_find_loop 0.000002s`, `byte_scan_loop 0.000001s`,

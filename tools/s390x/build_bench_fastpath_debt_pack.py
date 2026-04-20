@@ -2,11 +2,11 @@
 """Measure dependency on branch-local s390x semantic reducer fast paths.
 
 Current WIP keeps semantic reducer substitutions enabled by default for the
-bring-up performance baseline. The generic-only profile builds with
-`LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0`, which disables the recorder dispatch
-hooks while preserving the rest of the backend/runtime source. Use this pack to
-measure how much performance each family still gets from branch-local reducer
-substitution before replacing it with upstreamable lower-level mechanisms.
+bring-up performance baseline. The comparison profiles rebuild with selected
+reducer classes disabled while preserving the rest of the backend/runtime
+source. Use this pack to measure how much performance each family still gets
+from branch-local reducer substitution before replacing it with upstreamable
+lower-level mechanisms.
 """
 
 from __future__ import annotations
@@ -26,6 +26,17 @@ import restamp_iterator_perf as restamp
 
 DEFAULT_OUTPUT_ROOT = pathlib.Path("/tmp")
 DEFAULT_TIMEOUT_SECS = 30
+DEFAULT_PROFILES = ["default", "generic-only"]
+PROFILE_XCFLAGS = {
+    "default": "",
+    "generic-only": " -DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0",
+    "string-all-off": (
+        " -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0"
+        " -DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0"
+    ),
+    "string-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0",
+    "string-primitive-off": " -DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0",
+}
 DEFAULT_FAMILIES = [
     "dispatch_trace",
     "iterator_table",
@@ -56,9 +67,8 @@ def write_text(path: pathlib.Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def build_profile(host: str, repo: str, raw_dir: pathlib.Path, *, generic_only: bool) -> None:
-    extra = " -DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0" if generic_only else ""
-    label = "generic-only" if generic_only else "default"
+def build_profile(host: str, repo: str, raw_dir: pathlib.Path, *, profile: str) -> None:
+    extra = PROFILE_XCFLAGS[profile]
     vars_map = (
         "CC=gcc HOST_CC=gcc BUILDMODE=mixed "
         f"XCFLAGS='-DLUAJIT_ENABLE_S390X_JIT{extra}'"
@@ -72,9 +82,9 @@ make -C src -j4 {vars_map}
 ./src/luajit -e 'print(jit.arch, jit.status())'
 """
     proc = restamp.run_ssh_script(host, script)
-    write_text(raw_dir / f"{label}-build.stdout.log", proc.stdout)
-    write_text(raw_dir / f"{label}-build.stderr.log", proc.stderr)
-    restamp.require_ok(proc, f"{host} {label} build")
+    write_text(raw_dir / f"{profile}-build.stdout.log", proc.stdout)
+    write_text(raw_dir / f"{profile}-build.stderr.log", proc.stderr)
+    restamp.require_ok(proc, f"{host} {profile} build")
 
 
 def build_oracles_if_needed(host: str, repo: str, raw_dir: pathlib.Path,
@@ -153,46 +163,64 @@ def median_runtime(record: dict[str, Any]) -> float:
     return float(record.get("median_runtime_sec", record.get("median_sec")))
 
 
-def summarize(default_results: list[dict[str, Any]],
-	      generic_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def summarize_profile(default_results: list[dict[str, Any]],
+		      comparison_results: list[dict[str, Any]],
+		      comparison_profile: str) -> list[dict[str, Any]]:
     default_rows: dict[str, list[float]] = {}
-    generic_rows: dict[str, list[float]] = {}
+    comparison_rows: dict[str, list[float]] = {}
     for result, out in ((r, default_rows) for r in default_results):
         if result["status"] != "pass":
             continue
         for record in result["records"]:
             out.setdefault(record_key(record), []).append(median_runtime(record))
-    for result, out in ((r, generic_rows) for r in generic_results):
+    for result, out in ((r, comparison_rows) for r in comparison_results):
         if result["status"] != "pass":
             continue
         for record in result["records"]:
             out.setdefault(record_key(record), []).append(median_runtime(record))
 
     rows: list[dict[str, Any]] = []
-    all_keys = sorted(set(default_rows) | set(generic_rows))
+    all_keys = sorted(set(default_rows) | set(comparison_rows))
     for key in all_keys:
         dvals = default_rows.get(key, [])
-        gvals = generic_rows.get(key, [])
-        if not dvals or not gvals:
+        cvals = comparison_rows.get(key, [])
+        if not dvals or not cvals:
             rows.append({
                 "row": key,
-                "status": "missing-default" if not dvals else "missing-generic",
+                "comparison_profile": comparison_profile,
+                "status": "missing-default" if not dvals else f"missing-{comparison_profile}",
             })
             continue
         d = statistics.median(dvals)
-        g = statistics.median(gvals)
+        c = statistics.median(cvals)
         rows.append({
             "row": key,
+            "comparison_profile": comparison_profile,
             "status": "compared",
             "default_median": d,
-            "generic_median": g,
-            "delta": g - d,
-            "ratio_generic_vs_default": g / d if d else None,
+            "comparison_median": c,
+            "delta": c - d,
+            "ratio_vs_default": c / d if d else None,
         })
     rows.sort(key=lambda row: (
         row.get("status") != "compared",
         -(row.get("delta") or 0),
-        -(row.get("ratio_generic_vs_default") or 0),
+        -(row.get("ratio_vs_default") or 0),
+    ))
+    return rows
+
+
+def summarize(default_results: list[dict[str, Any]],
+	      profile_results: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for profile, results in profile_results.items():
+        if profile == "default":
+            continue
+        rows.extend(summarize_profile(default_results, results, profile))
+    rows.sort(key=lambda row: (
+        row.get("status") != "compared",
+        -(row.get("delta") or 0),
+        -(row.get("ratio_vs_default") or 0),
     ))
     return rows
 
@@ -209,6 +237,7 @@ def write_summary(output_dir: pathlib.Path, payload: dict[str, Any]) -> None:
         f"- Samples: `{payload['samples']}`",
         f"- Warmup: `{payload['warmup']}`",
         f"- Timeout: `{payload['timeout_secs']}s`",
+        f"- Profiles: `{', '.join(payload['profiles'])}`",
         "",
         "## Failed Or Timed Out Families",
         "",
@@ -224,20 +253,24 @@ def write_summary(output_dir: pathlib.Path, payload: dict[str, Any]) -> None:
         lines.append("None.")
     lines.extend([
         "",
-        "## Largest Generic-Only Slowdowns",
+        "## Largest Profile Slowdowns Versus Default",
         "",
-        "| Row | Default | Generic-only | Ratio | Delta |",
-        "|---|---:|---:|---:|---:|",
+        "| Row | Profile | Default | Profile median | Ratio | Delta |",
+        "|---|---|---:|---:|---:|---:|",
     ])
     for row in rows[:80]:
         if row["status"] != "compared":
-            lines.append(f"| `{row['row']}` | n/a | n/a | `{row['status']}` | n/a |")
+            lines.append(
+                f"| `{row['row']}` | `{row['comparison_profile']}` | "
+                f"n/a | n/a | `{row['status']}` | n/a |"
+            )
             continue
-        ratio = row["ratio_generic_vs_default"]
+        ratio = row["ratio_vs_default"]
         ratio_text = "n/a" if ratio is None else f"{ratio:.3f}"
         lines.append(
-            f"| `{row['row']}` | `{row['default_median']:.6f}` | "
-            f"`{row['generic_median']:.6f}` | "
+            f"| `{row['row']}` | `{row['comparison_profile']}` | "
+            f"`{row['default_median']:.6f}` | "
+            f"`{row['comparison_median']:.6f}` | "
             f"`{ratio_text}` | `{row['delta']:+.6f}` |"
         )
     write_text(output_dir / "summary.md", "\n".join(lines) + "\n")
@@ -253,6 +286,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--warmup", type=int, default=2)
     parser.add_argument("--timeout-secs", type=int, default=DEFAULT_TIMEOUT_SECS)
     parser.add_argument("--pin-core", type=int, default=restamp.DEFAULT_PIN_CORE)
+    parser.add_argument("--profile", action="append", choices=sorted(PROFILE_XCFLAGS), default=[])
     parser.add_argument("--skip-sync", action="store_true")
     return parser.parse_args()
 
@@ -262,6 +296,8 @@ def main() -> int:
     host = args.host
     repo = args.repo or restamp.AUTHORITATIVE_REPOS[host]
     families = args.family or DEFAULT_FAMILIES
+    profiles = args.profile or DEFAULT_PROFILES
+    profiles = list(dict.fromkeys(["default", *profiles]))
     stamp = dt.datetime.now().strftime("%Y%m%d%H%M%S")
     output_dir = args.output_dir or DEFAULT_OUTPUT_ROOT / f"{host}-bench-fastpath-debt-{stamp}"
     raw_dir = output_dir / "raw"
@@ -274,62 +310,50 @@ def main() -> int:
     proc = restamp.run_ssh_script(host, f"mkdir -p {shlex.quote(remote_tmp)}")
     restamp.require_ok(proc, f"{host} debt remote tmp")
 
-    default_results: list[dict[str, Any]] = []
-    generic_results: list[dict[str, Any]] = []
+    profile_results: dict[str, list[dict[str, Any]]] = {}
     try:
-        build_profile(host, repo, raw_dir, generic_only=False)
-        build_oracles_if_needed(host, repo, raw_dir, families, "default")
-        for family in families:
-            default_results.append(run_family(
-                host=host,
-                repo=repo,
-                family=family,
-                bench_file=jitter.BENCH_FILES[family],
-                label="default",
-                raw_dir=raw_dir,
-                remote_tmp=remote_tmp,
-                samples=args.samples,
-                warmup=args.warmup,
-                timeout_secs=args.timeout_secs,
-                pin_core=args.pin_core,
-                extra_env=retained_env,
-            ))
-
-        build_profile(host, repo, raw_dir, generic_only=True)
-        build_oracles_if_needed(host, repo, raw_dir, families, "generic-only")
-        for family in families:
-            generic_results.append(run_family(
-                host=host,
-                repo=repo,
-                family=family,
-                bench_file=jitter.BENCH_FILES[family],
-                label="generic-only",
-                raw_dir=raw_dir,
-                remote_tmp=remote_tmp,
-                samples=args.samples,
-                warmup=args.warmup,
-                timeout_secs=args.timeout_secs,
-                pin_core=args.pin_core,
-                extra_env=retained_env,
-            ))
+        for profile in profiles:
+            results: list[dict[str, Any]] = []
+            build_profile(host, repo, raw_dir, profile=profile)
+            build_oracles_if_needed(host, repo, raw_dir, families, profile)
+            for family in families:
+                results.append(run_family(
+                    host=host,
+                    repo=repo,
+                    family=family,
+                    bench_file=jitter.BENCH_FILES[family],
+                    label=profile,
+                    raw_dir=raw_dir,
+                    remote_tmp=remote_tmp,
+                    samples=args.samples,
+                    warmup=args.warmup,
+                    timeout_secs=args.timeout_secs,
+                    pin_core=args.pin_core,
+                    extra_env=retained_env,
+                ))
+            profile_results[profile] = results
     finally:
         restamp.run_ssh_script(host, f"rm -rf {shlex.quote(remote_tmp)}")
 
     failures = [
-        result for result in [*default_results, *generic_results]
+        result for results in profile_results.values() for result in results
         if result["status"] != "pass"
     ]
+    default_results = profile_results.get("default", [])
+    generic_results = profile_results.get("generic-only", [])
     payload = {
         "host": host,
         "repo": repo,
         "families": families,
+        "profiles": profiles,
         "samples": args.samples,
         "warmup": args.warmup,
         "timeout_secs": args.timeout_secs,
+        "profile_results": profile_results,
         "default_results": default_results,
         "generic_results": generic_results,
         "failures": failures,
-        "rows": summarize(default_results, generic_results),
+        "rows": summarize(default_results, profile_results),
     }
     write_summary(output_dir, payload)
     print(f"summary={output_dir / 'summary.md'}")
