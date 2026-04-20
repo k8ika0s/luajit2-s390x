@@ -38,6 +38,7 @@ PROFILE_XCFLAGS = {
     "string-prefix-eq-off": " -DLUAJIT_ENABLE_S390X_STRING_PREFIX_EQ_REDUCER=0",
     "string-manual-find-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0",
     "string-byte-scan-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0",
+    "strto-cycle-off": " -DLUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER=0",
 }
 DEFAULT_FAMILIES = [
     "dispatch_trace",

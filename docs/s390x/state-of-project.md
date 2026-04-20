@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 07:57 PDT
+Last updated: 2026-04-20 08:01 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -67,6 +67,12 @@ Historical experiment detail lives in
   `prefix_eq`, and `string_key_lookup` are smaller measurable folds and are the
   next cleanup candidates if upstream surface reduction outranks preserving
   every retained string-heavy micro-win.
+- The `be_helpers/strto_loop` residual is now isolated behind
+  `LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER`. Focused kdz1 artifact
+  `/tmp/kdz1-strto-cycle-profile-20260420095800` shows `strto-cycle-off`
+  reproduces the generic-only slowdown for `strto_loop/hot`
+  (`0.000024s` default to `0.000630s`) without moving sibling rows. This is one
+  closed-form `tonumber` cycle fold, not a broad be-helper issue.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then

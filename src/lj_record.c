@@ -559,6 +559,11 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER
+#define LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
 #define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 1
 #else
@@ -629,6 +634,11 @@ static int lj_record_s390x_mod97_if7_loop_sum_enabled(void)
 static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
 {
   return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+}
+
+static int lj_record_s390x_strto_cycle_loop_sum_enabled(void)
+{
+  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER;
 }
 
 static int lj_record_s390x_concat_slice_enabled(void)
@@ -3431,7 +3441,8 @@ static int lj_record_s390x_strto_cycle_loop_sum(jit_State *J,
   GCtab *tabv;
   int32_t stopv;
 
-  if (!lj_record_s390x_root_frame(J) ||
+  if (!lj_record_s390x_strto_cycle_loop_sum_enabled() ||
+      !lj_record_s390x_root_frame(J) ||
       !lj_record_s390x_be_helpers_strto_proto_match(J->pt) ||
       J->parent != 0 || J->exitno != 0)
     return 0;

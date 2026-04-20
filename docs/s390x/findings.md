@@ -37717,3 +37717,25 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   next likely removal or branch-local exclusion candidates if the priority is
   reducing upstream surface before preserving every sub-millisecond retained
   string-heavy win.
+
+## 2026-04-20: be_helpers strto semantic reducer isolated
+
+- Added `LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER` as a compile-time split
+  switch defaulting through `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`, and added
+  the matching debt-pack profile `strto-cycle-off`.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-strto-cycle-profile-20260420095800`.
+- The sweep rebuilt default, `strto-cycle-off`, and `generic-only`, ran
+  `be_helpers` with `7` samples and `2` warmups, and completed with no failed
+  or timed-out families.
+- Result:
+  `strto-cycle-off` reproduces the `generic-only` slowdown for the
+  `strto_loop` row and leaves sibling rows in band. `be_helpers/strto_loop/hot`
+  was `0.000024s` default, `0.000630s` with only the strto reducer disabled,
+  and `0.000636s` with all semantic reducers disabled. Medium and small rows
+  show the same ownership pattern.
+- Interpretation:
+  the `be_helpers` semantic debt is one isolated closed-form `tonumber` cycle
+  fold. Keeping the retained speed requires either keeping this fold WIP-local
+  or replacing it with a broader lower-level mechanism for constant-string
+  numeric conversion / table-driven `tonumber` loops.
