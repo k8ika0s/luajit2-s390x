@@ -636,11 +636,6 @@ static int lj_record_s390x_mod97_loop_sum_enabled(void)
   return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
-static int lj_record_s390x_mod97_sub_loop_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
 static int lj_record_s390x_mod_mul_loop_sum_enabled(void)
 {
   return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
@@ -4772,7 +4767,7 @@ static int lj_record_s390x_mod97_sub_loop_sum(jit_State *J, const BCIns *body)
   cTValue *base;
   int32_t stopv;
 
-  if (!lj_record_s390x_mod97_sub_loop_sum_enabled() ||
+  if (!lj_record_s390x_mod97_loop_sum_enabled() ||
       !lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
@@ -4817,8 +4812,9 @@ static int lj_record_s390x_mod97_sub_loop_sum(jit_State *J, const BCIns *body)
   if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod97_sub_loop_sum, idx, stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod97_loop_sum, idx, stopref);
   emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTI(IR_NEG), sum, sum);
   sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);

@@ -272,12 +272,6 @@ int32_t lj_trace_s390x_mod97_loop_sum(int32_t idx, int32_t stop)
   return (int32_t)sum;
 }
 
-int32_t lj_trace_s390x_mod97_sub_loop_sum(int32_t idx, int32_t stop)
-{
-  int32_t sum = lj_trace_s390x_mod97_loop_sum(idx, stop);
-  return sum == INT32_MIN ? INT32_MIN : -sum;
-}
-
 int32_t lj_trace_s390x_mod97_if5_else1_loop_sum(int32_t idx, int32_t stop)
 {
   int64_t sum;

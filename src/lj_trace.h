@@ -113,7 +113,6 @@ LJ_FUNC int32_t lj_trace_s390x_mod_scaled_loop_sum(int32_t idx, int32_t stop,
 LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
 					    int32_t mod);
 LJ_FUNC int32_t lj_trace_s390x_mod97_loop_sum(int32_t idx, int32_t stop);
-LJ_FUNC int32_t lj_trace_s390x_mod97_sub_loop_sum(int32_t idx, int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_mod97_if5_else1_loop_sum(int32_t idx,
 							int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_mod97_if7_loop_sum(int32_t idx, int32_t stop);
