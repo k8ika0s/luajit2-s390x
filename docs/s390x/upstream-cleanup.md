@@ -27,8 +27,8 @@ calls:
 python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
-As of this note, the broader audit intentionally fails with `177` findings:
-`46` recorder reducer definitions, `47` root dispatch hooks, `44` emitted
+As of this note, the broader audit intentionally fails with `171` findings:
+`44` recorder reducer definitions, `43` root dispatch hooks, `44` emitted
 reducer IRCALLs, and `40` s390x reducer/string callinfo entries. These are no
 longer benchmark-name keyed in many cases, but they remain semantic loop
 substitution in the core recorder and are the main upstream blocker.
@@ -144,9 +144,9 @@ upstream candidate needs the source removed or rewritten, not merely disabled.
 
 The expanded audit currently classifies the remaining reducer debt as:
 
-- `semantic_reducer_definition`: `46` recorder reducer matcher definitions in
+- `semantic_reducer_definition`: `44` recorder reducer matcher definitions in
   `src/lj_record.c`.
-- `semantic_reducer_dispatch`: `47` default-on recorder dispatch hooks in
+- `semantic_reducer_dispatch`: `43` default-on recorder dispatch hooks in
   `lj_record_ins()`, plus byte-scan hooks at loop setup.
 - `semantic_reducer_ircall`: `44` emitted reducer helper calls from the
   recorder into s390x/string helpers.
@@ -187,18 +187,16 @@ itself: source remains upstream-risky until each reducer is rewritten or
 excluded from the upstream candidate.
 
 Some families have narrower comparison switches for staged burn-down. The
-first split is string:
+first remaining split is string:
 
 ```sh
 -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0
--DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0
 ```
 
-The debt-pack helper accepts these as named profiles with `--profile
-string-cycle-off`, `--profile string-primitive-off`, and `--profile
-string-all-off`; `default` is always included as the baseline. The primitive
-profile is most useful together with cycle-off or all-off because the
-whole-loop cycle reducers intercept the default string rows first.
+The debt-pack helper accepts this as `--profile string-cycle-off`; `default`
+is always included as the baseline. The former primitive string recorder
+profile has been removed from production source because it was superseded by
+the cycle layer for retained default performance.
 
 Use this helper to regenerate the reducer burn-down ledger from source:
 
@@ -210,7 +208,6 @@ Current ledger summary:
 
 - `numeric_mod`: `19`
 - `string_cycle`: `6`
-- `string_primitive`: `2`
 - `ffi_cdata`: `6`
 - `large_immediates`: `4`
 - `logic_low32`: `3`
@@ -239,12 +236,11 @@ Focused string split artifact:
 
 - `/tmp/kdz1-string-reducer-split-20260420072723`
 
-The string family is now split for burn-down measurement:
+The string family was split for burn-down measurement before the primitive
+recorder hooks were removed:
 
-- `-DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0` disables the lower-level
-  `manual_find` and `byte_scan_sum` primitive substitutions.
 - `-DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0` disables whole-loop string
-  cycle reducers while leaving the primitive layer available.
+  cycle reducers.
 
 On kdz1, default retained string hot rows stayed at the timer floor:
 `manual_find_loop 0.000002s`, `byte_scan_loop 0.000001s`,
@@ -255,10 +251,18 @@ rows were `0.001855s`, `0.000292s`, `0.000191s`, `0.000163s`,
 `0.000986s`, and `0.000403s`. With all semantic reducers disabled, the
 manual-find and byte-scan rows were `0.002543s` and `0.002010s`.
 
-This gives the string burn-down a cleaner order: first decide whether the two
-primitive reducers can become acceptable string/IR helper mechanisms, then
-treat the six whole-loop cycle reducers as branch-local debt unless each can
-be rebuilt as target-neutral string-loop optimization.
+The two primitive string recorder reducers were removed after this split
+showed they were superseded by the cycle layer for retained default rows. The
+remaining string burn-down target is now the six whole-loop cycle reducers,
+which remain branch-local debt unless each can be rebuilt as target-neutral
+string-loop optimization.
+
+Primitive removal validation:
+
+- `/tmp/kdz1-string-primitive-removed-20260420081500`
+
+That kdz1 run rebuilt `default` and `string-cycle-off` profiles, passed
+`string_heavy`, and kept the default hot string rows at the timer floor.
 
 ## Current Debt Ranking
 

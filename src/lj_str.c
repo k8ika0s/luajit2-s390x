@@ -126,7 +126,7 @@ int lj_str_equal_256(const char *a, const char *b, MSize len)
   return memcmp(a, b, len) == 0;
 }
 
-int32_t lj_str_sum_u8(const char *p, int32_t len)
+static int32_t lj_str_sum_u8(const char *p, int32_t len)
 {
   const uint8_t *s = (const uint8_t *)p;
   uint32_t sum = 0;
@@ -185,15 +185,6 @@ int32_t lj_str_sum_u8(const char *p, int32_t len)
   default: break;
   }
   return (int32_t)sum;
-}
-
-int32_t lj_str_find_pos(const char *s, const char *p, int32_t slen, int32_t plen)
-{
-  const char *q;
-  lj_assertX(slen >= 0 && slen <= 8192, "bounded find haystack length out of range");
-  lj_assertX(plen >= 1 && plen <= 256, "bounded find needle length out of range");
-  q = lj_str_find(s, p, (MSize)slen, (MSize)plen);
-  return q ? (int32_t)(q - s + 1) : 0;
 }
 
 static int lj_str_tab_has_meta(GCtab *t)

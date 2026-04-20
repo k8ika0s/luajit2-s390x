@@ -30,12 +30,7 @@ DEFAULT_PROFILES = ["default", "generic-only"]
 PROFILE_XCFLAGS = {
     "default": "",
     "generic-only": " -DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0",
-    "string-all-off": (
-        " -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0"
-        " -DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0"
-    ),
     "string-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0",
-    "string-primitive-off": " -DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0",
 }
 DEFAULT_FAMILIES = [
     "dispatch_trace",

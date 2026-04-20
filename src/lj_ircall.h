@@ -162,8 +162,6 @@ typedef struct CCallInfo {
   /* s390x recorder/backend reducers. Keep target-confined, not generic ABI. */ \
   _(S390X,	lj_str_equal,		3,   N, INT, 0) \
   _(S390X,	lj_str_equal_256,	3,   N, INT, 0) \
-  _(S390X,	lj_str_sum_u8,		2,   N, INT, 0) \
-  _(S390X,	lj_str_find_pos,	4,   N, INT, 0) \
   _(S390X,	lj_str_key_lookup_sum,	3,   N, INT, 0) \
   _(S390X,	lj_str_concat_slice_sum,	3,   N, INT, 0) \
   _(S390X,	lj_str_find_cycle_sum,	3,   N, INT, 0) \
