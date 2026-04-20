@@ -264,6 +264,15 @@ Primitive removal validation:
 That kdz1 run rebuilt `default` and `string-cycle-off` profiles, passed
 `string_heavy`, and kept the default hot string rows at the timer floor.
 
+Post-removal rerank:
+
+- `/tmp/kdz1-semantic-debt-post-string-primitive-20260420083000`
+
+That kdz1 run completed with no failed families. The current top semantic
+debt row is `mixed_noffi/mixed_loop/hot` at `+0.002808s` generic-only delta,
+followed by string cycle rows, `be_helpers/strto_loop`, numeric min/max, and
+logical-chain tail-store.
+
 ## Current Debt Ranking
 
 Use:

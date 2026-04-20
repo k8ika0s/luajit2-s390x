@@ -48,6 +48,12 @@ Historical experiment detail lives in
   layer, so removing the primitive `manual_find` and `byte_scan_sum` recorder
   substitutions shrinks upstream debt without moving the current performance
   floor. The remaining string debt is the `string_cycle` bucket.
+- Fresh post-removal semantic debt ranking is
+  `/tmp/kdz1-semantic-debt-post-string-primitive-20260420083000`. It completed
+  with no failures and names the next burn target as `mixed_noffi`: the
+  generic-only profile loses `+0.002808s` on `mixed_loop/hot`. The next
+  follow-ups after that are string cycle reducers, `be_helpers/strto_loop`,
+  numeric min/max, and logical-chain tail-store.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
