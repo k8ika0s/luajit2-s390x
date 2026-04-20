@@ -38289,3 +38289,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - This is a numeric cleanup step with no expected performance effect. It
   reduces global helper surface before the remaining numeric reducer debt is
   either rebuilt as canonical optimizer/backend machinery or kept branch-local.
+
+## 2026-04-20: component and iterator reducer helper surface split
+
+- Made the component-loop compile switch cover the full component helper
+  surface, not just recorder admission. With
+  `LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0`,
+  `lj_trace_s390x_band_mul_mask_loop_sum()` and
+  `lj_trace_s390x_mod1_loop_sum()` declarations, `IRCALL` metadata, and
+  definitions are omitted.
+- Added the separate `LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER` comparison
+  switch for the independent iterator-table reducer. The shared
+  `lj_trace_s390x_iter_table_loop_sum()` helper remains available while
+  either component-loop or iterator-table reducers are enabled, and disappears
+  only when both are disabled.
+- Updated the debt-pack profile list with `iterator-table-off`. The existing
+  `component-loop-off` / `mixed-noffi-off` compatibility alias continues to
+  measure only the component-loop matcher debt.
+- kdz1 validation:
+  default, component-off, iterator-off, and combined component+iterator-off
+  builds completed. The combined-off build was warning-clean and exported none
+  of `lj_trace_s390x_band_mul_mask_loop_sum`,
+  `lj_trace_s390x_mod1_loop_sum`, or `lj_trace_s390x_iter_table_loop_sum`.
+  Default focused checks kept `mixed_noffi/mixed_loop/hot` at `0.000001s`,
+  `iterator_table` hot rows at timer floor, and `pairs_loop.lua` printed
+  `pairs total 5050`.

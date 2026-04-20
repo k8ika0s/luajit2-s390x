@@ -824,6 +824,7 @@ int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
 }
 #endif
 
+#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
 int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx, int32_t stop,
 					      int32_t mul, int32_t mask)
 {
@@ -865,6 +866,7 @@ int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop, int32_t mod)
     return INT32_MIN;
   return (int32_t)sum;
 }
+#endif
 
 #if LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
 static uint32_t lj_trace_s390x_logic_rol32(uint32_t x, uint32_t n)
@@ -956,6 +958,8 @@ int32_t lj_trace_s390x_logic_tail_store_sum(int32_t outer_stop)
 }
 #endif
 
+#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS || \
+    LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER
 int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc, int32_t idx,
 					   int32_t stop, int32_t per_iter)
 {
@@ -968,6 +972,7 @@ int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc, int32_t idx,
     return acc;
   return (int32_t)sum;
 }
+#endif
 #endif
 
 /* -- Error handling ------------------------------------------------------ */
