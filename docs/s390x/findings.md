@@ -38264,3 +38264,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - This is a compile-surface cleanup step, not a semantic-debt retirement. The
   `numeric_mod` bucket remains active until the closed-form substitutions are
   replaced by upstreamable optimizer/backend mechanisms or kept branch-local.
+
+## 2026-04-20: dead numeric reducer helper surface removed
+
+- Removed two stale helper exports that no longer had live source call sites:
+  `lj_trace_s390x_const_step_loop_sum()` and
+  `lj_trace_s390x_abs17_loop_sum()`.
+- The cleanup deleted the helper definitions, `lj_trace.h` declarations, and
+  `lj_ircall.h` entries. Historical docs references were left as old findings;
+  no production, test, or tool references remain.
+- Local checks:
+  `git diff --check` passed, source/test/tool `rg` found no remaining live
+  references, the upstream-risk audit dropped from `139` to `137`, and the
+  semantic reducer matcher ledger stayed at `34` definitions. The active
+  `numeric_mod` bucket remains unchanged.
+- kdz1 validation:
+  tracked-mirror clean rebuild passed warning-clean. Focused correctness
+  passed `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused
+  `tests/s390x/perf/numeric_ops.lua` stayed at the retained timer-floor band:
+  hot medians `abs=0.000018`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000014`, `min=0.000014`, `max=0.000013`.
+- This is a numeric cleanup step with no expected performance effect. It
+  reduces global helper surface before the remaining numeric reducer debt is
+  either rebuilt as canonical optimizer/backend machinery or kept branch-local.

@@ -458,14 +458,6 @@ static int64_t lj_trace_s390x_sum_i32_range(int32_t lo, int32_t hi)
 }
 #endif
 
-double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
-					  int32_t stop, double per_iter)
-{
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return acc;
-  return acc + (double)((int64_t)stop - idx + 1) * per_iter;
-}
-
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 typedef struct S390XConstSmallU32 {
   uint32_t a;
@@ -761,22 +753,6 @@ double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx, int32_t stop)
     idx++;
   }
   return acc;
-}
-
-int32_t lj_trace_s390x_abs17_loop_sum(int32_t idx, int32_t stop)
-{
-  int64_t n, q, rem, i, sum;
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return 0;
-  n = (int64_t)stop - idx + 1;
-  q = n / 17;
-  rem = n - q * 17;
-  sum = q * 72;
-  for (i = 0; i < rem; i++) {
-    int32_t x = ((idx + (int32_t)i) % 17) - 8;
-    sum += x < 0 ? -x : x;
-  }
-  return (int32_t)sum;
 }
 
 int32_t lj_trace_s390x_const_i32_mod17_loop_sum(void *func, int32_t idx,

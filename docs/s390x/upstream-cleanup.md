@@ -1062,3 +1062,20 @@ This is still an isolation step, not an upstream replacement. The
 `numeric_mod` bucket remains active until these closed-form substitutions are
 rebuilt as optimizer facts/backend lowering or held out of an upstream
 candidate.
+
+#### Dead Numeric Helper Surface
+
+Two stale numeric helper exports have been removed:
+`lj_trace_s390x_const_step_loop_sum()` and
+`lj_trace_s390x_abs17_loop_sum()`.
+
+They had no live source call sites after the large-immediate and lower-frame
+cleanup work. The definitions, declarations, and `IRCALL` entries are gone,
+which drops the upstream-risk helper-call surface without changing the active
+numeric reducer matcher set or default performance path.
+
+kdz1 validation after removal passed a clean tracked-mirror rebuild,
+`tests/s390x/jit_be/numeric_ops.lua`,
+`tests/s390x/jit_be/addsub_overflow_guard.lua`,
+`tests/s390x/jit_be/mulov_overflow_guard.lua`, and focused
+`tests/s390x/perf/numeric_ops.lua`.
