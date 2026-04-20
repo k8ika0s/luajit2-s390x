@@ -192,13 +192,16 @@ current splits are:
 ```sh
 -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0
 -DLUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS=0
+-DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0
+-DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0
+-DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0
+-DLUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER=0
+-DLUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER=0
 ```
 
-The debt-pack helper accepts these as `--profile string-cycle-off` and
-`--profile mixed-noffi-off`; `default` is always included as the baseline. The
-former primitive string recorder profile has been removed from production
-source because it was superseded by the cycle layer for retained default
-performance.
+The debt-pack helper accepts these as named `--profile` values; `default` is
+always included as the baseline. Removed reducer classes should not retain
+dead profile switches.
 
 Use this helper to regenerate the reducer burn-down ledger from source:
 
@@ -208,15 +211,16 @@ python3 tools/s390x/build_semantic_reducer_debt.py
 
 Current ledger summary:
 
-- `numeric_mod`: `19`
-- `string_cycle`: `6`
+- `numeric_mod`: `20`
 - `ffi_cdata`: `6`
 - `large_immediates`: `4`
 - `logic_low32`: `3`
+- `string_cycle`: `3`
 - `iterator_mixed`: `2`
-- `route_reducer`: `2`
-- `be_helpers`: `1`
-- `lower_frame`: `1`
+
+The current total is `38` reducer matcher definitions. The `be_helpers` and
+`route_reducer` buckets have been removed; the former lower-frame `%17` fold
+is now tracked as the generic centered-modulo abs reducer in `numeric_mod`.
 
 First kdz1 debt ranking artifact:
 
@@ -248,6 +252,25 @@ On kdz1, default retained string hot rows stayed at the timer floor:
 `manual_find_loop 0.000002s`, `byte_scan_loop 0.000001s`,
 `prefix_eq_loop 0.000001s`, `string_key_lookup_loop 0.000000s`,
 `concat_slice_loop 0.000000s`, and `miss_find_loop 0.000001s`.
+
+Focused centered-modulo abs split artifact:
+
+- `/tmp/kdz1-lower-frame-centered-mod-abs-20260420125000`
+
+Disabling only the centered-modulo abs reducer moves
+`lua_abs_same_callsite/hot` from the timer floor to `0.000579s`. This is
+high-value debt and needs a lower-level replacement before removal, but the
+contract is no longer tied to the lower-frame benchmark or `%17` specifically.
+
+Focused route reducer removal artifact:
+
+- `/tmp/kdz1-route-reducer-removed-20260420120000`
+
+The route reducer closed-form matchers and private route-pack helper are gone.
+The retained route rows are now effectively identical under default and
+generic-only builds, so this removes the `route_reducer` semantic bucket
+without preserving a branch-local whole-loop shortcut.
+
 With string cycle reducers disabled but primitive reducers retained, the same
 rows were `0.001855s`, `0.000292s`, `0.000191s`, `0.000163s`,
 `0.000986s`, and `0.000403s`. With all semantic reducers disabled, the
@@ -574,16 +597,16 @@ identity:
 
 The next recorder debt batch also moved off benchmark file identity:
 
-- Lower-frame `%17` absolute-value loop folds no longer require
-  `@tests/s390x/perf/lower_frame_same_callsite.lua`. The recorder now proves
-  the root frame, loop ownership, `% 17`, signed absolute-value branch, loop
-  bounds, and accumulator update before calling
-  `lj_trace_s390x_lower_frame_abs17_loop_sum`.
-- Route-reducer folds no longer require
-  `@tests/s390x/perf/route_around_reducers.lua` or `pt->firstline`. The
-  recorder chooses the literal or localized `bit.*` table shape by bytecode
-  and guarded function identity, then proves the counted loop before using the
-  scaled-tobit loop helper.
+- The former lower-frame `%17` absolute-value fold is now the generic
+  centered-modulo abs reducer. It no longer requires
+  `@tests/s390x/perf/lower_frame_same_callsite.lua`, and no longer hard-codes
+  `%17`: the recorder proves the root frame, loop ownership, positive counted
+  loop, `MODVN k -> SUBVN center -> ISGE/JMP/UNM -> ADDVV`, bounded
+  `2 <= k <= 1024`, and accumulator update before calling
+  `lj_trace_s390x_centered_mod_abs_loop_sum`.
+- Route-reducer folds have been removed from production source. Their retained
+  route rows now run on the lower-level bit/loop machinery with no material
+  gap to the generic-only profile.
 - Scaled `bit.tobit(total + i*K)` folds no longer require `be_helpers`,
   `be_helpers_localized`, or `promotion_core_static_stop` chunk names. The
   recorder now proves the `MULVN -> ADDVV -> bit.tobit()` body, positive
@@ -591,18 +614,19 @@ The next recorder debt batch also moved off benchmark file identity:
 
 Validation artifacts:
 
-- Lower-frame: `/tmp/kdz1-bench-fastpath-debt-20260419124510`.
-- Route reducers: `/tmp/kdz1-bench-fastpath-debt-20260419124836`.
+- Centered-modulo abs: `/tmp/kdz1-lower-frame-centered-mod-abs-20260420125000`.
+- Route reducer removal: `/tmp/kdz1-route-reducer-removed-20260420120000`.
 - Scaled tobit: `/tmp/kdz1-debt-be-helpers-generic-202604191253`,
   `/tmp/kdz1-debt-be-localized-generic-202604191254`, and
   `/tmp/kdz1-debt-promotion-static-generic-202604191255`.
 
-Direct host validation passed on kdz1 and zkd0 for the focused lower-frame,
-route-reducer, be-helper, localized be-helper, promotion-core static-stop, and
-numeric correctness rows. The focused generic-only debt for these migrated rows
-is now at timer/noise floor. The remaining `be_helpers` generic-only deltas in
-the latest focused run are different mechanisms: `num_aload_loop` and `strto`
-helper rows, not the scaled `bit.tobit` fold.
+Direct host validation passed on kdz1 for the centered-modulo abs contract,
+route reducer removal, be-helper, localized be-helper, promotion-core
+static-stop, and numeric correctness rows. The centered-modulo abs contract is
+still high-value debt and remains enabled by default; route reducers are gone.
+The remaining `be_helpers` generic-only deltas in the latest focused run are
+different mechanisms: `num_aload_loop` and `strto` helper rows, not the scaled
+`bit.tobit` fold.
 
 ### Logic-Add PHI Status
 

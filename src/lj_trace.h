@@ -61,9 +61,11 @@ LJ_FUNC double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc,
 						     int32_t intercept);
 LJ_FUNC int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx,
 							int32_t stop);
-LJ_FUNC double lj_trace_s390x_lower_frame_abs17_loop_sum(double acc,
-							int32_t idx,
-							int32_t stop);
+LJ_FUNC double lj_trace_s390x_centered_mod_abs_loop_sum(double acc,
+						       int32_t idx,
+						       int32_t stop,
+						       int32_t mod,
+						       int32_t center);
 LJ_FUNC double lj_trace_s390x_div_loop_accum4(double acc, int32_t idx,
 					      int32_t stop);
 LJ_FUNC double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx,
@@ -107,9 +109,6 @@ LJ_FUNC double lj_trace_s390x_max_loop_sum(int32_t idx, int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx,
 						     int32_t stop,
 						     int32_t mul);
-LJ_FUNC int32_t lj_trace_s390x_route_pack_outer_sum(int32_t acc,
-						    int32_t idx,
-						    int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_int_const_step_loop_sum(int32_t acc,
 						       int32_t idx,
 						       int32_t stop,

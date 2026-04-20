@@ -170,7 +170,7 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \
   _(S390X,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_ffi_fixed_step16_postidx, 2, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_lower_frame_abs17_loop_sum, 3, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_centered_mod_abs_loop_sum, 5, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_sqrt_loop_accum4, 3, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_abs17_loop_sum, 2, N, INT, 0) \
@@ -192,7 +192,6 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_min_loop_sum, 2, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_max_loop_sum, 2, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_route_pack_outer_sum, 3, N, INT, 0) \
   _(S390X,	lj_trace_s390x_int_const_step_loop_sum, 4, N, INT, 0) \
   _(S390X,	lj_trace_s390x_logic_add_phi_remainder_sum, 4, N, INT, 0) \
   _(S390X,	lj_trace_s390x_logic_tail_add_sum, 5, N, INT, 0) \
