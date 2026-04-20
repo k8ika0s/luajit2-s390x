@@ -38383,3 +38383,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
   in band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000018`,
   `sqrt=0.000013`, `min=0.000013`, `max=0.000013`).
+
+## 2026-04-20: mod97 add/sub matchers consolidated
+
+- Merged the duplicate `%97` ADDVV and SUBVV accumulator recorder matchers.
+  Both shapes now enter `lj_record_s390x_mod97_loop_sum()`, share the same
+  `lj_trace_s390x_mod97_loop_sum()` helper call, and differ only by emitting
+  an IR negation for the SUBVV accumulator form after the existing
+  `INT32_MIN` sentinel guard.
+- Removed the separate `lj_record_s390x_mod97_sub_loop_sum()` matcher and its
+  dispatch hook. The helper ABI and `IRCALL` surface are unchanged; this is a
+  recorder-surface cleanup only.
+- Local checks:
+  `git diff --check` passed and no `lj_record_s390x_mod97_sub_loop_sum`
+  source references remain. The upstream-risk audit dropped from `129` to
+  `126`, the semantic reducer ledger dropped from `32` to `31` matcher
+  definitions, and the `numeric_mod` bucket dropped from `18` to `17`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua` and
+  `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
+  in band (`abs=0.000016`, `div=0.000011`, `fp_mod=0.000016`,
+  `sqrt=0.000014`, `min=0.000013`, `max=0.000014`).
