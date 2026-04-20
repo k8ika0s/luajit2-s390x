@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 08:40 PDT
+Last updated: 2026-04-20 08:43 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -25,7 +25,7 @@ Historical experiment detail lives in
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
   `tools/s390x/audit_benchmark_fastpaths.py --scope semantic` currently
-  reports `155` s390x upstream-risk findings across recorder reducer
+  reports `149` s390x upstream-risk findings across recorder reducer
   definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
@@ -78,6 +78,17 @@ Historical experiment detail lives in
   owns `numeric_ops/max_loop` and `min_loop` while leaving div/sqrt/fp-mod/abs
   on their separate mechanisms. `max_loop/hot` moves from `0.000014s` default
   to `0.001464s` with only min/max disabled.
+- Lower-frame `%17`/abs semantic debt has been reframed as a generic
+  centered-modulo absolute-value range fold behind
+  `LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER`. Focused kdz1 artifact
+  `/tmp/kdz1-lower-frame-centered-mod-abs-20260420125000` shows the fold is
+  still high-value retained debt: `lua_abs_same_callsite/hot` moves from the
+  timer floor to `0.000579s` when only this reducer is disabled. It is not a
+  deletion candidate without a lower-level replacement.
+- The low-value route-around reducer semantic folds are removed. Focused kdz1
+  artifact `/tmp/kdz1-route-reducer-removed-20260420120000` shows the three
+  route rows now run at `0.000099s..0.000101s`, with default and generic-only
+  effectively identical. The `route_reducer` ledger bucket is gone.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then

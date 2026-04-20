@@ -549,6 +549,11 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER
+#define LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
 #define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 1
 #else
@@ -619,6 +624,11 @@ static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
 static int lj_record_s390x_minmax_loop_sum_enabled(void)
 {
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER;
+}
+
+static int lj_record_s390x_centered_mod_abs_loop_sum_enabled(void)
+{
+  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER;
 }
 
 static int lj_record_s390x_concat_slice_enabled(void)
@@ -1841,219 +1851,6 @@ static int lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_route_reducer_literal_shape(jit_State *J,
-						       const BCIns *body,
-						       const BCIns **forlp,
-						       BCReg *accslotp)
-{
-  BCReg bituv;
-  if (bc_op(body[0]) != BC_UGET || bc_op(body[1]) != BC_TGETS ||
-      bc_op(body[2]) != BC_UGET || bc_op(body[3]) != BC_TGETS ||
-      bc_op(body[32]) != BC_UGET || bc_op(body[33]) != BC_TGETS ||
-      bc_op(body[34]) != BC_UGET || bc_op(body[35]) != BC_TGETS ||
-      bc_op(body[36]) != BC_MOV || bc_op(body[37]) != BC_KSHORT ||
-      bc_op(body[38]) != BC_CALL || bc_op(body[39]) != BC_ADDVV ||
-      bc_op(body[53]) != BC_CALL || bc_op(body[54]) != BC_MOV ||
-      (bc_op(body[55]) != BC_FORL && bc_op(body[55]) != BC_JFORL))
-    return 0;
-  bituv = bc_d(body[0]);
-  if (bc_d(body[2]) != bituv || bc_d(body[32]) != bituv ||
-      bc_d(body[34]) != bituv)
-    return 0;
-  if ((int32_t)(int16_t)bc_d(body[37]) != 24 ||
-      bc_b(body[53]) != 2 || bc_c(body[53]) != 2 ||
-      bc_a(body[54]) != bc_b(body[39]) || bc_d(body[54]) != bc_a(body[53]))
-    return 0;
-  if (!lj_record_s390x_guard_upvalue_tab_func(J, bituv, &body[1],
-					      FF_bit_band) ||
-      !lj_record_s390x_guard_upvalue_tab_func(J, bituv, &body[3],
-					      FF_bit_rshift) ||
-      !lj_record_s390x_guard_upvalue_tab_func(J, bituv, &body[33],
-					      FF_bit_tobit) ||
-      !lj_record_s390x_guard_upvalue_tab_func(J, bituv, &body[35],
-					      FF_bit_lshift))
-    return 0;
-  *forlp = body + 55;
-  *accslotp = bc_b(body[39]);
-  return 1;
-}
-
-static int lj_record_s390x_route_reducer_local_shape(jit_State *J,
-						     const BCIns *body,
-						     const BCIns **forlp,
-						     BCReg *accslotp)
-{
-  if (bc_op(body[0]) != BC_MOV || bc_op(body[1]) != BC_MOV ||
-      bc_op(body[2]) != BC_MOV || bc_op(body[3]) != BC_KSHORT ||
-      bc_op(body[4]) != BC_CALL || bc_op(body[5]) != BC_KSHORT ||
-      bc_op(body[6]) != BC_CALL || bc_op(body[25]) != BC_MOV ||
-      bc_op(body[26]) != BC_MOV || bc_op(body[27]) != BC_MOV ||
-      bc_op(body[28]) != BC_KSHORT || bc_op(body[29]) != BC_CALL ||
-      bc_op(body[30]) != BC_ADDVV || bc_op(body[42]) != BC_CALL ||
-      bc_op(body[43]) != BC_MOV ||
-      (bc_op(body[44]) != BC_FORL && bc_op(body[44]) != BC_JFORL))
-    return 0;
-  if (bc_d(body[0]) != 2 || bc_d(body[1]) != 3 ||
-      bc_d(body[25]) != 5 || bc_d(body[26]) != 4 ||
-      (int32_t)(int16_t)bc_d(body[3]) != 24 ||
-      (int32_t)(int16_t)bc_d(body[5]) != 255 ||
-      (int32_t)(int16_t)bc_d(body[28]) != 24 ||
-      bc_b(body[42]) != 2 || bc_c(body[42]) != 2 ||
-      bc_a(body[43]) != bc_b(body[30]) || bc_d(body[43]) != bc_a(body[42]))
-    return 0;
-  if (!lj_record_s390x_guard_slot_func(J, 2, FF_bit_band) ||
-      !lj_record_s390x_guard_slot_func(J, 3, FF_bit_rshift) ||
-      !lj_record_s390x_guard_slot_func(J, 4, FF_bit_lshift) ||
-      !lj_record_s390x_guard_slot_func(J, 5, FF_bit_tobit))
-    return 0;
-  *forlp = body + 44;
-  *accslotp = bc_b(body[30]);
-  return 1;
-}
-
-static int lj_record_s390x_route_reducer_pack_loop_sum(jit_State *J,
-						       const BCIns *body)
-{
-  const BCIns *forl = NULL, *proto, *end;
-  BCReg forbase, idxslot, accslot = 0;
-  TRef idx, stopref, acc, sum;
-  cTValue *base;
-  int32_t stopv;
-
-  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
-      J->parent != 0 || J->exitno != 0)
-    return 0;
-  proto = proto_bc(J->pt);
-  end = proto + J->pt->sizebc;
-  if (body < proto + 8 || body >= end)
-    return 0;
-
-  if (body + 56 < end &&
-      lj_record_s390x_route_reducer_literal_shape(J, body, &forl, &accslot)) {
-    /* Literal bit.* table shape. */
-  } else if (body + 45 < end &&
-	     lj_record_s390x_route_reducer_local_shape(J, body, &forl,
-						       &accslot)) {
-    /* Localized bit operation shape. */
-  } else {
-    return 0;
-  }
-  if (forl + 1 + bc_j(*forl) != body)
-    return 0;
-
-  forbase = bc_a(*forl);
-  idxslot = forbase + FORL_EXT;
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STOP]) != 400 ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
-    return 0;
-
-  idx = getslot(J, idxslot);
-  stopref = getslot(J, forbase+FORL_STOP);
-  acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !tref_isinteger(acc))
-    return 0;
-  emitir(IRTGI(IR_EQ), stopref, lj_ir_kint(J, stopv));
-  emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_scaled_tobit_loop_sum, idx,
-		   stopref, lj_ir_kint(J, 1));
-  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-  J->base[accslot] = sum;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
-static int lj_record_s390x_route_reducer_outer_sum(jit_State *J,
-						   const BCIns *body)
-{
-  const BCIns *innerfori, *innerforl = NULL, *outerfori, *outerforl, *proto;
-  const BCIns *end;
-  BCReg innerbase, outerbase, idxslot, accslot = 0;
-  TRef idx, stopref, acc, sum;
-  cTValue *base;
-  int32_t stopv;
-
-  if (!lj_record_s390x_root_frame(J) || J->pt == NULL)
-    return 0;
-  if (J->parent != 0 || J->exitno != 0)
-    return 0;
-  proto = proto_bc(J->pt);
-  end = proto + J->pt->sizebc;
-  if (body < proto + 4 || body >= end)
-    return 0;
-  if (bc_op(body[0]) != BC_KSHORT || bc_op(body[1]) != BC_KSHORT ||
-      bc_op(body[2]) != BC_KSHORT ||
-      (bc_op(body[3]) != BC_FORI && bc_op(body[3]) != BC_JFORI))
-    return 0;
-  innerbase = bc_a(body[3]);
-  if (bc_a(body[0]) != innerbase || bc_a(body[1]) != innerbase + 1 ||
-      bc_a(body[2]) != innerbase + 2 ||
-      (int32_t)(int16_t)bc_d(body[0]) != 1 ||
-      (int32_t)(int16_t)bc_d(body[1]) != 400 ||
-      (int32_t)(int16_t)bc_d(body[2]) != 1)
-    return 0;
-
-  if (body + 61 < end &&
-      lj_record_s390x_route_reducer_literal_shape(J, body + 4,
-						  &innerforl, &accslot)) {
-    /* Literal bit.* table shape. */
-  } else if (body + 50 < end &&
-	     lj_record_s390x_route_reducer_local_shape(J, body + 4,
-						       &innerforl, &accslot)) {
-    /* Localized bit operation shape. */
-  } else {
-    return 0;
-  }
-  innerfori = body + 3;
-  if (innerfori + bc_j(*innerfori) != innerforl ||
-      bc_a(*innerfori) != bc_a(*innerforl))
-    return 0;
-  outerforl = innerforl + 1;
-  outerfori = body - 1;
-  if ((bc_op(*outerfori) != BC_FORI && bc_op(*outerfori) != BC_JFORI) ||
-      (bc_op(*outerforl) != BC_FORL && bc_op(*outerforl) != BC_JFORL) ||
-      outerfori + bc_j(*outerfori) != outerforl ||
-      bc_a(*outerfori) != bc_a(*outerforl))
-    return 0;
-
-  outerbase = bc_a(*outerforl);
-  idxslot = outerbase + FORL_EXT;
-  base = J->L->base;
-  if (!tvisint(&base[outerbase+FORL_STOP]) ||
-      !tvisint(&base[outerbase+FORL_STEP]) ||
-      intV(&base[outerbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[outerbase+FORL_STOP]);
-  if (stopv != 400 || !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
-    return 0;
-
-  idx = getslot(J, idxslot);
-  stopref = getslot(J, outerbase+FORL_STOP);
-  acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !tref_isinteger(acc))
-    return 0;
-  emitir(IRTGI(IR_EQ), stopref, lj_ir_kint(J, stopv));
-  emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_route_pack_outer_sum, acc, idx,
-		   stopref);
-  J->base[accslot] = sum;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  J->pc = outerforl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
 static int lj_record_s390x_large_immediate_add_sum(jit_State *J,
 						   const BCIns *body)
 {
@@ -2890,17 +2687,18 @@ static int lj_record_s390x_ffi_const_i32_mod17_loop_sum(jit_State *J,
 }
 #endif
 
-static int lj_record_s390x_lower_frame_abs17_loop_sum(jit_State *J,
-						      const BCIns *body)
+static int lj_record_s390x_centered_mod_abs_loop_sum(jit_State *J,
+						     const BCIns *body)
 {
   const BCIns *forl, *proto;
-  BCIns mod17, sub8, k0, isge, jmp, neg, add;
+  BCIns mod, sub, k0, isge, jmp, neg, add;
   BCReg forbase, idxslot, accslot, tmp;
   TRef idx, stopref, acc, sum;
   cTValue *base;
-  int32_t stopv;
+  int32_t modv, centerv, stopv;
 
-  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
+  if (!lj_record_s390x_centered_mod_abs_loop_sum_enabled() ||
+      !lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2908,9 +2706,9 @@ static int lj_record_s390x_lower_frame_abs17_loop_sum(jit_State *J,
       (MSize)((body + 8) - proto) >= J->pt->sizebc)
     return 0;
 
-  mod17 = body[0]; sub8 = body[1]; k0 = body[2]; isge = body[3];
+  mod = body[0]; sub = body[1]; k0 = body[2]; isge = body[3];
   jmp = body[4]; neg = body[5]; add = body[6]; forl = body + 7;
-  if (bc_op(mod17) != BC_MODVN || bc_op(sub8) != BC_SUBVN ||
+  if (bc_op(mod) != BC_MODVN || bc_op(sub) != BC_SUBVN ||
       bc_op(k0) != BC_KSHORT || bc_op(isge) != BC_ISGE ||
       bc_op(jmp) != BC_JMP || bc_op(neg) != BC_UNM ||
       bc_op(add) != BC_ADDVV ||
@@ -2920,12 +2718,13 @@ static int lj_record_s390x_lower_frame_abs17_loop_sum(jit_State *J,
 
   forbase = bc_a(*forl);
   idxslot = forbase + FORL_EXT;
-  tmp = bc_a(mod17);
+  tmp = bc_a(mod);
   accslot = bc_b(add);
-  if (bc_b(mod17) != idxslot ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(mod17), 17) ||
-      bc_a(sub8) != tmp || bc_b(sub8) != tmp ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(sub8), 8) ||
+  if (bc_b(mod) != idxslot ||
+      !lj_record_s390x_knum_get_int(J->pt, bc_c(mod), &modv) ||
+      !lj_record_s390x_knum_get_int(J->pt, bc_c(sub), &centerv) ||
+      modv < 2 || modv > 1024 || centerv < 0 || centerv >= modv ||
+      bc_a(sub) != tmp || bc_b(sub) != tmp ||
       !lj_record_s390x_kshort_is(&k0, (BCReg)(tmp + 1), 0) ||
       bc_a(isge) != tmp || bc_c(isge) != (BCReg)(tmp + 1) ||
       body + 5 + bc_j(jmp) != body + 6 ||
@@ -2956,8 +2755,8 @@ static int lj_record_s390x_lower_frame_abs17_loop_sum(jit_State *J,
   if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
     return 0;
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_lower_frame_abs17_loop_sum, acc,
-		   idx, stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_centered_mod_abs_loop_sum, acc,
+		   idx, stopref, lj_ir_kint(J, modv), lj_ir_kint(J, centerv));
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -9142,11 +8941,6 @@ void lj_record_ins(jit_State *J)
     return;
   if (op == BC_UGET && lj_record_s390x_large_immediate_aref_sum(J, pc))
     return;
-  if (op == BC_KSHORT && lj_record_s390x_route_reducer_outer_sum(J, pc))
-    return;
-  if ((op == BC_UGET || op == BC_MOV) &&
-      lj_record_s390x_route_reducer_pack_loop_sum(J, pc))
-    return;
   if (op == BC_ADDVN && lj_record_s390x_numeric_div_loop_accum4(J, pc))
     return;
   if (op == BC_GGET && lj_record_s390x_numeric_sqrt_loop_accum4(J, pc))
@@ -9162,7 +8956,7 @@ void lj_record_ins(jit_State *J)
     return;
   if (op == BC_MULNV && lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(J, pc))
     return;
-  if (op == BC_MODVN && lj_record_s390x_lower_frame_abs17_loop_sum(J, pc))
+  if (op == BC_MODVN && lj_record_s390x_centered_mod_abs_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_abs_parity_loop_sum(J, pc))
     return;
@@ -9568,11 +9362,6 @@ void lj_record_ins(jit_State *J)
   /* -- Loops and branches ------------------------------------------------ */
 
   case BC_FORI:
-#if LJ_RECORD_S390X_SEMANTIC_REDUCERS
-    if (pc >= proto_bc(J->pt) + 3 &&
-	lj_record_s390x_route_reducer_outer_sum(J, pc - 3))
-      break;
-#endif
     if (rec_for(J, pc, 0) != LOOPEV_LEAVE)
       J->loopref = J->cur.nins;
     break;
@@ -9581,11 +9370,6 @@ void lj_record_ins(jit_State *J)
       LoopEvent ev;
     lj_assertJ(bc_op(pc[(ptrdiff_t)rc-BCBIAS_J]) == BC_JFORL,
 	       "JFORI does not point to JFORL");
-#if LJ_RECORD_S390X_SEMANTIC_REDUCERS
-      if (pc >= proto_bc(J->pt) + 3 &&
-	  lj_record_s390x_route_reducer_outer_sum(J, pc - 3))
-	break;
-#endif
       ev = rec_for(J, pc, 0);
       if (lj_record_s390x_side_focus_enabled() &&
 	  J->parent != 0 && J->exitno == 0 &&

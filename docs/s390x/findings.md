@@ -37819,3 +37819,55 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the semantic reducer ledger drops from `41` to `40` matcher definitions and
   the `be_helpers` reducer bucket is gone. The semantic audit now reports
   `155` upstream-risk findings.
+
+## 2026-04-20: centered-modulo abs semantic reducer isolated
+
+- Replaced the exact lower-frame `%17`/abs helper contract with a generic
+  centered-modulo absolute-value range fold:
+  `lj_trace_s390x_centered_mod_abs_loop_sum(acc, idx, stop, mod, center)`.
+  The recorder matcher still requires a pure counted FOR loop with positive
+  step, guarded stop, nonnegative index, `MODVN k -> SUBVN center ->
+  ISGE/JMP/UNM -> ADDVV`, and bounded `2 <= k <= 1024`.
+- Added `LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER` as a compile-time split
+  switch defaulting through `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`, and added
+  the matching debt-pack profile `centered-mod-abs-off`.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-lower-frame-centered-mod-abs-20260420125000`.
+- The sweep rebuilt default, `centered-mod-abs-off`, and `generic-only`, ran
+  `lower_frame_same_callsite` with `7` samples and `2` warmups, and completed
+  with no failed or timed-out families.
+- Result:
+  disabling only the centered-modulo abs reducer reproduces the generic-only
+  slowdown for `lua_abs_same_callsite/hot`: default `0.000001s`,
+  `centered-mod-abs-off 0.000579s`, and `generic-only 0.000583s`.
+- Added `tests/s390x/jit_be/centered_mod_abs_loop_sum.lua` to validate the
+  generalized contract beyond the original `%17/8` row. It covers
+  centered-modulo abs reductions for `(mod, center) = (5, 2), (17, 8), and
+  (64, 31)`, and passed on kdz1 with the focused lower-frame and numeric
+  guardrails.
+- Interpretation:
+  this fold is high-value semantic debt. It should not be deleted without a
+  real lower-level replacement, but it is no longer benchmark-specific or
+  `%17`-specific.
+
+## 2026-04-20: route reducer semantic folds removed
+
+- Removed the two route-around reducer semantic matchers from production
+  recorder dispatch: `lj_record_s390x_route_reducer_pack_loop_sum()` and
+  `lj_record_s390x_route_reducer_outer_sum()`.
+- Removed their private bytecode-shape helpers and the route-specific
+  `lj_trace_s390x_route_pack_outer_sum()` helper declaration, definition, and
+  callinfo entry. The shared `lj_trace_s390x_scaled_tobit_loop_sum()` remains
+  because it is still used by a separate numeric reducer.
+- Focused kdz1 validation artifact:
+  `/tmp/kdz1-route-reducer-removed-20260420120000`.
+- Result:
+  `route_around_reducers` completed with no failed or timed-out families.
+  Default and `generic-only` now agree within noise:
+  `be_pack_literal_stop/hot 0.000100s` default vs `0.000101s` generic-only,
+  `be_pack_literal_stop_local_ops/hot 0.000100s` vs `0.000100s`, and
+  `be_pack_loop_local_ops/hot 0.000099s` vs `0.000099s`.
+- Current audit:
+  the semantic reducer ledger drops from `40` to `38` matcher definitions, the
+  `route_reducer` bucket is gone, and the semantic audit now reports `149`
+  upstream-risk findings.

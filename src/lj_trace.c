@@ -648,18 +648,24 @@ int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx, int32_t stop)
   return idx + 16 * count;
 }
 
-double lj_trace_s390x_lower_frame_abs17_loop_sum(double acc, int32_t idx,
-						 int32_t stop)
+double lj_trace_s390x_centered_mod_abs_loop_sum(double acc, int32_t idx,
+						int32_t stop, int32_t mod,
+						int32_t center)
 {
-  int64_t n, q, rem, i, sum;
-  if (idx < 1 || stop > 1000000 || stop < idx)
+  int64_t n, q, rem, i, period = 0, sum;
+  if (idx < 1 || stop > 1000000 || stop < idx ||
+      mod < 2 || mod > 1024 || center < 0 || center >= mod)
     return acc;
+  for (i = 0; i < mod; i++) {
+    int32_t x = (int32_t)i - center;
+    period += x < 0 ? -x : x;
+  }
   n = (int64_t)stop - idx + 1;
-  q = n / 17;
-  rem = n - q * 17;
-  sum = q * 72;
+  q = n / mod;
+  rem = n - q * mod;
+  sum = q * period;
   for (i = 0; i < rem; i++) {
-    int32_t x = ((idx + (int32_t)i) % 17) - 8;
+    int32_t x = ((idx + (int32_t)i) % mod) - center;
     sum += x < 0 ? -x : x;
   }
   return acc + (double)sum;
@@ -828,17 +834,6 @@ int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
   edges = (uint64_t)(uint32_t)(idx + stop);
   tri = (n & 1) ? n * (edges >> 1) : (n >> 1) * edges;
   return (int32_t)((uint32_t)mul * (uint32_t)tri);
-}
-
-int32_t lj_trace_s390x_route_pack_outer_sum(int32_t acc, int32_t idx,
-					    int32_t stop)
-{
-  int64_t n, sum;
-  if (idx < 1 || stop != 400 || stop < idx)
-    return acc;
-  n = (int64_t)stop - idx + 1;
-  sum = (int64_t)acc + n * 80200;
-  return (int32_t)sum;
 }
 
 int32_t lj_trace_s390x_int_const_step_loop_sum(int32_t acc, int32_t idx,
