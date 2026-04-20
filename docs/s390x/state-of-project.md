@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 08:43 PDT
+Last updated: 2026-04-20 09:09 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -25,7 +25,7 @@ Historical experiment detail lives in
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
   `tools/s390x/audit_benchmark_fastpaths.py --scope semantic` currently
-  reports `149` s390x upstream-risk findings across recorder reducer
+  reports `136` s390x upstream-risk findings across recorder reducer
   definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
@@ -89,6 +89,12 @@ Historical experiment detail lives in
   artifact `/tmp/kdz1-route-reducer-removed-20260420120000` shows the three
   route rows now run at `0.000099s..0.000101s`, with default and generic-only
   effectively identical. The `route_reducer` ledger bucket is gone.
+- The low-value large-immediate semantic folds are removed. Focused kdz1
+  artifact `/tmp/kdz1-large-immediates-removed-20260420133500` shows the
+  official large-immediate rows now run on the lower-level path, with default
+  and generic-only effectively identical at the timer-floor scale. The
+  `large_immediates` ledger bucket is gone, the semantic reducer ledger is now
+  `34` definitions, and the source audit reports `136` semantic findings.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
