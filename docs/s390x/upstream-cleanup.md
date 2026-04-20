@@ -1122,3 +1122,17 @@ kdz1 validation passed a warning-clean rebuild, numeric correctness, ADD/SUB
 overflow, MUL overflow, focused `numeric_ops.lua`, and focused
 `route_around_reducers.lua`. This reduces matcher/dispatch debt without
 changing the helper ABI or default retained path.
+
+#### Modulo Remainder-Select Matcher Consolidation
+
+The recomputed-remainder and preselected-remainder select matchers now share
+one `lj_record_s390x_mod_rem_select_loop_sum()` implementation. Both bytecode
+shapes still emit the same `lj_trace_s390x_mod_rem_select_loop_sum()` helper
+call and sentinel guard, but the duplicate
+`lj_record_s390x_mod_rem_preselect_loop_sum()` matcher and dispatch hook are
+gone.
+
+kdz1 validation passed a warning-clean rebuild, numeric correctness, ADD/SUB
+overflow, MUL overflow, focused `numeric_ops.lua`, and focused
+`route_around_reducers.lua`. This is a source-surface cleanup only; the
+remaining debt is still the semantic closed-form reducer itself.

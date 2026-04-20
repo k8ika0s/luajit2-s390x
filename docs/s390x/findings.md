@@ -38360,3 +38360,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
   in band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
   `sqrt=0.000014`, `min=0.000013`, `max=0.000014`).
+
+## 2026-04-20: modulo remainder-select matchers consolidated
+
+- Merged the duplicate modulo remainder-select recorder matchers. The shape
+  that recomputes the remainder in each branch and the preselected-remainder
+  shape now both enter `lj_record_s390x_mod_rem_select_loop_sum()` and share
+  the same helper-call tail to `lj_trace_s390x_mod_rem_select_loop_sum()`.
+- Removed the separate `lj_record_s390x_mod_rem_preselect_loop_sum()` matcher
+  and collapsed its dispatch hook into the unified `BC_MODVN` admission. The
+  helper ABI and `IRCALL` entry are unchanged.
+- Local checks:
+  `git diff --check` passed and no `mod_rem_preselect` source references
+  remain. The semantic reducer ledger dropped from `33` to `32` matcher
+  definitions, and the `numeric_mod` bucket dropped from `19` to `18`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua` and
+  `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
+  in band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000018`,
+  `sqrt=0.000013`, `min=0.000013`, `max=0.000013`).
