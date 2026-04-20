@@ -38083,3 +38083,30 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   nested iterator loops, and what state is already reflected in `acc` at each
   admissible start. Without that proof, both split IR totals and one-shot helper
   totals can be correct on the official row while wrong on equivalent bytecode.
+
+## 2026-04-20: component-loop retained bug attributed to iterator continuation
+
+- After reverting the failed helper contract, resynced clean WIP to kdz1 and
+  reran the same diagnostic variants. The negative-map same-bytecode variant
+  still failed on retained WIP: expected `8473472`, got `8457472`. This is
+  therefore existing mechanism debt, not a regression from the rejected helper
+  experiments.
+- Retained trace dump:
+  `/tmp/component-loop-retained-generic.dump`. The official exact component
+  matcher does not engage for this variant. The wrong result forms through the
+  generic nested iterator trace family:
+  `TRACE 1` records the `ipairs` loop, `TRACE 3` records the `pairs`/`next`
+  continuation, and stitched children then resume the outer loop. The result is
+  short by one per outer iteration on the non-official table shape.
+- Tested and rejected two mechanism probes:
+  disallowing `BC_ITERN` in `lj_record_s390x_iterator_forl_inner_unroll()` did
+  not change the failure, and skipping `BC_ITERC` stitch link patching in
+  `trace_stop()` also did not change it. Both probes were reverted.
+- Current conclusion:
+  the remaining canonical fix is below table-total/reducer code and below the
+  first inner-unroll admission check. The unsafe contract is the nested
+  iterator continuation/restart state after a `pairs()`/`next` trace rejoins the
+  outer numeric loop. The next viable probe needs to instrument and validate
+  the slots restored across the `next` continuation (`function`, table, control
+  key, produced key/value, accumulator, outer FORL state) rather than changing
+  reducer math or stitch policy blindly.
