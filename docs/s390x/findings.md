@@ -38020,3 +38020,22 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   sibling cycle rows at the default timer-floor band. The next source target in
   the semantic reducer queue is therefore `manual_find_cycle`, followed by
   `byte_scan_cycle`, then `concat_slice`.
+
+## 2026-04-20: generic nested iterator suffix reducer rejected
+
+- Tested the next mixed/component-loop replacement idea: generic reducers for
+  stable nested iterator suffixes (`ipairs` over dense int arrays and `pairs`
+  over int-valued tables) instead of the retained full component-loop matcher.
+- Root-only admission did not engage the live official slow family:
+  `mixed_noffi/mixed_loop/hot` stayed around `0.002847s` with component-loop
+  reducers compiled out.
+- Relaxing the reducers to side-trace entry did engage, but made the official
+  row worse: `mixed_noffi/mixed_loop/hot` moved to `0.004500s`, and the
+  diagnostic component split worsened (`pre_pairs 0.002148s`,
+  `ipairs_pairs 0.033954s`, `all_parts 0.004572s`). `pairs_loop.lua` and
+  `iterator_table.lua` remained correct, so this is a performance/mechanism
+  rejection rather than a simple correctness failure.
+- Reverted the experiment. The next valid component-loop replacement cannot be
+  an arbitrary side-trace current-entry nested iterator reducer. It needs an
+  outer-loop ownership/continuation contract, or a reducer that proves it is
+  still anchored at the outer loop state before consuming nested iterator work.
