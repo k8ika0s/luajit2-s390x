@@ -544,6 +544,11 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
+#define LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
 #ifndef LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER
 #define LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
@@ -582,6 +587,12 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS 1
 #else
 #define LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS 0
+#endif
+
+#if LJ_TARGET_S390X && LJ_HASFFI && LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
+#define LJ_RECORD_S390X_FFI_CDATA_REDUCERS 1
+#else
+#define LJ_RECORD_S390X_FFI_CDATA_REDUCERS 0
 #endif
 
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
@@ -944,9 +955,6 @@ static int lj_record_s390x_ct_is_signed_i32(CTInfo info, CTSize size)
   return ctype_isinteger(info) && !(info & CTF_UNSIGNED) && size == 4;
 }
 
-static int lj_record_s390x_ct_is_u64(CType *ct);
-static int lj_record_s390x_ct_is_double(CType *ct);
-
 static int lj_record_s390x_guard_const_i32_cfunc(jit_State *J, BCReg slot,
 						 TRef *fptr)
 {
@@ -985,6 +993,11 @@ static int lj_record_s390x_guard_const_i32_cfunc(jit_State *J, BCReg slot,
 		 IRFL_CDATA_PTR);
   return 1;
 }
+#endif
+
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
+static int lj_record_s390x_ct_is_u64(CType *ct);
+static int lj_record_s390x_ct_is_double(CType *ct);
 
 static int lj_record_s390x_const_sumargs_cfunc(jit_State *J,
 					       const BCIns *uget,
@@ -1294,7 +1307,7 @@ static int lj_record_s390x_guard_upvalue_tab_func(jit_State *J, BCReg uv,
   return 1;
 }
 
-#if LJ_HASFFI
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
 static int lj_record_s390x_ct_is_u32(CType *ct)
 {
   return ctype_isinteger(ct->info) && (ct->info & CTF_UNSIGNED) &&
@@ -1489,6 +1502,7 @@ static int lj_record_s390x_const_struct_cfunc(jit_State *J, TRef funcref,
 }
 #endif
 
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
 static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
 						     const BCIns *body)
 {
@@ -1884,6 +1898,7 @@ static int lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(jit_State *J,
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
 static int lj_record_s390x_guard_tab_int_int(jit_State *J, TRef tabref,
 					     GCtab *tabv, int32_t key,
@@ -3228,6 +3243,7 @@ static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
   return 1;
 }
 
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
 static int lj_record_s390x_mixed_width_loop_sum(jit_State *J,
 						const BCIns *body)
 {
@@ -3351,7 +3367,9 @@ static int lj_record_s390x_mixed_width_loop_sum(jit_State *J,
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
 static int lj_record_s390x_pair_loop_sum(jit_State *J, const BCIns *body)
 {
   const BCIns *forl, *proto;
@@ -3453,7 +3471,9 @@ static int lj_record_s390x_pair_loop_sum(jit_State *J, const BCIns *body)
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
 static int lj_record_s390x_buffer_fref_loop_sum(jit_State *J,
 						const BCIns *body)
 {
@@ -3561,6 +3581,7 @@ static int lj_record_s390x_buffer_fref_loop_sum(jit_State *J,
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
 static int lj_record_s390x_mod_mul_sum_fits_i32(int32_t stop, int32_t mod,
 						int32_t mul)
@@ -8686,6 +8707,7 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MODVN && lj_record_s390x_ffi_const_i32_mod17_loop_sum(J, pc))
     return;
 #endif
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
   if ((op == BC_GGET || op == BC_UGET) &&
       lj_record_s390x_ffi_fixed_struct_loop_sum(J, pc))
     return;
@@ -8693,18 +8715,21 @@ void lj_record_ins(jit_State *J)
     return;
   if (op == BC_MULNV && lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(J, pc))
     return;
+#endif
   if (op == BC_MODVN && lj_record_s390x_centered_mod_abs_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_abs_parity_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_component_loop_tail_sum(J, pc))
     return;
+#if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
   if (op == BC_MODVN && lj_record_s390x_mixed_width_loop_sum(J, pc))
     return;
   if (op == BC_TGETB && lj_record_s390x_pair_loop_sum(J, pc))
     return;
   if (op == BC_MOV && lj_record_s390x_buffer_fref_loop_sum(J, pc))
     return;
+#endif
   if (op == BC_ADDVN && lj_record_s390x_fpmod_quarter_loop_sum(J, pc))
     return;
   if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 0))

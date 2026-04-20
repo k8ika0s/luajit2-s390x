@@ -926,3 +926,42 @@ Validation on kdz1:
 This does not retire the string-cycle bucket from the semantic reducer ledger;
 it stages it cleanly for either a true lower-level replacement or branch-local
 exclusion from an upstream candidate.
+
+### FFI/Cdata Reducer Isolation
+
+The next non-iterator bucket is now compile-isolated behind
+`LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS`, defaulting to the umbrella
+`LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`.
+
+The split covers the current FFI/cdata semantic reducer helpers:
+
+- fixed-struct loop sum
+- fixed GPR/FPR call-pressure sums and post-index helper
+- mixed-width cdata loop sum
+- pair-loop sum
+- buffer-FREF loop sum
+
+When the bucket is disabled, the corresponding recorder matchers, dispatch
+hooks, `IRCALL` entries, declarations, and `lj_trace_s390x_*` helper symbols
+are all excluded from the build. This avoids presenting disabled branch-local
+FFI/cdata loop substitutions as live upstream helper surface.
+
+Focused kdz1 artifact:
+`/tmp/kdz1-bench-fastpath-debt-20260420141322`.
+
+Representative retained delta with only this bucket disabled:
+
+- `ffi_cdata/mixed_width_loop/hot`: default `0.000001s`, off `0.000259s`.
+- `ffi_cdata/buffer_fref_loop/hot`: default timer floor, off `0.000222s`.
+- `ffi_cdata/pair_loop/hot`: default timer floor, off `0.000055s`.
+
+Validation on kdz1:
+
+- Default build and `-DLUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS=0` build were
+  warning-clean.
+- The reducer-off binary exported none of the FFI/cdata reducer helper symbols.
+- Default `tests/s390x/perf/ffi_cdata.lua` remained at timer floor.
+
+This is still an isolation step, not an upstream replacement. The `ffi_cdata`
+bucket remains on the debt list until the semantic substitutions are replaced
+with lower-level FFI/cdata lowering or excluded from the upstream candidate.

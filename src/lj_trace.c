@@ -380,6 +380,7 @@ double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx, int32_t stop)
   return (double)numer * 0.25;
 }
 
+#if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 static int64_t lj_trace_s390x_mod_prefix_i32(int32_t n, int32_t mod)
 {
   int64_t q, rem;
@@ -440,6 +441,7 @@ int32_t lj_trace_s390x_buffer_fref_loop_sum(int32_t idx, int32_t stop)
     return INT32_MIN;
   return (int32_t)sum;
 }
+#endif
 
 static int64_t lj_trace_s390x_sum_i32_range(int32_t lo, int32_t hi)
 {
@@ -458,6 +460,7 @@ double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
   return acc + (double)((int64_t)stop - idx + 1) * per_iter;
 }
 
+#if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 typedef struct S390XConstSmallU32 {
   uint32_t a;
 } S390XConstSmallU32;
@@ -647,6 +650,7 @@ int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx, int32_t stop)
   count = ((last - idx) / 16) + 1;
   return idx + 16 * count;
 }
+#endif
 
 double lj_trace_s390x_centered_mod_abs_loop_sum(double acc, int32_t idx,
 						int32_t stop, int32_t mod,

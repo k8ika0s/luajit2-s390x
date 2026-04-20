@@ -38172,3 +38172,34 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `string_cycle` bucket remains active until the whole-loop substitutions are
   replaced by lower-level string/recorder mechanisms or excluded from the
   upstream candidate.
+
+## 2026-04-20: FFI/cdata reducers compile-isolated for upstream prep
+
+- Continued the non-iterator debt burn-down with the `ffi_cdata` reducer bucket.
+  Focused kdz1 artifact:
+  `/tmp/kdz1-bench-fastpath-debt-20260420141322`. Disabling the bucket with
+  `-DLUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS=0` leaves the family correct but
+  exposes the cost currently hidden by branch-local semantic reducers:
+  `mixed_width_loop/hot` default `0.000001s` versus `0.000259s`,
+  `buffer_fref_loop/hot` timer floor versus `0.000222s`, and
+  `pair_loop/hot` timer floor versus `0.000055s`.
+- Added the dedicated compile split
+  `LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS`, defaulting to
+  `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`. When disabled, the fixed-struct,
+  fixed-call-pressure, mixed-width, pair-loop, and buffer-FREF recorder
+  matchers, dispatch hooks, `IRCALL` entries, declarations, and
+  `lj_trace_s390x_*` helper definitions are excluded from the build.
+- kdz1 validation:
+  default and `ffi-cdata-off` builds completed warning-clean. The
+  `ffi-cdata-off` binary exported none of
+  `lj_trace_s390x_mixed_width_loop_sum`, `lj_trace_s390x_pair_loop_sum`,
+  `lj_trace_s390x_buffer_fref_loop_sum`,
+  `lj_trace_s390x_const_struct_loop_sum`,
+  `lj_trace_s390x_ffi_fixed_gpr_loop_sum`,
+  `lj_trace_s390x_ffi_fixed_fpr_loop_sum`, or
+  `lj_trace_s390x_ffi_fixed_step16_postidx`. The default rebuilt binary kept
+  `tests/s390x/perf/ffi_cdata.lua` at timer floor.
+- This keeps the default retained WIP performance unchanged while making
+  upstream-prep builds able to exclude the disabled FFI/cdata reducer surface.
+  The `ffi_cdata` bucket remains active until these semantic substitutions are
+  replaced by lower-level FFI/cdata lowering or deliberately kept branch-local.
