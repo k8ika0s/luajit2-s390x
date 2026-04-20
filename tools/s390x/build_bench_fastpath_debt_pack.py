@@ -32,6 +32,12 @@ PROFILE_XCFLAGS = {
     "generic-only": " -DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0",
     "mixed-noffi-off": " -DLUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS=0",
     "string-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0",
+    "string-key-lookup-off": " -DLUAJIT_ENABLE_S390X_STRING_KEY_LOOKUP_REDUCER=0",
+    "string-concat-slice-off": " -DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0",
+    "string-miss-find-off": " -DLUAJIT_ENABLE_S390X_STRING_MISS_FIND_REDUCER=0",
+    "string-prefix-eq-off": " -DLUAJIT_ENABLE_S390X_STRING_PREFIX_EQ_REDUCER=0",
+    "string-manual-find-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0",
+    "string-byte-scan-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0",
 }
 DEFAULT_FAMILIES = [
     "dispatch_trace",

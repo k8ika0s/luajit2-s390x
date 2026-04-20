@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 07:35 PDT
+Last updated: 2026-04-20 07:57 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -59,6 +59,14 @@ Historical experiment detail lives in
   matches `generic-only` for the official mixed row while iterator rows remain
   at the timer floor. Current retained mixed speed is therefore one isolated
   whole-loop semantic fold, not a reusable iterator/table mechanism.
+- The remaining string-cycle semantic reducer bucket is now split by
+  compile-time profile. Focused kdz1 artifact
+  `/tmp/kdz1-string-cycle-profile-split-20260420093000` shows clean one-row
+  ownership for each reducer. `manual_find_cycle`, `byte_scan_cycle`, and
+  `concat_slice` are high-value retained string folds; `miss_find`,
+  `prefix_eq`, and `string_key_lookup` are smaller measurable folds and are the
+  next cleanup candidates if upstream surface reduction outranks preserving
+  every retained string-heavy micro-win.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then

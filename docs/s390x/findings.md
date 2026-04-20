@@ -37687,3 +37687,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   mechanisms. Keeping the timer-floor WIP row requires keeping this branch-local
   fold, while an upstreamable path needs a new decomposition or must accept the
   `~0.00286s` mixed row until lower-level mechanisms exist.
+
+## 2026-04-20: string cycle semantic reducers split by profile
+
+- Added per-reducer compile-time switches for the remaining string-cycle
+  reducer bucket. These default through
+  `LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS`, so default production behavior is
+  unchanged, but the debt pack can now disable one string reducer at a time:
+  `string-key-lookup-off`, `string-concat-slice-off`, `string-miss-find-off`,
+  `string-prefix-eq-off`, `string-manual-find-cycle-off`, and
+  `string-byte-scan-cycle-off`.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-string-cycle-profile-split-20260420093000`.
+- The sweep rebuilt default plus all six per-reducer profiles, `string-cycle-off`,
+  and `generic-only`, ran `string_heavy` with `7` samples and `2` warmups, and
+  completed with no failed or timed-out families.
+- Result:
+  each per-reducer off profile maps cleanly to its own official string row. The
+  high-value string-cycle folds are `manual_find_cycle`
+  (`manual_find_loop/hot +0.002533s`), `byte_scan_cycle`
+  (`byte_scan_loop/hot +0.001998s`), and `concat_slice`
+  (`concat_slice_loop/hot +0.000984s`). The smaller but still measurable folds
+  are `miss_find` (`+0.000374s`), `prefix_eq` (`+0.000182s`), and
+  `string_key_lookup` (`+0.000164s`).
+- Interpretation:
+  the string-cycle bucket is no longer opaque. The three high-value folds should
+  stay WIP-local until replaced by lower-level string/runtime mechanisms or a
+  generic optimization with broader semantics. The three smaller folds are the
+  next likely removal or branch-local exclusion candidates if the priority is
+  reducing upstream surface before preserving every sub-millisecond retained
+  string-heavy win.
