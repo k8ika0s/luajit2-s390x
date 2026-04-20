@@ -43,11 +43,17 @@ IDENTITY_PATTERNS = (
 SEMANTIC_PATTERNS = (
     (
         "semantic_reducer_definition",
-        re.compile(r"^\s*static\s+int\s+lj_record_s390x_[a-z0-9_]*(?:_sum|_accum4|_loop)\s*\("),
+        re.compile(
+            r"^\s*static\s+int\s+lj_record_s390x_"
+            r"(?:manual_find|[a-z0-9_]*(?:_sum|_accum4|_loop))\s*\("
+        ),
     ),
     (
         "semantic_reducer_dispatch",
-        re.compile(r"^\s*if\s*\(.*\blj_record_s390x_[a-z0-9_]*(?:_sum|_accum4|_loop)\s*\("),
+        re.compile(
+            r"^\s*if\s*\(.*\blj_record_s390x_"
+            r"(?:manual_find|[a-z0-9_]*(?:_sum|_accum4|_loop))\s*\("
+        ),
     ),
     (
         "semantic_reducer_ircall",

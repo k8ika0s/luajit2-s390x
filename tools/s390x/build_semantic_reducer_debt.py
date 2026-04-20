@@ -20,10 +20,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 RECORD = ROOT / "src/lj_record.c"
 
 FUNC_RE = re.compile(
-    r"^\s*static\s+int\s+(lj_record_s390x_[a-z0-9_]*(?:_sum|_accum4|_loop))\s*\("
+    r"^\s*static\s+int\s+(lj_record_s390x_"
+    r"(?:manual_find|[a-z0-9_]*(?:_sum|_accum4|_loop)))\s*\("
 )
 DISPATCH_RE = re.compile(
-    r"\b(lj_record_s390x_[a-z0-9_]*(?:_sum|_accum4|_loop))\s*\("
+    r"\b(lj_record_s390x_"
+    r"(?:manual_find|[a-z0-9_]*(?:_sum|_accum4|_loop)))\s*\("
 )
 IRCALL_RE = re.compile(r"\bIRCALL_([A-Za-z0-9_]+)\b")
 
@@ -38,8 +40,13 @@ class ReducerDebt:
 
 
 def classify(name: str) -> str:
+    if name in {
+        "lj_record_s390x_manual_find",
+        "lj_record_s390x_byte_scan_sum",
+    }:
+        return "string_primitive"
     if any(s in name for s in ("string", "concat", "miss_find", "prefix", "manual_find", "byte_scan")):
-        return "string"
+        return "string_cycle"
     if "strto" in name:
         return "be_helpers"
     if any(s in name for s in ("mod", "numeric", "minmax", "abs_parity", "scaled_tobit", "fpmod")):

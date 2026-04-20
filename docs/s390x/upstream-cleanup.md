@@ -27,8 +27,8 @@ calls:
 python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
-As of this note, the broader audit intentionally fails with `174` findings:
-`45` recorder reducer definitions, `45` root dispatch hooks, `44` emitted
+As of this note, the broader audit intentionally fails with `177` findings:
+`46` recorder reducer definitions, `47` root dispatch hooks, `44` emitted
 reducer IRCALLs, and `40` s390x reducer/string callinfo entries. These are no
 longer benchmark-name keyed in many cases, but they remain semantic loop
 substitution in the core recorder and are the main upstream blocker.
@@ -144,9 +144,9 @@ upstream candidate needs the source removed or rewritten, not merely disabled.
 
 The expanded audit currently classifies the remaining reducer debt as:
 
-- `semantic_reducer_definition`: `45` recorder reducer matcher definitions in
+- `semantic_reducer_definition`: `46` recorder reducer matcher definitions in
   `src/lj_record.c`.
-- `semantic_reducer_dispatch`: `45` default-on recorder dispatch hooks in
+- `semantic_reducer_dispatch`: `47` default-on recorder dispatch hooks in
   `lj_record_ins()`, plus byte-scan hooks at loop setup.
 - `semantic_reducer_ircall`: `44` emitted reducer helper calls from the
   recorder into s390x/string helpers.
@@ -195,7 +195,8 @@ python3 tools/s390x/build_semantic_reducer_debt.py
 Current ledger summary:
 
 - `numeric_mod`: `19`
-- `string`: `7`
+- `string_cycle`: `6`
+- `string_primitive`: `2`
 - `ffi_cdata`: `6`
 - `large_immediates`: `4`
 - `logic_low32`: `3`
@@ -219,6 +220,31 @@ reducers are disabled. The immediate correctness issue was not the idea of
 the string primitive itself, but the loop-state handoff into the whole-loop
 helper: `manual_find` and `byte_scan` now advance past the already-accounted
 outer iteration.
+
+Focused string split artifact:
+
+- `/tmp/kdz1-string-reducer-split-20260420072723`
+
+The string family is now split for burn-down measurement:
+
+- `-DLUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS=0` disables the lower-level
+  `manual_find` and `byte_scan_sum` primitive substitutions.
+- `-DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0` disables whole-loop string
+  cycle reducers while leaving the primitive layer available.
+
+On kdz1, default retained string hot rows stayed at the timer floor:
+`manual_find_loop 0.000002s`, `byte_scan_loop 0.000001s`,
+`prefix_eq_loop 0.000001s`, `string_key_lookup_loop 0.000000s`,
+`concat_slice_loop 0.000000s`, and `miss_find_loop 0.000001s`.
+With string cycle reducers disabled but primitive reducers retained, the same
+rows were `0.001855s`, `0.000292s`, `0.000191s`, `0.000163s`,
+`0.000986s`, and `0.000403s`. With all semantic reducers disabled, the
+manual-find and byte-scan rows were `0.002543s` and `0.002010s`.
+
+This gives the string burn-down a cleaner order: first decide whether the two
+primitive reducers can become acceptable string/IR helper mechanisms, then
+treat the six whole-loop cycle reducers as branch-local debt unless each can
+be rebuilt as target-neutral string-loop optimization.
 
 ## Current Debt Ranking
 

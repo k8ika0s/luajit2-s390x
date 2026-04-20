@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-19 22:25 PDT
+Last updated: 2026-04-20 07:35 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -25,7 +25,7 @@ Historical experiment detail lives in
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
   `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` currently
-  reports `174` s390x upstream-risk findings across recorder reducer
+  reports `177` s390x upstream-risk findings across recorder reducer
   definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
@@ -43,6 +43,15 @@ Historical experiment detail lives in
   `/tmp/kdz1-semantic-reducer-debt-string-fix-20260420065856` passes and shows
   string reducers are high-value debt, led by `manual_find_loop/hot` and
   `byte_scan_loop/hot`.
+- The string reducer family now has separate compile-time debt profiles for
+  primitive string helper substitutions and whole-loop cycle substitutions:
+  `LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS` and
+  `LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS`. The default retained build is
+  unchanged, but kdz1 split profiling shows primitive `manual_find`/byte-scan
+  reducers preserve part of the acceleration when whole-loop cycle reducers are
+  disabled. This makes `string_primitive` the first plausible upstream
+  conversion target and keeps `string_cycle` classified as higher-risk
+  branch-local debt until a generic mechanism exists.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
