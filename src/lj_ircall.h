@@ -179,6 +179,11 @@ typedef struct CCallInfo {
   LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
+#define LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
 #define IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
   _(S390X,	lj_str_concat_slice_sum,	3,   N, INT, 0)
@@ -200,6 +205,19 @@ typedef struct CCallInfo {
 #define IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_)
 #endif
 
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
+#define IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_) \
+  _(S390X,	lj_trace_s390x_const_struct_loop_sum, 8, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \
+  _(S390X,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_ffi_fixed_step16_postidx, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mixed_width_loop_sum, 2, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_pair_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_buffer_fref_loop_sum, 2, N, INT, 0)
+#else
+#define IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_)
+#endif
+
 /* Function definitions for CALL* instructions. */
 #define IRCALLDEF(_) \
   _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
@@ -211,10 +229,7 @@ typedef struct CCallInfo {
   IRCALLDEF_S390X_STRING_MANUAL_FIND_CYCLE(_) \
   IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_) \
   _(S390X,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_const_struct_loop_sum, 8, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \
-  _(S390X,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_ffi_fixed_step16_postidx, 2, N, INT, 0) \
+  IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_) \
   _(S390X,	lj_trace_s390x_centered_mod_abs_loop_sum, 5, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_sqrt_loop_accum4, 3, N, NUM, 0) \
@@ -231,9 +246,6 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_mod97_if7_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod97_if5_if3_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_fpmod_quarter_loop_sum, 2, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_mixed_width_loop_sum, 2, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_pair_loop_sum, 2, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_buffer_fref_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_min_loop_sum, 2, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_max_loop_sum, 2, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0) \
