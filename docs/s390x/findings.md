@@ -37216,6 +37216,85 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   is empty: `tools/s390x/build_guard_retirement_ledger.py` reports gate count
   `0`, and `build_env_surface_audit.py` reports retained perf env count `0`.
 - Boundary:
-  disabling `LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` still exposes the
-  old slow generic iterator trace floor (`~0.07s` hot rows). That is now a
-  diagnostic mechanism-debt path, not a retained performance dependency.
+  this entry predates the follow-up generic iterator contract cleanup below.
+  Disabling `LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` is no longer the
+  old `~0.07s` floor; see the next entry for the current fold-disabled
+  `~0.00030s..0.00072s` host range.
+
+## 2026-04-19: iterator cleanup hardens generic restart contract
+
+- Source cleanup:
+  the s390x iterator terminal snapshot preload and inline `next()` recorder
+  paths are no longer independently environment-gated. They are now normal
+  s390x recorder behavior behind the target guard, while
+  `LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` remains only as the
+  diagnostic truth-pack opt-out for comparing the retained semantic fold with
+  the generic iterator contract.
+- New correctness coverage:
+  added `tests/s390x/jit_loops/iterator_contract.lua`. It covers array holes,
+  visible key/value materialization, small hash key materialization, explicit
+  `next()`, terminal nil, and table-shape invalidation after mutation.
+- kdz1 validation:
+  clean GCC build passed in
+  `kdz1:/root/luajit2-s390x/workstreams/iterator-cleanup/canon/repo`.
+  `iterator_contract.lua` passed, `pairs_loop.lua` printed `pairs total 5050`,
+  retained `iterator_table.lua` stayed timer-floor (`pairs_sum/hot 0.000000s`,
+  `pairs_array_sum/hot 0.000000s`, p95 `0.000001s`), and fold-disabled generic
+  iterator measured `pairs_sum/hot 0.000329s` and
+  `pairs_array_sum/hot 0.000301s`. `mixed_noffi.lua`, `vararg_paths.lua`, and
+  retained-env `dispatch_trace.lua` stayed clean.
+- Host confirmation:
+  kdz passed the same focused build/test/perf gate. Retained iterator stayed
+  timer-floor and fold-disabled generic iterator measured `pairs_sum/hot
+  0.000326s`, `pairs_array_sum/hot 0.000301s`. zkd0 passed the same correctness
+  tests and retained iterator stayed at `0.000001s`; its fold-disabled generic
+  path was noisier at `0.000718s` / `0.000685s` hot with high p95, so it is
+  treated as correctness/default-retained confirmation rather than the generic
+  fallback tie-break.
+- Current matrix:
+  `artifacts/s390x/kdz1-retained-jitter-20260420T010608Z/summary.md` is the
+  latest full retained s390x matrix. It ran 23 perf families on kdz1 with
+  samples `9`, warmup `2`, and three alternating passes; no hot row was red
+  versus `-joff`. Retained `iterator_table` rows were timer-floor in all three
+  passes.
+- Boundary:
+  iterator cleanup is now production-shaped enough to validate without old
+  broad trace-control rails. The retained semantic fold is still the fastest
+  official-row path; the generic inline `next()` contract is the fallback and
+  the correctness basis for any future attempt to replace more iterator
+  special casing.
+
+## 2026-04-19: benchmark-shaped recorder/trace leftovers removed
+
+- Source cleanup:
+  removed the residual synthetic `@numeric_ops_max` recorder exit-0
+  side-trace allow. The current `numeric_ops` min/max rows are covered by the
+  semantic root loop-sum folds, so the old benchmark chunk allow was stale.
+- Trace cleanup:
+  removed stale opt-in loop-descendant trace-save experiments from
+  `src/lj_trace.c`: the BCJMP loop-descendant resume-child path, loopdesc owner
+  direct-entry path, loopdesc root resume-child path, and JLOOP owner static
+  re-entry path. These paths matched current trace-size fingerprints rather
+  than a reusable bytecode/IR contract and were not retained mechanisms.
+- Audit result:
+  `python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` now
+  reports `benchmark-shaped source findings: 0`. The audit keeps two explicit
+  allowlist entries for raw `J->cur.nins` references that are generic
+  mechanisms: ITERN root-loop detection and comparison snapshot PC fixup.
+- Validation:
+  kdz1, kdz, and zkd0 clean GCC builds passed from tracked-file mirrors under
+  `/root/luajit2-s390x/workstreams/benchmark-cleanup/canon/repo`. All three
+  hosts passed the source audit, `tests/s390x/jit_loops/iterator_contract.lua`,
+  `tests/s390x/jit_loops/pairs_loop.lua`, and `tests/s390x/jit_be/numeric_ops.lua`.
+  kdz1 additionally passed `addsub_overflow_guard.lua`,
+  `numeric_minmax_loop_sum.lua`, `mixed_noffi.lua`, and retained-env
+  `dispatch_trace.lua`. Focused iterator and numeric perf rows stayed in the
+  retained fast band on all three hosts.
+- Retained env status:
+  `tools/s390x/build_guard_retirement_ledger.py` still reports gate count `0`;
+  `tools/s390x/build_env_surface_audit.py` still reports retained perf env
+  count `0`.
+- Boundary:
+  historical notebook entries that mention `@numeric_ops_max` remain as
+  history, but the production recorder no longer contains a synthetic
+  benchmark-chunk fast path for that row.

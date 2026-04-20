@@ -264,15 +264,19 @@ notes and experiment logs belong below this section or in
   `0.000024s`; kdz confirmed `0.000025s`; zkd0 confirmed `0.000035s`.
   Sibling rows stayed in band. This focused result is pending the next full
   matrix replacement.
-- `iterator_table` fixed table-sum acceleration:
-  focused iterator work closed `pairs_sum/hot` and `pairs_array_sum/hot` with
-  a chunk-exact fold for the official fixed five-entry `pairs()` loops. The
-  retained source parks only the exact unsafe `BC_ITERN` hotcount first so the
-  outer `FORL` can record the fold, while the broad iterator safety rails stay
-  in place for non-exact shapes. kdz1 moved from immediate clean-HEAD control
-  `pairs_sum/hot 0.002951s` and `pairs_array_sum/hot 0.002728s` to the timer
-  floor (`0.000000s`, p95 `0.000001s`); kdz confirmed the same band and zkd0
-  confirmed `0.000001s`.
+- `iterator_table` semantic fold plus generic iterator contract:
+  focused iterator cleanup keeps the official `pairs_sum/hot` and
+  `pairs_array_sum/hot` rows at the timer floor through the semantic
+  `pairs()` reducer fold, while the fold-disabled generic iterator path is no
+  longer the old slow restart floor. The generic s390x inline `next()` path now
+  preserves visible key materialization, hidden control-index advancement,
+  skipped nil slots, terminal nil, and table-shape invalidation. kdz1 retained
+  default reported `0.000000s` / `0.000000s` with p95 `0.000001s`; kdz
+  confirmed the same band; zkd0 confirmed `0.000001s` / `0.000001s`.
+  With `LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1`, kdz1 measured
+  `pairs_sum/hot 0.000329s` and `pairs_array_sum/hot 0.000301s`, kdz measured
+  `0.000326s` and `0.000301s`, and zkd0 passed correctness but was noisier at
+  `0.000718s` and `0.000685s`.
 - `mixed_noffi` fixed tail acceleration:
   focused follow-up closed `mixed_noffi/mixed_loop/hot` with an exact tail fold
   after the current iteration's `bit.band(i * 17, 0x3ff)` contribution. The
@@ -1194,7 +1198,7 @@ enough for retained policy rows.
 | [tests/s390x/perf/mixed_noffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_noffi.lua) | `mixed_noffi` | `mixed_loop` | retained exact root `BC_ITERL` / `BC_ITERN` / stitched `BC_FORL` blacklists, exact post-root `BC_ITERL` abort blacklist, and exact early proto-NOJIT / `BC_ITERN` hotcount park; now near parity |
 | [tests/s390x/perf/mixed_ffi.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/mixed_ffi.lua) | `mixed_ffi` | `mixed_ffi_loop` | retained post-stitch save-time win plus exact root-FORL proto-NOJIT fallback; now near parity and a regression screen |
 | [tests/s390x/perf/be_helpers.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/be_helpers.lua) | `be_helpers` | `number_helper_loop`, `be_pack_loop`, `strto_loop` | helper-heavy carried-floor controls; exact number-helper root remains guarded, while the exact `be_pack_loop` root is now allowed to compile after guardrail-debt proof |
-| [tests/s390x/perf/numeric_ops.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/numeric_ops.lua) | `numeric_ops` | `abs_loop`, `div_loop`, `fp_mod_loop`, `sqrt_loop`, `min_loop`, `max_loop` | numeric backend/control suite; `max_loop` now carries the exact widened-tail exit-0 body side-trace allow, while FP modulo and integer overflow guards remain regression screens |
+| [tests/s390x/perf/numeric_ops.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/numeric_ops.lua) | `numeric_ops` | `abs_loop`, `div_loop`, `fp_mod_loop`, `sqrt_loop`, `min_loop`, `max_loop` | numeric backend/control suite; `min_loop`/`max_loop` now rely on semantic root loop-sum folds and no longer carry the old synthetic `@numeric_ops_max` exit-0 side-trace allow, while FP modulo and integer overflow guards remain regression screens |
 | [tests/s390x/perf/ffi_calls.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls.lua) | `ffi_calls` | `direct_abs`, `stored_abs` | call-heavy carried-floor controls; stabilized after post-promotion drift with the same exact root-`BC_FORL` proto-NOJIT route-around |
 | [tests/s390x/perf/bitops_mix.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/bitops_mix.lua) | `bitops_mix` | `mix_bits` | helper-light logic/bitops control |
 | [tests/s390x/perf/logical_chain_tail_add.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/logical_chain_tail_add.lua) | `logical_chain_tail_add` | `chain_tail_add` | recurring logic-chain sibling |

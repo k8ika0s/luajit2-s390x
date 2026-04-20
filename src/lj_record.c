@@ -3609,6 +3609,8 @@ static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
   GCtab *tabv;
   int32_t stopv, per_iter = 0;
 
+  if (getenv("LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD") != NULL)
+    return 0;
   if (!lj_record_s390x_root_frame(J) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
@@ -6477,49 +6479,6 @@ static int lj_record_s390x_byte_scan_sum(jit_State *J, const BCIns *fori)
   return 1;
 }
 
-static int lj_record_s390x_numeric_max_exit0_body_allow_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1) {
-    const char *opt_out =
-      getenv("LUAJIT_S390X_DISABLE_NUMERIC_MAX_EXIT0_BODY_ALLOW");
-    enabled = (LJ_TARGET_S390X && opt_out == NULL);
-  }
-  return enabled;
-}
-
-static int lj_record_s390x_numeric_max_proto_match(GCproto *pt)
-{
-  static const char chunkname[] = "@numeric_ops_max";
-  GCstr *chunk;
-  if (pt == NULL)
-    return 0;
-  chunk = proto_chunkname(pt);
-  return chunk != NULL &&
-         chunk->len == (MSize)(sizeof(chunkname) - 1) &&
-         memcmp(strdata(chunk), chunkname, sizeof(chunkname) - 1) == 0;
-}
-
-static int lj_record_s390x_numeric_max_exit0_body_allow(jit_State *J,
-							GCtrace *parentT)
-{
-  return lj_record_s390x_numeric_max_exit0_body_allow_enabled() &&
-         lj_record_s390x_numeric_max_proto_match(J->pt) &&
-         J->parent == J->cur.root &&
-         J->exitno == 0 &&
-         J->framedepth + J->retdepth == 0 &&
-         bc_op(J->cur.startins) == BC_JMP &&
-         J->pc == J->startpc &&
-         J->pc > proto_bc(J->pt) &&
-         bc_op(*J->pc) == BC_GGET &&
-         bc_op(J->pc[-1]) == BC_JFORI &&
-         bc_d(J->pc[bc_j(J->pc[-1])-1]) == J->cur.root &&
-         parentT != NULL &&
-         bc_op(parentT->startins) == BC_FORL &&
-         parentT->linktype == LJ_TRLINK_LOOP &&
-         parentT->link == J->parent;
-}
-
 /* Canonicalize slots: convert integers to numbers. */
 static void canonicalize_slots(jit_State *J)
 {
@@ -7276,6 +7235,8 @@ static void lj_record_s390x_recbc_log(jit_State *J, const BCIns *pc,
 }
 
 static IRType rec_next_types(GCtab *t, uint32_t idx, int *isarray);
+static IRType rec_next_types_idx(GCtab *t, uint32_t idx, int *isarray,
+				 uint32_t *nextidx);
 
 static TRef lj_record_s390x_pairs_tab_ref(jit_State *J, int32_t slot, GCtab *t)
 {
@@ -7283,6 +7244,26 @@ static TRef lj_record_s390x_pairs_tab_ref(jit_State *J, int32_t slot, GCtab *t)
     return J->base[slot] ? J->base[slot] :
 	   sloadt(J, slot, IRT_TAB, IRSLOAD_READONLY);
   return getslot(J, slot);
+}
+
+static void lj_record_s390x_itern_terminal_snapshot_preload(jit_State *J,
+							    BCReg maxslot)
+{
+  BCReg s;
+  /* Iterator terminal exits need the surrounding loop state restorable before
+  ** ITERN adds its snapshot. Preload live non-primitives so restore has the
+  ** table/control/key/value and outer loop slots needed by side exits.
+  */
+  for (s = 1; s < maxslot; s++) {
+    IRType t;
+    if (J->base[s])
+      continue;
+    t = itype2irt(&J->L->base[s]);
+    if (irtype_ispri(t))
+      continue;
+    J->base[s] = sloadt(J, (int32_t)s, (IRType)(IRT_GUARD|t),
+			IRSLOAD_TYPECHECK|IRSLOAD_INHERIT);
+  }
 }
 
 /* Simulate the runtime behavior of the FOR loop iterator. */
@@ -7565,6 +7546,40 @@ static int lj_record_s390x_small_vararg_for_unroll(jit_State *J,
   return 1;
 }
 
+static int lj_record_s390x_iterator_forl_inner_unroll(jit_State *J,
+						      const BCIns *loopins,
+						      LoopEvent ev,
+						      TraceNo lnk)
+{
+  if (!LJ_TARGET_S390X ||
+      J->parent != 0 || J->exitno != 0 || ev == LOOPEV_LEAVE ||
+      bc_op(J->cur.startins) != BC_FORL)
+    return 0;
+  if (loopins) {
+    BCOp op = bc_op(*loopins);
+    BCOp prev1 = bc_op(loopins[-1]);
+    BCOp prev2 = bc_op(loopins[-2]);
+    BCOp next1 = bc_op(loopins[1]);
+    if ((op == BC_ITERL || op == BC_IITERL || op == BC_JITERL) &&
+	(prev1 == BC_ITERN || prev1 == BC_ITERC) &&
+	prev2 == BC_ADDVV &&
+	(next1 == BC_FORL || next1 == BC_JFORL))
+      return 1;
+    return (op == BC_ITERN || op == BC_ITERC) &&
+	   prev1 == BC_ADDVV && prev2 == BC_ISNEXT &&
+	   (next1 == BC_ITERL || next1 == BC_IITERL ||
+	    next1 == BC_JITERL) &&
+	   (bc_op(loopins[2]) == BC_FORL || bc_op(loopins[2]) == BC_JFORL);
+  }
+  if (lnk != 0 && bc_op(traceref(J, lnk)->startins) != BC_ITERL)
+    return 0;
+  return bc_op(*J->pc) == BC_ADDVV &&
+	 (bc_op(J->pc[1]) == BC_ITERN || bc_op(J->pc[1]) == BC_ITERC) &&
+	 (bc_op(J->pc[2]) == BC_ITERL || bc_op(J->pc[2]) == BC_IITERL ||
+	  bc_op(J->pc[2]) == BC_JITERL) &&
+	 (bc_op(J->pc[3]) == BC_FORL || bc_op(J->pc[3]) == BC_JFORL);
+}
+
 /* Handle the case when an interpreted loop op is hit. */
 static void rec_loop_interp(jit_State *J, const BCIns *pc, const BCIns *fori,
 			    LoopEvent ev)
@@ -7588,6 +7603,7 @@ static void rec_loop_interp(jit_State *J, const BCIns *pc, const BCIns *fori,
       ** more conservative here and only do it for very short loops.
       */
       if (bc_j(*pc) != -1 && !innerloopleft(J, pc) &&
+	  !lj_record_s390x_iterator_forl_inner_unroll(J, pc, ev, 0) &&
 	  !lj_record_s390x_small_vararg_for_unroll(J, fori, pc, ev)) {
 	lj_record_s390x_linner_log(J, "rec_loop_interp_root", ev, 0);
 	lj_trace_err(J, LJ_TRERR_LINNER);  /* Root trace hit an inner loop. */
@@ -7611,6 +7627,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *fori,
   if (J->parent == 0 && J->exitno == 0) {  /* Root trace hit an inner loop. */
     /* Better let the inner loop spawn a side trace back here. */
     if (ev != LOOPEV_LEAVE &&
+	!lj_record_s390x_iterator_forl_inner_unroll(J, loopins, ev, lnk) &&
 	!lj_record_s390x_small_vararg_for_unroll(J, fori, loopins, ev)) {
       lj_record_s390x_linner_log(J, "rec_loop_jit_root", ev, lnk);
       lj_trace_err(J, LJ_TRERR_LINNER);
@@ -7678,21 +7695,9 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *fori,
       if (J->exitno < parentT->nsnap &&
 	  (J->parent == J->cur.root || parentT->root == J->cur.root) &&
 	  parentT->snap[J->exitno].nent == 0) {
-	if (lj_record_s390x_numeric_max_exit0_body_allow(J, parentT)) {
-	  if (lj_record_s390x_stop_log_enabled()) {
-	    fprintf(stderr,
-		    "S390X_NUMERIC_MAX_EXIT0_BODY_ALLOW trace=%u parent=%u exit=%u root=%u pc=%p startop=%u parent_mcloop=%u\n",
-		    (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		    (unsigned int)J->exitno, (unsigned int)J->cur.root,
-		    (const void *)J->pc,
-		    (unsigned int)bc_op(J->cur.startins),
-		    (unsigned int)parentT->mcloop);
-	  }
-	} else {
-	  parentT->snap[J->exitno].count = SNAPCOUNT_DONE;
-	  lj_record_s390x_lleave_log(J, "rec_loop_jit_exit0_dup_loop_descendant");
-	  lj_trace_err(J, LJ_TRERR_LLEAVE);
-	}
+	parentT->snap[J->exitno].count = SNAPCOUNT_DONE;
+	lj_record_s390x_lleave_log(J, "rec_loop_jit_exit0_dup_loop_descendant");
+	lj_trace_err(J, LJ_TRERR_LLEAVE);
       }
     }
     if (lj_record_s390x_recloop_focus_enabled() &&
@@ -7861,6 +7866,8 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
       return LOOPEV_ENTER;
     }
   }
+  if (LJ_TARGET_S390X)
+    lj_record_s390x_itern_terminal_snapshot_preload(J, ra);
   J->maxslot = ra;
   lj_snap_add(J);  /* Required to make JLOOP the first ins in a side-trace. */
   copyTV(J->L, &ix.tabv, &J->L->base[ra-2]);
@@ -9173,7 +9180,8 @@ TRef lj_record_idx(jit_State *J, RecordIndex *ix)
 }
 
 /* Determine result type of table traversal. */
-static IRType rec_next_types(GCtab *t, uint32_t idx, int *isarray)
+static IRType rec_next_types_idx(GCtab *t, uint32_t idx, int *isarray,
+				 uint32_t *nextidx)
 {
   if (isarray)
     *isarray = 0;
@@ -9182,16 +9190,28 @@ static IRType rec_next_types(GCtab *t, uint32_t idx, int *isarray)
     if (LJ_LIKELY(!tvisnil(a))) {
       if (isarray)
         *isarray = 1;
+      if (nextidx)
+	*nextidx = idx;
       return (LJ_DUALNUM ? IRT_INT : IRT_NUM) + (itype2irt(a) << 8);
     }
   }
   idx -= t->asize;
   for (; idx <= t->hmask; idx++) {
     Node *n = &noderef(t->node)[idx];
-    if (!tvisnil(&n->val))
+    if (!tvisnil(&n->val)) {
+      if (nextidx)
+	*nextidx = t->asize + idx;
       return itype2irt(&n->key) + (itype2irt(&n->val) << 8);
+    }
   }
+  if (nextidx)
+    *nextidx = t->asize + idx;
   return IRT_NIL + (IRT_NIL << 8);
+}
+
+static IRType rec_next_types(GCtab *t, uint32_t idx, int *isarray)
+{
+  return rec_next_types_idx(t, idx, isarray, NULL);
 }
 
 /* Record a table traversal step aka next(). */
@@ -9200,8 +9220,98 @@ int lj_record_next(jit_State *J, RecordIndex *ix)
   IRType t, tkey, tval;
   TRef trvk;
   int nextisarray = 0;
-  t = rec_next_types(tabV(&ix->tabv), ix->keyv.u32.lo, &nextisarray);
+  uint32_t nextidx = 0;
+  t = rec_next_types_idx(tabV(&ix->tabv), ix->keyv.u32.lo, &nextisarray,
+			 &nextidx);
   tkey = (t & 0xff); tval = (t >> 8);
+  /* s390x can avoid the helper call for proven table states by recording the
+  ** next array/hash probe directly. Guards cover the control index, table
+  ** shape and skipped nil slots; visible key, hidden control index and value
+  ** are all materialized explicitly.
+  */
+  if (LJ_TARGET_S390X && nextisarray && tkey == IRT_INT && ix->mobj) {
+    TRef idx = ix->key & ~TREF_KEYINDEX;
+    TRef asize = emitir(IRTI(IR_FLOAD), ix->tab, IRFL_TAB_ASIZE);
+    TRef arrayref = emitir(IRT(IR_FLOAD, IRT_PGC), ix->tab, IRFL_TAB_ARRAY);
+    TRef aref;
+    uint32_t i;
+    emitir(IRTGI(IR_EQ), idx, lj_ir_kint(J, (int32_t)ix->keyv.u32.lo));
+    emitir(IRTGI(IR_ULT), lj_ir_kint(J, (int32_t)nextidx), asize);
+    for (i = ix->keyv.u32.lo; i < nextidx; i++) {
+      aref = emitir(IRT(IR_AREF, IRT_PGC), arrayref, lj_ir_kint(J, (int32_t)i));
+      (void)lj_record_vload(J, aref, 0, IRT_NIL);
+    }
+    aref = emitir(IRT(IR_AREF, IRT_PGC), arrayref, lj_ir_kint(J, (int32_t)nextidx));
+    ix->val = lj_record_vload(J, aref, 0, tval);
+    ix->mobj = lj_ir_kint(J, (int32_t)(nextidx + 1));
+    ix->key = lj_ir_kint(J, (int32_t)nextidx);
+    return tkey == IRT_NIL || ix->idxchain ? 1 : 2;
+  } else if (LJ_TARGET_S390X &&
+	     !nextisarray && tkey != IRT_NIL && ix->mobj) {
+    GCtab *tab = tabV(&ix->tabv);
+    uint32_t idxv = ix->keyv.u32.lo;
+    uint32_t nodeidx = nextidx - tab->asize;
+    if (tab->hmask <= 16 && nextidx >= tab->asize &&
+	idxv <= nextidx && nodeidx <= tab->hmask &&
+	nextidx + 1 <= INT32_MAX) {
+      Node *nodev = noderef(tab->node);
+      TRef idx = ix->key & ~TREF_KEYINDEX;
+      TRef asize = emitir(IRTI(IR_FLOAD), ix->tab, IRFL_TAB_ASIZE);
+      TRef hmask = emitir(IRTI(IR_FLOAD), ix->tab, IRFL_TAB_HMASK);
+      TRef noderef = emitir(IRT(IR_FLOAD, IRT_PGC), ix->tab, IRFL_TAB_NODE);
+      uint32_t i, hstart = idxv > tab->asize ? idxv - tab->asize : 0;
+      emitir(IRTGI(IR_EQ), idx, lj_ir_kint(J, (int32_t)idxv));
+      emitir(IRTGI(IR_EQ), asize, lj_ir_kint(J, (int32_t)tab->asize));
+      emitir(IRTGI(IR_EQ), hmask, lj_ir_kint(J, (int32_t)tab->hmask));
+      emitir(IRTG(IR_EQ, IRT_PGC), noderef, lj_ir_kptr(J, nodev));
+      if (idxv < tab->asize) {
+	TRef arrayref = emitir(IRT(IR_FLOAD, IRT_PGC), ix->tab, IRFL_TAB_ARRAY);
+	for (i = idxv; i < tab->asize; i++) {
+	  TRef aref = emitir(IRT(IR_AREF, IRT_PGC), arrayref,
+			     lj_ir_kint(J, (int32_t)i));
+	  (void)lj_record_vload(J, aref, 0, IRT_NIL);
+	}
+      }
+      for (i = hstart; i < nodeidx; i++)
+	(void)lj_record_vload(J, lj_ir_kptr(J, &nodev[i].val), 0, IRT_NIL);
+      ix->key = lj_record_vload(J, lj_ir_kptr(J, &nodev[nodeidx].key),
+				0, tkey);
+      ix->val = lj_record_vload(J, lj_ir_kptr(J, &nodev[nodeidx].val),
+				0, tval);
+      ix->mobj = lj_ir_kint(J, (int32_t)(nextidx + 1));
+      return ix->idxchain ? 1 : 2;
+    }
+  } else if (LJ_TARGET_S390X && tkey == IRT_NIL && ix->mobj) {
+    GCtab *tab = tabV(&ix->tabv);
+    uint32_t idxv = ix->keyv.u32.lo;
+    uint32_t hstart = idxv > tab->asize ? idxv - tab->asize : 0;
+    if (tab->hmask <= 16 &&
+	((idxv >= tab->asize && hstart <= tab->hmask + 1) ||
+	 (idxv < tab->asize && tab->asize - idxv <= 16))) {
+      Node *nodev = noderef(tab->node);
+      TRef idx = ix->key & ~TREF_KEYINDEX;
+      TRef asize = emitir(IRTI(IR_FLOAD), ix->tab, IRFL_TAB_ASIZE);
+      TRef hmask = emitir(IRTI(IR_FLOAD), ix->tab, IRFL_TAB_HMASK);
+      TRef noderef = emitir(IRT(IR_FLOAD, IRT_PGC), ix->tab, IRFL_TAB_NODE);
+      TRef arrayref = emitir(IRT(IR_FLOAD, IRT_PGC), ix->tab, IRFL_TAB_ARRAY);
+      uint32_t i;
+      emitir(IRTGI(IR_EQ), idx, lj_ir_kint(J, (int32_t)idxv));
+      emitir(IRTGI(IR_EQ), asize, lj_ir_kint(J, (int32_t)tab->asize));
+      emitir(IRTGI(IR_EQ), hmask, lj_ir_kint(J, (int32_t)tab->hmask));
+      emitir(IRTG(IR_EQ, IRT_PGC), noderef, lj_ir_kptr(J, nodev));
+      for (i = idxv; i < tab->asize; i++) {
+	TRef aref = emitir(IRT(IR_AREF, IRT_PGC), arrayref,
+			   lj_ir_kint(J, (int32_t)i));
+	(void)lj_record_vload(J, aref, 0, IRT_NIL);
+      }
+      for (i = hstart; i <= tab->hmask; i++)
+	(void)lj_record_vload(J, lj_ir_kptr(J, &nodev[i].val), 0, IRT_NIL);
+      ix->mobj = lj_ir_kint(J, -1);
+      ix->key = TREF_NIL;
+      ix->val = TREF_NIL;
+      return 1;
+    }
+  }
   trvk = lj_ir_call(J, IRCALL_lj_vm_next, ix->tab, ix->key);
   if (ix->mobj || tkey == IRT_NIL) {
     TRef idx = emitir(IRTI(IR_HIOP), trvk, trvk);
