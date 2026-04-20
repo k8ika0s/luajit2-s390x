@@ -38408,3 +38408,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
   in band (`abs=0.000016`, `div=0.000011`, `fp_mod=0.000016`,
   `sqrt=0.000014`, `min=0.000013`, `max=0.000014`).
+
+## 2026-04-20: mod97 if7 special-case folded into generic rem-select
+
+- Removed the dedicated `%7`/`%97` branch helper lane. The existing generic
+  remainder-select matcher/helper pair already covers this shape:
+  conditional `%7 == 0`, `%97` recomputed in both branches, SUBVV on one
+  branch, ADDVV on the other.
+- Dropped the one-off `(cond_mod == 7 && rem_mod == 97)` exclusion from
+  `lj_record_s390x_mod_rem_select_loop_sum()`, removed the dedicated
+  `lj_record_s390x_mod97_if7_loop_sum()` matcher, and removed
+  `lj_trace_s390x_mod97_if7_loop_sum()` plus its `IRCALL` entry.
+- Local checks:
+  `git diff --check` passed and no live `mod97_if7` source references remain.
+  The upstream-risk audit dropped from `126` to `122`, the semantic reducer
+  ledger dropped from `31` to `30` matcher definitions, and the `numeric_mod`
+  bucket dropped from `17` to `16`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
+  (`abs=0.000016`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000013`, `min=0.000013`, `max=0.000013`).
