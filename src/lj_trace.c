@@ -37,6 +37,7 @@
 #include <math.h>
 
 #if LJ_TARGET_S390X
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 static int64_t lj_trace_s390x_sum_mod97_seq(int32_t first, int32_t count,
 					    int32_t step)
 {
@@ -336,6 +337,7 @@ int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx, int32_t stop)
     return INT32_MIN;
   return (int32_t)sum;
 }
+#endif
 
 static int32_t lj_trace_s390x_posmod_i32(int32_t x, int32_t mod)
 {
@@ -343,6 +345,7 @@ static int32_t lj_trace_s390x_posmod_i32(int32_t x, int32_t mod)
   return r < 0 ? r + mod : r;
 }
 
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 static int64_t lj_trace_s390x_fpmod_quarter_prefix(int32_t n)
 {
   const int32_t period = 105;  /* lcm(30/4 numerator period, 21/4 period). */
@@ -379,6 +382,7 @@ double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx, int32_t stop)
 	  lj_trace_s390x_fpmod_quarter_prefix(idx - 1);
   return (double)numer * 0.25;
 }
+#endif
 
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 static int64_t lj_trace_s390x_mod_prefix_i32(int32_t n, int32_t mod)
@@ -443,6 +447,7 @@ int32_t lj_trace_s390x_buffer_fref_loop_sum(int32_t idx, int32_t stop)
 }
 #endif
 
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 static int64_t lj_trace_s390x_sum_i32_range(int32_t lo, int32_t hi)
 {
   int64_t n;
@@ -451,6 +456,7 @@ static int64_t lj_trace_s390x_sum_i32_range(int32_t lo, int32_t hi)
   n = (int64_t)hi - lo + 1;
   return ((int64_t)lo + hi) * n / 2;
 }
+#endif
 
 double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
 					  int32_t stop, double per_iter)
@@ -652,6 +658,7 @@ int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx, int32_t stop)
 }
 #endif
 
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 double lj_trace_s390x_centered_mod_abs_loop_sum(double acc, int32_t idx,
 						int32_t stop, int32_t mod,
 						int32_t center)
@@ -839,6 +846,7 @@ int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
   tri = (n & 1) ? n * (edges >> 1) : (n >> 1) * edges;
   return (int32_t)((uint32_t)mul * (uint32_t)tri);
 }
+#endif
 
 int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx, int32_t stop,
 					      int32_t mul, int32_t mask)
