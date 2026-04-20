@@ -144,13 +144,13 @@ upstream candidate needs the source removed or rewritten, not merely disabled.
 
 The expanded audit currently classifies the remaining reducer debt as:
 
-- `semantic_reducer_definition`: `44` recorder reducer matcher definitions in
+- `semantic_reducer_definition`: `34` recorder reducer matcher definitions in
   `src/lj_record.c`.
-- `semantic_reducer_dispatch`: `43` default-on recorder dispatch hooks in
+- `semantic_reducer_dispatch`: `34` default-on recorder dispatch hooks in
   `lj_record_ins()`, plus byte-scan hooks at loop setup.
-- `semantic_reducer_ircall`: `44` emitted reducer helper calls from the
+- `semantic_reducer_ircall`: `34` emitted reducer helper calls from the
   recorder into s390x/string helpers.
-- `semantic_reducer_callinfo`: `40` s390x reducer/string helper callinfo
+- `semantic_reducer_callinfo`: `34` s390x reducer/string helper callinfo
   entries in `src/lj_ircall.h`.
 
 Burn-down order:
@@ -213,14 +213,14 @@ Current ledger summary:
 
 - `numeric_mod`: `20`
 - `ffi_cdata`: `6`
-- `large_immediates`: `4`
 - `logic_low32`: `3`
 - `string_cycle`: `3`
 - `iterator_mixed`: `2`
 
-The current total is `38` reducer matcher definitions. The `be_helpers` and
-`route_reducer` buckets have been removed; the former lower-frame `%17` fold
-is now tracked as the generic centered-modulo abs reducer in `numeric_mod`.
+The current total is `34` reducer matcher definitions. The `be_helpers`,
+`route_reducer`, and `large_immediates` buckets have been removed; the former
+lower-frame `%17` fold is now tracked as the generic centered-modulo abs
+reducer in `numeric_mod`.
 
 First kdz1 debt ranking artifact:
 
@@ -581,17 +581,21 @@ generic-only slowdown. kdz1 direct validation also passed
 
 ### Large Immediates Status
 
-The large-immediate recorder folds no longer depend on benchmark file or line
-identity:
+The large-immediate recorder folds have been removed from production source:
 
-- The old `@tests/s390x/perf/large_immediates.lua` and `pt->firstline` gates
-  for add/sub/compare/table-reference folds are gone.
-- The retained folds still prove the root counted loop, owned `FORI/FORL`
-  body, literal constants, loop bounds, and table key/value guard before
-  replacing the body with `lj_trace_s390x_int_const_step_loop_sum`.
-- kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419114902`.
-- Result: no failed rows and only `0.000001s` timer jitter in the focused
-  generic-only debt pack; kdz1 and zkd0 direct focused validation both pass.
+- The add/sub/compare/table-reference recorder shortcuts are gone, along with
+  the private `lj_trace_s390x_int_const_step_loop_sum` helper declaration,
+  definition, and IRCALL entry.
+- Focused debt artifact:
+  `/tmp/kdz1-large-immediates-removed-20260420133500`.
+- Result: no failed or timed-out rows. Default and generic-only now agree
+  within noise; the remaining large-immediate rows run on the lower-level path
+  at timer-floor scale.
+- Validation passed on kdz1 for `tests/s390x/jit_be/large_immediates.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, focused
+  `tests/s390x/perf/large_immediates.lua`, and
+  `tests/s390x/perf/numeric_ops.lua`.
 
 ### Lower-Frame, Route-Reducer, And Scaled-Tobit Status
 

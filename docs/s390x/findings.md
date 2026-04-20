@@ -37871,3 +37871,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the semantic reducer ledger drops from `40` to `38` matcher definitions, the
   `route_reducer` bucket is gone, and the semantic audit now reports `149`
   upstream-risk findings.
+
+## 2026-04-20: large-immediates semantic reducers removed
+
+- Removed the four large-immediate semantic recorder matchers from production
+  dispatch: `lj_record_s390x_large_immediate_add_sum()`,
+  `lj_record_s390x_large_immediate_sub_sum()`,
+  `lj_record_s390x_large_immediate_cmp_sum()`, and
+  `lj_record_s390x_large_immediate_aref_sum()`.
+- Removed the private `lj_trace_s390x_int_const_step_loop_sum()` helper
+  declaration, implementation, and `IRCALLDEF` entry. The official
+  `large_immediates` rows now run through the lower-level large-immediate and
+  loop machinery instead of a closed-form loop replacement.
+- Focused kdz1 debt artifact:
+  `/tmp/kdz1-large-immediates-removed-20260420133500`.
+- Result:
+  no failed or timed-out rows. Default and generic-only now agree within
+  timer-floor noise: `add_large/medium` stayed at `0.000039s`, `sub_large/hot`
+  was `0.000017s` default vs `0.000018s` generic-only, and the other
+  large-immediate rows were equal or within single-microsecond noise.
+- Validation passed on kdz1 for `tests/s390x/jit_be/large_immediates.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, focused
+  `tests/s390x/perf/large_immediates.lua`, and
+  `tests/s390x/perf/numeric_ops.lua`.
+- Current audit:
+  the semantic reducer ledger drops from `38` to `34` matcher definitions, the
+  `large_immediates` bucket is gone, and the semantic audit now reports `136`
+  upstream-risk findings.

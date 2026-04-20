@@ -836,19 +836,6 @@ int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
   return (int32_t)((uint32_t)mul * (uint32_t)tri);
 }
 
-int32_t lj_trace_s390x_int_const_step_loop_sum(int32_t acc, int32_t idx,
-					       int32_t stop, int32_t step)
-{
-  int64_t n, sum;
-  if (idx < 1 || stop > 40000 || stop < idx)
-    return acc;
-  n = (int64_t)stop - idx + 1;
-  sum = (int64_t)acc + n * step;
-  if (sum < INT32_MIN || sum > INT32_MAX)
-    return acc;
-  return (int32_t)sum;
-}
-
 static uint32_t lj_trace_s390x_logic_rol32(uint32_t x, uint32_t n)
 {
   return (x << n) | (x >> (32u - n));
