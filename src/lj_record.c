@@ -4418,8 +4418,8 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
 						   const BCIns *body)
 {
   const BCIns *forl, *proto;
-  BCIns modif, isn, jmp1, modthen, thenop, jmp2, modelse, elseop;
-  BCReg forbase, idxslot, tmp, accslot;
+  BCIns thenop, elseop;
+  BCReg forbase, idxslot, accslot;
   TRef idx, stopref, acc, sum;
   cTValue *base;
   int32_t cond_mod, rem_mod, then_mul, else_mul, stopv;
@@ -4430,149 +4430,87 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 8) - proto) >= J->pt->sizebc)
+  if (body < proto + 5)
     return 0;
 
-  modif = body[0];
-  isn = body[1];
-  jmp1 = body[2];
-  modthen = body[3];
-  thenop = body[4];
-  jmp2 = body[5];
-  modelse = body[6];
-  elseop = body[7];
-  forl = body + 8;
-  thenbc = bc_op(thenop);
-  elsebc = bc_op(elseop);
-  if (bc_op(modif) != BC_MODVN || bc_op(isn) != BC_ISNEN ||
-      bc_op(jmp1) != BC_JMP || bc_op(modthen) != BC_MODVN ||
-      !((thenbc == BC_ADDVV || thenbc == BC_SUBVV) &&
-	(elsebc == BC_ADDVV || elsebc == BC_SUBVV)) ||
-      bc_op(jmp2) != BC_JMP || bc_op(modelse) != BC_MODVN ||
-      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
+  if (bc_op(body[0]) == BC_MODVN && bc_op(body[3]) == BC_MODVN) {
+    BCIns modif, isn, jmp1, modthen, jmp2, modelse;
+    BCReg tmp;
+    if ((MSize)((body + 8) - proto) >= J->pt->sizebc)
+      return 0;
+    modif = body[0]; isn = body[1]; jmp1 = body[2];
+    modthen = body[3]; thenop = body[4]; jmp2 = body[5];
+    modelse = body[6]; elseop = body[7]; forl = body + 8;
+    thenbc = bc_op(thenop);
+    elsebc = bc_op(elseop);
+    if (bc_op(isn) != BC_ISNEN || bc_op(jmp1) != BC_JMP ||
+	bc_op(modthen) != BC_MODVN ||
+	!((thenbc == BC_ADDVV || thenbc == BC_SUBVV) &&
+	  (elsebc == BC_ADDVV || elsebc == BC_SUBVV)) ||
+	bc_op(jmp2) != BC_JMP || bc_op(modelse) != BC_MODVN ||
+	(bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
+      return 0;
+    forbase = bc_a(*forl);
+    tmp = bc_a(modif);
+    idxslot = bc_b(modif);
+    accslot = bc_b(thenop);
+    if (idxslot != forbase + FORL_EXT ||
+	!lj_record_s390x_knum_get_int(J->pt, bc_c(modif), &cond_mod) ||
+	!lj_record_s390x_knum_get_int(J->pt, bc_c(modthen), &rem_mod) ||
+	tmp == idxslot || tmp == accslot || idxslot == accslot ||
+	bc_a(isn) != tmp ||
+	!lj_record_s390x_knum_is_int(J->pt, bc_d(isn), 0) ||
+	body + 3 + bc_j(jmp1) != body + 6 ||
+	bc_a(modthen) != tmp || bc_b(modthen) != idxslot ||
+	bc_a(thenop) != accslot || bc_b(thenop) != accslot ||
+	bc_c(thenop) != tmp ||
+	body + 6 + bc_j(jmp2) != body + 8 ||
+	bc_a(modelse) != tmp || bc_b(modelse) != idxslot ||
+	bc_c(modelse) != bc_c(modthen) ||
+	bc_a(elseop) != accslot || bc_b(elseop) != accslot ||
+	bc_c(elseop) != tmp)
+      return 0;
+  } else if (bc_op(body[0]) == BC_MODVN && bc_op(body[1]) == BC_MODVN) {
+    BCIns modrem, modif, isn, jmp1, jmp2;
+    BCReg remtmp, iftmp;
+    if ((MSize)((body + 7) - proto) >= J->pt->sizebc)
+      return 0;
+    modrem = body[0]; modif = body[1]; isn = body[2];
+    jmp1 = body[3]; thenop = body[4]; jmp2 = body[5];
+    elseop = body[6]; forl = body + 7;
+    thenbc = bc_op(thenop);
+    elsebc = bc_op(elseop);
+    if (bc_op(isn) != BC_ISNEN || bc_op(jmp1) != BC_JMP ||
+	!((thenbc == BC_ADDVV || thenbc == BC_SUBVV) &&
+	  (elsebc == BC_ADDVV || elsebc == BC_SUBVV)) ||
+	bc_op(jmp2) != BC_JMP ||
+	(bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
+      return 0;
+    forbase = bc_a(*forl);
+    idxslot = bc_b(modrem);
+    remtmp = bc_a(modrem);
+    iftmp = bc_a(modif);
+    accslot = bc_b(thenop);
+    if (idxslot != forbase + FORL_EXT ||
+	bc_b(modif) != idxslot ||
+	!lj_record_s390x_knum_get_int(J->pt, bc_c(modif), &cond_mod) ||
+	!lj_record_s390x_knum_get_int(J->pt, bc_c(modrem), &rem_mod) ||
+	remtmp == idxslot || remtmp == iftmp || remtmp == accslot ||
+	iftmp == idxslot || iftmp == accslot || idxslot == accslot ||
+	bc_a(isn) != iftmp ||
+	!lj_record_s390x_knum_is_int(J->pt, bc_d(isn), 0) ||
+	body + 4 + bc_j(jmp1) != body + 6 ||
+	bc_a(thenop) != accslot || bc_b(thenop) != accslot ||
+	bc_c(thenop) != remtmp ||
+	body + 6 + bc_j(jmp2) != body + 7 ||
+	bc_a(elseop) != accslot || bc_b(elseop) != accslot ||
+	bc_c(elseop) != remtmp)
+      return 0;
+  } else {
     return 0;
-
-  forbase = bc_a(*forl);
-  tmp = bc_a(modif);
-  idxslot = bc_b(modif);
-  accslot = bc_b(thenop);
-  if (idxslot != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_get_int(J->pt, bc_c(modif), &cond_mod) ||
-      !lj_record_s390x_knum_get_int(J->pt, bc_c(modthen), &rem_mod) ||
-      cond_mod < 2 || cond_mod > 32767 || rem_mod < 2 || rem_mod > 4096 ||
-      (cond_mod == 7 && rem_mod == 97) ||
-      tmp == idxslot || tmp == accslot || idxslot == accslot ||
-      bc_a(isn) != tmp || !lj_record_s390x_knum_is_int(J->pt, bc_d(isn), 0) ||
-      body + 3 + bc_j(jmp1) != body + 6 ||
-      bc_a(modthen) != tmp || bc_b(modthen) != idxslot ||
-      bc_a(thenop) != accslot || bc_b(thenop) != accslot ||
-      bc_c(thenop) != tmp ||
-      body + 6 + bc_j(jmp2) != body + 8 ||
-      bc_a(modelse) != tmp || bc_b(modelse) != idxslot ||
-      bc_c(modelse) != bc_c(modthen) ||
-      bc_a(elseop) != accslot || bc_b(elseop) != accslot ||
-      bc_c(elseop) != tmp)
-    return 0;
-  if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-  then_mul = thenbc == BC_ADDVV ? 1 : -1;
-  else_mul = elsebc == BC_ADDVV ? 1 : -1;
-  if (!lj_record_s390x_mod_rem_select_sum_fits_i32(stopv, cond_mod, rem_mod,
-						   then_mul, else_mul))
-    return 0;
-  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
-    return 0;
-
-  idx = getslot(J, idxslot);
-  stopref = getslot(J, forbase+FORL_STOP);
-  acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !(tref_isinteger(acc) || tref_isnum(acc)))
-    return 0;
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-		   stopref, lj_ir_kint(J, cond_mod), lj_ir_kint(J, rem_mod),
-		   lj_ir_kint(J, then_mul), lj_ir_kint(J, else_mul));
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
-  if (tref_isinteger(acc))
-    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
-  sum = emitir(IRTN(IR_ADD), acc, sum);
-
-  J->base[accslot] = sum;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
-static int lj_record_s390x_mod_rem_preselect_loop_sum(jit_State *J,
-						      const BCIns *body)
-{
-  const BCIns *forl, *proto;
-  BCIns modrem, modif, isn, jmp1, thenop, jmp2, elseop;
-  BCReg forbase, idxslot, remtmp, iftmp, accslot;
-  TRef idx, stopref, acc, sum;
-  cTValue *base;
-  int32_t cond_mod, rem_mod, then_mul, else_mul, stopv;
-  BCOp thenbc, elsebc;
-
-  if (!lj_record_s390x_mod_rem_select_loop_sum_enabled() ||
-      !lj_record_s390x_root_frame(J) || J->pt == NULL ||
-      J->parent != 0 || J->exitno != 0)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 7) - proto) >= J->pt->sizebc)
-    return 0;
-
-  modrem = body[0];
-  modif = body[1];
-  isn = body[2];
-  jmp1 = body[3];
-  thenop = body[4];
-  jmp2 = body[5];
-  elseop = body[6];
-  forl = body + 7;
-  thenbc = bc_op(thenop);
-  elsebc = bc_op(elseop);
-  if (bc_op(modrem) != BC_MODVN || bc_op(modif) != BC_MODVN ||
-      bc_op(isn) != BC_ISNEN || bc_op(jmp1) != BC_JMP ||
-      !((thenbc == BC_ADDVV || thenbc == BC_SUBVV) &&
-	(elsebc == BC_ADDVV || elsebc == BC_SUBVV)) ||
-      bc_op(jmp2) != BC_JMP ||
-      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
-    return 0;
-
-  forbase = bc_a(*forl);
-  idxslot = bc_b(modrem);
-  remtmp = bc_a(modrem);
-  iftmp = bc_a(modif);
-  accslot = bc_b(thenop);
-  if (idxslot != forbase + FORL_EXT ||
-      bc_b(modif) != idxslot ||
-      !lj_record_s390x_knum_get_int(J->pt, bc_c(modif), &cond_mod) ||
-      !lj_record_s390x_knum_get_int(J->pt, bc_c(modrem), &rem_mod) ||
-      cond_mod < 2 || cond_mod > 32767 || rem_mod < 2 || rem_mod > 4096 ||
-      remtmp == idxslot || remtmp == iftmp || remtmp == accslot ||
-      iftmp == idxslot || iftmp == accslot || idxslot == accslot ||
-      bc_a(isn) != iftmp || !lj_record_s390x_knum_is_int(J->pt, bc_d(isn), 0) ||
-      body + 4 + bc_j(jmp1) != body + 6 ||
-      bc_a(thenop) != accslot || bc_b(thenop) != accslot ||
-      bc_c(thenop) != remtmp ||
-      body + 6 + bc_j(jmp2) != body + 7 ||
-      bc_a(elseop) != accslot || bc_b(elseop) != accslot ||
-      bc_c(elseop) != remtmp)
+  }
+  if (cond_mod < 2 || cond_mod > 32767 || rem_mod < 2 || rem_mod > 4096 ||
+      (cond_mod == 7 && rem_mod == 97))
     return 0;
   if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
     return 0;
@@ -8764,8 +8702,6 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MODVN && lj_record_s390x_mod97_if7_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_mod_rem_select_loop_sum(J, pc))
-    return;
-  if (op == BC_MODVN && lj_record_s390x_mod_rem_preselect_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_mod97_if5_if3_loop_sum(J, pc))
     return;
