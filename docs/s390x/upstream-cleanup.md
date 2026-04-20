@@ -187,16 +187,18 @@ itself: source remains upstream-risky until each reducer is rewritten or
 excluded from the upstream candidate.
 
 Some families have narrower comparison switches for staged burn-down. The
-first remaining split is string:
+current splits are:
 
 ```sh
 -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0
+-DLUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS=0
 ```
 
-The debt-pack helper accepts this as `--profile string-cycle-off`; `default`
-is always included as the baseline. The former primitive string recorder
-profile has been removed from production source because it was superseded by
-the cycle layer for retained default performance.
+The debt-pack helper accepts these as `--profile string-cycle-off` and
+`--profile mixed-noffi-off`; `default` is always included as the baseline. The
+former primitive string recorder profile has been removed from production
+source because it was superseded by the cycle layer for retained default
+performance.
 
 Use this helper to regenerate the reducer burn-down ledger from source:
 
@@ -272,6 +274,18 @@ That kdz1 run completed with no failed families. The current top semantic
 debt row is `mixed_noffi/mixed_loop/hot` at `+0.002808s` generic-only delta,
 followed by string cycle rows, `be_helpers/strto_loop`, numeric min/max, and
 logical-chain tail-store.
+
+Focused mixed-noffi profile:
+
+- `/tmp/kdz1-mixed-noffi-profile-20260420090000`
+
+That kdz1 run rebuilt `default`, `mixed-noffi-off`, and `generic-only`
+profiles for `mixed_noffi` and `iterator_table`. Disabling only the
+`mixed_noffi` fold moved `mixed_noffi/mixed_loop/hot` from `0.000001s` to
+`0.002857s`, essentially identical to generic-only `0.002862s`. Iterator rows
+remained at the timer floor under `mixed-noffi-off`. This proves the current
+mixed speedup is the whole-loop mixed fold itself, not an existing lower-level
+iterator/table mechanism.
 
 ## Current Debt Ranking
 

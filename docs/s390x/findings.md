@@ -37664,3 +37664,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   then `be_helpers/strto_loop`, then numeric min/max or logical-chain tail
   depending on focused attribution. The identity audit remains clean; this is
   semantic reducer debt, not benchmark-name debt.
+
+## 2026-04-20: mixed-noffi semantic fold isolated
+
+- Added `LUAJIT_ENABLE_S390X_MIXED_NOFFI_REDUCERS` as a compile-time split
+  switch defaulting to `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`, and added the
+  matching debt-pack profile `mixed-noffi-off`.
+- kdz1 focused artifact:
+  `/tmp/kdz1-mixed-noffi-profile-20260420090000`.
+- Result:
+  `mixed-noffi-off` is effectively identical to full `generic-only` for the
+  official mixed row. `mixed_noffi/mixed_loop/hot` was `0.000001s` default,
+  `0.002857s` with only the mixed reducer disabled, and `0.002862s` with all
+  semantic reducers disabled.
+- Sibling check:
+  `iterator_table` stayed at the timer floor under `mixed-noffi-off`, while it
+  slowed only under `generic-only`. This confirms the exact mixed fold is
+  isolated and does not carry the iterator-table reducer.
+- Interpretation:
+  the retained `mixed_noffi` performance is one whole-loop semantic fold. It is
+  not currently replaceable by the existing iterator/table lower-level
+  mechanisms. Keeping the timer-floor WIP row requires keeping this branch-local
+  fold, while an upstreamable path needs a new decomposition or must accept the
+  `~0.00286s` mixed row until lower-level mechanisms exist.
