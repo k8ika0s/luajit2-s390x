@@ -37643,3 +37643,24 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - The remaining string cleanup target is the `string_cycle` bucket:
   `string_key_lookup_loop`, `concat_slice_loop`, `miss_find_loop`,
   `prefix_eq_loop`, `manual_find_cycle_loop`, and `byte_scan_cycle_loop`.
+
+## 2026-04-20: post-string-primitive semantic debt rerank
+
+- Ran a fresh kdz1 semantic debt pack after removing the primitive string
+  recorder reducers:
+  `/tmp/kdz1-semantic-debt-post-string-primitive-20260420083000`.
+- The pack rebuilt `default` and `generic-only`, used `3` samples and `1`
+  warmup, and completed with no failed or timed-out families.
+- Largest current generic-only deltas:
+  `mixed_noffi/mixed_loop/hot +0.002808s`,
+  `string_heavy/manual_find_loop/hot +0.002535s`,
+  `string_heavy/byte_scan_loop/hot +0.001994s`,
+  `be_helpers/strto_loop/hot +0.001757s`,
+  `numeric_ops/max_loop/hot +0.001424s`,
+  `logical_chain_tail_store/chain_tail_store/xhot +0.001216s`, and
+  `string_heavy/concat_slice_loop/hot +0.001009s`.
+- Current burn order from this artifact:
+  `mixed_noffi` semantic tail reducer first, then string cycle reducers,
+  then `be_helpers/strto_loop`, then numeric min/max or logical-chain tail
+  depending on focused attribution. The identity audit remains clean; this is
+  semantic reducer debt, not benchmark-name debt.
