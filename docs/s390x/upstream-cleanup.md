@@ -5,51 +5,51 @@ acceptable in an upstreamable JIT implementation.
 
 ## Benchmark-Shaped Optimizations
 
-The current WIP branch contains production recorder and trace-control logic
-that recognizes exact benchmark artifacts:
+The current WIP branch no longer has production `src/` benchmark-shaped
+fastpaths according to:
 
-- `@tests/s390x/perf/*.lua` chunk names.
-- Synthetic benchmark chunk names such as `@numeric_ops_div`.
-- `pt->firstline` / `pt->numline` combinations used as benchmark identity.
-- Current trace fingerprints such as `J->cur.nins`, `J->cur.nsnap`, and
-  `J->cur.mcloop` used to route production trace behavior.
+```sh
+python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
+```
 
-These patterns are upstream blockers. They should not be presented as target
-backend optimizations. A valid upstream patch can optimize IR, bytecode,
-backend lowering, ABI handling, VM helper behavior, or target instruction
-selection. It should not recognize the repository's performance tests or the
-current IR size of those tests.
+The upstream rule remains strict: a valid upstream patch can optimize IR,
+bytecode, backend lowering, ABI handling, VM helper behavior, or target
+instruction selection. It should not recognize repository performance tests,
+synthetic benchmark chunk names, line-number identity, current IR sizes,
+snapshot counts, or mcode-loop fingerprints to steer production JIT behavior.
+
+Historical findings still mention those patterns because they document the
+bring-up path. Current source should stay audit-clean.
 
 ## Current Blocker Map
 
-Primary source files:
+Current production-source status:
 
-- `src/lj_record.c`: benchmark-specific recorder folds and helper calls.
-- `src/lj_trace.c`: benchmark-specific trace-control, proto no-JIT paths,
-  hotcount parks, blacklists, and exact trace fingerprint matchers.
-- `src/lj_trace.h` / `src/lj_ircall.h`: exported helper surface used by the
-  benchmark-specific folds.
+- `src/lj_record.c`: benchmark-shaped recorder folds have been migrated to
+  semantic bytecode/IR/runtime contracts or removed.
+- `src/lj_trace.c`: exact benchmark trace-control steering has been removed,
+  including exact proto no-JIT paths, hotcount parks, blacklists, stale
+  loop-descendant trace-save experiments, and exact iterator/mixed semantic
+  fold parks.
+- `src/lj_ircall.h`: s390x reducer/string helper callinfo entries are now
+  target-confined with `IRCALLCOND_S390X`, not exposed as active generic
+  architecture-neutral helper ABI.
+- `src/lib_jit.c`: the remaining policy debt is the broad s390x
+  `hotexit=200` safety rail. Removing it exposed a `vararg_paths.lua` segfault
+  at the generic hotexit default, while `-Ohotexit=200` passed. This is
+  correctness mechanism debt, not benchmark-family steering.
 
-Representative current examples:
-
-- Dispatch trace route-around matchers in `src/lj_trace.c` near
-  `lj_trace_s390x_dispatch_proto_match()` and
-  `lj_trace_s390x_dispatch_forl_proto_nojit_match()`.
-- Promotion-core and route-around matchers in `src/lj_trace.c` that combine
-  benchmark chunk names with `nins` / `nsnap` / `mcloop`.
-- Iterator/mixed/ffi exact root blacklists in `src/lj_trace.c`.
-- Remaining recorder-side synthetic or benchmark chunk matchers such as the
-  strto helper probe and FFI call-pressure shapes in `src/lj_record.c`.
+Generic LuaJIT mechanisms such as `blacklist_pc()` and `PROTO_NOJIT` checks
+remain in source, but the current s390x branch should not set them from
+benchmark-family identity.
 
 ## Resolution Policy
 
 Use this split for upstream prep:
 
-- Preserve the current WIP performance baseline while cleanup proceeds. The
-  branch-local benchmark fast paths are controlled by
-  `LUAJIT_ENABLE_S390X_BENCH_FASTPATHS`, which defaults to `1` on this WIP
-  branch. Upstream-prep validation can build with
-  `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` to expose the generic-only floor.
+- Preserve the current WIP performance baseline while cleanup proceeds, but do
+  not reintroduce benchmark-shaped production source. The benchmark-fastpath
+  audit is now a hard source gate, not just a generic-only comparison aid.
 - Keep or refine generic backend/codegen changes. Examples: instruction
   selection, ABI repair, register-state correctness, SLOAD ordering,
   overflow-guard correctness, VM helper implementations, and target-neutral
@@ -61,9 +61,10 @@ Use this split for upstream prep:
 - Move benchmark-specific folds and route-arounds to branch-local history if
   they cannot be made generic. They can remain useful as evidence and
   profiling scaffolding, but not in an upstream candidate branch.
-- Remove or quarantine exact trace-control blacklists before upstream review.
-  A broad correctness guard can be upstreamable only if it is justified by a
-  target bug and expressed without benchmark identity.
+- Broad correctness safety rails must be justified by a target mechanism bug
+  and expressed without benchmark identity. The current s390x `hotexit=200`
+  default is retained only under that rule and remains a tracked mechanism
+  debt until the lower-threshold vararg side-exit/restore crash is fixed.
 
 ## Audit Command
 
@@ -79,26 +80,23 @@ For a hard gate in an upstream-prep branch:
 python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
-The current WIP is expected to fail this audit. The upstream candidate should
-drive it to zero for production `src/` files.
+The current WIP is expected to pass this audit for production `src/` files. A
+new finding means a cleanup regression unless it is an explicitly allowlisted
+generic mechanism.
 
-The audit is intentionally source-based, not build-profile-based. It still
-reports branch-local fast paths even when they are compiled out for an
-upstream-prep build, because the eventual upstream candidate needs the source
-removed or rewritten, not merely disabled.
+The audit is intentionally source-based, not build-profile-based. It reports
+benchmark-shaped source even if a path could be compiled out, because an
+upstream candidate needs the source removed or rewritten, not merely disabled.
 
 ## Cleanup Order
 
-1. Remove or branch-localize `src/lj_trace.c` exact benchmark route-arounds.
-   These are the highest review risk because they alter trace admission and
-   no-JIT behavior by benchmark identity.
-2. Remove or generalize `src/lj_record.c` chunk-exact loop folds. Reintroduce
-   only those that can be specified as general IR/bytecode optimizations.
-3. Drop unused helper exports from `src/lj_trace.h` and `src/lj_ircall.h`
-   after the associated recorder folds are gone.
-4. Re-run correctness first, then a perf comparison. Expect many headline
-   benchmark numbers to fall back until generic replacements are built.
-5. Rebuild performance from generic mechanisms only.
+1. Keep the benchmark-fastpath audit at zero findings for production `src/`.
+2. Fix the remaining broad `hotexit=200` safety rail by resolving the generic
+   hotexit vararg crash in side-exit/restore mechanics.
+3. Continue shrinking diagnostic env and tooling-only historical references
+   where they no longer pay their way.
+4. Re-run correctness first, then perf comparison after each cleanup tranche.
+5. Rebuild any lost performance from semantic mechanisms only.
 
 ## Current Debt Ranking
 
@@ -194,9 +192,12 @@ iterator/mixed safety rails, lower-frame/mixed-ffi/cdata exact trace guards,
 hotside-localized proto fingerprints, and one residual synthetic
 `@numeric_ops_max` recorder chunk. Later cleanup removed the live source
 dependencies; see the current metrics below.
-Tackle live iterator/mixed route-arounds only with mechanism proof; the next
-low-risk source cleanup is the residual synthetic recorder chunk or stale
-opt-in exact guards that no current retained env uses.
+
+The final exact trace-policy cleanup removed the old iterator semantic-fold
+hotcount park and mixed semantic-fold `ITERL`/`ITERN` bytecode blacklists from
+`src/lj_trace.c`, then deleted the now-dead exact matcher helpers. Current
+source no longer uses benchmark-family trace-control steering for the retained
+iterator or mixed-noffi rows.
 
 ### Iterator Table Status
 
@@ -204,19 +205,19 @@ The first retained debt item is now converted from benchmark identity to a
 semantic bytecode/upvalue-table shape:
 
 - Source change: the iterator fold no longer requires
-  `@tests/s390x/perf/iterator_table.lua`, and trace start now parks matching
-  `pairs()` `BC_ITERN` loop-fold candidates by bytecode/control shape rather
-  than file name.
+  `@tests/s390x/perf/iterator_table.lua`. The earlier trace-start hotcount
+  park for matching `pairs()` `BC_ITERN` loop-fold candidates has been removed;
+  the retained row is carried by the semantic fold and generic iterator
+  terminal contract instead of trace admission policy.
 - kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419095408`.
 - zkd0 artifact: `/tmp/zkd0-bench-fastpath-debt-20260419095717`.
 - Result: both `pairs_sum` and `pairs_array_sum` stay at timer floor with
   `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0`, while `mixed_noffi` remains a
   separate retained-debt item.
 
-This does not remove all benchmark-shaped iterator source yet; the old exact
-helpers remain for branch compatibility until the broader trace-control cleanup
-can delete dead code safely. It does replace the official iterator-table
-performance dependency with a generic mechanism.
+The later trace-control cleanup deleted the old exact helper code as dead
+source. Iterator-table performance now depends on the generic semantic
+mechanism, not a benchmark-family hotcount park.
 
 ### Mixed No-FFI Status
 
@@ -224,10 +225,10 @@ The next retained debt item is also converted from benchmark identity to a
 semantic loop-fold shape:
 
 - Source change: the `mixed_noffi` recorder fold no longer requires
-  `@tests/s390x/perf/mixed_noffi.lua`. The trace stop route now recognizes the
-  mixed loop by bytecode/control shape for the `bit.band`, `select`, `ipairs`,
-  `pairs`, and outer `FORL` unit before the broad iterator fallback can
-  proto-park it.
+  `@tests/s390x/perf/mixed_noffi.lua`. The later trace-control cleanup removed
+  the trace-stop route that blacklisted exact `ITERL`/`ITERN` starts for this
+  family; the retained path is the semantic loop fold, not bytecode
+  blacklisting or proto parking.
 - kdz1 artifact: `/tmp/kdz1-bench-fastpath-debt-20260419101025`.
 - zkd0 artifact: `/tmp/zkd0-bench-fastpath-debt-20260419101228`.
 - Result: `mixed_noffi/mixed_loop` stays at timer floor with
@@ -235,10 +236,8 @@ semantic loop-fold shape:
 
 This retires the second largest benchmark-fastpath debt from the generic-only
 profile. Later cleanup batches migrated the FFI call/struct, numeric-op,
-large-immediate, lower-frame, route-reducer, and scaled-tobit recorder folds.
-The remaining high-value cleanup is now concentrated in exact trace-control
-helpers and the smaller residual recorder probes named by the latest debt
-pack.
+large-immediate, lower-frame, route-reducer, and scaled-tobit recorder folds,
+then deleted the residual exact trace-control helpers.
 
 ### Logical Chain Tail Status
 

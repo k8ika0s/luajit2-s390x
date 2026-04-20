@@ -808,9 +808,9 @@ static void jit_init(lua_State *L)
   J->flags = jit_cpudetect() | JIT_F_ON | JIT_F_OPT_DEFAULT;
   memcpy(J->param, jit_param_default, sizeof(J->param));
 #if LJ_TARGET_S390X
-  /* Iterator-heavy workloads still spend too much time spawning root-linked
-  ** side traces on s390x. A higher default hotexit materially reduces that
-  ** churn without changing JIT semantics, and callers can still override it.
+  /* Current s390x trace mechanics still hit a vararg trace crash at the
+  ** generic hotexit default. Keep this broad safety rail until the underlying
+  ** side-exit/restore mechanism is fixed; callers can still override it.
   */
   J->param[JIT_P_hotexit] = 200;
 #endif
