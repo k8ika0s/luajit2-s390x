@@ -47,6 +47,14 @@ LJ_FUNC void lj_trace_freestate(global_State *g);
 #define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
+#ifndef LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
+#define LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+#ifndef LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER
+#define LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
 enum {
@@ -128,12 +136,14 @@ LJ_FUNC int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx,
 						     int32_t stop,
 						     int32_t mul);
 #endif
+#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
 LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,
 						      int32_t stop,
 						      int32_t mul,
 						      int32_t mask);
 LJ_FUNC int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop,
 					     int32_t mod);
+#endif
 #if LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
 LJ_FUNC int32_t lj_trace_s390x_logic_add_phi_remainder_sum(int32_t acc,
 							   int32_t inner_idx,
@@ -146,10 +156,13 @@ LJ_FUNC int32_t lj_trace_s390x_logic_tail_add_sum(int32_t acc,
 						  int32_t outer_stop);
 LJ_FUNC int32_t lj_trace_s390x_logic_tail_store_sum(int32_t outer_stop);
 #endif
+#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS || \
+    LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER
 LJ_FUNC int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc,
 						   int32_t idx,
 						   int32_t stop,
 						   int32_t per_iter);
+#endif
 #endif
 
 /* Event handling. */

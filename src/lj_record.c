@@ -556,6 +556,10 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
+#ifndef LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER
+#define LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
 
 #ifndef LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER
 #define LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER \
@@ -595,6 +599,12 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS 1
 #else
 #define LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS 0
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER
+#define LJ_RECORD_S390X_ITERATOR_TABLE_REDUCER 1
+#else
+#define LJ_RECORD_S390X_ITERATOR_TABLE_REDUCER 0
 #endif
 
 #if LJ_TARGET_S390X && LJ_HASFFI && LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
@@ -1930,9 +1940,12 @@ static int lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(jit_State *J,
 }
 #endif
 
+#if LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS || \
+    LJ_RECORD_S390X_ITERATOR_TABLE_REDUCER
 static int lj_record_s390x_guard_tab_int_int(jit_State *J, TRef tabref,
 					     GCtab *tabv, int32_t key,
 					     int32_t want);
+#endif
 
 #if LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS
 static int lj_record_s390x_logic_chain_tail_store_sum(jit_State *J,
@@ -2893,6 +2906,8 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
 }
 #endif
 
+#if LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS || \
+    LJ_RECORD_S390X_ITERATOR_TABLE_REDUCER
 static int lj_record_s390x_guard_tab_int_int(jit_State *J, TRef tabref,
 					     GCtab *tabv, int32_t key,
 					     int32_t want)
@@ -2930,12 +2945,9 @@ static int lj_record_s390x_guard_tab_str_int(jit_State *J, TRef tabref,
   emitir(IRTGI(IR_EQ), val, lj_ir_kint(J, want));
   return 1;
 }
+#endif
 
-static int lj_record_s390x_component_loop_reducers_enabled(void)
-{
-  return LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS;
-}
-
+#if LJ_RECORD_S390X_ITERATOR_TABLE_REDUCER
 static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
 						   const BCIns *body)
 {
@@ -3054,6 +3066,13 @@ static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
   J->pc = forl + 1;
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
+}
+#endif
+
+#if LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS
+static int lj_record_s390x_component_loop_reducers_enabled(void)
+{
+  return LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS;
 }
 
 static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
@@ -3276,6 +3295,7 @@ static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
 #if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
 static int lj_record_s390x_mixed_width_loop_sum(jit_State *J,
@@ -8764,8 +8784,10 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MODVN && lj_record_s390x_abs_parity_loop_sum(J, pc))
     return;
 #endif
+#if LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS
   if (op == BC_MODVN && lj_record_s390x_component_loop_tail_sum(J, pc))
     return;
+#endif
 #if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
   if (op == BC_MODVN && lj_record_s390x_mixed_width_loop_sum(J, pc))
     return;
@@ -8782,8 +8804,10 @@ void lj_record_ins(jit_State *J)
   if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 1))
     return;
 #endif
+#if LJ_RECORD_S390X_ITERATOR_TABLE_REDUCER
   if (op == BC_GGET && lj_record_s390x_iterator_table_loop_sum(J, pc))
     return;
+#endif
 #if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
   if (op == BC_MULVN && lj_record_s390x_scaled_tobit_loop_sum(J, pc))
     return;

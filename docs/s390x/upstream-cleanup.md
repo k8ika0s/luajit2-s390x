@@ -191,6 +191,7 @@ current splits are:
 ```sh
 -DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0
 -DLUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0
+-DLUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER=0
 -DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0
 -DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0
 -DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0
@@ -344,6 +345,16 @@ The old `mixed-noffi-off` profile remains a debt-pack compatibility alias for
 the same compile split. Current ledger classification puts this debt in the
 `component_loop` bucket, leaving `iterator_mixed` with only the independent
 iterator-table reducer.
+
+The compile split is now complete across recorder admission, declarations,
+`IRCALL` metadata, and trace-helper definitions. Disabling
+`LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS` removes
+`lj_trace_s390x_band_mul_mask_loop_sum()` and
+`lj_trace_s390x_mod1_loop_sum()` from the build. The shared
+`lj_trace_s390x_iter_table_loop_sum()` helper is kept while either the
+component reducer or the independent iterator-table reducer is enabled, and is
+removed only when both `LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0` and
+`LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER=0` are set.
 
 Focused component-loop profile artifact:
 
@@ -857,6 +868,11 @@ checks measured `pairs_sum/hot` and `pairs_array_sum/hot` at `0.000329s` /
 `0.000301s` on kdz1 and `0.000326s` / `0.000301s` on kdz; zkd0 passed
 correctness but was noisier at `0.000718s` / `0.000685s`. This remains a
 diagnostic fallback path, not a retained env dependency.
+
+`LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER=0` is now available as the
+compile-time comparison switch for that independent iterator-table reducer.
+It is separate from `component-loop-off` because `component_loop` and
+`iterator_mixed` are distinct debt buckets even though they share one helper.
 
 The last benchmark-shaped source cleanup tranche removed the residual
 `@numeric_ops_max` recorder side-trace allow and stale opt-in loop-descendant
