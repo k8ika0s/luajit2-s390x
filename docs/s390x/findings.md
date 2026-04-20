@@ -38004,3 +38004,19 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   bodies before the recorder heats inside the nested iterator. A late
   `GGET pairs` recognizer is insufficient because the bad family starts at the
   nested iterator before the outer root reaches that bytecode.
+
+## 2026-04-20: string-cycle reducer rerank
+
+- Fresh kdz1 focused profile split:
+  `/tmp/kdz1-string-cycle-rerank-20260420104706`.
+- No failed or timed-out families.
+- Current string-cycle debt order:
+  `manual_find_loop/hot` is largest at `+0.002536s` with only
+  `string-manual-find-cycle-off`, `byte_scan_loop/hot` is second at
+  `+0.001999s` with only `string-byte-scan-cycle-off`, and
+  `concat_slice_loop/hot` is third at `+0.000986s` with only
+  `string-concat-slice-off`.
+- The split is clean: each narrow profile owns its expected row and leaves the
+  sibling cycle rows at the default timer-floor band. The next source target in
+  the semantic reducer queue is therefore `manual_find_cycle`, followed by
+  `byte_scan_cycle`, then `concat_slice`.
