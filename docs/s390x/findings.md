@@ -37609,3 +37609,37 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   as an upstreamable string/IR helper mechanism. The `string_cycle` bucket
   remains higher-risk branch-local debt until each whole-loop fold can be
   rebuilt as a generic mechanism.
+
+## 2026-04-20: string primitive recorder reducers removed
+
+- Removed the obsolete primitive string recorder substitutions:
+  `lj_record_s390x_manual_find()` and `lj_record_s390x_byte_scan_sum()`.
+  Their `BC_FORI/JFORI` dispatch hooks are gone, and the direct recorder
+  calls to `IRCALL_lj_str_find_pos` / `IRCALL_lj_str_sum_u8` are gone.
+- Removed the exposed IR call entries for `lj_str_find_pos` and
+  `lj_str_sum_u8`. `lj_str_find_pos` is deleted. `lj_str_sum_u8` is now a
+  `static` helper inside `src/lj_str.c`, where it remains useful to the
+  existing byte-scan cycle helper without being a global JIT helper surface.
+- Rationale:
+  the kdz1 split profile showed `string-primitive-off` was effectively neutral
+  under the retained default because the whole-loop string cycle reducers
+  intercept the official rows first. The primitive layer only mattered in the
+  artificial `string-cycle-off` comparison profile, so keeping those recorder
+  substitutions in production source was upstream debt without retained
+  baseline value.
+- Current audit after the removal:
+  `tools/s390x/audit_benchmark_fastpaths.py --scope semantic` reports `171`
+  findings: `44` recorder reducer definitions, `43` dispatch hooks, `44`
+  emitted reducer IRCALLs, and `40` s390x reducer/string callinfo entries.
+  `tools/s390x/build_semantic_reducer_debt.py` now reports `44` reducer
+  matcher definitions, with no `string_primitive` bucket.
+- kdz1 validation artifact:
+  `/tmp/kdz1-string-primitive-removed-20260420081500`. It rebuilt and ran
+  `string_heavy` with `default` and `string-cycle-off` profiles, with no
+  failed families. Default hot rows remained at the timer floor:
+  `manual_find_loop 0.000002s`, `byte_scan_loop 0.000000s`,
+  `prefix_eq_loop 0.000000s`, `string_key_lookup_loop 0.000000s`,
+  `concat_slice_loop 0.000000s`, and `miss_find_loop 0.000001s`.
+- The remaining string cleanup target is the `string_cycle` bucket:
+  `string_key_lookup_loop`, `concat_slice_loop`, `miss_find_loop`,
+  `prefix_eq_loop`, `manual_find_cycle_loop`, and `byte_scan_cycle_loop`.

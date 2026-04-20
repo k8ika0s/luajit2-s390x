@@ -519,20 +519,9 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_SEMANTIC_REDUCERS 0
 #endif
 
-#ifndef LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS
-#define LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS \
-  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
-#endif
-
 #ifndef LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
 #define LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
-#endif
-
-#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS
-#define LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS 1
-#else
-#define LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS 0
 #endif
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
@@ -540,16 +529,6 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #else
 #define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 0
 #endif
-
-static int lj_record_s390x_byte_scan_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS;
-}
-
-static int lj_record_s390x_manual_find_enabled(void)
-{
-  return LJ_RECORD_S390X_STRING_PRIMITIVE_REDUCERS;
-}
 
 static int lj_record_s390x_string_key_lookup_enabled(void)
 {
@@ -4287,104 +4266,6 @@ static int lj_record_s390x_mod_scaled_sum_fits_i32(int32_t stop, int32_t mod,
   return sum > INT32_MIN && sum <= INT32_MAX;
 }
 
-static int lj_record_s390x_manual_find(jit_State *J, const BCIns *fori)
-{
-  const BCIns *forl, *body, *after_loop;
-  BCReg forbase, callbase, arg0, arg1, arg2, haystack_slot, needle_slot;
-  BCReg needle_len_slot, posslot;
-  TRef haystack, needle, haylen, needle_len, hptr, nptr, pos;
-
-  if (!lj_record_s390x_manual_find_enabled() || J->pt == NULL)
-    return 0;
-  if (bc_op(*fori) != BC_JFORI && bc_op(*fori) != BC_FORI)
-    return 0;
-  forbase = bc_a(*fori);
-  forl = fori + bc_j(*fori);
-  if ((bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
-      bc_a(*forl) != forbase)
-    return 0;
-  body = fori + 1;
-  if (body + 17 != forl)
-    return 0;
-
-  if (bc_op(body[0]) != BC_GGET || bc_op(body[1]) != BC_TGETS ||
-      bc_op(body[2]) != BC_MOV || bc_op(body[3]) != BC_MOV ||
-      bc_op(body[4]) != BC_CALL || bc_op(body[5]) != BC_ISNEV ||
-      bc_op(body[6]) != BC_JMP || bc_op(body[7]) != BC_MOV ||
-      bc_op(body[8]) != BC_TGETS || bc_op(body[9]) != BC_MOV ||
-      bc_op(body[10]) != BC_ADDVV || bc_op(body[11]) != BC_SUBVN ||
-      bc_op(body[12]) != BC_CALL || bc_op(body[13]) != BC_ISNEV ||
-      bc_op(body[14]) != BC_JMP || bc_op(body[15]) != BC_MOV ||
-      bc_op(body[16]) != BC_JMP ||
-      bc_op(body[17]) != (bc_op(*fori) == BC_JFORI ? BC_JFORL : BC_FORL))
-    return 0;
-
-  callbase = bc_a(body[4]);
-  arg0 = (BCReg)(callbase + 1 + LJ_FR2);
-  arg1 = (BCReg)(arg0 + 1);
-  haystack_slot = bc_d(body[2]);
-  if (bc_a(body[0]) != callbase ||
-      bc_a(body[1]) != callbase || bc_b(body[1]) != callbase ||
-      bc_a(body[2]) != arg0 || bc_a(body[3]) != arg1 ||
-      bc_d(body[3]) != forbase + FORL_EXT ||
-      bc_a(body[4]) != callbase || bc_b(body[4]) != 2 ||
-      bc_c(body[4]) != 3 || bc_a(body[5]) != callbase ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[0]), "string", 6) ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[1]), "byte", 4))
-    return 0;
-
-  arg2 = (BCReg)(arg1 + 1);
-  needle_len_slot = bc_c(body[10]);
-  needle_slot = bc_c(body[13]);
-  posslot = bc_a(body[15]);
-  if (bc_a(body[7]) != arg0 || bc_d(body[7]) != haystack_slot ||
-      bc_a(body[8]) != callbase || bc_b(body[8]) != haystack_slot ||
-      bc_a(body[9]) != arg1 || bc_d(body[9]) != forbase + FORL_EXT ||
-      bc_a(body[10]) != arg2 || bc_b(body[10]) != forbase + FORL_EXT ||
-      bc_a(body[11]) != arg2 || bc_b(body[11]) != arg2 ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[11])) ||
-      bc_a(body[12]) != callbase || bc_b(body[12]) != 2 ||
-      bc_c(body[12]) != 4 || bc_a(body[13]) != callbase ||
-      bc_a(body[15]) + 1 != forbase || bc_d(body[15]) != forbase + FORL_EXT ||
-      bc_a(body[16]) != forbase ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[8]), "sub", 3))
-    return 0;
-  after_loop = body + 16 + bc_j(body[16]) + 1;
-  if (after_loop <= forl)
-    return 0;
-
-  if (!lj_record_s390x_kint_is(J, J->base[forbase+FORL_IDX], 1) ||
-      !lj_record_s390x_kint_is(J, J->base[forbase+FORL_STEP], 1))
-    return 0;
-
-  haystack = getslot(J, haystack_slot);
-  needle = getslot(J, needle_slot);
-  haylen = getslot(J, forbase+FORL_STOP);
-  needle_len = getslot(J, needle_len_slot);
-  if (!tref_isstr(haystack) || !tref_isstr(needle) ||
-      !tref_isinteger(haylen) || !tref_isinteger(needle_len))
-    return 0;
-  if (!lj_record_s390x_guard_global_string_func(J, &body[0], &body[1],
-						FF_string_byte) ||
-      !lj_record_s390x_guard_string_base_func(J, &body[8], FF_string_sub))
-    return 0;
-
-  emitir(IRTGI(IR_GE), haylen, lj_ir_kint(J, 0));
-  emitir(IRTGI(IR_LE), haylen, lj_ir_kint(J, 8192));
-  emitir(IRTGI(IR_GE), needle_len, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), needle_len, lj_ir_kint(J, 256));
-  hptr = emitir(IRT(IR_STRREF, IRT_PGC), haystack, lj_ir_kint(J, 0));
-  nptr = emitir(IRT(IR_STRREF, IRT_PGC), needle, lj_ir_kint(J, 0));
-  pos = lj_ir_call(J, IRCALL_lj_str_find_pos, hptr, nptr, haylen, needle_len);
-
-  J->base[posslot] = pos;
-  if (posslot >= J->maxslot)
-    J->maxslot = posslot + 1;
-  J->pc = after_loop;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
 static int lj_record_s390x_string_key_lookup_loop(jit_State *J, const BCIns *body)
 {
   const BCIns *fori, *forl, *proto;
@@ -6305,87 +6186,6 @@ static int lj_record_s390x_mod_branch_ifconv(jit_State *J, const BCIns *pc,
   if (bc_a(jmp1) < J->maxslot)
     J->maxslot = bc_a(jmp1);
   J->bcskip = 2;  /* Skip the executed MODVN and ADD/SUB arm. */
-  return 1;
-}
-
-static int lj_record_s390x_byte_scan_sum(jit_State *J, const BCIns *fori)
-{
-  const BCIns *forl, *body;
-  BCIns gget, tgets, movstr, movidx, call, add;
-  BCReg forbase, callbase, arg0, arg1, accslot, strslot, rb, rc;
-  TRef trstr, len, acc, ptr, sum, total;
-
-  if (!lj_record_s390x_byte_scan_sum_enabled() || J->pt == NULL)
-    return 0;
-  if (bc_op(*fori) != BC_JFORI && bc_op(*fori) != BC_FORI)
-    return 0;
-  forbase = bc_a(*fori);
-  forl = fori + bc_j(*fori);
-  if ((bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL) ||
-      bc_a(*forl) != forbase)
-    return 0;
-  body = fori + 1;
-  if (body + 6 != forl)
-    return 0;
-
-  gget = body[0];
-  tgets = body[1];
-  movstr = body[2];
-  movidx = body[3];
-  call = body[4];
-  add = body[5];
-  if (bc_op(gget) != BC_GGET || bc_op(tgets) != BC_TGETS ||
-      bc_op(movstr) != BC_MOV || bc_op(movidx) != BC_MOV ||
-      bc_op(call) != BC_CALL || bc_op(add) != BC_ADDVV ||
-      bc_op(body[6]) != (bc_op(*fori) == BC_JFORI ? BC_JFORL : BC_FORL))
-    return 0;
-
-  callbase = bc_a(call);
-  arg0 = (BCReg)(callbase + 1 + LJ_FR2);
-  arg1 = (BCReg)(arg0 + 1);
-  if (bc_a(gget) != callbase ||
-      bc_a(tgets) != callbase || bc_b(tgets) != callbase ||
-      bc_a(movstr) != arg0 || bc_a(movidx) != arg1 ||
-      bc_d(movidx) != forbase + FORL_EXT ||
-      bc_a(call) != callbase || bc_b(call) != 2 || bc_c(call) != 3 ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_d(gget), "string", 6) ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(tgets), "byte", 4))
-    return 0;
-
-  rb = bc_b(add);
-  rc = bc_c(add);
-  if (rb == bc_a(add) && rc == callbase) {
-    accslot = rb;
-  } else if (rc == bc_a(add) && rb == callbase) {
-    accslot = rc;
-  } else {
-    return 0;
-  }
-  strslot = bc_d(movstr);
-
-  if (!lj_record_s390x_kint_is(J, J->base[forbase+FORL_IDX], 1) ||
-      !lj_record_s390x_kint_is(J, J->base[forbase+FORL_STEP], 1))
-    return 0;
-  trstr = getslot(J, strslot);
-  len = getslot(J, forbase+FORL_STOP);
-  acc = getslot(J, accslot);
-  if (!tref_isstr(trstr) || !tref_isinteger(len) || !tref_isinteger(acc))
-    return 0;
-  if (!lj_record_s390x_guard_global_string_func(J, &body[0], &body[1],
-						FF_string_byte))
-    return 0;
-
-  emitir(IRTGI(IR_GE), len, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), len, lj_ir_kint(J, 8192));
-  ptr = emitir(IRT(IR_STRREF, IRT_PGC), trstr, lj_ir_kint(J, 0));
-  sum = lj_ir_call(J, IRCALL_lj_str_sum_u8, ptr, len);
-  total = emitir(IRTGI(IR_ADDOV), acc, sum);
-
-  J->base[accslot] = total;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  J->pc = forl + 1;
-  J->needsnap = 1;
   return 1;
 }
 
@@ -10251,10 +10051,6 @@ void lj_record_ins(jit_State *J)
     if (pc >= proto_bc(J->pt) + 3 &&
 	lj_record_s390x_route_reducer_outer_sum(J, pc - 3))
       break;
-    if (lj_record_s390x_manual_find(J, pc))
-      break;
-    if (lj_record_s390x_byte_scan_sum(J, pc))
-      break;
 #endif
     if (rec_for(J, pc, 0) != LOOPEV_LEAVE)
       J->loopref = J->cur.nins;
@@ -10267,10 +10063,6 @@ void lj_record_ins(jit_State *J)
 #if LJ_RECORD_S390X_SEMANTIC_REDUCERS
       if (pc >= proto_bc(J->pt) + 3 &&
 	  lj_record_s390x_route_reducer_outer_sum(J, pc - 3))
-	break;
-      if (lj_record_s390x_manual_find(J, pc))
-	break;
-      if (lj_record_s390x_byte_scan_sum(J, pc))
 	break;
 #endif
       ev = rec_for(J, pc, 0);

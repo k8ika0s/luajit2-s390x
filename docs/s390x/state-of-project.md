@@ -25,7 +25,7 @@ Historical experiment detail lives in
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
   `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` currently
-  reports `177` s390x upstream-risk findings across recorder reducer
+  reports `171` s390x upstream-risk findings across recorder reducer
   definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
@@ -43,15 +43,11 @@ Historical experiment detail lives in
   `/tmp/kdz1-semantic-reducer-debt-string-fix-20260420065856` passes and shows
   string reducers are high-value debt, led by `manual_find_loop/hot` and
   `byte_scan_loop/hot`.
-- The string reducer family now has separate compile-time debt profiles for
-  primitive string helper substitutions and whole-loop cycle substitutions:
-  `LUAJIT_ENABLE_S390X_STRING_PRIMITIVE_REDUCERS` and
-  `LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS`. The default retained build is
-  unchanged, but kdz1 split profiling shows primitive `manual_find`/byte-scan
-  reducers preserve part of the acceleration when whole-loop cycle reducers are
-  disabled. This makes `string_primitive` the first plausible upstream
-  conversion target and keeps `string_cycle` classified as higher-risk
-  branch-local debt until a generic mechanism exists.
+- The obsolete string primitive recorder reducers are removed. The retained
+  default string rows were already carried by the whole-loop string cycle
+  layer, so removing the primitive `manual_find` and `byte_scan_sum` recorder
+  substitutions shrinks upstream debt without moving the current performance
+  floor. The remaining string debt is the `string_cycle` bucket.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
