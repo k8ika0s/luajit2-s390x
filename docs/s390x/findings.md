@@ -37460,3 +37460,25 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   tobit MULOV guard-stripping assertion, and it also fails under
   `-Ohotexit=200`. That is not caused by this hotexit-rail removal and remains
   separate correctness debt.
+
+## 2026-04-19: direct patch-exit BRC scanner made byte-correct
+
+- Problem:
+  s390x defines `MCode` as `uint8_t`, but the direct patch-exit BRC helpers
+  were treating `*p` and `p[-1]` as full instruction words. That made the BRC
+  scan unable to match the intended 32-bit branch/compare words and made the
+  helper-return skip check misleading. The RIE path already decoded bytes
+  explicitly, but its scan bound was also too small for byte-sized `MCode`.
+- Fix:
+  added explicit big-endian 32-bit instruction reads for direct patch-exit
+  scanning, writes BRC updates through `emit_u32_at()`, checks the previous
+  `CGHI r2,0` at `p - 4`, scans on s390x halfword boundaries, and requires
+  six bytes before testing an RIE branch form.
+- Validation:
+  local `git diff --check` and benchmark-shape audit passed. kdz1, kdz, and
+  zkd0 clean GCC builds passed from tracked-file mirrors under
+  `/root/luajit2-s390x/workstreams/patchexit-scan/canon/repo`. All three
+  hosts passed `tests/s390x/jit_core/side_exit.lua` and focused
+  `tests/s390x/perf/dispatch_trace.lua`. kdz1 with
+  `LUAJIT_S390X_DIRECT_PATCHEXIT_LOG=1` and miss logging showed an active BRC
+  patch path: `S390X_DIRECT_PATCHEXIT trace=4 exit=2 brc=2 rie=0 skip=0`.

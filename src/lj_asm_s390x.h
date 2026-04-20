@@ -6661,10 +6661,16 @@ static int lj_asm_s390x_direct_patchexit_miss_log_enabled(void)
   return enabled;
 }
 
+static uint32_t lj_asm_s390x_load_be32(const MCode *p)
+{
+  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+	 ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
 static int lj_asm_s390x_patch_brc_to(MCode *p, MCode *oldtarget,
 				     MCode *newtarget)
 {
-  uint32_t ins = *p;
+  uint32_t ins = lj_asm_s390x_load_be32(p);
   int16_t olddisp;
   ptrdiff_t delta;
   if ((ins & 0xff0f0000u) != 0xa7040000u)
@@ -6675,19 +6681,19 @@ static int lj_asm_s390x_patch_brc_to(MCode *p, MCode *oldtarget,
   delta = (char *)newtarget - (char *)p;
   if ((delta & 1) != 0 || !checki16((int32_t)(delta >> 1)))
     return 0;
-  *p = (ins & 0xffff0000u) | (uint16_t)(delta >> 1);
+  emit_u32_at(p, (ins & 0xffff0000u) | (uint16_t)(delta >> 1));
   return 1;
 }
 
 static int lj_asm_s390x_skip_direct_brc(MCode *base, MCode *p,
 					MCode *oldtarget)
 {
-  uint32_t ins = *p;
+  uint32_t ins = lj_asm_s390x_load_be32(p);
   int16_t olddisp;
   /* Helper-return guards, including GC-step exits, must keep the stub path
   ** because the VM exit handler owns their slow-path state transition. */
-  if (p <= base || (ins & 0xff0f0000u) != 0xa7040000u ||
-      p[-1] != S390X_INS_RI(S390XI_CGHI, RID_RET, 0))
+  if (p < base + 4 || (ins & 0xff0f0000u) != 0xa7040000u ||
+      lj_asm_s390x_load_be32(p - 4) != S390X_INS_RI(S390XI_CGHI, RID_RET, 0))
     return 0;
   olddisp = (int16_t)(ins & 0xffffu);
   return (MCode *)((char *)p + ((int32_t)olddisp << 1)) == oldtarget;
@@ -6725,13 +6731,13 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
     unsigned int brc_patch = 0, rie_patch = 0, brc_skip = 0;
     /* Known guard branch forms can skip the exit stub after side linking.
     ** The stub is still patched below as a fallback for all other shapes. */
-    for (; p < pe; p++) {
+    for (; p + 4 <= pe; p += 2) {
       if (lj_asm_s390x_skip_direct_brc(T->mcode, p, px)) {
 	brc_skip++;
       } else if (lj_asm_s390x_patch_brc_to(p, px, target)) {
 	brc_patch++;
 	if (p < cstart) cstart = p;
-      } else if (p + 2 <= pe &&
+      } else if (p + 6 <= pe &&
 		 lj_asm_s390x_patch_rie_branch_to(p, px, target)) {
 	rie_patch++;
 	if (p < cstart) cstart = p;
@@ -6753,7 +6759,8 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
 	      (unsigned int)(snap ? snap->ref : 0),
 	      (unsigned int)(snap ? snap->nent : 0),
 	      (unsigned int)T->link, (unsigned int)T->linktype,
-	      (void *)px, (unsigned int)px[0], (unsigned int)px[1],
+	      (void *)px, (unsigned int)lj_asm_s390x_load_be32(px),
+	      (unsigned int)lj_asm_s390x_load_be32(px + 4),
 	      (void *)target);
     }
   }

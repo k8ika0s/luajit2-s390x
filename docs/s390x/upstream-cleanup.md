@@ -38,6 +38,10 @@ Current production-source status:
   The low-hotexit `vararg_paths.lua` crash was traced to missing numeric
   `ASTORE` lowering in `asm_ahustore()`, not to a need for target-specific JIT
   defaults.
+- `src/lj_asm_s390x.h`: direct patch-exit scanning now uses explicit
+  big-endian instruction reads/writes for byte-sized `MCode`. The BRC direct
+  patch path is mechanically active again and covered by `side_exit.lua` plus
+  focused `dispatch_trace.lua` logging.
 
 Generic LuaJIT mechanisms such as `blacklist_pc()` and `PROTO_NOJIT` checks
 remain in source, but the current s390x branch should not set them from
