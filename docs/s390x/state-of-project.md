@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 09:09 PDT
+Last updated: 2026-04-20 09:45 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -25,7 +25,7 @@ Historical experiment detail lives in
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
   `tools/s390x/audit_benchmark_fastpaths.py --scope semantic` currently
-  reports `136` s390x upstream-risk findings across recorder reducer
+  reports `139` s390x upstream-risk findings across recorder reducer
   definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
@@ -59,6 +59,16 @@ Historical experiment detail lives in
   matches `generic-only` for the official mixed row while iterator rows remain
   at the timer floor. Current retained mixed speed is therefore one isolated
   whole-loop semantic fold, not a reusable iterator/table mechanism.
+- The first mixed-noffi cleanup tranche now removes the mixed-specific
+  `lj_trace_s390x_mixed_noffi_tail_sum()` helper and routes the retained fold
+  through reusable arithmetic/table components:
+  `lj_trace_s390x_band_mul_mask_loop_sum()`,
+  `lj_trace_s390x_mod1_loop_sum()`, and the existing
+  `lj_trace_s390x_iter_table_loop_sum()`. The matcher still exists and remains
+  semantic reducer debt, but the helper body no longer hard-codes the whole
+  mixed benchmark formula. Focused artifact:
+  `/tmp/kdz1-mixed-noffi-component-route-20260420103000`; zkd0 focused
+  validation kept `mixed_noffi` and iterator rows at timer floor.
 - The remaining string-cycle semantic reducer bucket is now split by
   compile-time profile. Focused kdz1 artifact
   `/tmp/kdz1-string-cycle-profile-split-20260420093000` shows clean one-row
@@ -94,7 +104,7 @@ Historical experiment detail lives in
   official large-immediate rows now run on the lower-level path, with default
   and generic-only effectively identical at the timer-floor scale. The
   `large_immediates` ledger bucket is gone, the semantic reducer ledger is now
-  `34` definitions, and the source audit reports `136` semantic findings.
+  `34` definitions.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
