@@ -37974,3 +37974,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `vararg_paths.lua`, `pairs_loop.lua`, `addsub_overflow_guard.lua`,
   `numeric_ops.lua`, and exact probes (`mixedprobe -> 553416`,
   `hash_value -> 3000`, `ipairs_only_probe -> 576000`).
+
+## 2026-04-20: component-loop debt payer attribution
+
+- Temporary kdz1 diagnostic probes split the current `mixed_noffi` body into
+  individual and combined components. This was not retention evidence because
+  the scripts lived under `/tmp`, but it correctly identifies the mechanism
+  that the retained full component-loop matcher is hiding.
+- Individual component medians with JIT on at `n=16000`:
+  `band 0.000027s`, `select 0.000031s`, `ipairs 0.000396s`,
+  `pairs` over an upvalue table `0.000054s`.
+- Combination medians show the boundary:
+  `band_select 0.000043s`, `pre_pairs` (`band + select + ipairs`)
+  `0.000444s`, but any combination with the loop-local `pairs(map)` table
+  jumps to the slow band: `band_pairs 0.002219s`,
+  `select_pairs 0.002244s`, `ipairs_pairs 0.002752s`, and
+  `all_parts 0.002830s`.
+- A temporary current-iteration tail rewrite was tested and rejected. It
+  remained correct, but the trace still formed through the nested `ipairs`
+  root/side-chain and stayed around `mixed_noffi/mixed_loop/hot 0.002841s`.
+  The experiment was reverted. The retained full-loop component matcher remains
+  necessary for the current performance floor.
+- Current conclusion:
+  the real payer is not `bit.band`, `select`, or standalone table summation.
+  It is the missing generic outer-loop continuation contract across nested
+  iterator bodies, with the loop-local `pairs(map)` body as the dominant
+  trigger. A proper replacement needs to let the outer trace own the inner
+  iterator side effects/state, or reduce stable current-iteration iterator
+  bodies before the recorder heats inside the nested iterator. A late
+  `GGET pairs` recognizer is insufficient because the bad family starts at the
+  nested iterator before the outer root reaches that bytecode.
