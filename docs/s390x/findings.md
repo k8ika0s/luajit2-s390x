@@ -37739,3 +37739,29 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   fold. Keeping the retained speed requires either keeping this fold WIP-local
   or replacing it with a broader lower-level mechanism for constant-string
   numeric conversion / table-driven `tonumber` loops.
+
+## 2026-04-20: numeric min/max semantic reducer isolated
+
+- Added `LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER` as a compile-time split
+  switch defaulting through `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`, and added
+  the matching debt-pack profile `numeric-minmax-off`.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-numeric-minmax-profile-20260420100600`.
+- The sweep rebuilt default, `numeric-minmax-off`, and `generic-only`, ran
+  `numeric_ops` with `7` samples and `2` warmups, and completed with no failed
+  or timed-out families.
+- Result:
+  `numeric-minmax-off` owns the min/max rows without materially moving the
+  other numeric helper rows. `numeric_ops/max_loop/hot` was `0.000014s`
+  default, `0.001464s` with only min/max disabled, and `0.001425s` with all
+  semantic reducers disabled. `numeric_ops/min_loop/hot` was `0.000014s`
+  default, `0.000144s` with only min/max disabled, and `0.000078s` with all
+  semantic reducers disabled. The remaining generic-only deltas on
+  `fp_mod_loop`, `sqrt_loop`, `div_loop`, and `abs_loop` are separate reducer
+  mechanisms, not min/max spillover.
+- Interpretation:
+  min/max is a high-value standalone numeric semantic fold, especially for
+  `max_loop/hot`. An upstreamable replacement needs either a generic recorder
+  treatment for monotonic `math.min/max(i, n+1-i)` loops or lower-level
+  backend/runtime support that keeps the current correctness properties without
+  whole-loop substitution.
