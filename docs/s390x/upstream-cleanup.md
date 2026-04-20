@@ -1150,3 +1150,17 @@ dispatch hook are gone. kdz1 validation passed a warning-clean rebuild,
 numeric correctness, ADD/SUB overflow, MUL overflow, focused
 `numeric_ops.lua`, and focused `route_around_reducers.lua`. This removes
 matcher/dispatch debt without changing the helper ABI or retained fast path.
+
+#### Mod97 If7 Fold Into Generic Remainder-Select
+
+The `%7 == 0 ? -(i % 97) : +(i % 97)` branch shape no longer needs its own
+matcher/helper pair. The generic remainder-select path already models this
+contract, so the one-off `(cond_mod == 7 && rem_mod == 97)` exclusion has
+been removed and the dedicated `mod97_if7` matcher/helper surface is gone.
+
+kdz1 validation passed a warning-clean rebuild, `mod_int_trace.lua`,
+`mod_scaled_trace.lua`, numeric correctness, ADD/SUB overflow, MUL overflow,
+focused `numeric_ops.lua`, focused `dispatch_trace.lua`, and focused
+`route_around_reducers.lua`. This is exactly the kind of cleanup upstream
+will expect: replace a benchmark-shaped special case with an existing generic
+contract instead of adding another route-around.

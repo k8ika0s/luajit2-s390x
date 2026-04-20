@@ -290,24 +290,6 @@ int32_t lj_trace_s390x_mod97_if5_else1_loop_sum(int32_t idx, int32_t stop)
   return (int32_t)sum;
 }
 
-int32_t lj_trace_s390x_mod97_if7_loop_sum(int32_t idx, int32_t stop)
-{
-  int64_t sum;
-  int32_t remain;
-
-  if (idx < 1 || stop > 1000000)
-    return INT32_MIN;
-  if (stop < idx)
-    return 0;
-
-  remain = stop - idx + 1;
-  sum = lj_trace_s390x_sum_mod97_seq(idx, remain, 1) -
-	2 * lj_trace_s390x_sum_mod97_multiples(idx, stop, 7);
-  if (sum <= INT32_MIN || sum > INT32_MAX)
-    return INT32_MIN;
-  return (int32_t)sum;
-}
-
 int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx, int32_t stop)
 {
   int64_t sum;

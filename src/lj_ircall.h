@@ -256,7 +256,6 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_mod_loop_sum, 3, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod97_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod97_if5_else1_loop_sum, 2, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_mod97_if7_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod97_if5_if3_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_fpmod_quarter_loop_sum, 2, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_min_loop_sum, 2, N, NUM, 0) \
