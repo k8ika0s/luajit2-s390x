@@ -38203,3 +38203,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   upstream-prep builds able to exclude the disabled FFI/cdata reducer surface.
   The `ffi_cdata` bucket remains active until these semantic substitutions are
   replaced by lower-level FFI/cdata lowering or deliberately kept branch-local.
+
+## 2026-04-20: logic-low32 reducers compile-isolated for upstream prep
+
+- Continued the non-iterator reducer cleanup with the `logic_low32` bucket:
+  `logic_add_phi_noboundary`, `logical_chain_tail_add`, and
+  `logical_chain_tail_store`.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-bench-fastpath-debt-20260420142134`. With only
+  `-DLUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS=0`, the largest exposed deltas
+  were `logical_chain_tail_store/xhot` default `0.000001s` versus `0.001205s`,
+  `logical_chain_tail_add/xhot` default `0.000001s` versus `0.000036s`, and
+  `logic_add_phi_noboundary/hot` default `0.000001s` versus `0.000007s`.
+- Added the dedicated compile split
+  `LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS`, defaulting to
+  `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`. Disabling it removes the three
+  recorder matchers, dispatch hooks, `IRCALL` entries, declarations, and
+  `lj_trace_s390x_logic_*` helper definitions.
+- kdz1 validation:
+  default and `logic-low32-off` builds completed warning-clean. The
+  reducer-off binary exported none of
+  `lj_trace_s390x_logic_add_phi_remainder_sum`,
+  `lj_trace_s390x_logic_tail_add_sum`, or
+  `lj_trace_s390x_logic_tail_store_sum`. Default focused rows stayed at
+  timer floor for `logic_add_phi_noboundary.lua`,
+  `logical_chain_tail_add.lua`, and `logical_chain_tail_store.lua`.
+- This is another isolation step, not a semantic-debt retirement. The
+  `logic_low32` bucket remains active until these loop substitutions are
+  replaced by backend low32/PHI mechanisms or kept branch-local.

@@ -882,6 +882,7 @@ int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop, int32_t mod)
   return (int32_t)sum;
 }
 
+#if LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
 static uint32_t lj_trace_s390x_logic_rol32(uint32_t x, uint32_t n)
 {
   return (x << n) | (x >> (32u - n));
@@ -969,6 +970,7 @@ int32_t lj_trace_s390x_logic_tail_store_sum(int32_t outer_stop)
     return 0;
   return outer_stop * 200;
 }
+#endif
 
 int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc, int32_t idx,
 					   int32_t stop, int32_t per_iter)

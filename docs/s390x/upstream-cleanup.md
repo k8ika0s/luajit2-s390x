@@ -965,3 +965,46 @@ Validation on kdz1:
 This is still an isolation step, not an upstream replacement. The `ffi_cdata`
 bucket remains on the debt list until the semantic substitutions are replaced
 with lower-level FFI/cdata lowering or excluded from the upstream candidate.
+
+### Logic-Low32 Reducer Isolation
+
+The `logic_low32` bucket is now compile-isolated behind
+`LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS`, defaulting to the umbrella
+`LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`.
+
+The split covers:
+
+- `logic_add_phi_noboundary`
+- `logical_chain_tail_add`
+- `logical_chain_tail_store`
+
+When disabled, the matching recorder logic, `IRCALL` entries, trace helper
+declarations, and `lj_trace_s390x_logic_*` helper definitions are omitted from
+the build. The surrounding FFI/cdata reducer helpers remain independently
+controlled; the guard ranges are intentionally split because the source blocks
+are interleaved.
+
+Focused kdz1 artifact:
+`/tmp/kdz1-bench-fastpath-debt-20260420142134`.
+
+Representative retained deltas with only this bucket disabled:
+
+- `logical_chain_tail_store/chain_tail_store/xhot`: default `0.000001s`,
+  off `0.001205s`.
+- `logical_chain_tail_add/chain_tail_add/xhot`: default `0.000001s`,
+  off `0.000036s`.
+- `logic_add_phi_noboundary/logic_add_phi_noboundary/hot`: default
+  `0.000001s`, off `0.000007s`.
+
+Validation on kdz1:
+
+- Default build and `-DLUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS=0` build were
+  warning-clean.
+- The reducer-off binary exported no `lj_trace_s390x_logic_*` helper symbols.
+- Default focused `logic_add_phi_noboundary.lua`,
+  `logical_chain_tail_add.lua`, and `logical_chain_tail_store.lua` rows stayed
+  at timer floor.
+
+This is still an isolation step. The `logic_low32` bucket remains active until
+the current semantic substitutions are replaced by low32/PHI backend mechanisms
+or held out of an upstream candidate.
