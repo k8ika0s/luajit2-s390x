@@ -183,6 +183,10 @@ typedef struct CCallInfo {
 #define LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
+#ifndef LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
+#define LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
 #define IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
@@ -218,6 +222,15 @@ typedef struct CCallInfo {
 #define IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_)
 #endif
 
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
+#define IRCALLDEF_S390X_LOGIC_LOW32_REDUCERS(_) \
+  _(S390X,	lj_trace_s390x_logic_add_phi_remainder_sum, 4, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_logic_tail_add_sum, 5, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_logic_tail_store_sum, 1, N, INT, 0)
+#else
+#define IRCALLDEF_S390X_LOGIC_LOW32_REDUCERS(_)
+#endif
+
 /* Function definitions for CALL* instructions. */
 #define IRCALLDEF(_) \
   _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
@@ -251,9 +264,7 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0) \
   _(S390X,	lj_trace_s390x_band_mul_mask_loop_sum, 4, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod1_loop_sum, 3, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_logic_add_phi_remainder_sum, 4, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_logic_tail_add_sum, 5, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_logic_tail_store_sum, 1, N, INT, 0) \
+  IRCALLDEF_S390X_LOGIC_LOW32_REDUCERS(_) \
   _(S390X,	lj_trace_s390x_iter_table_loop_sum, 4, N, INT, 0) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \

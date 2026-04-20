@@ -548,6 +548,10 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
+#ifndef LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
+#define LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
 
 #ifndef LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER
 #define LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER \
@@ -593,6 +597,12 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_FFI_CDATA_REDUCERS 1
 #else
 #define LJ_RECORD_S390X_FFI_CDATA_REDUCERS 0
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
+#define LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS 1
+#else
+#define LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS 0
 #endif
 
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
@@ -1169,6 +1179,7 @@ static int lj_record_s390x_ffi_fixed_fpr_coeff(void *func, int nargs,
 }
 #endif
 
+#if LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS
 static int lj_record_s390x_logic_chain_func_proto_match(GCproto *pt)
 {
   const BCIns *bc;
@@ -1306,6 +1317,7 @@ static int lj_record_s390x_guard_upvalue_tab_func(jit_State *J, BCReg uv,
   emitir(IRTG(IR_EQ, IRT_FUNC), funcref, lj_ir_kfunc(J, funcV(funcv)));
   return 1;
 }
+#endif
 
 #if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
 static int lj_record_s390x_ct_is_u32(CType *ct)
@@ -1904,6 +1916,7 @@ static int lj_record_s390x_guard_tab_int_int(jit_State *J, TRef tabref,
 					     GCtab *tabv, int32_t key,
 					     int32_t want);
 
+#if LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS
 static int lj_record_s390x_logic_chain_tail_store_sum(jit_State *J,
 						      const BCIns *body)
 {
@@ -2199,6 +2212,7 @@ static int lj_record_s390x_logic_add_phi_remainder_sum(jit_State *J,
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
 static int lj_record_s390x_numeric_div_loop_accum4(jit_State *J,
 						   const BCIns *body)
@@ -8693,12 +8707,14 @@ void lj_record_ins(jit_State *J)
   if (op == BC_UGET && lj_record_s390x_byte_scan_cycle_loop(J, pc))
     return;
 #endif
+#if LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS
   if (op == BC_UGET && lj_record_s390x_logic_add_phi_remainder_sum(J, pc))
     return;
   if (op == BC_UGET && lj_record_s390x_logic_chain_tail_add_sum(J, pc))
     return;
   if (op == BC_UGET && lj_record_s390x_logic_chain_tail_store_sum(J, pc))
     return;
+#endif
   if (op == BC_ADDVN && lj_record_s390x_numeric_div_loop_accum4(J, pc))
     return;
   if (op == BC_GGET && lj_record_s390x_numeric_sqrt_loop_accum4(J, pc))
