@@ -38110,3 +38110,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the slots restored across the `next` continuation (`function`, table, control
   key, produced key/value, accumulator, outer FORL state) rather than changing
   reducer math or stitch policy blindly.
+
+## 2026-04-20: root ITERC/ITERL value-slot correctness rail retained
+
+- Reduced the component-loop diagnostic failure to a standalone `ipairs`
+  correctness bug. Probe:
+  `numbers={2,4,6}` inside nested `ipairs`, `hotloop=1`, `hotexit=2`.
+  Retained WIP returned `176000` instead of `192000`, missing one per outer
+  iteration. Arrays where `value == key` hid the issue.
+- Trace evidence:
+  `/tmp/ipairs-value-probe.dump`. The bad root starts at `BC_ITERL` immediately
+  after `BC_ITERC`; the first live value slot is effectively treated as the
+  numeric key on trace entry, then subsequent `ALOAD` values are correct. This
+  explains the component-loop diagnostic: only the first `ipairs` value was
+  wrong, and the official `{1,2,3,4,5,6,7,8}` table masked it.
+- Retained fix:
+  on s390x, do not start a root trace at `BC_ITERL` when the previous bytecode
+  is `BC_ITERC`. This keeps the unsafe first-value handoff interpreted until a
+  full value-slot restore contract is implemented. Added
+  `tests/s390x/jit_loops/ipairs_value_trace.lua` so non-key values stay covered.
+- kdz1 validation:
+  new `ipairs_value_trace.lua` passed, all `tests/s390x/jit_loops/*.lua`
+  passed, diagnostic variants passed (`8473472`, `8697472`, official
+  `8953472`), and focused guardrails stayed clean:
+  `mixed_noffi/mixed_loop/hot 0.000002s`, `iterator_table` timer-floor,
+  `vararg_paths/sum_loop/hot 0.000022s`, and `dispatch_trace` timer-floor.
+- zkd0 validation:
+  new tracked test passed before the temp-script rerun, then copied diagnostics
+  passed (`ipairs 192000`, component diagnostics `8473472`, `8697472`,
+  `8953472`), with `mixed_noffi/mixed_loop/hot 0.000003s`,
+  `iterator_table` timer-floor, and `pairs_loop.lua` passing.
