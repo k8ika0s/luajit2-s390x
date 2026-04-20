@@ -173,6 +173,19 @@ measure the no-reducer baseline, classify the lost performance mechanism, and
 then rebuild the win through a proper lower-level mechanism or explicitly mark
 the fastpath as branch-local.
 
+The WIP branch now has a compile-time comparison switch for this work:
+
+```sh
+-DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0
+```
+
+The default remains `1` to preserve the current WIP performance baseline. The
+`0` profile disables the recorder dispatch hooks for semantic reducers so the
+debt pack can measure what each family loses when whole-loop substitution is
+removed. This is a measurement and staging tool, not an upstream solution by
+itself: source remains upstream-risky until each reducer is rewritten or
+excluded from the upstream candidate.
+
 Use this helper to regenerate the reducer burn-down ledger from source:
 
 ```sh

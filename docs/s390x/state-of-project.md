@@ -30,6 +30,11 @@ Historical experiment detail lives in
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
   helper calls in the core recorder.
+- A compile-time comparison profile is now available:
+  `-DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0`. Default WIP builds keep the
+  reducers enabled to preserve current performance, while the off profile
+  disables recorder dispatch hooks so each family can be measured and replaced
+  with a lower-level mechanism without guessing.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then

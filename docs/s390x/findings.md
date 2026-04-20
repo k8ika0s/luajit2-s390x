@@ -37512,3 +37512,20 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   replacing whole-loop recorder substitutions with backend lowering,
   target-neutral IR/bytecode optimizations, or branch-local non-upstream
   fastpaths.
+
+## 2026-04-19: semantic reducer comparison profile added
+
+- Added `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS` as a compile-time comparison
+  switch in `src/lj_record.c`. The default remains enabled so the current WIP
+  performance baseline is preserved.
+- Building with `-DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0` disables the
+  recorder dispatch hooks for semantic reducers, including the root-loop
+  `lj_record_ins()` substitutions and the loop-entry byte-scan/route-reducer
+  hooks. This gives a clean generic-recorder profile for measuring debt without
+  source surgery or env gates.
+- Updated `tools/s390x/build_bench_fastpath_debt_pack.py` to use the new
+  semantic reducer switch instead of the retired benchmark-fastpath switch.
+- This does not make the source upstream-clean by itself. The broader audit
+  still flags the reducer definitions, helper IRCALLs, and callinfo entries.
+  The switch is only a staging tool so each family can be paid down without
+  giving up WIP performance while the replacement mechanisms are developed.

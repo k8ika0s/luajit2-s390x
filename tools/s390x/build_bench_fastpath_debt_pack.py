@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Measure dependency on branch-local benchmark-shaped s390x fast paths.
+"""Measure dependency on branch-local s390x semantic reducer fast paths.
 
-This is now a legacy comparison helper. Current WIP has retired the
-`LUAJIT_ENABLE_S390X_BENCH_FASTPATHS` source switch, so the default and
-generic-only builds should be equivalent unless a future tranche temporarily
-reintroduces compile-time benchmark fast paths. The pack still runs both
-profiles and reports any divergence.
+Current WIP keeps semantic reducer substitutions enabled by default for the
+bring-up performance baseline. The generic-only profile builds with
+`LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0`, which disables the recorder dispatch
+hooks while preserving the rest of the backend/runtime source. Use this pack to
+measure how much performance each family still gets from branch-local reducer
+substitution before replacing it with upstreamable lower-level mechanisms.
 """
 
 from __future__ import annotations
@@ -56,7 +57,7 @@ def write_text(path: pathlib.Path, text: str) -> None:
 
 
 def build_profile(host: str, repo: str, raw_dir: pathlib.Path, *, generic_only: bool) -> None:
-    extra = " -DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0" if generic_only else ""
+    extra = " -DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0" if generic_only else ""
     label = "generic-only" if generic_only else "default"
     vars_map = (
         "CC=gcc HOST_CC=gcc BUILDMODE=mixed "

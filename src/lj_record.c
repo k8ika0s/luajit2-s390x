@@ -509,99 +509,109 @@ static int lj_record_s390x_mark_nil_desc_done_enabled(void);
 static int lj_record_s390x_fori_arg_log_enabled(void);
 static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 
+#ifndef LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#define LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS 1
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#define LJ_RECORD_S390X_SEMANTIC_REDUCERS 1
+#else
+#define LJ_RECORD_S390X_SEMANTIC_REDUCERS 0
+#endif
+
 static int lj_record_s390x_byte_scan_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_manual_find_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_string_key_lookup_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_sub_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod_mul_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod_select_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod_rem_select_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod_scaled_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_if5_else1_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_if7_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_concat_slice_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_miss_find_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_prefix_eq_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_manual_find_cycle_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_byte_scan_cycle_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_kgc_str_eq(GCproto *pt, BCReg idx,
@@ -3474,7 +3484,7 @@ static int lj_record_s390x_strto_cycle_loop_sum(jit_State *J,
 
 static int lj_record_s390x_mixed_noffi_loop_fold_enabled(void)
 {
-  return LJ_TARGET_S390X;
+  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
 }
 
 static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
@@ -9760,7 +9770,7 @@ void lj_record_ins(jit_State *J)
   lbase = J->L->base;
   ins = *pc;
   op = bc_op(ins);
-#if LJ_TARGET_S390X
+#if LJ_RECORD_S390X_SEMANTIC_REDUCERS
   if (op == BC_UGET && lj_record_s390x_string_key_lookup_loop(J, pc))
     return;
   if (op == BC_UGET && lj_record_s390x_concat_slice_loop(J, pc))
@@ -10215,7 +10225,7 @@ void lj_record_ins(jit_State *J)
   /* -- Loops and branches ------------------------------------------------ */
 
   case BC_FORI:
-#if LJ_TARGET_S390X
+#if LJ_RECORD_S390X_SEMANTIC_REDUCERS
     if (pc >= proto_bc(J->pt) + 3 &&
 	lj_record_s390x_route_reducer_outer_sum(J, pc - 3))
       break;
@@ -10232,7 +10242,7 @@ void lj_record_ins(jit_State *J)
       LoopEvent ev;
     lj_assertJ(bc_op(pc[(ptrdiff_t)rc-BCBIAS_J]) == BC_JFORL,
 	       "JFORI does not point to JFORL");
-#if LJ_TARGET_S390X
+#if LJ_RECORD_S390X_SEMANTIC_REDUCERS
       if (pc >= proto_bc(J->pt) + 3 &&
 	  lj_record_s390x_route_reducer_outer_sum(J, pc - 3))
 	break;
