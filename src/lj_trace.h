@@ -31,6 +31,7 @@ LJ_FUNC void lj_trace_flush(jit_State *J, TraceNo traceno);
 LJ_FUNC int lj_trace_flushall(lua_State *L);
 LJ_FUNC void lj_trace_initstate(global_State *g);
 LJ_FUNC void lj_trace_freestate(global_State *g);
+#if LJ_TARGET_S390X
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
 LJ_FUNC double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
@@ -132,6 +133,7 @@ LJ_FUNC int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc,
 LJ_FUNC int32_t lj_trace_s390x_mixed_noffi_tail_sum(int32_t acc,
 						    int32_t idx,
 						    int32_t stop);
+#endif
 
 /* Event handling. */
 LJ_FUNC void lj_trace_ins(jit_State *J, const BCIns *pc);
@@ -148,8 +150,10 @@ LJ_FUNC uintptr_t LJ_FASTCALL lj_trace_unwind(jit_State *J, uintptr_t addr, Exit
 
 #else
 
+#if LJ_TARGET_S390X
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
+#endif
 
 #define lj_trace_flushall(L)	(UNUSED(L), 0)
 #define lj_trace_initstate(g)	UNUSED(g)

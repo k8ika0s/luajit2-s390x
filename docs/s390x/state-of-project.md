@@ -421,6 +421,11 @@ Historical experiment detail lives in
 - Guard/env burn-down queue:
   current retained env is empty, and production source no longer has live
   behavior env gates. Remaining source envs are diagnostic/probe only.
+- IRCALL helper surface:
+  s390x reducer/string helper calls are target-confined with
+  `IRCALLCOND_S390X`; they are no longer active `ANY` helpers in the
+  architecture-neutral call table. Any future generic promotion needs a
+  separate cross-target design note.
 - Env-surface audit:
   `tools/s390x/build_env_surface_audit.py` now inventories the full s390x env
   surface across `src/`, `tests/s390x/`, and `tools/s390x/`. Current run

@@ -114,6 +114,7 @@ const char *lj_str_find(const char *s, const char *p, MSize slen, MSize plen)
   return NULL;
 }
 
+#if LJ_TARGET_S390X
 int lj_str_equal(const char *a, const char *b, MSize len)
 {
   return memcmp(a, b, len) == 0;
@@ -562,6 +563,7 @@ int32_t lj_str_byte_scan_cycle_sum(GCtab *texts, const TValue *idxv)
     return INT32_MIN;
   return (int32_t)sum;
 }
+#endif
 
 /* Check whether a string has a pattern matching character. */
 int lj_str_haspattern(GCstr *s)

@@ -36,6 +36,7 @@
 #include <string.h>
 #include <math.h>
 
+#if LJ_TARGET_S390X
 static int64_t lj_trace_s390x_sum_mod97_seq(int32_t first, int32_t count,
 					    int32_t step)
 {
@@ -1011,6 +1012,7 @@ int32_t lj_trace_s390x_mixed_noffi_tail_sum(int32_t acc, int32_t idx,
     return INT32_MIN;
   return lj_trace_s390x_mixed_noffi_loop_sum((int32_t)sum, next, stop);
 }
+#endif
 
 /* -- Error handling ------------------------------------------------------ */
 
