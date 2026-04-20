@@ -189,9 +189,11 @@ Focused `kdz1` validation after the removal stayed in band:
 - `ffi_cdata`: `pair_loop`, `mixed_width_loop`, and `buffer_fref_loop` all
   stayed timer-floor.
 
-The remaining high-density audit buckets are now live iterator/mixed safety
-rails, lower-frame/mixed-ffi/cdata exact trace guards, hotside-localized proto
-fingerprints, and one residual synthetic `@numeric_ops_max` recorder chunk.
+The remaining high-density audit buckets at this checkpoint were live
+iterator/mixed safety rails, lower-frame/mixed-ffi/cdata exact trace guards,
+hotside-localized proto fingerprints, and one residual synthetic
+`@numeric_ops_max` recorder chunk. Later cleanup removed the live source
+dependencies; see the current metrics below.
 Tackle live iterator/mixed route-arounds only with mechanism proof; the next
 low-risk source cleanup is the residual synthetic recorder chunk or stale
 opt-in exact guards that no current retained env uses.
@@ -575,12 +577,23 @@ Current validation after this cut:
 
 Current cleanup metrics:
 
-- `tools/s390x/audit_benchmark_fastpaths.py`: `8` findings.
+- `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings`: `0`
+  findings.
 - `tools/s390x/build_guard_retirement_ledger.py`: gate count `0`.
 - `tools/s390x/build_env_surface_audit.py`: retained perf env count `0`.
 
-The only important iterator caveat is diagnostic: if
-`LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` is set, the old generic
-iterator trace floor is still slow (`~0.07s` hot rows). That path is no longer
-part of the retained performance contract and should be treated as future
-mechanism debt, not a retained env dependency.
+The remaining iterator caveat is now narrower and diagnostic: if
+`LUAJIT_S390X_DISABLE_ITERATOR_TABLE_LOOP_FOLD=1` is set, the generic s390x
+inline `next()` / terminal-snapshot contract is no longer catastrophic, but it
+is still slower than the retained semantic fold. The current fold-disabled
+checks measured `pairs_sum/hot` and `pairs_array_sum/hot` at `0.000329s` /
+`0.000301s` on kdz1 and `0.000326s` / `0.000301s` on kdz; zkd0 passed
+correctness but was noisier at `0.000718s` / `0.000685s`. This remains a
+diagnostic fallback path, not a retained env dependency.
+
+The last benchmark-shaped source cleanup tranche removed the residual
+`@numeric_ops_max` recorder side-trace allow and stale opt-in loop-descendant
+trace-save experiments based on current trace size fingerprints. The two
+remaining raw `J->cur.nins` source references are generic ITERN root-loop
+detection and comparison snapshot PC fixup, and the audit tool now allowlists
+those as non-benchmark mechanisms.

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-19 09:25 PDT
+Last updated: 2026-04-19 18:40 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -9,7 +9,8 @@ Historical experiment detail lives in
 ## Current Source Point
 
 - Current WIP integration point is
-  `71cf0b88 s390x: fold logical chain tail store`.
+  `26b27bd1 s390x: retire iterator trace-control rails`, plus the current
+  iterator cleanup working tree.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -30,11 +31,13 @@ Historical experiment detail lives in
   `bit.rshift`/`bit.lshift`/`bit.band` reconstruction of one integer feeds an
   accumulator, the backend emits the equivalent `acc + i` under the existing
   32-bit normalization contract. This is not a generic bit-pack canonicalizer.
-- Latest iterator acceleration work added a chunk-exact fold for the official
-  `iterator_table` fixed five-entry `pairs()` loops. The retained path parks
-  only the exact unsafe `BC_ITERN` hotcount first, keeps the broad iterator
-  safety rails for non-exact shapes, and lets the outer `FORL` record a
-  guarded loop-sum helper.
+- Latest iterator cleanup converts the retained `iterator_table` win into two
+  separate pieces: a semantic `pairs()` reducer fold for the timer-floor
+  official rows, and a generic s390x inline `next()` / terminal-snapshot
+  contract that keeps fold-disabled iterator tracing correct and fast enough
+  for production fallback. The contract now validates visible key
+  materialization, hidden control-index advancement, skipped nil slots,
+  terminal nil, and table-shape invalidation.
 - Latest mixed-noffi acceleration work added a chunk-exact fold for the
   official `mixed_noffi` loop tail. The retained path parks only the exact
   unsafe inner iterator hotcounts without marking the proto no-JIT, then folds

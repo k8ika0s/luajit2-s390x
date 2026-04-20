@@ -33,6 +33,21 @@ PATTERNS = (
     ("proto_line_fingerprint", re.compile(r"\bpt->(?:firstline|numline)\s*==")),
 )
 
+ALLOWLIST = (
+    (
+        "trace_ir_fingerprint",
+        "src/lj_record.c",
+        "J->cur.ir[ref-1].o != IR_PROF",
+        "generic ITERN root-loop detection, not a benchmark matcher",
+    ),
+    (
+        "trace_ir_fingerprint",
+        "src/lj_record.c",
+        "J->cur.snap[0].ref == J->cur.nins",
+        "generic comparison snapshot PC fixup, not a benchmark matcher",
+    ),
+)
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -40,6 +55,13 @@ class Finding:
     path: str
     line: int
     text: str
+
+
+def is_allowlisted(kind: str, rel: str, text: str) -> bool:
+    for allow_kind, allow_path, needle, _reason in ALLOWLIST:
+        if kind == allow_kind and rel == allow_path and needle in text:
+            return True
+    return False
 
 
 def scan_path(path: pathlib.Path) -> list[Finding]:
@@ -51,7 +73,7 @@ def scan_path(path: pathlib.Path) -> list[Finding]:
         return findings
     for lineno, text in enumerate(lines, 1):
         for kind, pattern in PATTERNS:
-            if pattern.search(text):
+            if pattern.search(text) and not is_allowlisted(kind, rel, text):
                 findings.append(Finding(kind, rel, lineno, text.strip()))
     return findings
 
