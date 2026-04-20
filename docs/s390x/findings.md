@@ -38337,3 +38337,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
   in band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
   `sqrt=0.000014`, `min=0.000014`, `max=0.000014`).
+
+## 2026-04-20: mod-multiply reducer matchers consolidated
+
+- Merged the duplicate modulo-multiply recorder matchers. The MOV-prefixed
+  shape and the direct `MODVN` shape now both enter
+  `lj_record_s390x_mod_mul_loop_sum()` and share the same validated helper
+  call tail to `lj_trace_s390x_mod_mul_loop_sum()`.
+- Removed the separate `lj_record_s390x_mod_direct_mul_loop_sum()` matcher and
+  collapsed its dispatch hook into the unified `BC_MOV || BC_MODVN` admission.
+  The helper ABI and `IRCALL` entry are unchanged.
+- Local checks:
+  `git diff --check` passed; no `mod_direct_mul` source references remain.
+  The semantic reducer ledger dropped from `34` to `33` matcher definitions,
+  and the `numeric_mod` bucket dropped from `20` to `19`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua` and
+  `tests/s390x/perf/route_around_reducers.lua`; numeric hot medians remained
+  in band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000014`, `min=0.000013`, `max=0.000014`).
