@@ -2983,7 +2983,8 @@ static int lj_record_s390x_mixed_noffi_tail_sum(jit_State *J,
   BCIns iterc_ipairs, iterl_ipairs, gget_pairs, mov_map, call_pairs, isnext;
   BCIns add_pairs, itern_pairs, iterl_pairs, uget_bit, tgets_band;
   BCReg forbase, idxslot, accslot, mapslot, callbase, bitbase;
-  TRef idx, stopref, acc, bitref, bandref, numbersref, mapref, nkeys, meta, sum;
+  TRef idx, stopref, acc, bitref, bandref, numbersref, mapref, nkeys, meta;
+  TRef nextidx, sum, term;
   cTValue *base, *uvtv;
   GCupval *uvp;
   GCtab *numbers, *map;
@@ -3170,9 +3171,22 @@ static int lj_record_s390x_mixed_noffi_tail_sum(jit_State *J,
       !tref_isinteger(acc))
     return 0;
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mixed_noffi_tail_sum, acc,
-		   idx, stopref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTI(IR_SUB), idx, lj_ir_kint(J, 1));
+  sum = emitir(IRTI(IR_BAND), sum, lj_ir_kint(J, 3));
+  sum = emitir(IRTI(IR_ADD), sum, lj_ir_kint(J, 47));
+  nextidx = emitir(IRTI(IR_ADD), idx, lj_ir_kint(J, 1));
+  term = lj_ir_call(J, IRCALL_lj_trace_s390x_band_mul_mask_loop_sum,
+		    nextidx, stopref, lj_ir_kint(J, 17), lj_ir_kint(J, 0x3ff));
+  emitir(IRTGI(IR_NE), term, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTGI(IR_ADDOV), sum, term);
+  term = lj_ir_call(J, IRCALL_lj_trace_s390x_mod1_loop_sum, nextidx,
+		    stopref, lj_ir_kint(J, 4));
+  emitir(IRTGI(IR_NE), term, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTGI(IR_ADDOV), sum, term);
+  term = lj_ir_call(J, IRCALL_lj_trace_s390x_iter_table_loop_sum,
+		    lj_ir_kint(J, 0), nextidx, stopref, lj_ir_kint(J, 46));
+  sum = emitir(IRTGI(IR_ADDOV), sum, term);
+  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;

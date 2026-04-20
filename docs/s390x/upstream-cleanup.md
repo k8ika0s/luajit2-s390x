@@ -310,6 +310,26 @@ remained at the timer floor under `mixed-noffi-off`. This proves the current
 mixed speedup is the whole-loop mixed fold itself, not an existing lower-level
 iterator/table mechanism.
 
+The first cleanup tranche for this item removed the mixed-specific
+`lj_trace_s390x_mixed_noffi_tail_sum()` helper. The retained route now keeps
+the same semantic guards but composes reusable components:
+
+- `lj_trace_s390x_band_mul_mask_loop_sum()` for positive counted
+  `(i * mul) & mask` ranges.
+- `lj_trace_s390x_mod1_loop_sum()` for one-based modulo cycles such as
+  `((i - 1) % 4) + 1`.
+- `lj_trace_s390x_iter_table_loop_sum()` for guarded constant table-sum
+  contributions.
+
+Focused kdz1 artifact:
+`/tmp/kdz1-mixed-noffi-component-route-20260420103000`. The default profile
+kept `mixed_noffi/mixed_loop/hot` at `0.000002s`; disabling the mixed matcher
+still moved the row to `0.002833s`, while iterator rows stayed timer-floor.
+zkd0 focused validation also kept `mixed_noffi`, `iterator_table`, and
+`pairs_loop.lua` clean. The remaining upstream debt is the recorder matcher
+itself; the next step is to split it into generic component matchers or delete
+it once those components are available from normal lowering.
+
 ## Current Debt Ranking
 
 Use:
@@ -445,6 +465,11 @@ semantic loop-fold shape:
 - zkd0 artifact: `/tmp/zkd0-bench-fastpath-debt-20260419101228`.
 - Result: `mixed_noffi/mixed_loop` stays at timer floor with
   `-DLUAJIT_ENABLE_S390X_BENCH_FASTPATHS=0` on both hosts.
+- Current component-route result:
+  the mixed-specific helper is removed and the fold now routes through generic
+  masked-multiply, modulo-cycle, and table-sum helpers. The matcher remains
+  branch-local semantic reducer debt until those component recognizers are
+  exposed independently of the mixed loop shape.
 
 This retires the second largest benchmark-fastpath debt from the generic-only
 profile. Later cleanup batches migrated the FFI call/struct, numeric-op,

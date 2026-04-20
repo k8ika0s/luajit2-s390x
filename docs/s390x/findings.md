@@ -37899,3 +37899,38 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the semantic reducer ledger drops from `38` to `34` matcher definitions, the
   `large_immediates` bucket is gone, and the semantic audit now reports `136`
   upstream-risk findings.
+
+## 2026-04-20: mixed-noffi fold routed through reusable components
+
+- Replaced the mixed-specific `lj_trace_s390x_mixed_noffi_tail_sum()` helper
+  with component helpers:
+  `lj_trace_s390x_band_mul_mask_loop_sum()` for positive counted
+  `(i * mul) & mask` ranges, `lj_trace_s390x_mod1_loop_sum()` for one-based
+  modulo cycles, and the existing `lj_trace_s390x_iter_table_loop_sum()` for
+  guarded constant table-sum contributions.
+- The recorder still owns one `mixed_noffi` semantic matcher, but it no longer
+  routes to a helper that hard-codes the whole mixed benchmark formula. The
+  current trace computes the current-iteration `select + table` tail directly
+  as `((idx - 1) & 3) + 47`, then routes the remaining range through the
+  reusable component helpers.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-mixed-noffi-component-route-20260420103000`.
+- Result:
+  default `mixed_noffi/mixed_loop/hot` stayed at `0.000002s`; disabling only
+  the mixed matcher still moved the row to `0.002833s`, and iterator rows
+  stayed timer-floor. zkd0 focused validation kept `mixed_noffi`,
+  `iterator_table`, and `pairs_loop.lua` clean.
+- Guardrails:
+  kdz1 exact probes passed (`mixedprobe -> 553416`,
+  `hash_value -> 3000`, `ipairs_only_probe -> 576000`), `pairs_loop.lua`
+  passed, and focused `compiled_vararg.lua`, `addsub_overflow_guard.lua`,
+  `numeric_ops.lua`, retained-env `dispatch_trace.lua`, and `mixed_noffi.lua`
+  passed. The known localized `tobit` case in
+  `tests/s390x/jit_be/mulov_overflow_guard.lua` still fails and remains a
+  separate correctness follow-up.
+- Current audit:
+  the semantic reducer ledger remains `34` matcher definitions. The semantic
+  source audit reports `139` upstream-risk findings because the mixed-specific
+  helper was replaced by reusable helper callinfo/IRCALL surfaces; the next
+  cleanup step is to split the recorder matcher into independent component
+  recognizers or delete it once normal lowering provides the same route.

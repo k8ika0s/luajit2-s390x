@@ -109,6 +109,12 @@ LJ_FUNC double lj_trace_s390x_max_loop_sum(int32_t idx, int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx,
 						     int32_t stop,
 						     int32_t mul);
+LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,
+						      int32_t stop,
+						      int32_t mul,
+						      int32_t mask);
+LJ_FUNC int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop,
+					     int32_t mod);
 LJ_FUNC int32_t lj_trace_s390x_logic_add_phi_remainder_sum(int32_t acc,
 							   int32_t inner_idx,
 							   int32_t inner_stop,
@@ -123,9 +129,6 @@ LJ_FUNC int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc,
 						   int32_t idx,
 						   int32_t stop,
 						   int32_t per_iter);
-LJ_FUNC int32_t lj_trace_s390x_mixed_noffi_tail_sum(int32_t acc,
-						    int32_t idx,
-						    int32_t stop);
 #endif
 
 /* Event handling. */
