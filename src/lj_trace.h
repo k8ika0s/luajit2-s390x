@@ -43,6 +43,10 @@ LJ_FUNC void lj_trace_freestate(global_State *g);
 #define LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
+#ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
 LJ_FUNC double lj_trace_s390x_const_step_loop_sum(double acc, int32_t idx,
@@ -74,11 +78,12 @@ LJ_FUNC double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc,
 LJ_FUNC int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx,
 							int32_t stop);
 #endif
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 LJ_FUNC double lj_trace_s390x_centered_mod_abs_loop_sum(double acc,
-						       int32_t idx,
-						       int32_t stop,
-						       int32_t mod,
-						       int32_t center);
+							int32_t idx,
+							int32_t stop,
+							int32_t mod,
+							int32_t center);
 LJ_FUNC double lj_trace_s390x_div_loop_accum4(double acc, int32_t idx,
 					      int32_t stop);
 LJ_FUNC double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx,
@@ -112,6 +117,7 @@ LJ_FUNC int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx,
 						      int32_t stop);
 LJ_FUNC double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx,
 						    int32_t stop);
+#endif
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 LJ_FUNC double lj_trace_s390x_mixed_width_loop_sum(int32_t idx,
 						   int32_t stop);
@@ -119,11 +125,13 @@ LJ_FUNC int32_t lj_trace_s390x_pair_loop_sum(int32_t idx, int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_buffer_fref_loop_sum(int32_t idx,
 						    int32_t stop);
 #endif
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 LJ_FUNC double lj_trace_s390x_min_loop_sum(int32_t idx, int32_t stop);
 LJ_FUNC double lj_trace_s390x_max_loop_sum(int32_t idx, int32_t stop);
 LJ_FUNC int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx,
 						     int32_t stop,
 						     int32_t mul);
+#endif
 LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,
 						      int32_t stop,
 						      int32_t mul,

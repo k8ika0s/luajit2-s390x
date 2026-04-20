@@ -38,6 +38,7 @@ PROFILE_XCFLAGS = {
     "string-byte-scan-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0",
     "ffi-cdata-off": " -DLUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS=0",
     "logic-low32-off": " -DLUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS=0",
+    "numeric-mod-off": " -DLUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS=0",
     "numeric-minmax-off": " -DLUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER=0",
     "centered-mod-abs-off": " -DLUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER=0",
 }

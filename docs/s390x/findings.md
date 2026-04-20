@@ -38231,3 +38231,36 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - This is another isolation step, not a semantic-debt retirement. The
   `logic_low32` bucket remains active until these loop substitutions are
   replaced by backend low32/PHI mechanisms or kept branch-local.
+
+## 2026-04-20: numeric-mod reducers compile-isolated for upstream prep
+
+- Continued the non-iterator reducer cleanup with the `numeric_mod` bucket:
+  numeric div/sqrt, `%17` FFI, centered modulo abs, abs parity, FP modulo,
+  min/max, scaled `bit.tobit`, and the modulo multiply/select/rem-select/mod97
+  family.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-bench-fastpath-debt-20260420144159`. With only
+  `-DLUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS=0`, the largest exposed deltas
+  were `numeric_ops/max_loop/hot` default `0.000014s` versus `0.001422s`,
+  `numeric_ops/fp_mod_loop/hot` default `0.000016s` versus `0.000277s`,
+  `numeric_ops/sqrt_loop/hot` default `0.000014s` versus `0.000226s`,
+  `numeric_ops/div_loop/hot` default `0.000011s` versus `0.000179s`, and
+  `lower_frame_same_callsite/lua_abs_same_callsite/hot` timer floor versus
+  `0.000583s`.
+- Added the dedicated compile split
+  `LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS`, defaulting to
+  `LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`. Disabling it removes the numeric
+  recorder matchers, dispatch hooks, comparison if-conversion hook, `IRCALL`
+  entries, declarations, and `lj_trace_s390x_*` numeric helper definitions.
+  Component-loop and iterator helpers remain outside this split.
+- kdz1 validation:
+  default and `numeric-mod-off` builds completed warning-clean. The
+  reducer-off binary exported none of the numeric helper symbols, while the
+  shared component/iterator helper symbols stayed present. Default focused
+  correctness passed `jit_be/numeric_ops.lua`, `addsub_overflow_guard.lua`,
+  and `mulov_overflow_guard.lua`; focused perf runs passed `numeric_ops`,
+  `route_around_reducers`, `be_helpers`, `be_helpers_localized`, and
+  `lower_frame_same_callsite`.
+- This is a compile-surface cleanup step, not a semantic-debt retirement. The
+  `numeric_mod` bucket remains active until the closed-form substitutions are
+  replaced by upstreamable optimizer/backend mechanisms or kept branch-local.

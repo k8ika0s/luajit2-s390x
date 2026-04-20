@@ -552,15 +552,19 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
+#ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
 
 #ifndef LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER
 #define LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER \
-  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+  LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 #endif
 
 #ifndef LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER
 #define LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER \
-  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+  LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 #endif
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
@@ -605,59 +609,66 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS 0
 #endif
 
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+#define LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS 1
+#else
+#define LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS 0
+#endif
+
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_sub_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod_mul_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod_select_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod_rem_select_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod_scaled_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_if5_else1_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_if7_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
 {
-  return LJ_RECORD_S390X_SEMANTIC_REDUCERS;
+  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
 static int lj_record_s390x_minmax_loop_sum_enabled(void)
@@ -669,6 +680,7 @@ static int lj_record_s390x_centered_mod_abs_loop_sum_enabled(void)
 {
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER;
 }
+#endif
 
 #if LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER
 static int lj_record_s390x_concat_slice_enabled(void)
@@ -756,6 +768,7 @@ static int lj_record_s390x_guard_global_string_func(jit_State *J,
 }
 #endif
 
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_guard_global_math_func(jit_State *J,
 						  const BCIns *gget,
 						  const BCIns *tgets,
@@ -789,6 +802,7 @@ static int lj_record_s390x_guard_global_math_func(jit_State *J,
   emitir(IRTG(IR_EQ, IRT_FUNC), funcref, lj_ir_kfunc(J, funcV(funcv)));
   return 1;
 }
+#endif
 
 static int lj_record_s390x_guard_global_func(jit_State *J, const BCIns *gget,
 					     FastFunc ffid)
@@ -812,6 +826,7 @@ static int lj_record_s390x_guard_global_func(jit_State *J, const BCIns *gget,
   return 1;
 }
 
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_guard_slot_func(jit_State *J, BCReg slot,
 					   FastFunc ffid)
 {
@@ -828,6 +843,7 @@ static int lj_record_s390x_guard_slot_func(jit_State *J, BCReg slot,
   emitir(IRTG(IR_EQ, IRT_FUNC), tr, lj_ir_kfunc(J, funcV(tv)));
   return 1;
 }
+#endif
 
 #if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
 static int lj_record_s390x_guard_string_base_func(jit_State *J,
@@ -948,10 +964,12 @@ static int lj_record_s390x_guard_for_idx_ge1(jit_State *J, BCReg idxslot)
   return 1;
 }
 
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_kint_is(jit_State *J, TRef tr, int32_t k)
 {
   return tref_isk(tr) && IR(tref_ref(tr))->i == k;
 }
+#endif
 
 static int lj_record_s390x_kshort_is(const BCIns *pc, BCReg slot, int32_t k)
 {
@@ -959,7 +977,7 @@ static int lj_record_s390x_kshort_is(const BCIns *pc, BCReg slot, int32_t k)
 	 (int32_t)(int16_t)bc_d(*pc) == k;
 }
 
-#if LJ_HASFFI
+#if LJ_HASFFI && LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_ct_is_signed_i32(CTInfo info, CTSize size)
 {
   return ctype_isinteger(info) && !(info & CTF_UNSIGNED) && size == 4;
@@ -2214,6 +2232,7 @@ static int lj_record_s390x_logic_add_phi_remainder_sum(jit_State *J,
 }
 #endif
 
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_numeric_div_loop_accum4(jit_State *J,
 						   const BCIns *body)
 {
@@ -2872,6 +2891,7 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
 static int lj_record_s390x_guard_tab_int_int(jit_State *J, TRef tabref,
 					     GCtab *tabv, int32_t key,
@@ -3597,6 +3617,7 @@ static int lj_record_s390x_buffer_fref_loop_sum(jit_State *J,
 }
 #endif
 
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_mod_mul_sum_fits_i32(int32_t stop, int32_t mod,
 						int32_t mul)
 {
@@ -3713,6 +3734,7 @@ static int lj_record_s390x_mod_scaled_sum_fits_i32(int32_t stop, int32_t mod,
   sum = lj_record_s390x_sum_mod_seq(1, stop, 1, mod) * (int64_t)mul;
   return sum > INT32_MIN && sum <= INT32_MAX;
 }
+#endif
 
 #if LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER
 static int lj_record_s390x_concat_slice_loop(jit_State *J, const BCIns *body)
@@ -4159,6 +4181,7 @@ static int lj_record_s390x_byte_scan_cycle_loop(jit_State *J, const BCIns *body)
 }
 #endif
 
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_mod_mul_loop_sum(jit_State *J, const BCIns *body)
 {
   const BCIns *forl, *proto;
@@ -5290,6 +5313,7 @@ static int lj_record_s390x_mod_branch_ifconv(jit_State *J, const BCIns *pc,
   J->bcskip = 2;  /* Skip the executed MODVN and ADD/SUB arm. */
   return 1;
 }
+#endif
 
 /* Canonicalize slots: convert integers to numbers. */
 static void canonicalize_slots(jit_State *J)
@@ -8715,6 +8739,7 @@ void lj_record_ins(jit_State *J)
   if (op == BC_UGET && lj_record_s390x_logic_chain_tail_store_sum(J, pc))
     return;
 #endif
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
   if (op == BC_ADDVN && lj_record_s390x_numeric_div_loop_accum4(J, pc))
     return;
   if (op == BC_GGET && lj_record_s390x_numeric_sqrt_loop_accum4(J, pc))
@@ -8722,6 +8747,7 @@ void lj_record_ins(jit_State *J)
 #if LJ_HASFFI
   if (op == BC_MODVN && lj_record_s390x_ffi_const_i32_mod17_loop_sum(J, pc))
     return;
+#endif
 #endif
 #if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
   if ((op == BC_GGET || op == BC_UGET) &&
@@ -8732,10 +8758,12 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MULNV && lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(J, pc))
     return;
 #endif
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
   if (op == BC_MODVN && lj_record_s390x_centered_mod_abs_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_abs_parity_loop_sum(J, pc))
     return;
+#endif
   if (op == BC_MODVN && lj_record_s390x_component_loop_tail_sum(J, pc))
     return;
 #if LJ_RECORD_S390X_FFI_CDATA_REDUCERS
@@ -8746,14 +8774,17 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MOV && lj_record_s390x_buffer_fref_loop_sum(J, pc))
     return;
 #endif
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
   if (op == BC_ADDVN && lj_record_s390x_fpmod_quarter_loop_sum(J, pc))
     return;
   if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 0))
     return;
   if (op == BC_GGET && lj_record_s390x_minmax_loop_sum(J, pc, 1))
     return;
+#endif
   if (op == BC_GGET && lj_record_s390x_iterator_table_loop_sum(J, pc))
     return;
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
   if (op == BC_MULVN && lj_record_s390x_scaled_tobit_loop_sum(J, pc))
     return;
   if (op == BC_MOV && lj_record_s390x_mod_mul_loop_sum(J, pc))
@@ -8780,6 +8811,7 @@ void lj_record_ins(jit_State *J)
     return;
   if (op == BC_MODVN && lj_record_s390x_mod97_if5_if3_loop_sum(J, pc))
     return;
+#endif
 #endif
 #if LJ_TARGET_S390X
   if (op == BC_MODVN && bc_op(pc[1]) == BC_CAT) {
@@ -8882,7 +8914,7 @@ void lj_record_ins(jit_State *J)
     /* Emit nothing for two non-table, non-udata consts. */
     if (!(tref_isk2(ra, rc) && !(tref_istab(ra) || tref_isudata(ra)))) {
       int diff;
-#if LJ_TARGET_S390X
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
       if (op == BC_ISNEN && lj_record_s390x_mod_branch_ifconv(J, pc, ra, rc))
 	break;
 #endif

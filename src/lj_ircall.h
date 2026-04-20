@@ -187,6 +187,10 @@ typedef struct CCallInfo {
 #define LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
+#ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
 #define IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
@@ -231,18 +235,8 @@ typedef struct CCallInfo {
 #define IRCALLDEF_S390X_LOGIC_LOW32_REDUCERS(_)
 #endif
 
-/* Function definitions for CALL* instructions. */
-#define IRCALLDEF(_) \
-  _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
-  _(ANY,	lj_str_find,		4,   N, PGC, 0) \
-  /* s390x recorder/backend reducers. Keep target-confined, not generic ABI. */ \
-  _(S390X,	lj_str_equal,		3,   N, INT, 0) \
-  _(S390X,	lj_str_equal_256,	3,   N, INT, 0) \
-  IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
-  IRCALLDEF_S390X_STRING_MANUAL_FIND_CYCLE(_) \
-  IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_) \
-  _(S390X,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
-  IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_) \
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+#define IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_) \
   _(S390X,	lj_trace_s390x_centered_mod_abs_loop_sum, 5, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_sqrt_loop_accum4, 3, N, NUM, 0) \
@@ -261,7 +255,24 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_fpmod_quarter_loop_sum, 2, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_min_loop_sum, 2, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_max_loop_sum, 2, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0)
+#else
+#define IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_)
+#endif
+
+/* Function definitions for CALL* instructions. */
+#define IRCALLDEF(_) \
+  _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
+  _(ANY,	lj_str_find,		4,   N, PGC, 0) \
+  /* s390x recorder/backend reducers. Keep target-confined, not generic ABI. */ \
+  _(S390X,	lj_str_equal,		3,   N, INT, 0) \
+  _(S390X,	lj_str_equal_256,	3,   N, INT, 0) \
+  IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
+  IRCALLDEF_S390X_STRING_MANUAL_FIND_CYCLE(_) \
+  IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_) \
+  _(S390X,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
+  IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_) \
+  IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_) \
   _(S390X,	lj_trace_s390x_band_mul_mask_loop_sum, 4, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod1_loop_sum, 3, N, INT, 0) \
   IRCALLDEF_S390X_LOGIC_LOW32_REDUCERS(_) \

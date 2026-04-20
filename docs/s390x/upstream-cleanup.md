@@ -194,6 +194,7 @@ current splits are:
 -DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0
 -DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0
 -DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0
+-DLUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS=0
 -DLUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER=0
 -DLUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER=0
 ```
@@ -1008,3 +1009,56 @@ Validation on kdz1:
 This is still an isolation step. The `logic_low32` bucket remains active until
 the current semantic substitutions are replaced by low32/PHI backend mechanisms
 or held out of an upstream candidate.
+
+### Numeric-Mod Reducer Isolation
+
+The `numeric_mod` bucket is now compile-isolated behind
+`LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS`, defaulting to the umbrella
+`LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS`.
+
+The split covers the current numeric closed-form reducer helpers:
+
+- numeric div/sqrt accumulated loops
+- fixed `int32_t` `%17` FFI loop
+- centered modulo abs and abs-parity forms
+- FP modulo quarter-period loop
+- min/max loop sums
+- scaled `bit.tobit` loop
+- modulo multiply/select/rem-select/scaled/mod97 variants
+
+When disabled, the matching recorder definitions, dispatch hooks, comparison
+if-conversion hook, `IRCALL` entries, trace-helper declarations, and
+`lj_trace_s390x_*` numeric helper definitions are omitted from the build. The
+component-loop and iterator helpers remain outside this split because they are
+separate reducer buckets and still use shared helpers such as
+`lj_trace_s390x_band_mul_mask_loop_sum`, `lj_trace_s390x_mod1_loop_sum`, and
+`lj_trace_s390x_iter_table_loop_sum`.
+
+Focused kdz1 artifact:
+`/tmp/kdz1-bench-fastpath-debt-20260420144159`.
+
+Representative retained deltas with only this bucket disabled:
+
+- `numeric_ops/max_loop/hot`: default `0.000014s`, off `0.001422s`.
+- `numeric_ops/fp_mod_loop/hot`: default `0.000016s`, off `0.000277s`.
+- `numeric_ops/sqrt_loop/hot`: default `0.000014s`, off `0.000226s`.
+- `numeric_ops/div_loop/hot`: default `0.000011s`, off `0.000179s`.
+- `lower_frame_same_callsite/lua_abs_same_callsite/hot`: default timer floor,
+  off `0.000583s`.
+
+Validation on kdz1:
+
+- Default build and `-DLUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS=0` build were
+  warning-clean.
+- The reducer-off binary exported none of the numeric reducer helper symbols.
+- The shared component/iterator helper symbols remained present.
+- Default focused checks passed `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`, and focused perf runs for
+  `numeric_ops`, `route_around_reducers`, `be_helpers`,
+  `be_helpers_localized`, and `lower_frame_same_callsite`.
+
+This is still an isolation step, not an upstream replacement. The
+`numeric_mod` bucket remains active until these closed-form substitutions are
+rebuilt as optimizer facts/backend lowering or held out of an upstream
+candidate.
