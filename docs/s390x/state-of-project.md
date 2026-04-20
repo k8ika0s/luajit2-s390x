@@ -16,11 +16,20 @@ Historical experiment detail lives in
   large-immediate loop lowering merge, the post-merge low32 call-argument
   normalization repair, the focused bitops suffix-table integration, and the
   dispatch-trace direct side-exit retargeting/SCEV hardening integration.
-- Current upstream cleanup status: production `src/` passes
-  `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings`. Exact
-  benchmark trace-control parks, bytecode blacklists, proto no-JIT routes,
-  hotside threshold overrides, and trace-size save experiments have been
-  removed or rewritten as semantic mechanisms.
+- Current upstream cleanup status: production `src/` passes the narrow
+  benchmark-identity audit,
+  `tools/s390x/audit_benchmark_fastpaths.py --scope identity --fail-on-findings`.
+  Exact benchmark trace-control parks, bytecode blacklists, proto no-JIT
+  routes, hotside threshold overrides, and trace-size save experiments have
+  been removed or rewritten.
+- The branch is not upstream-clean under the broader default audit yet. The
+  remaining top blocker is recorder-side semantic reducer substitution:
+  `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` currently
+  reports `174` s390x upstream-risk findings across recorder reducer
+  definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
+  callinfo entries. These paths are target-confined and no longer
+  benchmark-name keyed, but they still replace loop families with closed-form
+  helper calls in the core recorder.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then

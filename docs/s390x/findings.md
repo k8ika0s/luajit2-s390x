@@ -37482,3 +37482,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/dispatch_trace.lua`. kdz1 with
   `LUAJIT_S390X_DIRECT_PATCHEXIT_LOG=1` and miss logging showed an active BRC
   patch path: `S390X_DIRECT_PATCHEXIT trace=4 exit=2 brc=2 rie=0 skip=0`.
+
+## 2026-04-19: semantic reducer substitution audit added
+
+- Problem:
+  the previous benchmark-fastpath audit was too narrow for upstream prep. It
+  correctly reported `0` file/chunk/line/trace-size identity findings, but did
+  not flag the larger default-on s390x recorder dispatch that recognizes loop
+  families and replaces them with closed-form helper calls.
+- Tooling:
+  `tools/s390x/audit_benchmark_fastpaths.py` now has explicit scopes:
+  `identity`, `semantic`, and default `upstream`. The narrow identity gate:
+  `python3 tools/s390x/audit_benchmark_fastpaths.py --scope identity --fail-on-findings`
+  still reports `benchmark-shaped source findings: 0`.
+- Broader audit:
+  `python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` now
+  intentionally fails with `174` findings: `45` recorder reducer definitions,
+  `45` default dispatch hooks, `44` emitted reducer IRCALLs, and `40` s390x
+  reducer/string callinfo entries.
+- Ledger:
+  added `tools/s390x/build_semantic_reducer_debt.py` to convert the raw audit
+  into an actionable family ledger. Current reducer matcher definitions by
+  family: `numeric_mod 19`, `string 7`, `ffi_cdata 6`, `large_immediates 4`,
+  `logic_low32 3`, `iterator_mixed 2`, `route_reducer 2`, `be_helpers 1`, and
+  `lower_frame 1`.
+- Policy:
+  the branch should no longer be considered upstream-clean just because the
+  identity audit passes. The semantic reducer queue must be burned down by
+  replacing whole-loop recorder substitutions with backend lowering,
+  target-neutral IR/bytecode optimizations, or branch-local non-upstream
+  fastpaths.
