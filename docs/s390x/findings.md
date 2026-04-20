@@ -37529,3 +37529,40 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   still flags the reducer definitions, helper IRCALLs, and callinfo entries.
   The switch is only a staging tool so each family can be paid down without
   giving up WIP performance while the replacement mechanisms are developed.
+
+## 2026-04-20: semantic reducer debt ranked and string cycle state fixed
+
+- Ran the first full semantic reducer debt pack on kdz1:
+  `/tmp/kdz1-semantic-reducer-debt-20260420064556`. It compared default WIP
+  against `-DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0` with `5` samples,
+  `1` warmup, and `45s` family timeout.
+- The largest measured reducer dependencies by family were:
+  `ffi_fixed_struct_calls`, `mixed_noffi`, `numeric_ops`,
+  `logical_chain_tail_store`, `dispatch_trace`, `be_helpers`,
+  `iterator_table`, `ffi_cdata`, and `lower_frame_same_callsite`. The initial
+  run did not rank `string_heavy` because the default profile failed
+  `manual_find_loop/hot`.
+- Root cause of the string failure:
+  the default-enabled whole-loop string reducers were using the live FORL
+  index as the first unaccounted iteration even though the trace accumulator
+  had already consumed the current iteration. `manual_find_loop/hot` overcounted
+  by `31`, the first iteration's contribution; after that was corrected,
+  `byte_scan_loop/hot` exposed the same state-contract bug with an overcount of
+  `4127`, the second text's byte sum.
+- Fix:
+  `lj_str_manual_find_cycle_sum()` and `lj_str_byte_scan_cycle_sum()` now read
+  loop state with `advance=1`, so the closed-form tail starts after the
+  already-accounted outer iteration. Other string reducers keep their existing
+  state contract.
+- Validation:
+  kdz1 default GCC build passed focused
+  `S390X_PERF_SAMPLES=15 S390X_PERF_WARMUP=3 tests/s390x/perf/string_heavy.lua`.
+  The focused string debt rerun
+  `/tmp/kdz1-semantic-reducer-debt-string-fix-20260420065856` passed with no
+  failed families.
+- Updated string debt read after the fix:
+  `manual_find_loop/hot` default `0.000002` vs reducer-off `0.002539`,
+  `byte_scan_loop/hot` default `0.000000` vs `0.001994`, and
+  `concat_slice_loop/hot` default `0.000000` vs `0.000987`. This makes the
+  string reducer family high-value mechanism debt, but the WIP default path is
+  now correct.

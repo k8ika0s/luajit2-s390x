@@ -469,7 +469,7 @@ int32_t lj_str_manual_find_cycle_sum(GCtab *haystacks, GCtab *needles,
       lj_str_tab_has_meta(needles) || haylen < 1 || haylen > 256 ||
       needlelen < 1 || needlelen > 256)
     return INT32_MIN;
-  if (!lj_str_loop_state(idxv, &idx, &remain, 0))
+  if (!lj_str_loop_state(idxv, &idx, &remain, 1))
     return INT32_MIN;
 
   a = haylen; b = needlelen;
@@ -533,7 +533,7 @@ int32_t lj_str_byte_scan_cycle_sum(GCtab *texts, const TValue *idxv)
 
   if (lj_str_tab_has_meta(texts) || textlen < 1 || textlen > 256)
     return INT32_MIN;
-  if (!lj_str_loop_state(idxv, &idx, &remain, 0))
+  if (!lj_str_loop_state(idxv, &idx, &remain, 1))
     return INT32_MIN;
 
   for (i = 0; i < textlen; i++) {
