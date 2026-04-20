@@ -2,10 +2,8 @@
 ** S390X IR assembler scaffolding (SSA IR -> machine code).
 ** Copyright (C) 2005-2026 Mike Pall. See Copyright Notice in luajit.h
 **
-** This is a staged bring-up skeleton. It provides the standard backend
-** surface so the tree can build with JIT enabled, but it rejects trace
-** assembly explicitly until the real s390x emitter and VM/JIT handoff are
-** implemented.
+** This backend lowers LuaJIT IR to s390x machine code. Unsupported or unsafe
+** target-specific forms use explicit NYI fallbacks while bring-up continues.
 */
 
 /* -- Register allocator extensions --------------------------------------- */
