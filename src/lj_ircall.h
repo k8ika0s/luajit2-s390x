@@ -240,7 +240,6 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_centered_mod_abs_loop_sum, 5, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_sqrt_loop_accum4, 3, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_abs17_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_const_i32_mod17_loop_sum, 3, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod_mul_loop_sum, 4, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mod_select_loop_sum, 5, N, INT, 0) \
@@ -270,7 +269,6 @@ typedef struct CCallInfo {
   IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
   IRCALLDEF_S390X_STRING_MANUAL_FIND_CYCLE(_) \
   IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_) \
-  _(S390X,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
   IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_) \
   IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_) \
   _(S390X,	lj_trace_s390x_band_mul_mask_loop_sum, 4, N, INT, 0) \
