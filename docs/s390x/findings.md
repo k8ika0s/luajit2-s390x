@@ -38140,3 +38140,35 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   passed (`ipairs 192000`, component diagnostics `8473472`, `8697472`,
   `8953472`), with `mixed_noffi/mixed_loop/hot 0.000003s`,
   `iterator_table` timer-floor, and `pairs_loop.lua` passing.
+
+## 2026-04-20: string-cycle reducers compile-isolated for upstream prep
+
+- Parked iterator/control-state work and refreshed the non-iterator reducer
+  ledger. Current source still has `34` semantic reducer matcher definitions:
+  `numeric_mod 20`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
+  `component_loop 1`, and `iterator_mixed 1`.
+- Focused kdz1 artifact:
+  `/tmp/kdz1-bench-fastpath-debt-20260420134349`. The current non-iterator
+  string debt ranking is unchanged:
+  `manual_find_loop/hot` default `0.000002s` versus `0.002547s` with only
+  `-DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0`,
+  `byte_scan_loop/hot` timer floor versus `0.001998s` with only
+  `-DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0`, and
+  `concat_slice_loop/hot` timer floor versus `0.001029s` with only
+  `-DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0`.
+- Implemented compile-surface isolation for those three reducers. When a
+  reducer is disabled, the matching recorder function, dispatch hook,
+  `IRCALL` entry, declaration, and `lj_str.c` helper symbol are excluded from
+  the build. This keeps default WIP performance unchanged while making
+  upstream-prep builds stop exposing disabled branch-local string-cycle helpers.
+- kdz1 validation:
+  default build kept `manual_find_loop/hot 0.000002s`,
+  `byte_scan_loop/hot 0.000001s`, and `concat_slice_loop/hot` at timer floor.
+  `-DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0` built cleanly and exported
+  none of `lj_str_manual_find_cycle_sum`, `lj_str_byte_scan_cycle_sum`, or
+  `lj_str_concat_slice_sum`. Individual reducer-off builds also removed their
+  corresponding helper symbols.
+- This is cleanup progress, not a completed upstream replacement. The
+  `string_cycle` bucket remains active until the whole-loop substitutions are
+  replaced by lower-level string/recorder mechanisms or excluded from the
+  upstream candidate.

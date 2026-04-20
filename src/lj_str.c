@@ -126,6 +126,7 @@ int lj_str_equal_256(const char *a, const char *b, MSize len)
   return memcmp(a, b, len) == 0;
 }
 
+#if LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
 static int32_t lj_str_sum_u8(const char *p, int32_t len)
 {
   const uint8_t *s = (const uint8_t *)p;
@@ -186,7 +187,11 @@ static int32_t lj_str_sum_u8(const char *p, int32_t len)
   }
   return (int32_t)sum;
 }
+#endif
 
+#if LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER || \
+    LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER || \
+    LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
 static int lj_str_tab_has_meta(GCtab *t)
 {
   return tabref(t->metatable) != NULL;
@@ -210,7 +215,9 @@ static int lj_str_loop_state(const TValue *idxv, int32_t *idx,
   *remain = stop - *idx + 1;
   return 1;
 }
+#endif
 
+#if LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
 int32_t lj_str_concat_slice_sum(GCtab *lefts, GCtab *rights,
 				const TValue *idxv)
 {
@@ -282,7 +289,9 @@ int32_t lj_str_concat_slice_sum(GCtab *lefts, GCtab *rights,
     return INT32_MIN;
   return (int32_t)sum;
 }
+#endif
 
+#if LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
 int32_t lj_str_manual_find_cycle_sum(GCtab *haystacks, GCtab *needles,
 				     const TValue *idxv)
 {
@@ -350,7 +359,9 @@ int32_t lj_str_manual_find_cycle_sum(GCtab *haystacks, GCtab *needles,
     return INT32_MIN;
   return (int32_t)sum;
 }
+#endif
 
+#if LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
 int32_t lj_str_byte_scan_cycle_sum(GCtab *texts, const TValue *idxv)
 {
   int64_t sum = 0;
@@ -390,6 +401,7 @@ int32_t lj_str_byte_scan_cycle_sum(GCtab *texts, const TValue *idxv)
     return INT32_MIN;
   return (int32_t)sum;
 }
+#endif
 #endif
 
 /* Check whether a string has a pattern matching character. */
