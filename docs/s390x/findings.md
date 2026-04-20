@@ -38060,3 +38060,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   current-iteration ownership depends on the nested iterator trip/recording
   state. A correct replacement must first make that consumed-state boundary
   explicit, then generalize table totals.
+
+## 2026-04-20: dynamic component-loop helper contract rejected
+
+- Followed the table-total rejection with a stricter owner/continue attempt:
+  replace the split current/tail IR with a single runtime helper consuming
+  `acc, idx, stop, numbers, map` atomically. The goal was to avoid preserving
+  stale table totals in IR and let one contract own the current iteration plus
+  the remaining tail.
+- The candidate built on kdz1, but failed the same-bytecode diagnostics:
+  the negative-map variant returned `8457472` instead of `8473472`. Shape
+  sweeps showed the error as a per-iteration miss on non-official table shapes,
+  while the retained official shape still passed. Adding the VM's
+  `lj_tab_next()` traversal for string-key maps did not fix the failure.
+- The trace dump still showed the helper call in the recorded IR, but runtime
+  diagnostics did not establish a trustworthy helper-execution contract for the
+  failing path. The experiment was reverted.
+- Closure: do not retry "one helper owns the whole component loop" as a
+  mechanical wrapper around the current matcher. The next viable replacement
+  must prove the actual outer-loop continuation state first: which bytecode
+  owns the current bit/select/table side effects, how side traces enter from the
+  nested iterator loops, and what state is already reflected in `acc` at each
+  admissible start. Without that proof, both split IR totals and one-shot helper
+  totals can be correct on the official row while wrong on equivalent bytecode.
