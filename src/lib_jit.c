@@ -807,13 +807,6 @@ static void jit_init(lua_State *L)
   jit_State *J = L2J(L);
   J->flags = jit_cpudetect() | JIT_F_ON | JIT_F_OPT_DEFAULT;
   memcpy(J->param, jit_param_default, sizeof(J->param));
-#if LJ_TARGET_S390X
-  /* Current s390x trace mechanics still hit a vararg trace crash at the
-  ** generic hotexit default. Keep this broad safety rail until the underlying
-  ** side-exit/restore mechanism is fixed; callers can still override it.
-  */
-  J->param[JIT_P_hotexit] = 200;
-#endif
 #if LJ_TARGET_UNALIGNED
   G(L)->tmptv.u64 = U64x(0000504d,4d500000);
 #endif

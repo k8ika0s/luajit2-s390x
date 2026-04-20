@@ -6226,7 +6226,12 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
   if (ir->r == RID_SINK)
     return;
   if (irt_isnum(ir->t)) {
-    asm_s390x_nyi_ir(as, ir);
+    Reg src;
+    fr = asm_fuseahuref(as, ir->op1, RSET_GPR_NOB);
+    src = ra_alloc1(as, ir->op2, RSET_FPR);
+    lj_assertA(checki20(fr.ofs), "s390x numeric store offset out of range");
+    emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, src, 0, fr.reg, fr.ofs));
+    asm_emitfuseahuref(as, ir, &fr);
     return;
   }
   fr = asm_fuseahuref(as, ir->op1, RSET_GPR_NOB);

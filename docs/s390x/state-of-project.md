@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-19 21:27 PDT
+Last updated: 2026-04-19 22:25 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -21,11 +21,12 @@ Historical experiment detail lives in
   benchmark trace-control parks, bytecode blacklists, proto no-JIT routes,
   hotside threshold overrides, and trace-size save experiments have been
   removed or rewritten as semantic mechanisms.
-- The remaining policy debt is broad, not benchmark-family shaped: s390x still
-  defaults `hotexit=200` because removing it exposed a `vararg_paths.lua`
-  segfault at the generic hotexit default. `-Ohotexit=200` passes the focused
-  row, so this stays as correctness mechanism debt until side-exit/restore is
-  fixed.
+- The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
+  `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
+  `clone_array()` path hit missing s390x numeric AHU-store lowering and then
+  built unstable fallback traces. `asm_ahustore()` now lowers numeric
+  array/hash/upvalue stores directly, and s390x uses the generic LuaJIT
+  hotexit default again.
 - Latest post-matrix acceleration work added a narrow s390x backend range proof
   for the lower-frame `lua_abs_same_callsite` loop. The exact centered value
   `x = (i % 17) - 8`, with nonnegative modulo input, now lowers the

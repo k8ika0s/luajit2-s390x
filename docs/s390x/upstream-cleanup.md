@@ -34,10 +34,10 @@ Current production-source status:
 - `src/lj_ircall.h`: s390x reducer/string helper callinfo entries are now
   target-confined with `IRCALLCOND_S390X`, not exposed as active generic
   architecture-neutral helper ABI.
-- `src/lib_jit.c`: the remaining policy debt is the broad s390x
-  `hotexit=200` safety rail. Removing it exposed a `vararg_paths.lua` segfault
-  at the generic hotexit default, while `-Ohotexit=200` passed. This is
-  correctness mechanism debt, not benchmark-family steering.
+- `src/lib_jit.c`: the broad s390x `hotexit=200` safety rail has been removed.
+  The low-hotexit `vararg_paths.lua` crash was traced to missing numeric
+  `ASTORE` lowering in `asm_ahustore()`, not to a need for target-specific JIT
+  defaults.
 
 Generic LuaJIT mechanisms such as `blacklist_pc()` and `PROTO_NOJIT` checks
 remain in source, but the current s390x branch should not set them from
@@ -62,9 +62,9 @@ Use this split for upstream prep:
   they cannot be made generic. They can remain useful as evidence and
   profiling scaffolding, but not in an upstream candidate branch.
 - Broad correctness safety rails must be justified by a target mechanism bug
-  and expressed without benchmark identity. The current s390x `hotexit=200`
-  default is retained only under that rule and remains a tracked mechanism
-  debt until the lower-threshold vararg side-exit/restore crash is fixed.
+  and expressed without benchmark identity. The former s390x `hotexit=200`
+  default is now retired; do not reintroduce target-specific JIT defaults
+  without a fresh generic mechanism proof.
 
 ## Audit Command
 
@@ -91,8 +91,8 @@ upstream candidate needs the source removed or rewritten, not merely disabled.
 ## Cleanup Order
 
 1. Keep the benchmark-fastpath audit at zero findings for production `src/`.
-2. Fix the remaining broad `hotexit=200` safety rail by resolving the generic
-   hotexit vararg crash in side-exit/restore mechanics.
+2. Keep the generic LuaJIT hotexit default active on s390x; the previous
+   `hotexit=200` safety rail has been removed.
 3. Continue shrinking diagnostic env and tooling-only historical references
    where they no longer pay their way.
 4. Re-run correctness first, then perf comparison after each cleanup tranche.

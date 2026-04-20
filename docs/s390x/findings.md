@@ -37424,3 +37424,39 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   paths and no s390x exact proto no-JIT or hotcount parks. The remaining
   policy-like source item is the broad s390x `hotexit=200` default; generic
   LuaJIT `blacklist_pc()` and `PROTO_NOJIT` checks remain as base mechanisms.
+
+## 2026-04-19: hotexit safety rail retired via numeric AHU-store lowering
+
+- Root cause:
+  the low-hotexit `vararg_paths.lua` crash was not in the vararg loop body.
+  With `S390X_PERF_HOTEXIT=10`, `-jv` showed all official vararg rows tracing,
+  followed by repeated attempts to trace `tests/s390x/perf/benchlib.lua:7`
+  (`clone_array()` used by median/percentile). That helper hit
+  `NYI: cannot assemble IR instruction 74`, which is `IR_ASTORE`, then built
+  fallback-to-interpreter side traces and eventually jumped into invalid state.
+- Fix:
+  added numeric `asm_ahustore()` lowering in `src/lj_asm_s390x.h` for
+  array/hash/upvalue stores. Numeric AHU stores now allocate the source in an
+  FPR and emit `STDY` to the fused array/hash/upvalue reference instead of
+  aborting assembly.
+- Rail removal:
+  removed the s390x-specific `JIT_P_hotexit = 200` override from
+  `src/lib_jit.c`. s390x now uses the generic LuaJIT hotexit default again.
+- Guardrail:
+  added `tests/s390x/jit_be/num_astore.lua`, covering traced numeric
+  `ASTORE`, `HSTORE`, and `USTORE` through one loop.
+- Validation:
+  local `git diff --check` and
+  `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` passed. kdz1,
+  kdz, and zkd0 clean GCC builds passed from tracked-file mirrors under
+  `/root/luajit2-s390x/workstreams/hotexit-rail/canon/repo`. All three hosts
+  passed `num_astore.lua` and default-hotexit `vararg_paths.lua`; kdz1 also
+  passed focused `addsub_overflow_guard.lua`, `numeric_ops.lua`,
+  `large_immediates.lua`, `pairs_loop.lua`, `compiled_vararg.lua`,
+  `iterator_table.lua`, `mixed_noffi.lua`, `dispatch_trace.lua`, and
+  `numeric_ops.lua` perf.
+- Separate debt:
+  `tests/s390x/jit_be/mulov_overflow_guard.lua` still fails the localized
+  tobit MULOV guard-stripping assertion, and it also fails under
+  `-Ohotexit=200`. That is not caused by this hotexit-rail removal and remains
+  separate correctness debt.
