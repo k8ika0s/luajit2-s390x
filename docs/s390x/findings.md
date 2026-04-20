@@ -37360,3 +37360,32 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   this is intentionally not a blanket permission to keep arbitrary envs.
   Anything outside the retained diagnostic set should be reintroduced only as a
   short-lived local probe or under a compile-time diagnostics build option.
+
+## 2026-04-19: s390x IRCALL helper surface target-confined
+
+- Problem:
+  the s390x reducer/helper block in `src/lj_ircall.h` was registered as
+  `ANY`, which made s390x bring-up helpers look like architecture-neutral JIT
+  helper ABI. The implementations also lived in generic `lj_trace.c` and
+  `lj_str.c`, so the source shape was harder to defend upstream even though
+  the recorder use sites were s390x-only.
+- Cleanup:
+  added `IRCALLCOND_S390X` and moved the s390x string/reducer helpers from
+  `ANY` to `S390X`. Non-s390x callinfo entries now carry `NULL` function
+  pointers for this internal helper block instead of exposing active generic
+  calls. The corresponding `lj_trace_s390x_*` and s390x string reducer
+  declarations/definitions are also guarded with `#if LJ_TARGET_S390X`.
+- Boundary:
+  this does not bless the helper shapes as final upstream design. It only
+  fixes the immediate surface-area problem: target-only reducers are target
+  machinery, not architecture-neutral core helper ABI. Any helper promoted to
+  generic LuaJIT must be renamed/documented as a generic optimization with
+  non-s390x users or independently useful semantics.
+- Validation:
+  local `git diff --check`, benchmark-shape audit, and IRCALL audit found no
+  s390x reducer helper still registered as `ANY`. kdz1 clean GCC s390x build
+  passed in `/root/luajit2-s390x/workstreams/ircall-surface/canon/repo`.
+  Focused kdz1 guardrails passed `numeric_ops.lua`,
+  `addsub_overflow_guard.lua`, `iterator_contract.lua`, `pairs_loop.lua`,
+  `string_heavy.lua`, `numeric_ops.lua` perf, `iterator_table.lua`,
+  `mixed_noffi.lua`, and retained-env `dispatch_trace.lua`.

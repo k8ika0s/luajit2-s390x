@@ -606,3 +606,18 @@ rollback envs, and one-off focus/probe logs have been disabled in source. The
 remaining source envs are limited to trace lifecycle/meta, exits, direct
 patchexit, RA/ASM/guard state, recorder IR/stop state, and snapshot/restore
 state.
+
+### IRCALL Helper Surface
+
+The s390x reducer/helper IRCALL block is no longer exposed as active
+architecture-neutral helper ABI:
+
+- Added `IRCALLCOND_S390X`.
+- Moved the s390x string/reducer helper entries in `src/lj_ircall.h` from
+  `ANY` to `S390X`.
+- Guarded the matching `lj_trace_s390x_*` declarations/definitions and the
+  s390x-only string reducer declarations/definitions with `#if LJ_TARGET_S390X`.
+
+This keeps current s390x behavior intact while making the upstream boundary
+explicit: these helpers are target machinery unless/until a specific helper is
+renamed and justified as a generic optimization with cross-target semantics.

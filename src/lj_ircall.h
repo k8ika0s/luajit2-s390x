@@ -63,6 +63,12 @@ typedef struct CCallInfo {
 /* Helpers for conditional function definitions. */
 #define IRCALLCOND_ANY(x)		x
 
+#if LJ_TARGET_S390X
+#define IRCALLCOND_S390X(x)		x
+#else
+#define IRCALLCOND_S390X(x)		NULL
+#endif
+
 #if LJ_TARGET_X86ORX64 || LJ_TARGET_ARM64
 #define IRCALLCOND_FPMATH(x)		NULL
 #else
@@ -153,51 +159,52 @@ typedef struct CCallInfo {
 #define IRCALLDEF(_) \
   _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
   _(ANY,	lj_str_find,		4,   N, PGC, 0) \
-  _(ANY,	lj_str_equal,		3,   N, INT, 0) \
-  _(ANY,	lj_str_equal_256,	3,   N, INT, 0) \
-  _(ANY,	lj_str_sum_u8,		2,   N, INT, 0) \
-  _(ANY,	lj_str_find_pos,	4,   N, INT, 0) \
-  _(ANY,	lj_str_key_lookup_sum,	3,   N, INT, 0) \
-  _(ANY,	lj_str_concat_slice_sum,	3,   N, INT, 0) \
-  _(ANY,	lj_str_find_cycle_sum,	3,   N, INT, 0) \
-  _(ANY,	lj_str_prefix_eq_sum,	3,   N, INT, 0) \
-  _(ANY,	lj_str_manual_find_cycle_sum, 3, N, INT, 0) \
-  _(ANY,	lj_str_byte_scan_cycle_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_const_struct_loop_sum, 8, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \
-  _(ANY,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_ffi_fixed_step16_postidx, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_lower_frame_abs17_loop_sum, 3, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_sqrt_loop_accum4, 3, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_abs17_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_const_i32_mod17_loop_sum, 3, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod_mul_loop_sum, 4, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod_select_loop_sum, 5, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod_rem_select_loop_sum, 6, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod_scaled_loop_sum, 4, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod_loop_sum, 3, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod97_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod97_sub_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod97_if5_else1_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod97_if7_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mod97_if5_if3_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_fpmod_quarter_loop_sum, 2, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_mixed_width_loop_sum, 2, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_pair_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_buffer_fref_loop_sum, 2, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_min_loop_sum, 2, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_max_loop_sum, 2, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_route_pack_outer_sum, 3, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_int_const_step_loop_sum, 4, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_logic_add_phi_remainder_sum, 4, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_logic_tail_add_sum, 5, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_logic_tail_store_sum, 1, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_strto_cycle_loop_sum, 2, N, NUM, 0) \
-  _(ANY,	lj_trace_s390x_iter_table_loop_sum, 4, N, INT, 0) \
-  _(ANY,	lj_trace_s390x_mixed_noffi_tail_sum, 3, N, INT, 0) \
+  /* s390x recorder/backend reducers. Keep target-confined, not generic ABI. */ \
+  _(S390X,	lj_str_equal,		3,   N, INT, 0) \
+  _(S390X,	lj_str_equal_256,	3,   N, INT, 0) \
+  _(S390X,	lj_str_sum_u8,		2,   N, INT, 0) \
+  _(S390X,	lj_str_find_pos,	4,   N, INT, 0) \
+  _(S390X,	lj_str_key_lookup_sum,	3,   N, INT, 0) \
+  _(S390X,	lj_str_concat_slice_sum,	3,   N, INT, 0) \
+  _(S390X,	lj_str_find_cycle_sum,	3,   N, INT, 0) \
+  _(S390X,	lj_str_prefix_eq_sum,	3,   N, INT, 0) \
+  _(S390X,	lj_str_manual_find_cycle_sum, 3, N, INT, 0) \
+  _(S390X,	lj_str_byte_scan_cycle_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_const_struct_loop_sum, 8, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \
+  _(S390X,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_ffi_fixed_step16_postidx, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_lower_frame_abs17_loop_sum, 3, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_sqrt_loop_accum4, 3, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_abs17_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_const_i32_mod17_loop_sum, 3, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod_mul_loop_sum, 4, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod_select_loop_sum, 5, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod_rem_select_loop_sum, 6, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod_scaled_loop_sum, 4, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod_loop_sum, 3, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod97_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod97_sub_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod97_if5_else1_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod97_if7_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mod97_if5_if3_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_fpmod_quarter_loop_sum, 2, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_mixed_width_loop_sum, 2, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_pair_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_buffer_fref_loop_sum, 2, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_min_loop_sum, 2, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_max_loop_sum, 2, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_scaled_tobit_loop_sum, 3, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_route_pack_outer_sum, 3, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_int_const_step_loop_sum, 4, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_logic_add_phi_remainder_sum, 4, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_logic_tail_add_sum, 5, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_logic_tail_store_sum, 1, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_strto_cycle_loop_sum, 2, N, NUM, 0) \
+  _(S390X,	lj_trace_s390x_iter_table_loop_sum, 4, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_mixed_noffi_tail_sum, 3, N, INT, 0) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \
   _(ANY,	lj_strscan_num_cache,	2,  FN, INT, 0) \
