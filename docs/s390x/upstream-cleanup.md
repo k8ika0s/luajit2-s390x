@@ -204,6 +204,22 @@ Current ledger summary:
 - `be_helpers`: `1`
 - `lower_frame`: `1`
 
+First kdz1 debt ranking artifact:
+
+- `/tmp/kdz1-semantic-reducer-debt-20260420064556`
+
+Focused string correction/rerank artifact:
+
+- `/tmp/kdz1-semantic-reducer-debt-string-fix-20260420065856`
+
+The string rerank now passes and shows the family is high-value debt:
+`manual_find_loop/hot` loses `+0.002537s`, `byte_scan_loop/hot` loses
+`+0.001994s`, and `concat_slice_loop/hot` loses `+0.000987s` when semantic
+reducers are disabled. The immediate correctness issue was not the idea of
+the string primitive itself, but the loop-state handoff into the whole-loop
+helper: `manual_find` and `byte_scan` now advance past the already-accounted
+outer iteration.
+
 ## Current Debt Ranking
 
 Use:

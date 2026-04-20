@@ -35,6 +35,14 @@ Historical experiment detail lives in
   reducers enabled to preserve current performance, while the off profile
   disables recorder dispatch hooks so each family can be measured and replaced
   with a lower-level mechanism without guessing.
+- First kdz1 semantic-reducer debt ranking is recorded in
+  `/tmp/kdz1-semantic-reducer-debt-20260420064556`. The first correctness fix
+  from that run was in the string family: `manual_find_loop` and
+  `byte_scan_loop` closed-form helpers now advance past the already-accounted
+  outer iteration. Focused string rerank
+  `/tmp/kdz1-semantic-reducer-debt-string-fix-20260420065856` passes and shows
+  string reducers are high-value debt, led by `manual_find_loop/hot` and
+  `byte_scan_loop/hot`.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
