@@ -886,3 +886,43 @@ architecture-neutral helper ABI:
 This keeps current s390x behavior intact while making the upstream boundary
 explicit: these helpers are target machinery unless/until a specific helper is
 renamed and justified as a generic optimization with cross-target semantics.
+
+### String-Cycle Reducer Isolation
+
+Iterator/component-loop mechanism work is parked while the non-iterator debt
+queue is burned down.
+
+The current high-value string debt remains the three whole-loop string-cycle
+reducers:
+
+- `manual_find_cycle`: latest focused kdz1 delta
+  `/tmp/kdz1-bench-fastpath-debt-20260420134349`,
+  `manual_find_loop/hot 0.000002s` default versus `0.002547s` with only
+  `-DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0`.
+- `byte_scan_cycle`: `byte_scan_loop/hot` timer floor default versus
+  `0.001998s` with only
+  `-DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0`.
+- `concat_slice`: `concat_slice_loop/hot` timer floor default versus
+  `0.001029s` with only
+  `-DLUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER=0`.
+
+These are still branch-local semantic substitutions, not upstream-ready
+backend lowerings. The cleanup step completed here is compile-surface
+isolation: when a string-cycle reducer is disabled, its recorder matcher,
+dispatch call, `IRCALL` table entry, declaration, and `lj_str.c` helper symbol
+are also removed from that build. Default WIP behavior and performance are
+unchanged, but upstream-prep comparison builds no longer expose disabled
+string-cycle helpers as dead global surface.
+
+Validation on kdz1:
+
+- Default build: `manual_find_loop/hot 0.000002s`,
+  `byte_scan_loop/hot 0.000001s`, `concat_slice_loop/hot` at timer floor.
+- `-DLUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS=0`: build clean, no exported
+  `lj_str_manual_find_cycle_sum`, `lj_str_byte_scan_cycle_sum`, or
+  `lj_str_concat_slice_sum`.
+- Individual reducer-off builds remove the corresponding helper symbol.
+
+This does not retire the string-cycle bucket from the semantic reducer ledger;
+it stages it cleanly for either a true lower-level replacement or branch-local
+exclusion from an upstream candidate.

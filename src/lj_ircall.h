@@ -155,6 +155,51 @@ typedef struct CCallInfo {
 #define XA2_64		0
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#define LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS 1
+#endif
+
+#ifndef LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#define LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS \
+  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#endif
+
+#ifndef LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
+#define LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER \
+  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#endif
+
+#ifndef LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
+#define LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER \
+  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#endif
+
+#ifndef LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
+#define LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER \
+  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
+#define IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
+  _(S390X,	lj_str_concat_slice_sum,	3,   N, INT, 0)
+#else
+#define IRCALLDEF_S390X_STRING_CONCAT_SLICE(_)
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
+#define IRCALLDEF_S390X_STRING_MANUAL_FIND_CYCLE(_) \
+  _(S390X,	lj_str_manual_find_cycle_sum, 3, N, INT, 0)
+#else
+#define IRCALLDEF_S390X_STRING_MANUAL_FIND_CYCLE(_)
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
+#define IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_) \
+  _(S390X,	lj_str_byte_scan_cycle_sum, 2, N, INT, 0)
+#else
+#define IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_)
+#endif
+
 /* Function definitions for CALL* instructions. */
 #define IRCALLDEF(_) \
   _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
@@ -162,9 +207,9 @@ typedef struct CCallInfo {
   /* s390x recorder/backend reducers. Keep target-confined, not generic ABI. */ \
   _(S390X,	lj_str_equal,		3,   N, INT, 0) \
   _(S390X,	lj_str_equal_256,	3,   N, INT, 0) \
-  _(S390X,	lj_str_concat_slice_sum,	3,   N, INT, 0) \
-  _(S390X,	lj_str_manual_find_cycle_sum, 3, N, INT, 0) \
-  _(S390X,	lj_str_byte_scan_cycle_sum, 2, N, INT, 0) \
+  IRCALLDEF_S390X_STRING_CONCAT_SLICE(_) \
+  IRCALLDEF_S390X_STRING_MANUAL_FIND_CYCLE(_) \
+  IRCALLDEF_S390X_STRING_BYTE_SCAN_CYCLE(_) \
   _(S390X,	lj_trace_s390x_const_step_loop_sum, 4, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_const_struct_loop_sum, 8, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \

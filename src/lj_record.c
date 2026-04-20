@@ -560,6 +560,24 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LJ_RECORD_S390X_STRING_CYCLE_REDUCERS 0
 #endif
 
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
+#define LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER 1
+#else
+#define LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER 0
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
+#define LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER 1
+#else
+#define LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER 0
+#endif
+
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
+#define LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER 1
+#else
+#define LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER 0
+#endif
+
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
 #define LJ_RECORD_S390X_COMPONENT_LOOP_REDUCERS 1
 #else
@@ -631,21 +649,30 @@ static int lj_record_s390x_centered_mod_abs_loop_sum_enabled(void)
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER;
 }
 
+#if LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER
 static int lj_record_s390x_concat_slice_enabled(void)
 {
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER;
 }
+#endif
 
+#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
 static int lj_record_s390x_manual_find_cycle_enabled(void)
 {
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER;
 }
+#endif
 
+#if LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
 static int lj_record_s390x_byte_scan_cycle_enabled(void)
 {
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER;
 }
+#endif
 
+#if LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER || \
+    LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER || \
+    LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
 static int lj_record_s390x_kgc_str_eq(GCproto *pt, BCReg idx,
 				       const char *name, size_t namelen)
 {
@@ -655,6 +682,7 @@ static int lj_record_s390x_kgc_str_eq(GCproto *pt, BCReg idx,
   s = gco2str(proto_kgc(pt, ~(ptrdiff_t)idx));
   return s->len == (MSize)namelen && memcmp(strdata(s), name, namelen) == 0;
 }
+#endif
 
 static TRef lj_record_s390x_raw_tab_getstr(jit_State *J, TRef tab,
 					    GCtab *tabv, GCstr *key)
@@ -669,6 +697,9 @@ static TRef lj_record_s390x_raw_tab_getstr(jit_State *J, TRef tab,
   return lj_record_idx(J, &ix);
 }
 
+#if LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER || \
+    LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER || \
+    LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
 static int lj_record_s390x_guard_global_string_func(jit_State *J,
 						    const BCIns *gget,
 						    const BCIns *tgets,
@@ -702,6 +733,7 @@ static int lj_record_s390x_guard_global_string_func(jit_State *J,
   emitir(IRTG(IR_EQ, IRT_FUNC), funcref, lj_ir_kfunc(J, funcV(funcv)));
   return 1;
 }
+#endif
 
 static int lj_record_s390x_guard_global_math_func(jit_State *J,
 						  const BCIns *gget,
@@ -776,6 +808,7 @@ static int lj_record_s390x_guard_slot_func(jit_State *J, BCReg slot,
   return 1;
 }
 
+#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
 static int lj_record_s390x_guard_string_base_func(jit_State *J,
 						  const BCIns *tgets,
 						  FastFunc ffid)
@@ -809,6 +842,7 @@ static int lj_record_s390x_guard_string_base_func(jit_State *J,
   emitir(IRTG(IR_EQ, IRT_FUNC), funcref, lj_ir_kfunc(J, funcV(funcv)));
   return 1;
 }
+#endif
 
 static int lj_record_s390x_knum_is_one(GCproto *pt, BCReg idx)
 {
@@ -3645,6 +3679,7 @@ static int lj_record_s390x_mod_scaled_sum_fits_i32(int32_t stop, int32_t mod,
   return sum > INT32_MIN && sum <= INT32_MAX;
 }
 
+#if LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER
 static int lj_record_s390x_concat_slice_loop(jit_State *J, const BCIns *body)
 {
   const BCIns *fori, *forl, *proto;
@@ -3799,7 +3834,9 @@ static int lj_record_s390x_concat_slice_loop(jit_State *J, const BCIns *body)
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
+#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
 static int lj_record_s390x_manual_find_cycle_loop(jit_State *J, const BCIns *body)
 {
   const BCIns *fori, *forl, *proto;
@@ -3973,7 +4010,9 @@ static int lj_record_s390x_manual_find_cycle_loop(jit_State *J, const BCIns *bod
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
+#if LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
 static int lj_record_s390x_byte_scan_cycle_loop(jit_State *J, const BCIns *body)
 {
   const BCIns *fori, *forl, *proto;
@@ -4083,6 +4122,7 @@ static int lj_record_s390x_byte_scan_cycle_loop(jit_State *J, const BCIns *body)
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
 }
+#endif
 
 static int lj_record_s390x_mod_mul_loop_sum(jit_State *J, const BCIns *body)
 {
@@ -8620,12 +8660,18 @@ void lj_record_ins(jit_State *J)
   ins = *pc;
   op = bc_op(ins);
 #if LJ_RECORD_S390X_SEMANTIC_REDUCERS
+#if LJ_RECORD_S390X_STRING_CONCAT_SLICE_REDUCER
   if (op == BC_UGET && lj_record_s390x_concat_slice_loop(J, pc))
     return;
+#endif
+#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
   if (op == BC_UGET && lj_record_s390x_manual_find_cycle_loop(J, pc))
     return;
+#endif
+#if LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
   if (op == BC_UGET && lj_record_s390x_byte_scan_cycle_loop(J, pc))
     return;
+#endif
   if (op == BC_UGET && lj_record_s390x_logic_add_phi_remainder_sum(J, pc))
     return;
   if (op == BC_UGET && lj_record_s390x_logic_chain_tail_add_sum(J, pc))
