@@ -39,6 +39,7 @@ PROFILE_XCFLAGS = {
     "string-manual-find-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER=0",
     "string-byte-scan-cycle-off": " -DLUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER=0",
     "strto-cycle-off": " -DLUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER=0",
+    "numeric-minmax-off": " -DLUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER=0",
 }
 DEFAULT_FAMILIES = [
     "dispatch_trace",

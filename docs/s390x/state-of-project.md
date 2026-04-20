@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 08:01 PDT
+Last updated: 2026-04-20 08:07 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -73,6 +73,12 @@ Historical experiment detail lives in
   reproduces the generic-only slowdown for `strto_loop/hot`
   (`0.000024s` default to `0.000630s`) without moving sibling rows. This is one
   closed-form `tonumber` cycle fold, not a broad be-helper issue.
+- Numeric min/max semantic debt is now isolated behind
+  `LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER`. Focused kdz1 artifact
+  `/tmp/kdz1-numeric-minmax-profile-20260420100600` shows `numeric-minmax-off`
+  owns `numeric_ops/max_loop` and `min_loop` while leaving div/sqrt/fp-mod/abs
+  on their separate mechanisms. `max_loop/hot` moves from `0.000014s` default
+  to `0.001464s` with only min/max disabled.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
