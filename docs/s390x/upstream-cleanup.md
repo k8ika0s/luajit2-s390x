@@ -1108,3 +1108,17 @@ positive `%97` reducer.
 kdz1 validation passed a warning-clean rebuild, confirmed the old helper
 symbol is absent, and passed `numeric_ops`, ADD/SUB overflow, MUL overflow,
 focused `numeric_ops.lua`, and focused `route_around_reducers.lua`.
+
+#### Mod-Multiply Matcher Consolidation
+
+The MOV-prefixed and direct `MODVN` modulo-multiply recorder matchers have
+been merged into one `lj_record_s390x_mod_mul_loop_sum()` implementation.
+Both bytecode shapes still emit the same `lj_trace_s390x_mod_mul_loop_sum()`
+helper call and sentinel guard, but the duplicate
+`lj_record_s390x_mod_direct_mul_loop_sum()` matcher and dispatch hook are
+gone.
+
+kdz1 validation passed a warning-clean rebuild, numeric correctness, ADD/SUB
+overflow, MUL overflow, focused `numeric_ops.lua`, and focused
+`route_around_reducers.lua`. This reduces matcher/dispatch debt without
+changing the helper ABI or default retained path.
