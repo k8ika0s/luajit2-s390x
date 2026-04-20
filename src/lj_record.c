@@ -524,23 +524,8 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
 
-#ifndef LUAJIT_ENABLE_S390X_STRING_KEY_LOOKUP_REDUCER
-#define LUAJIT_ENABLE_S390X_STRING_KEY_LOOKUP_REDUCER \
-  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
-#endif
-
 #ifndef LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
 #define LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER \
-  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
-#endif
-
-#ifndef LUAJIT_ENABLE_S390X_STRING_MISS_FIND_REDUCER
-#define LUAJIT_ENABLE_S390X_STRING_MISS_FIND_REDUCER \
-  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
-#endif
-
-#ifndef LUAJIT_ENABLE_S390X_STRING_PREFIX_EQ_REDUCER
-#define LUAJIT_ENABLE_S390X_STRING_PREFIX_EQ_REDUCER \
   LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
 #endif
 
@@ -580,11 +565,6 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #else
 #define LJ_RECORD_S390X_MIXED_NOFFI_REDUCERS 0
 #endif
-
-static int lj_record_s390x_string_key_lookup_enabled(void)
-{
-  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_KEY_LOOKUP_REDUCER;
-}
 
 static int lj_record_s390x_mod_branch_ifconv_enabled(void)
 {
@@ -654,16 +634,6 @@ static int lj_record_s390x_minmax_loop_sum_enabled(void)
 static int lj_record_s390x_concat_slice_enabled(void)
 {
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER;
-}
-
-static int lj_record_s390x_miss_find_enabled(void)
-{
-  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_MISS_FIND_REDUCER;
-}
-
-static int lj_record_s390x_prefix_eq_enabled(void)
-{
-  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_STRING_PREFIX_EQ_REDUCER;
 }
 
 static int lj_record_s390x_manual_find_cycle_enabled(void)
@@ -4329,95 +4299,6 @@ static int lj_record_s390x_mod_scaled_sum_fits_i32(int32_t stop, int32_t mod,
   return sum > INT32_MIN && sum <= INT32_MAX;
 }
 
-static int lj_record_s390x_string_key_lookup_loop(jit_State *J, const BCIns *body)
-{
-  const BCIns *fori, *forl, *proto;
-  BCReg forbase, keytab_slot, idx_slot, len_slot, key_slot, maptab_slot;
-  BCReg val_slot, total_slot;
-  TRef keys, map, keylen, idxref, acc, sum;
-  cTValue *base;
-  int32_t stopv;
-
-  if (!lj_record_s390x_string_key_lookup_enabled() || J->pt == NULL)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 10) - proto) >= J->pt->sizebc)
-    return 0;
-  if (bc_op(body[0]) != BC_UGET || bc_op(body[1]) != BC_SUBVN ||
-      bc_op(body[2]) != BC_UGET || bc_op(body[3]) != BC_LEN ||
-      bc_op(body[4]) != BC_MODVV || bc_op(body[5]) != BC_ADDVN ||
-      bc_op(body[6]) != BC_TGETV || bc_op(body[7]) != BC_UGET ||
-      bc_op(body[8]) != BC_TGETV || bc_op(body[9]) != BC_ADDVV ||
-      (bc_op(body[10]) != BC_FORL && bc_op(body[10]) != BC_JFORL))
-    return 0;
-
-  forl = body + 10;
-  fori = body - 1;
-  forbase = bc_a(*forl);
-  keytab_slot = bc_a(body[0]);
-  idx_slot = bc_a(body[1]);
-  len_slot = bc_a(body[2]);
-  key_slot = bc_a(body[6]);
-  maptab_slot = bc_a(body[7]);
-  val_slot = bc_a(body[8]);
-  total_slot = bc_a(body[9]);
-
-  if (bc_b(body[1]) != forbase + FORL_EXT ||
-      (bc_op(*fori) != BC_FORI && bc_op(*fori) != BC_JFORI) ||
-      bc_a(*fori) != forbase || fori + bc_j(*fori) != forl ||
-      !lj_record_s390x_kshort_is(body - 5, total_slot, 0) ||
-      !lj_record_s390x_kshort_is(body - 4, forbase + FORL_IDX, 1) ||
-      bc_op(body[-3]) != BC_MOV || bc_a(body[-3]) != forbase + FORL_STOP ||
-      !lj_record_s390x_kshort_is(body - 2, forbase + FORL_STEP, 1) ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[1])) ||
-      bc_a(body[2]) != len_slot || bc_d(body[2]) != bc_d(body[0]) ||
-      bc_a(body[3]) != len_slot || bc_d(body[3]) != len_slot ||
-      bc_a(body[4]) != idx_slot || bc_b(body[4]) != idx_slot ||
-      bc_c(body[4]) != len_slot ||
-      bc_a(body[5]) != idx_slot || bc_b(body[5]) != idx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[5])) ||
-      bc_b(body[6]) != keytab_slot || bc_c(body[6]) != idx_slot ||
-      bc_b(body[8]) != maptab_slot || bc_c(body[8]) != key_slot ||
-      bc_b(body[9]) != total_slot || bc_c(body[9]) != val_slot)
-    return 0;
-
-  base = J->L->base;
-  if (!tvisnumber(&base[forbase+FORL_STOP]) ||
-      !tvisnumber(&base[forbase+FORL_STEP]) ||
-      numberVint(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = numberVint(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-
-  keys = rec_upvalue(J, bc_d(body[0]), 0);
-  map = rec_upvalue(J, bc_d(body[7]), 0);
-  if (!tref_istab(keys) || !tref_istab(map))
-    return 0;
-
-  keylen = emitir(IRTI(IR_ALEN), keys, TREF_NIL);
-  idxref = emitir(IRT(IR_ADD, IRT_PGC), REF_BASE,
-		  lj_ir_kintpgc(J, 8*((int32_t)J->baseslot +
-				       (int32_t)(forbase+FORL_EXT) - 2)));
-  acc = getslot(J, total_slot);
-  if (!tref_isinteger(acc))
-    return 0;
-  emitir(IRTGI(IR_GE), keylen, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), keylen, lj_ir_kint(J, 256));
-  sum = lj_ir_call(J, IRCALL_lj_str_key_lookup_sum,
-		   keys, map, idxref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-
-  J->base[total_slot] = sum;
-  if (total_slot >= J->maxslot)
-    J->maxslot = total_slot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
 static int lj_record_s390x_concat_slice_loop(jit_State *J, const BCIns *body)
 {
   const BCIns *fori, *forl, *proto;
@@ -4562,269 +4443,6 @@ static int lj_record_s390x_concat_slice_loop(jit_State *J, const BCIns *body)
   emitir(IRTGI(IR_LE), rightlen, lj_ir_kint(J, 256));
   sum = lj_ir_call(J, IRCALL_lj_str_concat_slice_sum,
 		   lefts, rights, idxref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-
-  J->base[total_slot] = sum;
-  if (total_slot >= J->maxslot)
-    J->maxslot = total_slot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
-static int lj_record_s390x_miss_find_loop(jit_State *J, const BCIns *body)
-{
-  const BCIns *fori, *forl, *proto;
-  BCReg forbase, haytab_slot, hayidx_slot, haylen_slot, hay_slot;
-  BCReg needletab_slot, needleidx_slot, needlelen_slot, needle_slot;
-  BCReg callbase, found_slot, sum_slot, len_slot, total_slot;
-  TRef haystacks, needles, haylen, needlelen, idxref, acc, sum;
-  cTValue *base;
-  int32_t stopv;
-
-  if (!lj_record_s390x_miss_find_enabled() || J->pt == NULL)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 28) - proto) >= J->pt->sizebc)
-    return 0;
-  if (bc_op(body[0]) != BC_UGET || bc_op(body[1]) != BC_SUBVN ||
-      bc_op(body[2]) != BC_UGET || bc_op(body[3]) != BC_LEN ||
-      bc_op(body[4]) != BC_MODVV || bc_op(body[5]) != BC_ADDVN ||
-      bc_op(body[6]) != BC_TGETV || bc_op(body[7]) != BC_UGET ||
-      bc_op(body[8]) != BC_SUBVN || bc_op(body[9]) != BC_UGET ||
-      bc_op(body[10]) != BC_LEN || bc_op(body[11]) != BC_MODVV ||
-      bc_op(body[12]) != BC_ADDVN || bc_op(body[13]) != BC_TGETV ||
-      bc_op(body[14]) != BC_GGET || bc_op(body[15]) != BC_TGETS ||
-      bc_op(body[16]) != BC_MOV || bc_op(body[17]) != BC_MOV ||
-      bc_op(body[18]) != BC_KSHORT || bc_op(body[19]) != BC_KPRI ||
-      bc_op(body[20]) != BC_CALL || bc_op(body[21]) != BC_ISTC ||
-      bc_op(body[22]) != BC_JMP || bc_op(body[23]) != BC_KSHORT ||
-      bc_op(body[24]) != BC_ADDVV || bc_op(body[25]) != BC_LEN ||
-      bc_op(body[26]) != BC_ADDVV ||
-      (bc_op(body[27]) != BC_FORL && bc_op(body[27]) != BC_JFORL))
-    return 0;
-
-  forl = body + 27;
-  fori = body - 1;
-  forbase = bc_a(*forl);
-  haytab_slot = bc_a(body[0]);
-  hayidx_slot = bc_a(body[1]);
-  haylen_slot = bc_a(body[2]);
-  hay_slot = bc_a(body[6]);
-  needletab_slot = bc_a(body[7]);
-  needleidx_slot = bc_a(body[8]);
-  needlelen_slot = bc_a(body[9]);
-  needle_slot = bc_a(body[13]);
-  callbase = bc_a(body[14]);
-  found_slot = bc_a(body[21]);
-  sum_slot = bc_a(body[24]);
-  len_slot = bc_a(body[25]);
-  total_slot = bc_a(body[26]);
-
-  if ((bc_op(*fori) != BC_FORI && bc_op(*fori) != BC_JFORI) ||
-      bc_a(*fori) != forbase || fori + bc_j(*fori) != forl ||
-      !lj_record_s390x_kshort_is(body - 5, total_slot, 0) ||
-      !lj_record_s390x_kshort_is(body - 4, forbase + FORL_IDX, 1) ||
-      bc_op(body[-3]) != BC_MOV || bc_a(body[-3]) != forbase + FORL_STOP ||
-      !lj_record_s390x_kshort_is(body - 2, forbase + FORL_STEP, 1) ||
-      bc_b(body[1]) != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[1])) ||
-      bc_a(body[2]) != haylen_slot || bc_d(body[2]) != bc_d(body[0]) ||
-      bc_a(body[3]) != haylen_slot || bc_d(body[3]) != haylen_slot ||
-      bc_a(body[4]) != hayidx_slot || bc_b(body[4]) != hayidx_slot ||
-      bc_c(body[4]) != haylen_slot ||
-      bc_a(body[5]) != hayidx_slot || bc_b(body[5]) != hayidx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[5])) ||
-      bc_b(body[6]) != haytab_slot || bc_c(body[6]) != hayidx_slot ||
-      bc_b(body[8]) != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[8])) ||
-      bc_a(body[9]) != needlelen_slot || bc_d(body[9]) != bc_d(body[7]) ||
-      bc_a(body[10]) != needlelen_slot || bc_d(body[10]) != needlelen_slot ||
-      bc_a(body[11]) != needleidx_slot || bc_b(body[11]) != needleidx_slot ||
-      bc_c(body[11]) != needlelen_slot ||
-      bc_a(body[12]) != needleidx_slot || bc_b(body[12]) != needleidx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[12])) ||
-      bc_b(body[13]) != needletab_slot || bc_c(body[13]) != needleidx_slot ||
-      bc_a(body[14]) != callbase ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[14]), "string", 6) ||
-      bc_a(body[15]) != callbase || bc_b(body[15]) != callbase ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[15]), "find", 4) ||
-      bc_a(body[16]) != callbase + 1 + LJ_FR2 || bc_d(body[16]) != hay_slot ||
-      bc_a(body[17]) != callbase + 2 + LJ_FR2 || bc_d(body[17]) != needle_slot ||
-      !lj_record_s390x_kshort_is(&body[18], callbase + 3 + LJ_FR2, 1) ||
-      bc_a(body[19]) != callbase + 4 + LJ_FR2 || bc_d(body[19]) != 2 ||
-      bc_a(body[20]) != callbase || bc_b(body[20]) != 2 ||
-      bc_c(body[20]) != 5 ||
-      bc_a(body[21]) != found_slot || bc_d(body[21]) != callbase ||
-      bc_a(body[22]) != found_slot ||
-      !lj_record_s390x_kshort_is(&body[23], found_slot, 0) ||
-      bc_a(body[24]) != sum_slot || bc_b(body[24]) != total_slot ||
-      bc_c(body[24]) != found_slot ||
-      bc_a(body[25]) != len_slot || bc_d(body[25]) != hay_slot ||
-      bc_a(body[26]) != total_slot || bc_b(body[26]) != sum_slot ||
-      bc_c(body[26]) != len_slot)
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-
-  haystacks = rec_upvalue(J, bc_d(body[0]), 0);
-  needles = rec_upvalue(J, bc_d(body[7]), 0);
-  if (!tref_istab(haystacks) || !tref_istab(needles))
-    return 0;
-  if (!lj_record_s390x_guard_global_string_func(J, &body[14], &body[15],
-						FF_string_find))
-    return 0;
-
-  haylen = emitir(IRTI(IR_ALEN), haystacks, TREF_NIL);
-  needlelen = emitir(IRTI(IR_ALEN), needles, TREF_NIL);
-  idxref = emitir(IRT(IR_ADD, IRT_PGC), REF_BASE,
-		  lj_ir_kintpgc(J, 8*((int32_t)J->baseslot +
-				       (int32_t)(forbase+FORL_EXT) - 2)));
-  acc = getslot(J, total_slot);
-  if (!tref_isinteger(acc))
-    return 0;
-  emitir(IRTGI(IR_GE), haylen, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), haylen, lj_ir_kint(J, 256));
-  emitir(IRTGI(IR_GE), needlelen, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), needlelen, lj_ir_kint(J, 256));
-  sum = lj_ir_call(J, IRCALL_lj_str_find_cycle_sum,
-		   haystacks, needles, idxref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-
-  J->base[total_slot] = sum;
-  if (total_slot >= J->maxslot)
-    J->maxslot = total_slot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
-static int lj_record_s390x_prefix_eq_loop(jit_State *J, const BCIns *body)
-{
-  const BCIns *fori, *forl, *proto;
-  BCReg forbase, texttab_slot, textidx_slot, textlen_slot, text_slot;
-  BCReg prefixtab_slot, prefixidx_slot, prefixlen_slot, prefix_slot;
-  BCReg callbase, sub_slot, total_slot;
-  TRef texts, prefixes, textlen, prefixlen, idxref, acc, sum;
-  cTValue *base;
-  int32_t stopv;
-
-  if (!lj_record_s390x_prefix_eq_enabled() || J->pt == NULL)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 26) - proto) >= J->pt->sizebc)
-    return 0;
-  if (bc_op(body[0]) != BC_UGET || bc_op(body[1]) != BC_SUBVN ||
-      bc_op(body[2]) != BC_UGET || bc_op(body[3]) != BC_LEN ||
-      bc_op(body[4]) != BC_MODVV || bc_op(body[5]) != BC_ADDVN ||
-      bc_op(body[6]) != BC_TGETV || bc_op(body[7]) != BC_UGET ||
-      bc_op(body[8]) != BC_SUBVN || bc_op(body[9]) != BC_UGET ||
-      bc_op(body[10]) != BC_LEN || bc_op(body[11]) != BC_MODVV ||
-      bc_op(body[12]) != BC_ADDVN || bc_op(body[13]) != BC_TGETV ||
-      bc_op(body[14]) != BC_MOV || bc_op(body[15]) != BC_TGETS ||
-      bc_op(body[16]) != BC_KSHORT || bc_op(body[17]) != BC_LEN ||
-      bc_op(body[18]) != BC_CALL || bc_op(body[19]) != BC_ISNEV ||
-      bc_op(body[20]) != BC_JMP || bc_op(body[21]) != BC_LEN ||
-      bc_op(body[22]) != BC_ADDVV || bc_op(body[23]) != BC_JMP ||
-      bc_op(body[24]) != BC_SUBVN ||
-      (bc_op(body[25]) != BC_FORL && bc_op(body[25]) != BC_JFORL))
-    return 0;
-
-  forl = body + 25;
-  fori = body - 1;
-  forbase = bc_a(*forl);
-  texttab_slot = bc_a(body[0]);
-  textidx_slot = bc_a(body[1]);
-  textlen_slot = bc_a(body[2]);
-  text_slot = bc_a(body[6]);
-  prefixtab_slot = bc_a(body[7]);
-  prefixidx_slot = bc_a(body[8]);
-  prefixlen_slot = bc_a(body[9]);
-  prefix_slot = bc_a(body[13]);
-  callbase = bc_a(body[15]);
-  sub_slot = bc_a(body[18]);
-  total_slot = bc_a(body[22]);
-
-  if ((bc_op(*fori) != BC_FORI && bc_op(*fori) != BC_JFORI) ||
-      bc_a(*fori) != forbase || fori + bc_j(*fori) != forl ||
-      !lj_record_s390x_kshort_is(body - 5, total_slot, 0) ||
-      !lj_record_s390x_kshort_is(body - 4, forbase + FORL_IDX, 1) ||
-      bc_op(body[-3]) != BC_MOV || bc_a(body[-3]) != forbase + FORL_STOP ||
-      !lj_record_s390x_kshort_is(body - 2, forbase + FORL_STEP, 1) ||
-      bc_b(body[1]) != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[1])) ||
-      bc_a(body[2]) != textlen_slot || bc_d(body[2]) != bc_d(body[0]) ||
-      bc_a(body[3]) != textlen_slot || bc_d(body[3]) != textlen_slot ||
-      bc_a(body[4]) != textidx_slot || bc_b(body[4]) != textidx_slot ||
-      bc_c(body[4]) != textlen_slot ||
-      bc_a(body[5]) != textidx_slot || bc_b(body[5]) != textidx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[5])) ||
-      bc_b(body[6]) != texttab_slot || bc_c(body[6]) != textidx_slot ||
-      bc_b(body[8]) != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[8])) ||
-      bc_a(body[9]) != prefixlen_slot || bc_d(body[9]) != bc_d(body[7]) ||
-      bc_a(body[10]) != prefixlen_slot || bc_d(body[10]) != prefixlen_slot ||
-      bc_a(body[11]) != prefixidx_slot || bc_b(body[11]) != prefixidx_slot ||
-      bc_c(body[11]) != prefixlen_slot ||
-      bc_a(body[12]) != prefixidx_slot || bc_b(body[12]) != prefixidx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[12])) ||
-      bc_b(body[13]) != prefixtab_slot || bc_c(body[13]) != prefixidx_slot ||
-      bc_a(body[14]) != callbase + 1 + LJ_FR2 || bc_d(body[14]) != text_slot ||
-      bc_a(body[15]) != callbase || bc_b(body[15]) != text_slot ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[15]), "sub", 3) ||
-      !lj_record_s390x_kshort_is(&body[16], callbase + 2 + LJ_FR2, 1) ||
-      bc_a(body[17]) != callbase + 3 + LJ_FR2 || bc_d(body[17]) != prefix_slot ||
-      bc_a(body[18]) != sub_slot || bc_b(body[18]) != 2 ||
-      bc_c(body[18]) != 4 ||
-      bc_a(body[19]) != sub_slot || bc_d(body[19]) != prefix_slot ||
-      bc_a(body[21]) != sub_slot || bc_d(body[21]) != prefix_slot ||
-      bc_a(body[22]) != total_slot || bc_b(body[22]) != total_slot ||
-      bc_c(body[22]) != sub_slot ||
-      bc_a(body[24]) != total_slot || bc_b(body[24]) != total_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[24])))
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-
-  texts = rec_upvalue(J, bc_d(body[0]), 0);
-  prefixes = rec_upvalue(J, bc_d(body[7]), 0);
-  if (!tref_istab(texts) || !tref_istab(prefixes))
-    return 0;
-  if (!lj_record_s390x_guard_string_base_func(J, &body[15], FF_string_sub))
-    return 0;
-
-  textlen = emitir(IRTI(IR_ALEN), texts, TREF_NIL);
-  prefixlen = emitir(IRTI(IR_ALEN), prefixes, TREF_NIL);
-  idxref = emitir(IRT(IR_ADD, IRT_PGC), REF_BASE,
-		  lj_ir_kintpgc(J, 8*((int32_t)J->baseslot +
-				       (int32_t)(forbase+FORL_EXT) - 2)));
-  acc = getslot(J, total_slot);
-  if (!tref_isinteger(acc))
-    return 0;
-  emitir(IRTGI(IR_GE), textlen, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), textlen, lj_ir_kint(J, 256));
-  emitir(IRTGI(IR_GE), prefixlen, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), prefixlen, lj_ir_kint(J, 256));
-  sum = lj_ir_call(J, IRCALL_lj_str_prefix_eq_sum,
-		   texts, prefixes, idxref);
   emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
   sum = emitir(IRTGI(IR_ADDOV), acc, sum);
 
@@ -9656,13 +9274,7 @@ void lj_record_ins(jit_State *J)
   ins = *pc;
   op = bc_op(ins);
 #if LJ_RECORD_S390X_SEMANTIC_REDUCERS
-  if (op == BC_UGET && lj_record_s390x_string_key_lookup_loop(J, pc))
-    return;
   if (op == BC_UGET && lj_record_s390x_concat_slice_loop(J, pc))
-    return;
-  if (op == BC_UGET && lj_record_s390x_miss_find_loop(J, pc))
-    return;
-  if (op == BC_UGET && lj_record_s390x_prefix_eq_loop(J, pc))
     return;
   if (op == BC_UGET && lj_record_s390x_manual_find_cycle_loop(J, pc))
     return;

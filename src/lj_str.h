@@ -17,14 +17,8 @@ LJ_FUNC const char *lj_str_find(const char *s, const char *f,
 #if LJ_TARGET_S390X
 LJ_FUNC int lj_str_equal(const char *a, const char *b, MSize len);
 LJ_FUNC int lj_str_equal_256(const char *a, const char *b, MSize len);
-LJ_FUNC int32_t lj_str_key_lookup_sum(GCtab *keys, GCtab *map,
-				      const TValue *idxv);
 LJ_FUNC int32_t lj_str_concat_slice_sum(GCtab *lefts, GCtab *rights,
 					const TValue *idxv);
-LJ_FUNC int32_t lj_str_find_cycle_sum(GCtab *haystacks, GCtab *needles,
-				      const TValue *idxv);
-LJ_FUNC int32_t lj_str_prefix_eq_sum(GCtab *texts, GCtab *prefixes,
-				     const TValue *idxv);
 LJ_FUNC int32_t lj_str_manual_find_cycle_sum(GCtab *haystacks,
 					     GCtab *needles,
 					     const TValue *idxv);

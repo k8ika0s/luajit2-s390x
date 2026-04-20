@@ -37765,3 +37765,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   treatment for monotonic `math.min/max(i, n+1-i)` loops or lower-level
   backend/runtime support that keeps the current correctness properties without
   whole-loop substitution.
+
+## 2026-04-20: low-value string cycle reducers removed
+
+- Removed the three smaller string-cycle semantic reducers from production
+  recorder dispatch and helper surface: `string_key_lookup`, `miss_find`, and
+  `prefix_eq`.
+- Removed their `IRCALLDEF` entries and `src/lj_str.c` helper implementations:
+  `lj_str_key_lookup_sum`, `lj_str_find_cycle_sum`, and
+  `lj_str_prefix_eq_sum`. Their exported declarations are also gone from
+  `src/lj_str.h`.
+- Removed their debt-pack comparison profiles and stale env-audit allowlist
+  entries. The remaining string-cycle profiles are now `string-concat-slice-off`,
+  `string-manual-find-cycle-off`, `string-byte-scan-cycle-off`, and the grouped
+  `string-cycle-off`.
+- Rationale:
+  the prior split profile showed these rows were measurable but small:
+  `miss_find +0.000374s`, `prefix_eq +0.000182s`, and
+  `string_key_lookup +0.000164s` on hot rows. Deleting them reduces upstream
+  semantic-substitution surface without giving back the larger retained string
+  wins.
+- Current audit:
+  the semantic reducer ledger drops from `44` to `41` matcher definitions, and
+  the `string_cycle` family drops from `6` to `3` definitions. The remaining
+  string-cycle debt is `concat_slice`, `manual_find_cycle`, and
+  `byte_scan_cycle`.

@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 08:07 PDT
+Last updated: 2026-04-20 08:20 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -24,8 +24,8 @@ Historical experiment detail lives in
   been removed or rewritten.
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
-  `tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings` currently
-  reports `171` s390x upstream-risk findings across recorder reducer
+  `tools/s390x/audit_benchmark_fastpaths.py --scope semantic` currently
+  reports `159` s390x upstream-risk findings across recorder reducer
   definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
   callinfo entries. These paths are target-confined and no longer
   benchmark-name keyed, but they still replace loop families with closed-form
@@ -62,11 +62,11 @@ Historical experiment detail lives in
 - The remaining string-cycle semantic reducer bucket is now split by
   compile-time profile. Focused kdz1 artifact
   `/tmp/kdz1-string-cycle-profile-split-20260420093000` shows clean one-row
-  ownership for each reducer. `manual_find_cycle`, `byte_scan_cycle`, and
-  `concat_slice` are high-value retained string folds; `miss_find`,
-  `prefix_eq`, and `string_key_lookup` are smaller measurable folds and are the
-  next cleanup candidates if upstream surface reduction outranks preserving
-  every retained string-heavy micro-win.
+  ownership for each reducer. The smaller `miss_find`, `prefix_eq`, and
+  `string_key_lookup` reducers are now removed from production source, reducing
+  the semantic reducer ledger from `44` to `41` definitions. The remaining
+  high-value retained string folds are `manual_find_cycle`, `byte_scan_cycle`,
+  and `concat_slice`.
 - The `be_helpers/strto_loop` residual is now isolated behind
   `LUAJIT_ENABLE_S390X_STRTO_CYCLE_REDUCER`. Focused kdz1 artifact
   `/tmp/kdz1-strto-cycle-profile-20260420095800` shows `strto-cycle-off`
