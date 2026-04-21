@@ -1424,3 +1424,27 @@ This is a clean ABI retirement:
 
 kdz1 validation passed a warning-clean rebuild, numeric correctness, overflow
 guardrails, focused `ffi_cdata.lua`, and focused `dispatch_trace.lua`.
+
+#### Fixed-Call Step16 Postidx Helper Retired Into Recorder IR
+
+The dedicated `lj_trace_s390x_ffi_fixed_step16_postidx()` helper is now gone.
+It was only advancing the loop index across the already-guarded fixed-call
+pressure block shape.
+
+Both fixed-call pressure reducers now emit the exact post-index contract
+directly in [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+- `delta = (stop - 15) - idx`
+- `steps = (delta >> 4) + 1`
+- `newidx = idx + (steps << 4)`
+
+This is upstream-cleaner than keeping a target helper ABI for a simple shift
+contract:
+- no new helper surface
+- no division
+- no semantic widening
+- no change to the matcher boundary or the main accumulation helpers
+
+kdz1 validation passed a warning-clean rebuild,
+`ffi_fixed_call_pressure_trace.lua`, `ffi_stack_call_trace.lua`,
+`ffi_abi/run.lua`, numeric/overflow guardrails, and focused
+`ffi_fixed_call_pressure.lua`.
