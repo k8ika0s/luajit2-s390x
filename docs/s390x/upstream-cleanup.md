@@ -189,6 +189,25 @@ The current WIP is expected to pass the identity audit for production `src/`
   `tests/s390x/perf/dispatch_trace.lua`.
 - Focused `fp_mod_loop` stayed in band at `0.000014s..0.000016s` on `kdz1`.
 
+## 2026-04-21: div/sqrt numeric helpers consolidated
+
+- `lj_trace_s390x_div_loop_accum4()` and
+  `lj_trace_s390x_sqrt_loop_accum4()` are removed from the production helper
+  ABI surface. The retained div/sqrt reducers in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now share one exact-prefix helper,
+  `lj_trace_s390x_num_prefix_accum4()`, which preserves the official
+  sequential floating accumulation contract and selects the div or sqrt term
+  internally.
+- This reduces the target-confined reducer callinfo surface by one entry:
+  `semantic_reducer_callinfo` moves from `17` to `16`.
+- Focused `kdz1` validation passed after a clean rebuild:
+  `mod_int_trace.lua`, `mod_scaled_trace.lua`, `numeric_ops.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`, and
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Focused `div_loop` and `sqrt_loop` stayed in band on `kdz1`.
+
 ## 2026-04-20: min/max helper ABI removed
 
 - The `math.min` / `math.max` closed-form loop path no longer depends on
