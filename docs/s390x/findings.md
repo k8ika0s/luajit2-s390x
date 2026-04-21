@@ -38809,3 +38809,36 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `mixed_noffi mixed_loop=0.000002`;
   `dispatch_trace numeric_loop=0.000000`,
   `side_exit_loop=0.000001`, `hotexit_loop=0.000001`.
+
+## 2026-04-20: ffi_cdata pair-loop helper retired into recorder IR
+
+- Removed `lj_trace_s390x_pair_loop_sum()` completely from
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h),
+  and [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_pair_loop_sum()` now computes the exact closed form
+  `3 * sum(idx..stop)` directly in recorder integer IR using the existing
+  parity-safe inclusive-range reduction:
+  - `count = stop - idx + 1`
+  - `tri = (count >> 1) * (idx + stop) + (count & 1) * ((idx + stop) >> 1)`
+  - `sum = acc + tri * 3`
+- This retires another target-local `IRCALL` without reopening the failed
+  fixed-struct lane. The stop guard stays at `<= 32000`, so the direct
+  recorder math remains safely within the retained integer range.
+- Local checks:
+  `git diff --check` passed. The semantic reducer debt map still shows `26`
+  matcher definitions, but `ffi_cdata` now marks `lj_record_s390x_pair_loop_sum()`
+  as helper-free.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  focused `tests/s390x/perf/ffi_cdata.lua`, and focused
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Hot medians stayed in band:
+  `ffi_cdata pair_loop=0.000001`,
+  `mixed_width_loop=0.000000`, `buffer_fref_loop=0.000000`;
+  `dispatch_trace numeric_loop=0.000000`,
+  `side_exit_loop=0.000000`, `hotexit_loop=0.000001`.

@@ -228,7 +228,6 @@ typedef struct CCallInfo {
   _(S390X,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_ffi_fixed_step16_postidx, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_mixed_width_loop_sum, 2, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_pair_loop_sum, 2, N, INT, 0) \
   _(S390X,	lj_trace_s390x_buffer_fref_loop_sum, 2, N, INT, 0)
 #else
 #define IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_)

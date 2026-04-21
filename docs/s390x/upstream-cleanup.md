@@ -1401,3 +1401,26 @@ kdz1 validation passed a warning-clean rebuild, numeric correctness, overflow
 guardrails, focused `iterator_table.lua`, focused
 `route_around_reducers.lua`, focused `mixed_noffi.lua`, and focused
 `dispatch_trace.lua`.
+
+#### FFI Pair-Loop Helper Retired Into Recorder IR
+
+The dedicated `lj_trace_s390x_pair_loop_sum()` helper is now gone. It was only
+encoding the exact integer closed form `3 * sum(idx..stop)`, with the retained
+matcher already guarding the stop range to `<= 32000`.
+
+`lj_record_s390x_pair_loop_sum()` now emits the exact arithmetic directly in
+[src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+using the same parity-safe inclusive-range reduction shape already used in
+other retained integer reducers:
+- `count = stop - idx + 1`
+- `tri = (count >> 1) * (idx + stop) + (count & 1) * ((idx + stop) >> 1)`
+- `sum = acc + tri * 3`
+
+This is a clean ABI retirement:
+- one fewer s390x helper in the generic IR call table
+- no new helper surface
+- no FP conversion
+- no change to matcher boundaries
+
+kdz1 validation passed a warning-clean rebuild, numeric correctness, overflow
+guardrails, focused `ffi_cdata.lua`, and focused `dispatch_trace.lua`.
