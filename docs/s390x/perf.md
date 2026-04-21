@@ -1,6 +1,6 @@
 # s390x Performance Status
 
-Last updated: 2026-04-19 09:25 PDT
+Last updated: 2026-04-21 08:47 PDT
 
 ## Current Matrix
 
@@ -10,31 +10,42 @@ notes and experiment logs belong below this section or in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md), not above it.
 
 - Current WIP integration source point:
-  `71cf0b88 s390x: fold logical chain tail store`.
-- Current s390x artifact:
+  post-`70c3666b Genericize s390x logic suffix reducers` follow-up
+  `ffi_calls_static_stop` exactness fix in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c).
+- Last successful authoritative full matrix:
   `artifacts/s390x/post-tail-store-fullcomp-20260419T160100Z`.
-- Current x86 comparison:
+- Last authoritative x86 comparison:
   `artifacts/s390x/compare-post-tail-store-kdz1-ka0s01-20260419T160100Z`,
   compared against refreshed x86 artifact
   `artifacts/s390x/x86-ka0s01-20260418T203616Z`.
+- Current matrix checkpoint:
+  `/tmp/kdz1-retained-jitter-20260421084529`, a clean full retained-env rerun
+  on `kdz1` with all carried families enabled, including
+  `ffi_calls_static_stop`.
+- Focused correctness confirmation:
+  `kdz1` passed `tests/s390x/jit_core/ffi_literal_stop_same_callsite.lua`,
+  `tests/s390x/perf/ffi_calls_static_stop.lua`,
+  `tests/s390x/perf/ffi_calls.lua`, and the numeric overflow guardrails after
+  the fix. `kdz` independently passed the same-callsite and both FFI perf
+  families on its current canon tree.
 - Run health:
-  `800` s390x benchmark records, `400` comparison rows, `342` complete
-  s390x/x86 rows, `0` missing s390x rows, `58` missing x86 rows, `0` s390x
-  failures, and `12` expected x86 failures from x86 JIT-on
-  `iterator_table`/`mixed_noffi` timeouts.
+  the full `kdz1` checkpoint completed three alternating JIT-on/`-joff`
+  passes with `5` samples and `2` warmups per process. No hot row was red
+  versus `-joff`.
 - Regression read:
-  no s390x JIT-on row in the current full comparison is slower than `-joff`.
-  The regression queue remains empty at official matrix scale.
-- Current acceleration queue:
-  the new full comparison includes both retained low32 logical-chain xhot
-  folds. `logical_chain_tail_add/xhot` now reports `0.000001s` and
-  `logical_chain_tail_store/xhot` reports `0.000000s..0.000001s` in the full
-  kdz1 matrix, closing those previously high-time rows. The largest complete
-  high-time row is now `be_helpers/num_aload_loop/hot`, where s390x is already
-  faster than x86 (`0.000111s` vs `0.000146s..0.000147s`). The only complete
-  x86-faster rows above `10us` are timer-adjacent `numeric_ops` small/medium
-  min/max/div/sqrt/fp-mod variants; do not chase those without a larger
-  numeric harness or a new mechanism.
+  the official regression queue is empty again on the restored full matrix.
+- Current acceleration read from the full checkpoint:
+  the largest still-meaningful hot rows are
+  `int_add_phi_only/add_phi_only`,
+  `large_immediates/{sub_large,add_small,add_large,cmp_large,aref_small,aref_large}`,
+  `be_helpers/strto_loop`, `string_heavy/{miss_find_loop,
+  string_key_lookup_loop,prefix_eq_loop}`, `ffi_calls_static_stop`,
+  `vararg_paths`, and `numeric_ops/{min_loop,max_loop}`. Timer-floor families
+  remain parked.
+- Immediate queue:
+  continue semantic-reducer/helper debt cleanup from the restored full-matrix
+  state, starting with the remaining helper-backed reducers.
 - Retained acceleration source delta:
   post-matrix low32 store fold for the official
   `logical_chain_tail_store/chain_tail_store` row. The recorder now matches
