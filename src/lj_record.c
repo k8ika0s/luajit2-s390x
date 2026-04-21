@@ -2816,6 +2816,20 @@ static TRef lj_record_s390x_int_sum_range_num(jit_State *J, TRef lo, TRef hi,
   return emitir(IRTN(IR_MUL), sum, lj_ir_knum(J, 0.5));
 }
 
+static TRef lj_record_s390x_int_sum_range_mul_int(jit_State *J, TRef lo,
+						  TRef hi, TRef count,
+						  int32_t mulv)
+{
+  TRef edges = emitir(IRTGI(IR_ADDOV), lo, hi);
+  TRef halfn = emitir(IRTI(IR_BSAR), count, lj_ir_kint(J, 1));
+  TRef halfedges = emitir(IRTI(IR_BSAR), edges, lj_ir_kint(J, 1));
+  TRef odd = emitir(IRTI(IR_BAND), count, lj_ir_kint(J, 1));
+  TRef tri = emitir(IRTI(IR_MUL), halfn, edges);
+  odd = emitir(IRTI(IR_MUL), odd, halfedges);
+  tri = emitir(IRTI(IR_ADD), tri, odd);
+  return emitir(IRTI(IR_MUL), tri, lj_ir_kint(J, mulv));
+}
+
 static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
 					   int ismax)
 {
@@ -3627,10 +3641,12 @@ static int lj_record_s390x_pair_loop_sum(jit_State *J, const BCIns *body)
   cd = cdataV(&base[pairslot]);
   trtypeid = emitir(IRT(IR_FLOAD, IRT_U16), pairref, IRFL_CDATA_CTYPEID);
   emitir(IRTG(IR_EQ, IRT_INT), trtypeid, lj_ir_kint(J, (int32_t)cd->ctypeid));
-
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_pair_loop_sum, idx, stopref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTI(IR_ADD), acc, sum);
+  {
+    TRef count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+    sum = lj_record_s390x_int_sum_range_mul_int(J, idx, stopref, count, 3);
+    sum = emitir(IRTI(IR_ADD), acc, sum);
+  }
 
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
