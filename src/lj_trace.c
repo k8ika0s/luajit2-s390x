@@ -480,29 +480,6 @@ int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx, int32_t stop)
 #endif
 
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-double lj_trace_s390x_centered_mod_abs_loop_sum(double acc, int32_t idx,
-						int32_t stop, int32_t mod,
-						int32_t center)
-{
-  int64_t n, q, rem, i, period = 0, sum;
-  if (idx < 1 || stop > 1000000 || stop < idx ||
-      mod < 2 || mod > 1024 || center < 0 || center >= mod)
-    return acc;
-  for (i = 0; i < mod; i++) {
-    int32_t x = (int32_t)i - center;
-    period += x < 0 ? -x : x;
-  }
-  n = (int64_t)stop - idx + 1;
-  q = n / mod;
-  rem = n - q * mod;
-  sum = q * period;
-  for (i = 0; i < rem; i++) {
-    int32_t x = ((idx + (int32_t)i) % mod) - center;
-    sum += x < 0 ? -x : x;
-  }
-  return acc + (double)sum;
-}
-
 double lj_trace_s390x_div_loop_accum4(double acc, int32_t idx, int32_t stop)
 {
   static double prefix[64000 + 1];

@@ -244,7 +244,6 @@ typedef struct CCallInfo {
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 #define IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_) \
-  _(S390X,	lj_trace_s390x_centered_mod_abs_loop_sum, 5, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_div_loop_accum4, 3, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_sqrt_loop_accum4, 3, N, NUM, 0) \
   _(S390X,	lj_trace_s390x_count_multiples, 3, N, INT, 0) \

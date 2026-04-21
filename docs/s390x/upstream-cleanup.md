@@ -1339,3 +1339,20 @@ overflow, MUL overflow, and focused `numeric_ops.lua`.
 
 After this step the broader audit dropped to `101` findings, total reducer
 matcher definitions dropped to `26`, and `numeric_mod` dropped to `12`.
+
+#### Centered-Mod-Abs Helper Retired Into Recorder IR
+
+The dedicated `lj_trace_s390x_centered_mod_abs_loop_sum()` helper is now gone.
+`lj_record_s390x_centered_mod_abs_loop_sum()` computes the exact periodic
+centered-absolute remainder sum directly in recorder-local IR using dynamic
+`DIV/MOD` cycle decomposition, recorder-local triangular/prefix helpers, and a
+single final int-to-num accumulation.
+
+This is the right cleanup shape: it preserves the semantic route-around but
+removes one more helper ABI export entirely. kdz1 validation again passed a
+warning-clean rebuild, `mod_int_trace.lua`, `mod_scaled_trace.lua`, numeric
+correctness, ADD/SUB overflow, MUL overflow, focused `numeric_ops.lua`, and
+focused `route_around_reducers.lua`.
+
+After this step the broader audit dropped to `99` findings and semantic reducer
+callinfo dropped to `21`.
