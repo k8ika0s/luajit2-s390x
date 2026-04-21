@@ -38877,3 +38877,36 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Hot medians stayed in band:
   `gpr_reg5=0.000000`, `gpr_stack6=0.000000`, `gpr_pressure=0.000000`,
   `fpr_reg4=0.000000`, `fpr_stack5=0.000000`, `fpr_pressure=0.000000`.
+
+## 2026-04-21: buffer-fref helper retired into generic mod contract
+
+- Removed `lj_trace_s390x_buffer_fref_loop_sum()` completely from
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h),
+  and [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_buffer_fref_loop_sum()` now uses the exact arithmetic
+  decomposition:
+  - `count = stop - idx + 1`
+  - `skip = lj_trace_s390x_mod_loop_sum(idx, stop, 3)`
+  - `sum = acc + count * 6 - skip`
+- This is the correct cleanup shape for this lane:
+  it removes the bespoke buffer helper ABI, but does not reopen direct dynamic
+  `DIV/MOD` IR. The reducer now rides the existing generic `mod_loop_sum`
+  contract that is already carried elsewhere in the numeric lane.
+- Local checks:
+  `git diff --check` passed. The semantic reducer debt map now shows
+  `lj_record_s390x_buffer_fref_loop_sum()` depending on
+  `lj_trace_s390x_mod_loop_sum`, not a dedicated buffer helper.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  focused `tests/s390x/perf/ffi_cdata.lua`, and focused
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Hot medians stayed in band:
+  `ffi_cdata pair_loop=0.000000`,
+  `mixed_width_loop=0.000001`, `buffer_fref_loop=0.000000`;
+  `dispatch_trace numeric_loop=0.000000`,
+  `side_exit_loop=0.000000`, `hotexit_loop=0.000001`.
