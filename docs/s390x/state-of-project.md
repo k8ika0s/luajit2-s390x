@@ -1,6 +1,6 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-20 10:21 PDT
+Last updated: 2026-04-21 08:47 PDT
 
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
@@ -8,8 +8,12 @@ Historical experiment detail lives in
 
 ## Current Source Point
 
-- Current WIP integration point is the current `k8ika0s/s390x-bringup-wip`
-  head after the trace-policy cleanup.
+- Current WIP integration point is post-`70c3666b Genericize s390x logic
+  suffix reducers` with a follow-up exactness guard in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  that keeps the `ffi_calls_static_stop` zero-arg literal-stop wrapper off the
+  retained centered-mod17 reducer until the static-stop restart contract is
+  replaced generically.
 - The branch retains the current correctness and guardrail floor, numeric
   backend lowering, PHI loop recurrence codegen, final default-enabled
   string/memscan paths, the promoted fixed FFI call pressure optimization, the
@@ -24,12 +28,12 @@ Historical experiment detail lives in
   been removed or rewritten.
 - The branch is not upstream-clean under the broader default audit yet. The
   remaining top blocker is recorder-side semantic reducer substitution:
-  `tools/s390x/audit_benchmark_fastpaths.py --scope semantic` currently
-  reports `139` s390x upstream-risk findings across recorder reducer
-  definitions, dispatch hooks, emitted reducer IRCALLs, and s390x reducer
-  callinfo entries. These paths are target-confined and no longer
+  `python3 tools/s390x/audit_benchmark_fastpaths.py` currently reports `91`
+  s390x upstream-risk source findings, including `26` semantic reducer
+  definitions, `25` reducer dispatch sites, `23` reducer IRCALL sites, and
+  `17` target-confined reducer callinfo entries. These paths are no longer
   benchmark-name keyed, but they still replace loop families with closed-form
-  helper calls in the core recorder.
+  recorder/helper contracts in core source.
 - A compile-time comparison profile is now available:
   `-DLUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS=0`. Default WIP builds keep the
   reducers enabled to preserve current performance, while the off profile
@@ -69,18 +73,16 @@ Historical experiment detail lives in
   mixed benchmark formula. Focused artifact:
   `/tmp/kdz1-mixed-noffi-component-route-20260420103000`; zkd0 focused
   validation kept `mixed_noffi` and iterator rows at timer floor.
-- The second mixed-noffi cleanup tranche renames the remaining production
+- The second mixed-noffi cleanup tranche renamed the remaining production
   matcher and compile split from mixed-noffi ownership to the component-loop
   bucket. The active matcher is now
   `lj_record_s390x_component_loop_tail_sum()`, with comparison profile
   `component-loop-off` using
   `-DLUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS=0`. The older
   `mixed-noffi-off` debt-pack profile remains only as a compatibility alias.
-  Current semantic reducer ledger: `34` total definitions, split as
-  `numeric_mod 20`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
+  The current semantic reducer ledger is now `26` total definitions, split as
+  `numeric_mod 12`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
   `component_loop 1`, and `iterator_mixed 1`.
-  Focused component profile artifact:
-  `/tmp/kdz1-component-loop-profile-20260420102645`.
 - The localized `bit.tobit`/MULOV guardrail failure was traced to the
   scaled-`tobit` semantic fold guarding against the recording-time warmup stop
   value. The fold now guards the helper domain (`stop <= 1000000`) while
@@ -121,7 +123,28 @@ Historical experiment detail lives in
   official large-immediate rows now run on the lower-level path, with default
   and generic-only effectively identical at the timer-floor scale. The
   `large_immediates` ledger bucket is gone, the semantic reducer ledger is now
-  `34` definitions.
+  `26` total definitions, split as `numeric_mod 12`, `ffi_cdata 6`,
+  `logic_low32 3`, `string_cycle 3`, `component_loop 1`, and
+  `iterator_mixed 1`.
+- The fresh full retained-env rerun is restored on `kdz1`:
+  `/tmp/kdz1-retained-jitter-20260421084529`. The earlier full-run failure
+  `/tmp/kdz1-retained-jitter-20260421080814` was traced to
+  `ffi_calls_static_stop` exactness on the zero-arg literal-stop
+  `abs((i % 17) - 8)` FFI wrapper. The retained reducer now stays on
+  parameterized roots only for that family.
+- Focused validation for the fix passed on `kdz1`:
+  `tests/s390x/jit_core/ffi_literal_stop_same_callsite.lua`,
+  `tests/s390x/perf/ffi_calls_static_stop.lua`,
+  `tests/s390x/perf/ffi_calls.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`.
+- Focused confirmation on `kdz` also passed for
+  `ffi_literal_stop_same_callsite.lua`, `ffi_calls_static_stop.lua`, and
+  `ffi_calls.lua`.
+- The current regression queue is empty again on the restored full matrix.
+  The next queue is semantic-reducer/helper debt cleanup from the current
+  source, not another emergency perf-floor recovery.
 - The former broad s390x `hotexit=200` safety rail is retired. Low-hotexit
   `vararg_paths.lua` crashed because numeric `ASTORE` in the perf helper's
   `clone_array()` path hit missing s390x numeric AHU-store lowering and then
@@ -257,12 +280,23 @@ Historical experiment detail lives in
   `fpr_reg4_pressure`, `fpr_stack5_pressure`, and `fpr_pressure` `xhot` rows
   in the `0.000000s..0.000001s` band; zkd0 confirms `0.000001s` medians
   across the family.
-- Current full matrix:
+- Last successful full matrix:
   `artifacts/s390x/post-tail-store-fullcomp-20260419T160100Z` and comparison
   `artifacts/s390x/compare-post-tail-store-kdz1-ka0s01-20260419T160100Z`.
-  The run has `800` s390x benchmark records, `400` comparison rows, `342`
+  That run has `800` s390x benchmark records, `400` comparison rows, `342`
   complete cross-arch rows, `0` s390x failures, `0` missing s390x rows, and no
   s390x JIT-on row slower than `-joff`.
+- Latest retained-env checkpoint:
+  `/tmp/kdz1-retained-jitter-20260421080957`, a reduced `kdz1` rerun with all
+  retained families except `ffi_calls_static_stop`, completed three
+  alternating JIT-on/`-joff` passes with `5` samples and `2` warmups per
+  process. No completed hot row was red.
+- Current full-matrix blocker:
+  `/tmp/kdz1-retained-jitter-20260421080814` failed during pass 1 because
+  `tests/s390x/perf/ffi_calls_static_stop.lua` tripped exactness:
+  `direct_abs_literal_stop_real/hot: expected 338816, got 338752`.
+  The next full retained-env matrix should not be treated as authoritative
+  until this row is corrected.
 - Current caveat:
   the x86 comparison still has `58` missing x86 rows. These are from the
   carried x86 artifact timing out on JIT-on `iterator_table`/`mixed_noffi` and
@@ -272,10 +306,12 @@ Historical experiment detail lives in
   small/medium rows.
 - Work continues directly on `k8ika0s/s390x-bringup-wip`; use focused
   truth-pack artifacts and host-pair confirmation before promoting another
-  source lane. The fixed-call pressure and low32 logical-chain `xhot` families
-  are closed at current scale; the next source lane should come from a fresh
-  comparison/rerank or a larger numeric harness before chasing min/max
-  timer-floor deltas.
+  source lane. Immediate priority is:
+  1. fix `ffi_calls_static_stop` exactness so the full retained matrix can run
+     cleanly again,
+  2. keep burning down remaining semantic reducer debt,
+  3. rerank from a fresh full retained matrix before reopening another
+     acceleration lane.
 
 ## Latest Validation
 

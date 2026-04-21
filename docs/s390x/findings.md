@@ -38951,3 +38951,82 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Same-host `kdz1` A/B against immediate reverted control stayed exactly in
   band for all focused rows. No measurable regression appeared in the retained
   logic/bitops/dispatch lane.
+
+## 2026-04-21: retained-matrix checkpoint after logic suffix cleanup
+
+- Current source point for this checkpoint:
+  `70c3666b Genericize s390x logic suffix reducers`.
+- A fresh full retained-env matrix attempt on `kdz1` failed early at
+  `/tmp/kdz1-retained-jitter-20260421080814`. The blocker is
+  [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+  exactness:
+  `direct_abs_literal_stop_real/hot: expected 338816, got 338752`.
+- To keep the current state measurable, a reduced retained-env rerun excluded
+  only `ffi_calls_static_stop` and completed cleanly on `kdz1`:
+  `/tmp/kdz1-retained-jitter-20260421080957`.
+  Configuration:
+  `5` samples, `2` warmups, `3` alternating JIT-on/`-joff` passes.
+- Reduced checkpoint read:
+  no completed hot row was red versus `-joff`. The largest still-meaningful
+  completed hot rows were:
+  - `int_add_phi_only/add_phi_only/hot` ratio `0.1429`
+  - `large_immediates/sub_large/hot` ratio `0.1232`
+  - `large_immediates/add_small/hot` ratio `0.1159`
+  - `large_immediates/add_large/hot` ratio `0.1159`
+  - `be_helpers/strto_loop/hot` ratio `0.0902`, but with heavy pass-3 jitter
+    (`0.2738`)
+  - `string_heavy/miss_find_loop/hot` ratio `0.0749`
+  - `string_heavy/string_key_lookup_loop/hot` ratio `0.0714`
+  - `large_immediates/cmp_large/hot` ratio `0.0669`
+- Practical read:
+  the regression queue is empty for the completed families, but the branch
+  does not yet have a fresh authoritative full matrix after the recent reducer
+  cleanup because `ffi_calls_static_stop` is still broken.
+- Current reducer debt snapshot from
+  `python3 tools/s390x/build_semantic_reducer_debt.py`:
+  `26` matcher definitions split as
+  `numeric_mod 12`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
+  `component_loop 1`, and `iterator_mixed 1`.
+  Current broad source audit from
+  `python3 tools/s390x/audit_benchmark_fastpaths.py` reports `91`
+  upstream-risk findings.
+- Immediate next queue from this checkpoint:
+  1. fix `ffi_calls_static_stop` exactness and rerun the complete retained
+     matrix,
+  2. continue reducer debt cleanup in the remaining helper-backed lanes,
+     starting with `fpmod_quarter`, `numeric_div_loop_accum4`,
+     `numeric_sqrt_loop_accum4`, or the remaining FFI/string helper-backed
+     contracts,
+  3. reopen acceleration ranking only after the full retained matrix is clean
+     again.
+
+## 2026-04-21: full retained matrix restored after ffi_calls_static_stop fix
+
+- The `ffi_calls_static_stop` exactness blocker is fixed by keeping the
+  centered-mod17 FFI reducer off zero-arg literal-stop wrappers. The reducer
+  remains enabled for the parameterized `ffi_calls.lua` family.
+- Focused `kdz1` validation passed after the fix:
+  `tests/s390x/jit_core/ffi_literal_stop_same_callsite.lua`,
+  `tests/s390x/perf/ffi_calls_static_stop.lua`,
+  `tests/s390x/perf/ffi_calls.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`.
+- Focused `kdz` confirmation also passed for the same-callsite guard and both
+  FFI perf families.
+- The full retained-env matrix now completes cleanly on `kdz1`:
+  `/tmp/kdz1-retained-jitter-20260421084529`.
+  Configuration:
+  `5` samples, `2` warmups, `3` alternating JIT-on/`-joff` passes.
+- Full-checkpoint read:
+  no hot row was red versus `-joff`. The largest still-meaningful rows are
+  `int_add_phi_only/add_phi_only/hot` ratio `0.1500`,
+  `large_immediates/{sub_large,add_small,add_large,cmp_large,aref_small,aref_large}`,
+  `be_helpers/strto_loop/hot` ratio `0.0850`,
+  `string_heavy/{miss_find_loop,string_key_lookup_loop,prefix_eq_loop}`,
+  `ffi_calls_static_stop/{stored_abs_literal_stop_real,direct_abs_literal_stop_real}`,
+  `vararg_paths`, and `numeric_ops/{min_loop,max_loop}`.
+- Practical read:
+  the branch is back on a clean authoritative full retained matrix. The next
+  work should return to helper-backed semantic reducer debt cleanup rather than
+  more perf-floor recovery.

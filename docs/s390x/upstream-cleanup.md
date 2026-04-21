@@ -27,10 +27,10 @@ calls:
 python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
-As of this note, the broader semantic audit intentionally fails with `139`
-findings. These are no longer benchmark-name keyed in many cases, but they
-remain semantic loop substitution in the core recorder and are the main
-upstream blocker.
+As of the current checkpoint, the broader semantic audit intentionally fails
+with `91` findings. These are no longer benchmark-name keyed in many cases,
+but they remain semantic loop substitution in the core recorder and are the
+main upstream blocker.
 
 Historical findings still mention benchmark identity patterns because they
 document the bring-up path. Current source should keep the identity audit clean
@@ -57,6 +57,12 @@ Current production-source status:
   architecture-neutral helper ABI. Target confinement fixed the ABI surface
   issue, but it does not make the recorder-side semantic substitutions
   upstream-clean by itself.
+- Current source ledgers:
+  `26` semantic reducer definitions, `25` reducer dispatch sites, `23`
+  reducer IRCALL sites, and `17` target-confined reducer callinfo entries.
+  Current family split is:
+  `numeric_mod 12`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
+  `component_loop 1`, and `iterator_mixed 1`.
 - `src/lib_jit.c`: the broad s390x `hotexit=200` safety rail has been removed.
   The low-hotexit `vararg_paths.lua` crash was traced to missing numeric
   `ASTORE` lowering in `asm_ahustore()`, not to a need for target-specific JIT
@@ -143,6 +149,29 @@ The current WIP is expected to pass the identity audit for production `src/`
   plus focused `numeric_ops.lua`, `dispatch_trace.lua`, and
   `route_around_reducers.lua` on kdz1. All passed with a warning-clean build.
 
+## 2026-04-21: full retained matrix restored after static-stop exactness fix
+
+- The `ffi_calls_static_stop` zero-arg literal-stop wrapper was the live
+  blocker for the first `2026-04-21` full retained-env checkpoint:
+  `tests/s390x/perf/ffi_calls_static_stop.lua` failed exactness at
+  `direct_abs_literal_stop_real/hot` (`expected 338816, got 338752`).
+- The narrow source fix keeps
+  `lj_record_s390x_ffi_const_i32_mod17_loop_sum()` off zero-arg roots while
+  leaving the parameterized `ffi_calls.lua` family on the retained reducer.
+  This is a correctness hold, not an upstream debt payoff; the real cleanup is
+  still to replace the static-stop restart contract generically.
+- Focused validation passed on `kdz1`:
+  `ffi_literal_stop_same_callsite.lua`, `ffi_calls_static_stop.lua`,
+  `ffi_calls.lua`, `numeric_ops.lua`, `addsub_overflow_guard.lua`, and
+  `mulov_overflow_guard.lua`.
+- Focused `kdz` confirmation also passed for the same-callsite guard and both
+  FFI perf families.
+- The authoritative full retained-env matrix is restored at
+  `/tmp/kdz1-retained-jitter-20260421084529`; no hot row is red versus
+  `-joff`.
+- Reducer debt and audit state are unchanged by this hold:
+  `26` semantic reducer definitions and `91` upstream-risk source findings.
+
 ## 2026-04-20: min/max helper ABI removed
 
 - The `math.min` / `math.max` closed-form loop path no longer depends on
@@ -210,6 +239,29 @@ explicitly allowlisted generic mechanism.
 The audit is intentionally source-based, not build-profile-based. It reports
 benchmark-shaped source even if a path could be compiled out, because an
 upstream candidate needs the source removed or rewritten, not merely disabled.
+
+## 2026-04-21: reduced retained-matrix checkpoint and remaining reducer map
+
+- Current source point:
+  `70c3666b Genericize s390x logic suffix reducers`.
+- Fresh full retained-env matrix attempt on `kdz1` failed at
+  `/tmp/kdz1-retained-jitter-20260421080814` because
+  [tests/s390x/perf/ffi_calls_static_stop.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/ffi_calls_static_stop.lua)
+  now fails exactness on
+  `direct_abs_literal_stop_real/hot` (`expected 338816, got 338752`).
+  This is the immediate blocker before another authoritative full matrix can
+  be published.
+- Reduced retained-env rerun excluding only `ffi_calls_static_stop` completed
+  cleanly at `/tmp/kdz1-retained-jitter-20260421080957` with no completed hot
+  row red versus `-joff`. That keeps the current source measurable while the
+  blocker is fixed, but it does not replace the last full matrix checkpoint.
+- Cleanup priority after this checkpoint:
+  1. restore `ffi_calls_static_stop` exactness so the full retained matrix runs
+     cleanly again,
+  2. continue retiring helper-backed reducer contracts in the remaining
+     buckets,
+  3. keep the full audit and reducer ledgers moving down without reopening any
+     benchmark-identity steering.
 
 ## Cleanup Order
 

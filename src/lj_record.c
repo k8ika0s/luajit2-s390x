@@ -2416,6 +2416,12 @@ static int lj_record_s390x_ffi_const_i32_mod17_loop_sum(jit_State *J,
   if (!lj_record_s390x_root_frame(J) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
+  /* The zero-arg literal-stop FFI wrapper still mis-resumes on s390x after
+  ** helper retirement. Keep this reducer on parameterized roots only until the
+  ** static-stop leave/restart contract is replaced with a generic fix.
+  */
+  if (J->pt->numparams == 0)
+    return 0;
   proto = proto_bc(J->pt);
   if (body < proto + 5 || (MSize)((body + 4) - proto) >= J->pt->sizebc)
     return 0;
