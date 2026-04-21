@@ -38543,3 +38543,32 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
   (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
   `sqrt=0.000014`, `min=0.000014`, `max=0.000014`).
+
+## 2026-04-20: min/max loop helpers removed
+
+- Removed `lj_trace_s390x_min_loop_sum()` and
+  `lj_trace_s390x_max_loop_sum()` completely. The
+  `lj_record_s390x_minmax_loop_sum()` matcher in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now emits the mirror-sum closed form directly in recorder IR using integer
+  `MAX`, integer-to-number conversion, and the identity
+  `min(i, stop+1-i) + max(i, stop+1-i) = stop + 1`.
+- Removed the corresponding declarations from
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h)
+  and the `IRCALL` entries from
+  [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `114` to
+  `110`, and semantic reducer callinfo dropped from `27` to `25`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`; hot medians stayed in the same
+  timer-floor band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000013`, `min=0.000017`, `max=0.000017`).
