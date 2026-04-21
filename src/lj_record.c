@@ -963,8 +963,10 @@ static int lj_record_s390x_ct_is_signed_i32(CTInfo info, CTSize size)
   return ctype_isinteger(info) && !(info & CTF_UNSIGNED) && size == 4;
 }
 
+typedef int32_t (*S390XConstI32Func)(int32_t);
+
 static int lj_record_s390x_guard_const_i32_cfunc(jit_State *J, BCReg slot,
-						 TRef *fptr)
+						 TRef *fptr, void **funcp)
 {
   CTState *cts = ctype_ctsG(J2G(J));
   GCcdata *cd;
@@ -997,8 +999,11 @@ static int lj_record_s390x_guard_const_i32_cfunc(jit_State *J, BCReg slot,
   if (!lj_record_s390x_ct_is_signed_i32(argt->info, argt->size))
     return 0;
 
-  *fptr = emitir(IRT(IR_FLOAD, sz == 4 ? IRT_P32 : IRT_PTR), funcref,
-		 IRFL_CDATA_PTR);
+  if (fptr)
+    *fptr = emitir(IRT(IR_FLOAD, sz == 4 ? IRT_P32 : IRT_PTR), funcref,
+		   IRFL_CDATA_PTR);
+  if (funcp)
+    *funcp = cdata_getptr(cdataptr(cd), (LJ_64 && sz == 8) ? 8 : 4);
   return 1;
 }
 #endif
@@ -2362,14 +2367,33 @@ static int lj_record_s390x_numeric_sqrt_loop_accum4(jit_State *J,
 }
 
 #if LJ_HASFFI
+static TRef lj_record_s390x_centered_mod_prefix_num(jit_State *J, TRef t,
+						    int32_t center);
+
+static int lj_record_s390x_const_i32_mod17_is_centered_abs(void *func)
+{
+  S390XConstI32Func fn = (S390XConstI32Func)func;
+  int32_t i;
+
+  if (fn == NULL)
+    return 0;
+  for (i = 0; i < 17; i++) {
+    int32_t x = i - 8;
+    if (fn(x) != (x < 0 ? -x : x))
+      return 0;
+  }
+  return 1;
+}
+
 static int lj_record_s390x_ffi_const_i32_mod17_loop_sum(jit_State *J,
 							const BCIns *body)
 {
   const BCIns *forl, *proto;
   BCIns mod17, sub8, call, add;
   BCReg forbase, idxslot, tmp, callbase, accslot;
-  TRef idx, stopref, acc, sum, fptr;
+  TRef idx, stopref, acc, sum;
   cTValue *base;
+  void *func = NULL;
   int32_t stopv;
 
   if (!lj_record_s390x_root_frame(J) ||
@@ -2404,7 +2428,8 @@ static int lj_record_s390x_ffi_const_i32_mod17_loop_sum(jit_State *J,
       bc_a(forl[1]) != accslot ||
       callbase == idxslot || callbase == accslot || tmp == accslot)
     return 0;
-  if (!lj_record_s390x_guard_const_i32_cfunc(J, callbase, &fptr))
+  if (!lj_record_s390x_guard_const_i32_cfunc(J, callbase, NULL, &func) ||
+      !lj_record_s390x_const_i32_mod17_is_centered_abs(func))
     return 0;
 
   base = J->L->base;
@@ -2423,12 +2448,33 @@ static int lj_record_s390x_ffi_const_i32_mod17_loop_sum(jit_State *J,
   stopref = getslot(J, forbase+FORL_STOP);
   acc = getslot(J, accslot);
   if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !tref_isinteger(acc))
+      !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
+  if (tref_isinteger(acc))
+    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_const_i32_mod17_loop_sum,
-		   fptr, idx, stopref);
-  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
+  {
+    TRef count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+    TRef q, rem, startrem, after, wrap, afterrem;
+    TRef prefix0, prefix1, tail, qn, wrapn;
+    TRef period = lj_ir_knum(J, 72.0);
+
+    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+    q = emitir(IRTI(IR_DIV), count, lj_ir_kint(J, 17));
+    rem = emitir(IRTI(IR_MOD), count, lj_ir_kint(J, 17));
+    startrem = emitir(IRTI(IR_MOD), idx, lj_ir_kint(J, 17));
+    after = emitir(IRTGI(IR_ADDOV), startrem, rem);
+    wrap = emitir(IRTI(IR_DIV), after, lj_ir_kint(J, 17));
+    afterrem = emitir(IRTI(IR_MOD), after, lj_ir_kint(J, 17));
+    prefix0 = lj_record_s390x_centered_mod_prefix_num(J, startrem, 8);
+    prefix1 = lj_record_s390x_centered_mod_prefix_num(J, afterrem, 8);
+    tail = emitir(IRTN(IR_SUB), prefix1, prefix0);
+    wrapn = emitir(IRTN(IR_CONV), wrap, IRCONV_NUM_INT);
+    tail = emitir(IRTN(IR_ADD), tail, emitir(IRTN(IR_MUL), wrapn, period));
+    qn = emitir(IRTN(IR_CONV), q, IRCONV_NUM_INT);
+    sum = emitir(IRTN(IR_ADD), tail, emitir(IRTN(IR_MUL), qn, period));
+    sum = emitir(IRTN(IR_ADD), acc, sum);
+  }
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;

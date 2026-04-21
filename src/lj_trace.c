@@ -561,28 +561,6 @@ double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx, int32_t stop)
   return acc;
 }
 
-int32_t lj_trace_s390x_const_i32_mod17_loop_sum(void *func, int32_t idx,
-						int32_t stop)
-{
-  typedef int32_t (*ConstI32Func)(int32_t);
-  ConstI32Func fn = (ConstI32Func)func;
-  int64_t n, q, rem, i, sum = 0;
-  int32_t period = 0;
-  if (fn == NULL || idx < 1 || stop > 1000000 || stop < idx)
-    return 0;
-  for (i = 0; i < 17; i++)
-    period += fn((int32_t)i - 8);
-  n = (int64_t)stop - idx + 1;
-  q = n / 17;
-  rem = n - q * 17;
-  sum = q * period;
-  for (i = 0; i < rem; i++)
-    sum += fn(((idx + (int32_t)i) % 17) - 8);
-  if (sum < INT32_MIN || sum > INT32_MAX)
-    return 0;
-  return (int32_t)sum;
-}
-
 #endif
 
 #if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS

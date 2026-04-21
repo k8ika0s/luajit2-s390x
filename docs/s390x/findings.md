@@ -38733,3 +38733,40 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Hot medians stayed in the same timer-floor band
   (`abs=0.000018`, `div=0.000012`, `fp_mod=0.000015`,
    `sqrt=0.000014`, `min=0.000018`, `max=0.000018`).
+
+## 2026-04-20: const-i32 mod17 helper retired into centered-abs contract
+
+- Removed `lj_trace_s390x_const_i32_mod17_loop_sum()` completely from
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h),
+  and [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_ffi_const_i32_mod17_loop_sum()` no longer exports a helper
+  ABI. It now:
+  - guards a constant `int32 -> int32` C function as before
+  - requires the sampled `mod17` body to match the centered-absolute
+    `abs((i % 17) - 8)` contract
+  - reuses the existing recorder-local centered-mod prefix math to emit the
+    whole-loop sum directly in IR
+- A broader generic 17-residue int expansion was tried first and rejected
+  because it produced a wrong-result drift on the official `ffi_calls` row.
+  The retained centered-abs narrowing is the correct cleanup shape for this
+  tranche: it removes the helper export without widening semantic risk.
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `99` to
+  `97`, semantic reducer callinfo dropped from `21` to `20`, while total
+  reducer matcher definitions stayed at `26` and the `numeric_mod` bucket
+  stayed at `12`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  focused `tests/s390x/perf/numeric_ops.lua`, and focused
+  `tests/s390x/perf/ffi_calls.lua`.
+- Hot medians stayed in band:
+  `numeric_ops abs=0.000017`, `div=0.000012`, `fp_mod=0.000016`,
+  `sqrt=0.000014`, `min=0.000018`, `max=0.000017`;
+  `ffi_calls direct_abs=0.000000`, `stored_abs=0.000000..0.000001`.
