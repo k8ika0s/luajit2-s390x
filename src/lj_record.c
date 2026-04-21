@@ -3660,25 +3660,9 @@ static int lj_record_s390x_buffer_fref_loop_sum(jit_State *J,
 #endif
 
 #if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
-static int lj_record_s390x_mod_mul_sum_fits_i32(int32_t stop, int32_t mod,
-						int32_t mul)
-{
-  int64_t sum, q2, count, multsum;
-  if (stop < 1)
-    return 1;
-  sum = (int64_t)(1 + stop) * stop / 2;
-  q2 = stop / mod;
-  if (q2 >= 1) {
-    count = q2;
-    multsum = (int64_t)mod * (1 + q2) * count / 2;
-    sum += ((int64_t)mul - 1) * multsum;
-  }
-  return sum > INT32_MIN && sum <= INT32_MAX;
-}
-
 static int lj_record_s390x_mod_select_sum_fits_i32(int32_t stop, int32_t mod,
-						   int32_t then_mul,
-						   int32_t else_mul)
+						    int32_t then_mul,
+						    int32_t else_mul)
 {
   int64_t allsum, q2, count, multsum, sum;
   if (stop < 1)
@@ -4354,7 +4338,7 @@ static int lj_record_s390x_mod_mul_loop_sum(jit_State *J, const BCIns *body)
   stopv = intV(&base[forbase+FORL_STOP]);
   if (stopv < 1 || stopv > 1000000)
     return 0;
-  if (!lj_record_s390x_mod_mul_sum_fits_i32(stopv, modk, mulk))
+  if (!lj_record_s390x_mod_select_sum_fits_i32(stopv, modk, mulk, 1))
     return 0;
   if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
     return 0;
@@ -4365,8 +4349,9 @@ static int lj_record_s390x_mod_mul_loop_sum(jit_State *J, const BCIns *body)
   if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_mul_loop_sum, idx,
-		   stopref, lj_ir_kint(J, modk), lj_ir_kint(J, mulk));
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_select_loop_sum, idx,
+		   stopref, lj_ir_kint(J, modk), lj_ir_kint(J, mulk),
+		   lj_ir_kint(J, 1));
   emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
   if (tref_isinteger(acc)) {
     sum = emitir(IRTGI(IR_ADDOV), acc, sum);

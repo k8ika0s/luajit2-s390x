@@ -38623,3 +38623,30 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/numeric_ops.lua`; hot medians stayed in band
   (`abs=0.000017`, `div=0.000012`, `fp_mod=0.000016`,
   `sqrt=0.000014`, `min=0.000017`, `max=0.000017`).
+
+## 2026-04-20: mod-mul helper folded into generic mod-select
+
+- Removed `lj_trace_s390x_mod_mul_loop_sum()` completely. The
+  `lj_record_s390x_mod_mul_loop_sum()` matcher in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now reuses the existing generic
+  `lj_trace_s390x_mod_select_loop_sum()` helper with `else_mul = 1`, which
+  preserves the exact `idx * mul` vs `idx` branch contract without a separate
+  helper ABI.
+- Removed the corresponding declaration from
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h)
+  and the `IRCALL` entry from
+  [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `107` to
+  `106`, and semantic reducer callinfo dropped from `23` to `22`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua`; hot medians stayed in band
+  (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000013`, `min=0.000017`, `max=0.000017`).
