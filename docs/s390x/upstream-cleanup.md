@@ -1164,3 +1164,16 @@ focused `numeric_ops.lua`, focused `dispatch_trace.lua`, and focused
 `route_around_reducers.lua`. This is exactly the kind of cleanup upstream
 will expect: replace a benchmark-shaped special case with an existing generic
 contract instead of adding another route-around.
+
+#### Mod97 If5 Else1 Fold Into Generic Remainder-Select Plus Count
+
+The `%5 == 0 ? +(i % 97) : +1` branch shape no longer needs its own matcher or
+helper. The generic remainder-select path now supports a modulo remainder on
+one branch and an integer constant on the other branch, with a generic
+`count_multiples()` helper providing the branch-count adjustment.
+
+This removed `lj_record_s390x_mod97_if5_else1_loop_sum()` and
+`lj_trace_s390x_mod97_if5_else1_loop_sum()` entirely. kdz1 validation passed a
+warning-clean rebuild, `mod_int_trace.lua`, `mod_scaled_trace.lua`, numeric
+correctness, ADD/SUB overflow, MUL overflow, focused `numeric_ops.lua`,
+focused `dispatch_trace.lua`, and focused `route_around_reducers.lua`.
