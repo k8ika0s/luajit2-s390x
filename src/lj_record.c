@@ -631,11 +631,6 @@ static int lj_record_s390x_mod_branch_ifconv_enabled(void)
   return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
-static int lj_record_s390x_mod97_loop_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
 static int lj_record_s390x_mod_mul_loop_sum_enabled(void)
 {
   return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
@@ -4770,7 +4765,7 @@ static int lj_record_s390x_mod_loop_sum(jit_State *J, const BCIns *body)
   if (idxslot != forbase + FORL_EXT ||
       tmp == idxslot || tmp == accslot || idxslot == accslot ||
       !lj_record_s390x_knum_get_int(J->pt, bc_c(mod), &modk) ||
-      modk < 2 || modk > 4096 || modk == 97 ||
+      modk < 2 || modk > 4096 ||
       bc_a(accop) != accslot || bc_b(accop) != accslot ||
       bc_c(accop) != tmp)
     return 0;
@@ -4802,81 +4797,6 @@ static int lj_record_s390x_mod_loop_sum(jit_State *J, const BCIns *body)
   sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
 		   stopref, lj_ir_kint(J, modk));
   emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
-  if (tref_isinteger(acc))
-    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
-  sum = emitir(IRTN(IR_ADD), acc, sum);
-
-  J->base[accslot] = sum;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
-static int lj_record_s390x_mod97_loop_sum(jit_State *J, const BCIns *body)
-{
-  const BCIns *forl, *proto;
-  BCIns mod97, accop;
-  BCReg forbase, idxslot, tmp, accslot;
-  TRef idx, stopref, acc, sum;
-  cTValue *base;
-  int32_t stopv;
-  BCOp accbc;
-
-  if (!lj_record_s390x_mod97_loop_sum_enabled() ||
-      !lj_record_s390x_root_frame(J) || J->pt == NULL ||
-      J->parent != 0 || J->exitno != 0)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 2) - proto) >= J->pt->sizebc)
-    return 0;
-
-  mod97 = body[0];
-  accop = body[1];
-  forl = body + 2;
-  accbc = bc_op(accop);
-  if (bc_op(mod97) != BC_MODVN ||
-      !(accbc == BC_ADDVV || accbc == BC_SUBVV) ||
-      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
-    return 0;
-
-  forbase = bc_a(*forl);
-  tmp = bc_a(mod97);
-  idxslot = bc_b(mod97);
-  accslot = bc_b(accop);
-  if (idxslot != forbase + FORL_EXT ||
-      tmp == idxslot || tmp == accslot || idxslot == accslot ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(mod97), 97) ||
-      bc_a(accop) != accslot || bc_b(accop) != accslot ||
-      bc_c(accop) != tmp)
-    return 0;
-  if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
-    return 0;
-
-  idx = getslot(J, idxslot);
-  stopref = getslot(J, forbase+FORL_STOP);
-  acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !(tref_isinteger(acc) || tref_isnum(acc)))
-    return 0;
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod97_loop_sum, idx, stopref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  if (accbc == BC_SUBVV)
-    sum = emitir(IRTI(IR_NEG), sum, sum);
   sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
@@ -8578,8 +8498,6 @@ void lj_record_ins(jit_State *J)
       lj_record_s390x_mod_mul_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_mod_select_loop_sum(J, pc))
-    return;
-  if (op == BC_MODVN && lj_record_s390x_mod97_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_mod_scaled_loop_sum(J, pc))
     return;
