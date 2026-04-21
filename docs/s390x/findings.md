@@ -38842,3 +38842,38 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `mixed_width_loop=0.000000`, `buffer_fref_loop=0.000000`;
   `dispatch_trace numeric_loop=0.000000`,
   `side_exit_loop=0.000000`, `hotexit_loop=0.000001`.
+
+## 2026-04-21: ffi fixed-call step16 postidx helper retired into recorder IR
+
+- Removed `lj_trace_s390x_ffi_fixed_step16_postidx()` completely from
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h),
+  and [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- Both fixed-call pressure reducers in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now compute the post-loop index directly in recorder integer IR:
+  - `delta = (stop - 15) - idx`
+  - `steps = (delta >> 4) + 1`
+  - `newidx = idx + (steps << 4)`
+- This is a clean helper retirement because the surrounding matcher already
+  proves the positive-range contract:
+  `idx >= 1`, `stop <= 1000000`, and `idx <= stop - 15`.
+  That lets the direct recorder form use shifts instead of division without
+  widening semantics or reopening the failed fixed-struct lane.
+- Local checks:
+  `git diff --check` passed. The semantic reducer debt map now shows both
+  `lj_record_s390x_ffi_fixed_call_pressure_gpr_sum()` and
+  `lj_record_s390x_ffi_fixed_call_pressure_fpr_sum()` depending only on their
+  main accumulation helpers.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`,
+  `tests/s390x/jit_core/ffi_stack_call_trace.lua`,
+  `tests/s390x/ffi_abi/run.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`, and focused
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua`.
+- Hot medians stayed in band:
+  `gpr_reg5=0.000000`, `gpr_stack6=0.000000`, `gpr_pressure=0.000000`,
+  `fpr_reg4=0.000000`, `fpr_stack5=0.000000`, `fpr_pressure=0.000000`.

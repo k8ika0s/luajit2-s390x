@@ -455,17 +455,6 @@ double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc, int32_t idx,
 			(int64_t)intercept * count);
 }
 
-int32_t lj_trace_s390x_ffi_fixed_step16_postidx(int32_t idx, int32_t stop)
-{
-  int32_t last, count;
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return idx;
-  last = stop - 15;
-  if (idx > last)
-    return idx;
-  count = ((last - idx) / 16) + 1;
-  return idx + 16 * count;
-}
 #endif
 
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS

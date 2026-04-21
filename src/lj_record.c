@@ -1781,8 +1781,14 @@ static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
 		     lj_ir_kint(J, intercept));
   newcd = emitir(IRTG(IR_CNEWI, IRT_CDATA), lj_ir_kint(J, (int32_t)cd->ctypeid),
 		 sum64);
-  newidx = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_step16_postidx,
-		      idx, stopref);
+  {
+    TRef delta = emitir(IRTI(IR_SUB), lastref, idx);
+    TRef steps = emitir(IRTI(IR_BSHR), delta, lj_ir_kint(J, 4));
+    TRef advance;
+    steps = emitir(IRTI(IR_ADD), steps, lj_ir_kint(J, 1));
+    advance = emitir(IRTI(IR_BSHL), steps, lj_ir_kint(J, 4));
+    newidx = emitir(IRTI(IR_ADD), idx, advance);
+  }
   J->base[accslot] = newcd;
   J->base[idxslot] = newidx;
   if (accslot >= J->maxslot)
@@ -1901,8 +1907,14 @@ static int lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(jit_State *J,
   sum = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_fpr_loop_sum,
 		   acc, idx, stopref, lj_ir_kint(J, slope),
 		   lj_ir_kint(J, intercept));
-  newidx = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_step16_postidx,
-		      idx, stopref);
+  {
+    TRef delta = emitir(IRTI(IR_SUB), lastref, idx);
+    TRef steps = emitir(IRTI(IR_BSHR), delta, lj_ir_kint(J, 4));
+    TRef advance;
+    steps = emitir(IRTI(IR_ADD), steps, lj_ir_kint(J, 1));
+    advance = emitir(IRTI(IR_BSHL), steps, lj_ir_kint(J, 4));
+    newidx = emitir(IRTI(IR_ADD), idx, advance);
+  }
   J->base[accslot] = sum;
   J->base[idxslot] = newidx;
   if (accslot >= J->maxslot)
