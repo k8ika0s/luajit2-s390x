@@ -39135,3 +39135,59 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `manual_find_loop/hot` remained `0.000002s`,
   `byte_scan_loop/hot` remained about `0.00199s`,
   and sibling rows stayed in their prior bands.
+
+## 2026-04-21: mod loop and scaled-mod matchers merged
+
+- The retained modulo accumulation lane now uses one recorder matcher for the
+  plain and scaled forms. The former
+  `lj_record_s390x_mod_loop_sum()` and
+  `lj_record_s390x_mod_scaled_loop_sum()` are replaced by
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_mod_accum_loop_sum()`.
+- This keeps the same generic helper ABI,
+  `lj_trace_s390x_mod_loop_sum()`, and preserves the current accepted forms:
+  `MODVN; ADDVV|SUBVV; FORL/JFORL` and
+  `MODVN; MULVN; ADDVV|SUBVV; FORL/JFORL`.
+- Debt moved:
+  `semantic_reducer_definition` `24 -> 23`,
+  `semantic_reducer_dispatch` `23 -> 22`.
+- Focused `kdz1` validation passed after a warning-free clean rebuild:
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`.
+- Official rows stayed in band on `kdz1`; the retained `div`, `fp_mod`,
+  `dispatch_trace`, and reducer truth-pack rows were unchanged.
+
+## 2026-04-21: numeric div/sqrt prefix matchers merged
+
+- The retained numeric prefix lane now uses one recorder matcher for the div
+  and sqrt families. The former
+  `lj_record_s390x_numeric_div_loop_accum4()` and
+  `lj_record_s390x_numeric_sqrt_loop_accum4()` are replaced by
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_numeric_prefix_loop_accum4()`.
+- The helper ABI is unchanged:
+  `lj_trace_s390x_num_prefix_accum4()` still owns the floating accumulation,
+  with recorder-side `kind=1` for div and `kind=2` for sqrt.
+- Debt moved again:
+  `semantic_reducer_definition` `23 -> 22`,
+  `semantic_reducer_dispatch` `22 -> 20`,
+  and the broad source audit is now `79` upstream-risk findings.
+- Focused `kdz1` validation passed after a warning-free clean rebuild:
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`.
+- Important note: a broader first attempt regressed `numeric_ops/div_loop/hot`
+  badly and was rejected. The retained version is the narrower branch-on-op
+  merge only. On `kdz1`, `div_loop/hot` stayed around `0.000011s` and
+  `sqrt_loop/hot` stayed around `0.000013s..0.000015s`.

@@ -261,6 +261,55 @@ The current WIP is expected to pass the identity audit for production `src/`
   `byte_scan_loop/hot` remained about `0.00199s`,
   and the full family stayed stable.
 
+## 2026-04-21: modulo accumulation recorder definitions merged
+
+- The retained modulo accumulation lane now uses one recorder matcher
+  definition for the plain and scaled families. The old
+  `lj_record_s390x_mod_loop_sum()` and
+  `lj_record_s390x_mod_scaled_loop_sum()` functions are replaced by one shared
+  matcher,
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_mod_accum_loop_sum()`.
+- The helper ABI surface is unchanged in this step:
+  both forms still lower through `lj_trace_s390x_mod_loop_sum()`. The cleanup
+  only removes duplicate recorder-side parsing, bounds, and accumulation
+  shells.
+- Debt moved:
+  `semantic_reducer_definition` `24 -> 23`,
+  `semantic_reducer_dispatch` `23 -> 22`.
+- Focused `kdz1` validation passed after a warning-free clean rebuild:
+  `mod_int_trace.lua`, `mod_scaled_trace.lua`, `numeric_ops.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`.
+- Official readings stayed in band on `kdz1`.
+
+## 2026-04-21: numeric prefix recorder definitions merged
+
+- The retained div/sqrt prefix lane now uses one recorder matcher definition.
+  The old `lj_record_s390x_numeric_div_loop_accum4()` and
+  `lj_record_s390x_numeric_sqrt_loop_accum4()` functions are replaced by one
+  shared matcher,
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_numeric_prefix_loop_accum4()`.
+- The helper ABI surface is unchanged:
+  both families still lower through `lj_trace_s390x_num_prefix_accum4()`, with
+  recorder-side `kind` selecting div vs sqrt.
+- Debt moved again:
+  `semantic_reducer_definition` `23 -> 22`,
+  `semantic_reducer_dispatch` `22 -> 20`,
+  and the broad source audit is now `79` upstream-risk findings.
+- Focused `kdz1` validation passed after a warning-free clean rebuild:
+  `mod_int_trace.lua`, `mod_scaled_trace.lua`, `numeric_ops.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`.
+- Important retention note:
+  a broader first attempt regressed `numeric_ops/div_loop/hot` and was
+  rejected. The retained version is the narrower branch-on-op merge only.
+
 ## 2026-04-20: min/max helper ABI removed
 
 - The `math.min` / `math.max` closed-form loop path no longer depends on
