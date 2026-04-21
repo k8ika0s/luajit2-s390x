@@ -125,9 +125,6 @@ LJ_FUNC int32_t lj_trace_s390x_buffer_fref_loop_sum(int32_t idx,
 						    int32_t stop);
 #endif
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-LJ_FUNC int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx,
-						     int32_t stop,
-						     int32_t mul);
 #endif
 #if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
 LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,

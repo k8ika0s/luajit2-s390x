@@ -650,17 +650,6 @@ int32_t lj_trace_s390x_const_i32_mod17_loop_sum(void *func, int32_t idx,
   return (int32_t)sum;
 }
 
-int32_t lj_trace_s390x_scaled_tobit_loop_sum(int32_t idx, int32_t stop,
-					     int32_t mul)
-{
-  uint64_t n, edges, tri;
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return 0;
-  n = (uint64_t)(uint32_t)(stop - idx + 1);
-  edges = (uint64_t)(uint32_t)(idx + stop);
-  tri = (n & 1) ? n * (edges >> 1) : (n >> 1) * edges;
-  return (int32_t)((uint32_t)mul * (uint32_t)tri);
-}
 #endif
 
 #if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS

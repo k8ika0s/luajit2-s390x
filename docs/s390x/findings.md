@@ -38572,3 +38572,29 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; hot medians stayed in the same
   timer-floor band (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
   `sqrt=0.000013`, `min=0.000017`, `max=0.000017`).
+
+## 2026-04-20: scaled tobit helper removed
+
+- Removed `lj_trace_s390x_scaled_tobit_loop_sum()` completely. The
+  `lj_record_s390x_scaled_tobit_loop_sum()` matcher in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now emits the exact triangular-sum closed form directly in integer IR:
+  `tri = (n >> 1) * edges + (n & 1) * (edges >> 1)`, then multiplies by the
+  constant scale and adds to the integer accumulator.
+- Removed the corresponding declaration from
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h)
+  and the `IRCALL` entry from
+  [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `110` to
+  `108`, and semantic reducer callinfo dropped from `25` to `24`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_core/mod_int_trace.lua`, and
+  `tests/s390x/jit_core/mod_scaled_trace.lua`. Focused perf passed
+  `tests/s390x/perf/be_helpers.lua` and `tests/s390x/perf/numeric_ops.lua`;
+  `number_helper_loop/hot` stayed at timer floor (`0.000001`) and numeric hot
+  medians stayed in band (`abs=0.000016`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000014`, `min=0.000017`, `max=0.000017`).
