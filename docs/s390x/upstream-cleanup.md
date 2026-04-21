@@ -1291,3 +1291,18 @@ passed a warning-clean rebuild, `mod_int_trace.lua`, `mod_scaled_trace.lua`,
 numeric correctness, ADD/SUB overflow, MUL overflow, focused
 `numeric_ops.lua`, focused `dispatch_trace.lua`, and focused
 `route_around_reducers.lua`.
+
+#### Mod-Mul Folded Into Generic Mod-Select
+
+The `idx * mul` vs `idx` modulo branch no longer exports a dedicated helper
+ABI. `lj_record_s390x_mod_mul_loop_sum()` now reuses the generic
+`lj_trace_s390x_mod_select_loop_sum()` helper with `else_mul = 1`, so the
+separate `lj_trace_s390x_mod_mul_loop_sum()` implementation, declaration, and
+`IRCALL` surface are gone.
+
+kdz1 validation passed a warning-clean rebuild, `mod_int_trace.lua`,
+`mod_scaled_trace.lua`, numeric correctness, ADD/SUB overflow, MUL overflow,
+and focused `numeric_ops.lua`. The semantic audit dropped to `106` findings
+and semantic reducer callinfo dropped to `22`. Remaining debt in this lane is
+now matcher generalization or retirement, not another one-off mod-mul helper
+ABI.
