@@ -2852,7 +2852,7 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
   const BCIns *forl, *proto;
   BCIns mul, add, call, mov;
   BCReg forbase, idxslot, callbase, arg0, tmp, accslot;
-  TRef idx, stopref, acc, sum;
+  TRef idx, stopref, acc, sum, count, edges, tri, odd, halfn, halfedges;
   cTValue *base;
   int32_t stopv, mulv;
 
@@ -2907,8 +2907,16 @@ static int lj_record_s390x_scaled_tobit_loop_sum(jit_State *J,
     return 0;
   emitir(IRTGI(IR_LE), stopref, lj_ir_kint(J, 1000000));
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_scaled_tobit_loop_sum, idx,
-		   stopref, lj_ir_kint(J, mulv));
+  count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+  count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+  edges = emitir(IRTGI(IR_ADDOV), idx, stopref);
+  halfn = emitir(IRTI(IR_BSAR), count, lj_ir_kint(J, 1));
+  halfedges = emitir(IRTI(IR_BSAR), edges, lj_ir_kint(J, 1));
+  odd = emitir(IRTI(IR_BAND), count, lj_ir_kint(J, 1));
+  tri = emitir(IRTI(IR_MUL), halfn, edges);
+  odd = emitir(IRTI(IR_MUL), odd, halfedges);
+  tri = emitir(IRTI(IR_ADD), tri, odd);
+  sum = emitir(IRTI(IR_MUL), tri, lj_ir_kint(J, mulv));
   sum = emitir(IRTI(IR_ADD), acc, sum);
 
   J->base[accslot] = sum;

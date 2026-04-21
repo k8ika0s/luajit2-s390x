@@ -163,6 +163,26 @@ The current WIP is expected to pass the identity audit for production `src/`
   `tests/s390x/jit_be/mulov_overflow_guard.lua`,
   plus focused `numeric_ops.lua`, `dispatch_trace.lua`, and
   `route_around_reducers.lua` on kdz1. All passed with a warning-clean build.
+
+## 2026-04-20: scaled tobit helper ABI removed
+
+- The `bit.tobit(total + i * K)` closed-form loop path no longer uses a trace
+  helper in `src/lj_trace.c`. The recorder now emits the triangular-sum
+  integer recurrence directly in IR inside
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+  preserving the 32-bit wrap contract without keeping a dedicated helper ABI.
+- Post-change source ledgers:
+  upstream-risk findings `108`,
+  semantic reducer callinfo `24`,
+  semantic reducer definitions `28`,
+  numeric_mod matcher count `14`.
+- Validation stayed on the numeric overflow and helper guardrails:
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  plus focused `be_helpers.lua` and `numeric_ops.lua` on kdz1. All passed with
+  a warning-clean build.
 files. A new identity finding means a cleanup regression unless it is an
 explicitly allowlisted generic mechanism.
 
