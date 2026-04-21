@@ -179,48 +179,36 @@ int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop, int32_t mod)
 
 #endif
 
-static int32_t lj_trace_s390x_posmod_i32(int32_t x, int32_t mod)
-{
-  int32_t r = x % mod;
-  return r < 0 ? r + mod : r;
-}
-
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-static int64_t lj_trace_s390x_fpmod_quarter_prefix(int32_t n)
-{
-  const int32_t period = 105;  /* lcm(30/4 numerator period, 21/4 period). */
-  int64_t period_sum = 0, sum;
-  int32_t i, q, rem;
+const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106] = {
+  0, 20, 40, 60, 80, 121, 162, 203, 214, 225, 236, 268, 300, 332, 364, 366,
+  389, 412, 435, 458, 481, 525, 569, 583, 597, 611, 646, 681, 716, 751, 756,
+  761, 787, 813, 839, 865, 891, 938, 955, 972, 989, 1006, 1044, 1082, 1120,
+  1128, 1136, 1165, 1194, 1223, 1252, 1281, 1310, 1330, 1350, 1370, 1390,
+  1410, 1451, 1492, 1503, 1514, 1525, 1557, 1589, 1621, 1653, 1685, 1708,
+  1731, 1754, 1777, 1800, 1823, 1867, 1881, 1895, 1909, 1923, 1958, 1993,
+  2028, 2063, 2068, 2094, 2120, 2146, 2172, 2198, 2245, 2262, 2279, 2296,
+  2313, 2330, 2368, 2406, 2444, 2452, 2460, 2489, 2518, 2547, 2576, 2605,
+  2625
+};
 
-  if (n <= 0)
-    return 0;
-
-  for (i = 1; i <= period; i++) {
-    period_sum += lj_trace_s390x_posmod_i32(4*i + 1, 30);
-    period_sum += lj_trace_s390x_posmod_i32(-4*i - 2, 21);
-  }
-
-  q = n / period;
-  rem = n % period;
-  sum = (int64_t)q * period_sum;
-  for (i = 1; i <= rem; i++) {
-    sum += lj_trace_s390x_posmod_i32(4*i + 1, 30);
-    sum += lj_trace_s390x_posmod_i32(-4*i - 2, 21);
-  }
-  return sum;
-}
-
-double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx, int32_t stop)
+int32_t lj_trace_s390x_i32_prefix_repeat_span_sum(int32_t idx, int32_t stop,
+						  const int32_t *prefix,
+						  int32_t len, int32_t full)
 {
   int64_t numer;
-  /* Sum ((i + .25) % 7.5) + ((-i - .5) % 5.25) exactly via period 105. */
-  if (idx < 1 || stop > 1000000)
-    return 0.0;
-  if (stop < idx)
-    return 0.0;
-  numer = lj_trace_s390x_fpmod_quarter_prefix(stop) -
-	  lj_trace_s390x_fpmod_quarter_prefix(idx - 1);
-  return (double)numer * 0.25;
+  int32_t start, span, loops, rem;
+
+  if (prefix == NULL || len <= 0 || idx < 1 || stop < idx)
+    return 0;
+  start = (idx - 1) % len;
+  span = start + (stop - idx + 1);
+  loops = span / len;
+  rem = span % len;
+  numer = (int64_t)loops * full + prefix[rem] - prefix[start];
+  if (numer < INT32_MIN || numer > INT32_MAX)
+    return 0;
+  return (int32_t)numer;
 }
 #endif
 

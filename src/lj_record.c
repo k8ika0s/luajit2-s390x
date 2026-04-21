@@ -2815,8 +2815,13 @@ static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_fpmod_quarter_loop_sum, idx,
-		   stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_i32_prefix_repeat_span_sum,
+		   idx, stopref,
+		   lj_ir_kptr(J, (void *)lj_trace_s390x_fpmod_quarter_prefix105),
+		   lj_ir_kint(J, 105), lj_ir_kint(J, 2625));
+  sum = emitir(IRTN(IR_MUL),
+	       emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT),
+	       lj_ir_knum(J, 0.25));
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   sum = emitir(IRTN(IR_ADD), acc, sum);

@@ -100,8 +100,6 @@ LJ_FUNC int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx,
 						       int32_t else_mul);
 LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
 					    int32_t mod);
-LJ_FUNC double lj_trace_s390x_fpmod_quarter_loop_sum(int32_t idx,
-						    int32_t stop);
 #endif
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 LJ_FUNC double lj_trace_s390x_mixed_width_loop_sum(int32_t idx,
@@ -132,6 +130,14 @@ LJ_FUNC int32_t lj_trace_s390x_u32_suffix_repeat_sum(int32_t acc,
 						     const uint32_t *suffix,
 						     int32_t len,
 						     uint32_t full);
+#endif
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+LJ_DATA const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106];
+LJ_FUNC int32_t lj_trace_s390x_i32_prefix_repeat_span_sum(int32_t idx,
+							  int32_t stop,
+							  const int32_t *prefix,
+							  int32_t len,
+							  int32_t full);
 #endif
 #endif
 
