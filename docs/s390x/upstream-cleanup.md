@@ -142,6 +142,27 @@ The current WIP is expected to pass the identity audit for production `src/`
   `tests/s390x/jit_be/mulov_overflow_guard.lua`,
   plus focused `numeric_ops.lua`, `dispatch_trace.lua`, and
   `route_around_reducers.lua` on kdz1. All passed with a warning-clean build.
+
+## 2026-04-20: min/max helper ABI removed
+
+- The `math.min` / `math.max` closed-form loop path no longer depends on
+  trace helpers in `src/lj_trace.c`. The recorder now emits the whole
+  mirror-sum formula directly as IR inside
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c),
+  which let us delete both helper definitions and their `IRCALL` surface.
+- Post-change source ledgers:
+  upstream-risk findings `110`,
+  semantic reducer callinfo `25`,
+  semantic reducer definitions `28`,
+  numeric_mod matcher count `14`.
+- Validation remained on the numeric safety net:
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  plus focused `numeric_ops.lua`, `dispatch_trace.lua`, and
+  `route_around_reducers.lua` on kdz1. All passed with a warning-clean build.
 files. A new identity finding means a cleanup regression unless it is an
 explicitly allowlisted generic mechanism.
 

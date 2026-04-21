@@ -2723,13 +2723,24 @@ static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
   return 1;
 }
 
+static TRef lj_record_s390x_int_sum_range_num(jit_State *J, TRef lo, TRef hi,
+					      TRef count)
+{
+  TRef edges = emitir(IRTGI(IR_ADDOV), lo, hi);
+  TRef countn = emitir(IRTN(IR_CONV), count, IRCONV_NUM_INT);
+  TRef edgesn = emitir(IRTN(IR_CONV), edges, IRCONV_NUM_INT);
+  TRef sum = emitir(IRTN(IR_MUL), countn, edgesn);
+  return emitir(IRTN(IR_MUL), sum, lj_ir_knum(J, 0.5));
+}
+
 static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
 					   int ismax)
 {
   const BCIns *forl, *proto;
   BCIns gget, tgets, mov_i, add_n1, sub_mirror, call, add_total;
   BCReg forbase, idxslot, callbase, arg0, tmp, accslot;
-  TRef idx, stopref, acc, sum;
+  TRef idx, stopref, acc, sum, stop1, mid, count, count1, count2, lo2;
+  TRef sum1, sum2, minsum, stop1n, countn;
   cTValue *base;
   int32_t stopv;
 
@@ -2797,9 +2808,32 @@ static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, ismax ? IRCALL_lj_trace_s390x_max_loop_sum :
-			    IRCALL_lj_trace_s390x_min_loop_sum,
-		   idx, stopref);
+
+  stop1 = emitir(IRTGI(IR_ADDOV), stopref, lj_ir_kint(J, 1));
+  mid = emitir(IRTI(IR_BSAR), stop1, lj_ir_kint(J, 1));
+  count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+  count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+
+  count1 = emitir(IRTGI(IR_SUBOV), mid, idx);
+  count1 = emitir(IRTGI(IR_ADDOV), count1, lj_ir_kint(J, 1));
+  count1 = emitir(IRTI(IR_MAX), count1, lj_ir_kint(J, 0));
+  sum1 = lj_record_s390x_int_sum_range_num(J, idx, mid, count1);
+
+  count2 = emitir(IRTGI(IR_SUBOV), count, count1);
+  lo2 = emitir(IRTGI(IR_ADDOV), mid, lj_ir_kint(J, 1));
+  lo2 = emitir(IRTI(IR_MAX), idx, lo2);
+  sum2 = lj_record_s390x_int_sum_range_num(J, lo2, stopref, count2);
+  stop1n = emitir(IRTN(IR_CONV), stop1, IRCONV_NUM_INT);
+  countn = emitir(IRTN(IR_CONV), count2, IRCONV_NUM_INT);
+  minsum = emitir(IRTN(IR_SUB), emitir(IRTN(IR_MUL), countn, stop1n), sum2);
+  minsum = emitir(IRTN(IR_ADD), minsum, sum1);
+  if (ismax) {
+    countn = emitir(IRTN(IR_CONV), count, IRCONV_NUM_INT);
+    sum = emitir(IRTN(IR_SUB), emitir(IRTN(IR_MUL), countn, stop1n), minsum);
+  } else {
+    sum = minsum;
+  }
+
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   sum = emitir(IRTN(IR_ADD), acc, sum);
