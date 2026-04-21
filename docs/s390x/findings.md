@@ -38436,3 +38436,32 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
   (`abs=0.000016`, `div=0.000011`, `fp_mod=0.000015`,
   `sqrt=0.000013`, `min=0.000013`, `max=0.000013`).
+
+## 2026-04-20: mod97 if5 else1 folded into generic rem-select-plus-count
+
+- Removed the dedicated `%5`/`%97 ... else +1` lane by extending the generic
+  remainder-select matcher to handle a modulo remainder on one branch and an
+  integer constant on the other branch.
+- Added a generic `lj_trace_s390x_count_multiples()` helper call surface and
+  used it from `lj_record_s390x_mod_rem_select_loop_sum()` to account for the
+  constant branch via `count - count_multiples(cond_mod)`. This let the old
+  `lj_trace_s390x_mod97_if5_else1_loop_sum()` helper and
+  `lj_record_s390x_mod97_if5_else1_loop_sum()` matcher disappear instead of
+  being replaced with another `%97`-specific contract.
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `122` to
+  `119`, the semantic reducer ledger dropped from `30` to `29` matcher
+  definitions, the `semantic_reducer_callinfo` ledger dropped from `31` to
+  `30`, and the `numeric_mod` bucket dropped from `16` to `15`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
+  (`abs=0.000016`, `div=0.000012`, `fp_mod=0.000015`,
+  `sqrt=0.000014`, `min=0.000013`, `max=0.000013`).
