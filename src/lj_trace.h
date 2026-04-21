@@ -118,15 +118,20 @@ LJ_FUNC int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop,
 					     int32_t mod);
 #endif
 #if LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
-LJ_FUNC int32_t lj_trace_s390x_logic_add_phi_remainder_sum(int32_t acc,
-							   int32_t inner_idx,
-							   int32_t inner_stop,
-							   int32_t outer_stop);
-LJ_FUNC int32_t lj_trace_s390x_logic_tail_add_sum(int32_t acc,
-						  int32_t inner_idx,
-						  int32_t inner_stop,
-						  int32_t outer_idx,
-						  int32_t outer_stop);
+LJ_DATA const int32_t lj_trace_s390x_logic_phi_suffix200[200];
+LJ_DATA const uint32_t lj_trace_s390x_logic_tail_suffix200[200];
+LJ_FUNC int32_t lj_trace_s390x_i32_suffix_repeat_sum(int32_t acc,
+						     int32_t idx,
+						     int32_t repeat,
+						     const int32_t *suffix,
+						     int32_t len,
+						     int32_t full);
+LJ_FUNC int32_t lj_trace_s390x_u32_suffix_repeat_sum(int32_t acc,
+						     int32_t idx,
+						     int32_t repeat,
+						     const uint32_t *suffix,
+						     int32_t len,
+						     uint32_t full);
 #endif
 #endif
 

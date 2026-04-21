@@ -38910,3 +38910,44 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `mixed_width_loop=0.000001`, `buffer_fref_loop=0.000000`;
   `dispatch_trace numeric_loop=0.000000`,
   `side_exit_loop=0.000000`, `hotexit_loop=0.000001`.
+
+### 2026-04-21: logic low32 helpers retired into generic suffix contracts
+
+- Replaced the dedicated logic helper ABIs with two generic suffix-table
+  contracts in
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h),
+  and [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h):
+  `lj_trace_s390x_i32_suffix_repeat_sum()` and
+  `lj_trace_s390x_u32_suffix_repeat_sum()`.
+- Added fixed suffix tables for the retained 200-iteration inner-loop domain:
+  `lj_trace_s390x_logic_phi_suffix200[]` and
+  `lj_trace_s390x_logic_tail_suffix200[]`.
+- [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now lowers:
+  - `lj_record_s390x_logic_add_phi_remainder_sum()` as
+    `acc + suffix(inner_idx) + (outer_stop - 1) * full`
+    through the signed suffix helper.
+  - `lj_record_s390x_logic_chain_tail_add_sum()` as
+    `uint32(acc) + suffix(inner_idx) + (outer_stop - outer_idx) * full`
+    through the wrapping suffix helper.
+- This removes the logic-specific whole-loop helper ABIs without reopening the
+  old dead-end of trying to express the mixed-bit suffix as plain arithmetic IR.
+- Local checks:
+  `git diff --check` passed, and the reducer debt map now shows the logic lane
+  depending on generic suffix helpers instead of
+  `lj_trace_s390x_logic_add_phi_remainder_sum()` /
+  `lj_trace_s390x_logic_tail_add_sum()`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed,
+  `tests/s390x/jit_be/low32_home_contract.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  focused `tests/s390x/perf/logical_chain_tail_add.lua`,
+  `tests/s390x/perf/logic_add_phi_noboundary.lua`,
+  `tests/s390x/perf/bitops_mix.lua`, and
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Same-host `kdz1` A/B against immediate reverted control stayed exactly in
+  band for all focused rows. No measurable regression appeared in the retained
+  logic/bitops/dispatch lane.

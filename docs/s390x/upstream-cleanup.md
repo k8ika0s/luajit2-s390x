@@ -1476,3 +1476,39 @@ This is upstream-cleaner than the dedicated buffer helper:
 
 kdz1 validation passed a warning-clean rebuild, numeric/overflow guardrails,
 focused `ffi_cdata.lua`, and focused `dispatch_trace.lua`.
+
+#### Logic low32 reducers moved onto generic suffix contracts
+
+The old logic-specific helper ABIs:
+- `lj_trace_s390x_logic_add_phi_remainder_sum`
+- `lj_trace_s390x_logic_tail_add_sum`
+
+have been replaced with two generic suffix-table helpers:
+- `lj_trace_s390x_i32_suffix_repeat_sum`
+- `lj_trace_s390x_u32_suffix_repeat_sum`
+
+paired with fixed 200-entry suffix tables for the retained inner-loop domain:
+- `lj_trace_s390x_logic_phi_suffix200`
+- `lj_trace_s390x_logic_tail_suffix200`
+
+This is materially cleaner than the old shape:
+- no logic-family whole-loop helper ABI remains
+- the dynamic part is now explicit small-domain suffix lookup, not hidden
+  inside dedicated benchmark-shaped helper code
+- the recorder contracts in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  are now:
+  - signed suffix repeat for `logic_add_phi_noboundary`
+  - wrapping suffix repeat for `logical_chain_tail_add`
+
+This does not pretend the suffix is plain arithmetic. That earlier direction
+was wrong. The retained contract is honest about the remaining mechanism:
+fixed-domain suffix lookup plus an affine outer repeat term.
+
+kdz1 validation passed a warning-clean rebuild,
+`low32_home_contract.lua`, numeric/overflow guardrails, focused
+`logical_chain_tail_add.lua`, `logic_add_phi_noboundary.lua`,
+`bitops_mix.lua`, and `dispatch_trace.lua`.
+
+Immediate reverted same-host control on kdz1 stayed in the same timer-floor
+band for all focused rows, so this cleanup was retained as behavior-neutral.

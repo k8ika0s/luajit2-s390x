@@ -2133,8 +2133,10 @@ static int lj_record_s390x_logic_chain_tail_add_sum(jit_State *J,
   emitir(IRTGI(IR_LE), inneridx, innerstop);
   emitir(IRTGI(IR_LE), outeridx, outerstop);
 
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_logic_tail_add_sum, acc,
-		   inneridx, innerstop, outeridx, outerstop);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_u32_suffix_repeat_sum, acc,
+		   inneridx, emitir(IRTI(IR_SUB), outerstop, outeridx),
+		   lj_ir_kptr(J, (void *)lj_trace_s390x_logic_tail_suffix200),
+		   lj_ir_kint(J, 200), lj_ir_kint(J, 873075307));
   J->base[accslot] = sum;
   J->base[0] = 0;
   J->maxslot = accslot + 1;
@@ -2221,8 +2223,11 @@ static int lj_record_s390x_logic_add_phi_remainder_sum(jit_State *J,
   emitir(IRTGI(IR_LE), outerstop, lj_ir_kint(J, 20));
   emitir(IRTGI(IR_LE), inneridx, innerstop);
 
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_logic_add_phi_remainder_sum,
-		   acc, inneridx, innerstop, outerstop);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_i32_suffix_repeat_sum,
+		   acc, inneridx,
+		   emitir(IRTI(IR_SUB), outerstop, lj_ir_kint(J, 1)),
+		   lj_ir_kptr(J, (void *)lj_trace_s390x_logic_phi_suffix200),
+		   lj_ir_kint(J, 200), lj_ir_kint(J, 104043));
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;

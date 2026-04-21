@@ -233,8 +233,8 @@ typedef struct CCallInfo {
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
 #define IRCALLDEF_S390X_LOGIC_LOW32_REDUCERS(_) \
-  _(S390X,	lj_trace_s390x_logic_add_phi_remainder_sum, 4, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_logic_tail_add_sum, 5, N, INT, 0)
+  _(S390X,	lj_trace_s390x_i32_suffix_repeat_sum, 6, N, INT, 0) \
+  _(S390X,	lj_trace_s390x_u32_suffix_repeat_sum, 6, N, INT, 0)
 #else
 #define IRCALLDEF_S390X_LOGIC_LOW32_REDUCERS(_)
 #endif
