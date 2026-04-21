@@ -236,6 +236,31 @@ The current WIP is expected to pass the identity audit for production `src/`
   band (`0.000000s..0.000001s`) on `kdz1`, so this cleanup is performance
   neutral on the official family.
 
+## 2026-04-21: string-cycle recorder definitions merged
+
+- The retained string-cycle lane now uses one recorder matcher definition for
+  the manual-find and byte-scan families. The old
+  `lj_record_s390x_manual_find_cycle_loop()` and
+  `lj_record_s390x_byte_scan_cycle_loop()` functions are replaced by one shared
+  matcher,
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_string_cycle_loop()`.
+- The helper ABI surface is unchanged in this step:
+  `lj_str_manual_find_cycle_sum()` and `lj_str_byte_scan_cycle_sum()` remain
+  because the inner contracts differ, but the recorder-side shell is now
+  shared.
+- Debt moved materially:
+  `semantic_reducer_definition` `25 -> 24`,
+  `semantic_reducer_dispatch` `24 -> 23`,
+  and the source audit is now `86` upstream-risk findings.
+- Focused `kdz1` validation passed after a warning-free clean rebuild:
+  `tests/s390x/perf/string_heavy.lua` filtered to
+  `manual_find_loop`, filtered to `byte_scan_loop`, and the full family run.
+- Official readings stayed in band on `kdz1`:
+  `manual_find_loop/hot` remained `0.000002s`,
+  `byte_scan_loop/hot` remained about `0.00199s`,
+  and the full family stayed stable.
+
 ## 2026-04-20: min/max helper ABI removed
 
 - The `math.min` / `math.max` closed-form loop path no longer depends on
