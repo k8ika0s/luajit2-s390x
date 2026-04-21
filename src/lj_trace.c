@@ -179,25 +179,6 @@ int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx, int32_t stop,
   return (int32_t)sum;
 }
 
-int32_t lj_trace_s390x_mod_scaled_loop_sum(int32_t idx, int32_t stop,
-					   int32_t mod, int32_t mul)
-{
-  int64_t count, sum;
-
-  if (mod < 2 || mod > 4096 || mul == 0 || mul < -32767 || mul > 32767)
-    return INT32_MIN;
-  if (idx < 1 || stop > 1000000)
-    return INT32_MIN;
-  if (stop < idx)
-    return 0;
-
-  count = (int64_t)stop - idx + 1;
-  sum = lj_trace_s390x_sum_mod_seq(idx, count, 1, mod) * (int64_t)mul;
-  if (sum <= INT32_MIN || sum > INT32_MAX)
-    return INT32_MIN;
-  return (int32_t)sum;
-}
-
 int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop, int32_t mod)
 {
   int64_t count, sum;
