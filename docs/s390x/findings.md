@@ -39110,3 +39110,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/ffi_fixed_call_pressure.lua`.
 - Focused `ffi_fixed_call_pressure` perf stayed in the timer-floor band on
   `kdz1`; hot rows remained `0.000000s..0.000001s`.
+
+## 2026-04-21: string manual-find and byte-scan matchers merged
+
+- The retained string-cycle lane now uses one recorder matcher for the two
+  cyclic string-byte families. The former
+  `lj_record_s390x_manual_find_cycle_loop()` and
+  `lj_record_s390x_byte_scan_cycle_loop()` shapes are now handled by
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_string_cycle_loop()`.
+- The helper ABIs stay separate because the inner contracts are still distinct:
+  `lj_str_manual_find_cycle_sum()` and `lj_str_byte_scan_cycle_sum()`. The
+  cleanup removes duplicate outer-loop shape matching, slot checks, and shared
+  bounds/dispatch logic.
+- Debt moved again:
+  `semantic_reducer_definition` `25 -> 24`,
+  `semantic_reducer_dispatch` `24 -> 23`,
+  and the broad source audit is now `86` upstream-risk findings.
+- `kdz1` validation passed after a warning-free clean rebuild:
+  `tests/s390x/perf/string_heavy.lua` with
+  `S390X_STRING_HEAVY_WORKLOAD=manual_find_loop`,
+  `S390X_STRING_HEAVY_WORKLOAD=byte_scan_loop`, and the full family run.
+- Focused and full `string_heavy` readings stayed in band on `kdz1`:
+  `manual_find_loop/hot` remained `0.000002s`,
+  `byte_scan_loop/hot` remained about `0.00199s`,
+  and sibling rows stayed in their prior bands.

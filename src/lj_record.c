@@ -4047,254 +4047,214 @@ static int lj_record_s390x_concat_slice_loop(jit_State *J, const BCIns *body)
 }
 #endif
 
-#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
-static int lj_record_s390x_manual_find_cycle_loop(jit_State *J, const BCIns *body)
+#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER || \
+    LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
+static int lj_record_s390x_string_cycle_loop(jit_State *J, const BCIns *body)
 {
+  enum {
+    S390X_STRING_CYCLE_NONE,
+    S390X_STRING_CYCLE_MANUAL_FIND,
+    S390X_STRING_CYCLE_BYTE_SCAN
+  } kind = S390X_STRING_CYCLE_NONE;
   const BCIns *fori, *forl, *proto;
-  BCReg forbase, haytab_slot, hayidx_slot, haylen_slot, hay_slot;
-  BCReg needletab_slot, needleidx_slot, needlelen_slot, needle_slot;
-  BCReg needle_len_slot, needle_first_slot, pos_slot, innerbase;
-  BCReg sum_slot, len_slot, total_slot;
-  TRef haystacks, needles, haylen, needlelen, idxref, acc, sum;
+  BCReg forbase, idx_slot, len_slot, text_slot;
+  BCReg innerbase, callbase, total_slot;
+  BCReg texttab_slot = 0;
+  BCReg haytab_slot = 0, hayidx_slot = 0, haylen_slot = 0, hay_slot = 0;
+  BCReg needletab_slot = 0, needleidx_slot = 0, needlelen_slot = 0, needle_slot = 0;
+  BCReg needle_len_slot = 0, needle_first_slot = 0, pos_slot = 0;
+  BCReg sum_slot = 0, len_acc_slot = 0;
+  TRef texts = TREF_NIL, other_texts = TREF_NIL;
+  TRef textlen = TREF_NIL, other_len = TREF_NIL, idxref, acc, sum;
   cTValue *base;
   int32_t stopv;
 
-  if (!lj_record_s390x_manual_find_cycle_enabled() || J->pt == NULL)
+  if (J->pt == NULL)
     return 0;
   proto = proto_bc(J->pt);
   if (body < proto + 5 ||
       (MSize)((body + 46) - proto) >= J->pt->sizebc)
     return 0;
-  if (bc_op(body[0]) != BC_UGET || bc_op(body[1]) != BC_SUBVN ||
-      bc_op(body[2]) != BC_UGET || bc_op(body[3]) != BC_LEN ||
-      bc_op(body[4]) != BC_MODVV || bc_op(body[5]) != BC_ADDVN ||
-      bc_op(body[6]) != BC_TGETV || bc_op(body[7]) != BC_UGET ||
-      bc_op(body[8]) != BC_SUBVN || bc_op(body[9]) != BC_UGET ||
-      bc_op(body[10]) != BC_LEN || bc_op(body[11]) != BC_MODVV ||
-      bc_op(body[12]) != BC_ADDVN || bc_op(body[13]) != BC_TGETV ||
-      bc_op(body[14]) != BC_LEN || bc_op(body[15]) != BC_GGET ||
-      bc_op(body[16]) != BC_TGETS || bc_op(body[17]) != BC_MOV ||
-      bc_op(body[18]) != BC_KSHORT || bc_op(body[19]) != BC_CALL ||
-      bc_op(body[20]) != BC_KSHORT || bc_op(body[21]) != BC_KSHORT ||
-      bc_op(body[22]) != BC_LEN || bc_op(body[23]) != BC_KSHORT ||
-      (bc_op(body[24]) != BC_FORI && bc_op(body[24]) != BC_JFORI) ||
-      bc_op(body[25]) != BC_GGET || bc_op(body[26]) != BC_TGETS ||
-      bc_op(body[27]) != BC_MOV || bc_op(body[28]) != BC_MOV ||
-      bc_op(body[29]) != BC_CALL || bc_op(body[30]) != BC_ISNEV ||
-      bc_op(body[31]) != BC_JMP || bc_op(body[32]) != BC_MOV ||
-      bc_op(body[33]) != BC_TGETS || bc_op(body[34]) != BC_MOV ||
-      bc_op(body[35]) != BC_ADDVV || bc_op(body[36]) != BC_SUBVN ||
-      bc_op(body[37]) != BC_CALL || bc_op(body[38]) != BC_ISNEV ||
-      bc_op(body[39]) != BC_JMP || bc_op(body[40]) != BC_MOV ||
-      bc_op(body[41]) != BC_JMP ||
-      (bc_op(body[42]) != BC_FORL && bc_op(body[42]) != BC_JFORL) ||
-      bc_op(body[43]) != BC_ADDVV || bc_op(body[44]) != BC_LEN ||
-      bc_op(body[45]) != BC_ADDVV ||
-      (bc_op(body[46]) != BC_FORL && bc_op(body[46]) != BC_JFORL))
-    return 0;
-
-  forl = body + 46;
-  fori = body - 1;
-  forbase = bc_a(*forl);
-  innerbase = bc_a(body[42]);
-  haytab_slot = bc_a(body[0]);
-  hayidx_slot = bc_a(body[1]);
-  haylen_slot = bc_a(body[2]);
-  hay_slot = bc_a(body[6]);
-  needletab_slot = bc_a(body[7]);
-  needleidx_slot = bc_a(body[8]);
-  needlelen_slot = bc_a(body[9]);
-  needle_slot = bc_a(body[13]);
-  needle_len_slot = bc_a(body[14]);
-  needle_first_slot = bc_a(body[19]);
-  pos_slot = bc_a(body[20]);
-  sum_slot = bc_a(body[43]);
-  len_slot = bc_a(body[44]);
-  total_slot = bc_a(body[45]);
-
-  if ((bc_op(*fori) != BC_FORI && bc_op(*fori) != BC_JFORI) ||
-      bc_a(*fori) != forbase || fori + bc_j(*fori) != forl ||
-      !lj_record_s390x_kshort_is(body - 5, total_slot, 0) ||
-      !lj_record_s390x_kshort_is(body - 4, forbase + FORL_IDX, 1) ||
-      bc_op(body[-3]) != BC_MOV || bc_a(body[-3]) != forbase + FORL_STOP ||
-      !lj_record_s390x_kshort_is(body - 2, forbase + FORL_STEP, 1) ||
-      bc_b(body[1]) != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[1])) ||
-      bc_a(body[2]) != haylen_slot || bc_d(body[2]) != bc_d(body[0]) ||
-      bc_a(body[3]) != haylen_slot || bc_d(body[3]) != haylen_slot ||
-      bc_a(body[4]) != hayidx_slot || bc_b(body[4]) != hayidx_slot ||
-      bc_c(body[4]) != haylen_slot ||
-      bc_a(body[5]) != hayidx_slot || bc_b(body[5]) != hayidx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[5])) ||
-      bc_b(body[6]) != haytab_slot || bc_c(body[6]) != hayidx_slot ||
-      bc_b(body[8]) != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[8])) ||
-      bc_a(body[9]) != needlelen_slot || bc_d(body[9]) != bc_d(body[7]) ||
-      bc_a(body[10]) != needlelen_slot || bc_d(body[10]) != needlelen_slot ||
-      bc_a(body[11]) != needleidx_slot || bc_b(body[11]) != needleidx_slot ||
-      bc_c(body[11]) != needlelen_slot ||
-      bc_a(body[12]) != needleidx_slot || bc_b(body[12]) != needleidx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[12])) ||
-      bc_b(body[13]) != needletab_slot || bc_c(body[13]) != needleidx_slot ||
-      bc_d(body[14]) != needle_slot ||
-      bc_a(body[17]) != bc_a(body[15]) + 1 + LJ_FR2 ||
-      bc_d(body[17]) != needle_slot ||
-      bc_a(body[16]) != bc_a(body[15]) || bc_b(body[16]) != bc_a(body[15]) ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[15]), "string", 6) ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[16]), "byte", 4) ||
-      !lj_record_s390x_kshort_is(&body[18], bc_a(body[15]) + 2 + LJ_FR2, 1) ||
-      bc_a(body[19]) != needle_first_slot ||
-      !lj_record_s390x_kshort_is(&body[20], pos_slot, 0) ||
-      !lj_record_s390x_kshort_is(&body[21], innerbase + FORL_IDX, 1) ||
-      bc_a(body[22]) != innerbase + FORL_STOP || bc_d(body[22]) != hay_slot ||
-      !lj_record_s390x_kshort_is(&body[23], innerbase + FORL_STEP, 1) ||
-      bc_a(body[24]) != innerbase || body + 24 + bc_j(body[24]) != body + 42 ||
-      bc_a(body[27]) != bc_a(body[25]) + 1 + LJ_FR2 ||
-      bc_d(body[27]) != hay_slot ||
-      bc_a(body[26]) != bc_a(body[25]) || bc_b(body[26]) != bc_a(body[25]) ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[25]), "string", 6) ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[26]), "byte", 4) ||
-      bc_a(body[28]) != bc_a(body[25]) + 2 + LJ_FR2 ||
-      bc_d(body[28]) != innerbase + FORL_EXT ||
-      bc_a(body[29]) != bc_a(body[25]) || bc_b(body[29]) != 2 ||
-      bc_c(body[29]) != 3 ||
-      bc_a(body[30]) != bc_a(body[25]) || bc_d(body[30]) != needle_first_slot ||
-      bc_d(body[32]) != hay_slot ||
-      bc_b(body[33]) != hay_slot ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[33]), "sub", 3) ||
-      bc_d(body[34]) != innerbase + FORL_EXT ||
-      bc_a(body[35]) != bc_a(body[37]) + 3 + LJ_FR2 ||
-      bc_b(body[35]) != innerbase + FORL_EXT ||
-      bc_c(body[35]) != needle_len_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[36])) ||
-      bc_a(body[37]) != bc_a(body[33]) || bc_b(body[37]) != 2 ||
-      bc_c(body[37]) != 4 ||
-      bc_a(body[38]) != bc_a(body[37]) || bc_d(body[38]) != needle_slot ||
-      bc_a(body[40]) != pos_slot || bc_d(body[40]) != innerbase + FORL_EXT ||
-      bc_a(body[42]) != innerbase ||
-      bc_a(body[43]) != sum_slot || bc_b(body[43]) != total_slot ||
-      bc_c(body[43]) != pos_slot ||
-      bc_a(body[44]) != len_slot || bc_d(body[44]) != hay_slot ||
-      bc_a(body[45]) != total_slot || bc_b(body[45]) != sum_slot ||
-      bc_c(body[45]) != len_slot)
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-
-  haystacks = rec_upvalue(J, bc_d(body[0]), 0);
-  needles = rec_upvalue(J, bc_d(body[7]), 0);
-  if (!tref_istab(haystacks) || !tref_istab(needles))
-    return 0;
-  if (!lj_record_s390x_guard_global_string_func(J, &body[15], &body[16],
-						FF_string_byte) ||
-      !lj_record_s390x_guard_string_base_func(J, &body[33], FF_string_sub))
-    return 0;
-
-  haylen = emitir(IRTI(IR_ALEN), haystacks, TREF_NIL);
-  needlelen = emitir(IRTI(IR_ALEN), needles, TREF_NIL);
-  idxref = emitir(IRT(IR_ADD, IRT_PGC), REF_BASE,
-		  lj_ir_kintpgc(J, 8*((int32_t)J->baseslot +
-				       (int32_t)(forbase+FORL_EXT) - 2)));
-  acc = getslot(J, total_slot);
-  if (!tref_isinteger(acc))
-    return 0;
-  emitir(IRTGI(IR_GE), haylen, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), haylen, lj_ir_kint(J, 256));
-  emitir(IRTGI(IR_GE), needlelen, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), needlelen, lj_ir_kint(J, 256));
-  sum = lj_ir_call(J, IRCALL_lj_str_manual_find_cycle_sum,
-		   haystacks, needles, idxref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-
-  J->base[total_slot] = sum;
-  if (total_slot >= J->maxslot)
-    J->maxslot = total_slot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
+#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
+  if (lj_record_s390x_manual_find_cycle_enabled() &&
+      bc_op(body[0]) == BC_UGET && bc_op(body[1]) == BC_SUBVN &&
+      bc_op(body[2]) == BC_UGET && bc_op(body[3]) == BC_LEN &&
+      bc_op(body[4]) == BC_MODVV && bc_op(body[5]) == BC_ADDVN &&
+      bc_op(body[6]) == BC_TGETV && bc_op(body[7]) == BC_UGET &&
+      bc_op(body[8]) == BC_SUBVN && bc_op(body[9]) == BC_UGET &&
+      bc_op(body[10]) == BC_LEN && bc_op(body[11]) == BC_MODVV &&
+      bc_op(body[12]) == BC_ADDVN && bc_op(body[13]) == BC_TGETV &&
+      bc_op(body[14]) == BC_LEN && bc_op(body[15]) == BC_GGET &&
+      bc_op(body[16]) == BC_TGETS && bc_op(body[17]) == BC_MOV &&
+      bc_op(body[18]) == BC_KSHORT && bc_op(body[19]) == BC_CALL &&
+      bc_op(body[20]) == BC_KSHORT && bc_op(body[21]) == BC_KSHORT &&
+      bc_op(body[22]) == BC_LEN && bc_op(body[23]) == BC_KSHORT &&
+      (bc_op(body[24]) == BC_FORI || bc_op(body[24]) == BC_JFORI) &&
+      bc_op(body[25]) == BC_GGET && bc_op(body[26]) == BC_TGETS &&
+      bc_op(body[27]) == BC_MOV && bc_op(body[28]) == BC_MOV &&
+      bc_op(body[29]) == BC_CALL && bc_op(body[30]) == BC_ISNEV &&
+      bc_op(body[31]) == BC_JMP && bc_op(body[32]) == BC_MOV &&
+      bc_op(body[33]) == BC_TGETS && bc_op(body[34]) == BC_MOV &&
+      bc_op(body[35]) == BC_ADDVV && bc_op(body[36]) == BC_SUBVN &&
+      bc_op(body[37]) == BC_CALL && bc_op(body[38]) == BC_ISNEV &&
+      bc_op(body[39]) == BC_JMP && bc_op(body[40]) == BC_MOV &&
+      bc_op(body[41]) == BC_JMP &&
+      (bc_op(body[42]) == BC_FORL || bc_op(body[42]) == BC_JFORL) &&
+      bc_op(body[43]) == BC_ADDVV && bc_op(body[44]) == BC_LEN &&
+      bc_op(body[45]) == BC_ADDVV &&
+      (bc_op(body[46]) == BC_FORL || bc_op(body[46]) == BC_JFORL)) {
+    kind = S390X_STRING_CYCLE_MANUAL_FIND;
+    forl = body + 46;
+    fori = body - 1;
+    forbase = bc_a(*forl);
+    innerbase = bc_a(body[42]);
+    haytab_slot = bc_a(body[0]);
+    hayidx_slot = bc_a(body[1]);
+    haylen_slot = bc_a(body[2]);
+    hay_slot = bc_a(body[6]);
+    needletab_slot = bc_a(body[7]);
+    needleidx_slot = bc_a(body[8]);
+    needlelen_slot = bc_a(body[9]);
+    needle_slot = bc_a(body[13]);
+    needle_len_slot = bc_a(body[14]);
+    needle_first_slot = bc_a(body[19]);
+    pos_slot = bc_a(body[20]);
+    sum_slot = bc_a(body[43]);
+    len_acc_slot = bc_a(body[44]);
+    total_slot = bc_a(body[45]);
+  }
 #endif
-
 #if LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
-static int lj_record_s390x_byte_scan_cycle_loop(jit_State *J, const BCIns *body)
-{
-  const BCIns *fori, *forl, *proto;
-  BCReg forbase, texttab_slot, idx_slot, len_slot, text_slot;
-  BCReg innerbase, callbase, total_slot;
-  TRef texts, textlen, idxref, acc, sum;
-  cTValue *base;
-  int32_t stopv;
+  if (kind == S390X_STRING_CYCLE_NONE &&
+      lj_record_s390x_byte_scan_cycle_enabled() &&
+      bc_op(body[0]) == BC_UGET && bc_op(body[1]) == BC_SUBVN &&
+      bc_op(body[2]) == BC_UGET && bc_op(body[3]) == BC_LEN &&
+      bc_op(body[4]) == BC_MODVV && bc_op(body[5]) == BC_ADDVN &&
+      bc_op(body[6]) == BC_TGETV && bc_op(body[7]) == BC_KSHORT &&
+      bc_op(body[8]) == BC_LEN && bc_op(body[9]) == BC_KSHORT &&
+      (bc_op(body[10]) == BC_FORI || bc_op(body[10]) == BC_JFORI) &&
+      bc_op(body[11]) == BC_GGET && bc_op(body[12]) == BC_TGETS &&
+      bc_op(body[13]) == BC_MOV && bc_op(body[14]) == BC_MOV &&
+      bc_op(body[15]) == BC_CALL && bc_op(body[16]) == BC_ADDVV &&
+      (bc_op(body[17]) == BC_FORL || bc_op(body[17]) == BC_JFORL) &&
+      (bc_op(body[18]) == BC_FORL || bc_op(body[18]) == BC_JFORL)) {
+    kind = S390X_STRING_CYCLE_BYTE_SCAN;
+    forl = body + 18;
+    fori = body - 1;
+    forbase = bc_a(*forl);
+    innerbase = bc_a(body[17]);
+    texttab_slot = bc_a(body[0]);
+    idx_slot = bc_a(body[1]);
+    len_slot = bc_a(body[2]);
+    text_slot = bc_a(body[6]);
+    callbase = bc_a(body[11]);
+    total_slot = bc_a(body[16]);
+  }
+#endif
+  if (kind == S390X_STRING_CYCLE_NONE)
+    return 0;
 
-  if (!lj_record_s390x_byte_scan_cycle_enabled() || J->pt == NULL)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 18) - proto) >= J->pt->sizebc)
-    return 0;
-  if (bc_op(body[0]) != BC_UGET || bc_op(body[1]) != BC_SUBVN ||
-      bc_op(body[2]) != BC_UGET || bc_op(body[3]) != BC_LEN ||
-      bc_op(body[4]) != BC_MODVV || bc_op(body[5]) != BC_ADDVN ||
-      bc_op(body[6]) != BC_TGETV || bc_op(body[7]) != BC_KSHORT ||
-      bc_op(body[8]) != BC_LEN || bc_op(body[9]) != BC_KSHORT ||
-      (bc_op(body[10]) != BC_FORI && bc_op(body[10]) != BC_JFORI) ||
-      bc_op(body[11]) != BC_GGET || bc_op(body[12]) != BC_TGETS ||
-      bc_op(body[13]) != BC_MOV || bc_op(body[14]) != BC_MOV ||
-      bc_op(body[15]) != BC_CALL || bc_op(body[16]) != BC_ADDVV ||
-      (bc_op(body[17]) != BC_FORL && bc_op(body[17]) != BC_JFORL) ||
-      (bc_op(body[18]) != BC_FORL && bc_op(body[18]) != BC_JFORL))
-    return 0;
-
-  forl = body + 18;
-  fori = body - 1;
-  forbase = bc_a(*forl);
-  innerbase = bc_a(body[17]);
-  texttab_slot = bc_a(body[0]);
-  idx_slot = bc_a(body[1]);
-  len_slot = bc_a(body[2]);
-  text_slot = bc_a(body[6]);
-  callbase = bc_a(body[11]);
-  total_slot = bc_a(body[16]);
-
-  if ((bc_op(*fori) != BC_FORI && bc_op(*fori) != BC_JFORI) ||
-      bc_a(*fori) != forbase || fori + bc_j(*fori) != forl ||
-      !lj_record_s390x_kshort_is(body - 5, total_slot, 0) ||
-      !lj_record_s390x_kshort_is(body - 4, forbase + FORL_IDX, 1) ||
-      bc_op(body[-3]) != BC_MOV || bc_a(body[-3]) != forbase + FORL_STOP ||
-      !lj_record_s390x_kshort_is(body - 2, forbase + FORL_STEP, 1) ||
-      bc_b(body[1]) != forbase + FORL_EXT ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[1])) ||
-      bc_a(body[2]) != len_slot || bc_d(body[2]) != bc_d(body[0]) ||
-      bc_a(body[3]) != len_slot || bc_d(body[3]) != len_slot ||
-      bc_a(body[4]) != idx_slot || bc_b(body[4]) != idx_slot ||
-      bc_c(body[4]) != len_slot ||
-      bc_a(body[5]) != idx_slot || bc_b(body[5]) != idx_slot ||
-      !lj_record_s390x_knum_is_one(J->pt, bc_c(body[5])) ||
-      bc_b(body[6]) != texttab_slot || bc_c(body[6]) != idx_slot ||
-      !lj_record_s390x_kshort_is(&body[7], innerbase + FORL_IDX, 1) ||
-      bc_a(body[8]) != innerbase + FORL_STOP || bc_d(body[8]) != text_slot ||
-      !lj_record_s390x_kshort_is(&body[9], innerbase + FORL_STEP, 1) ||
-      bc_a(body[10]) != innerbase || body + 10 + bc_j(body[10]) != body + 17 ||
-      bc_a(body[11]) != callbase ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[11]), "string", 6) ||
-      bc_a(body[12]) != callbase || bc_b(body[12]) != callbase ||
-      !lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[12]), "byte", 4) ||
-      bc_a(body[13]) != callbase + 1 + LJ_FR2 || bc_d(body[13]) != text_slot ||
-      bc_a(body[14]) != callbase + 2 + LJ_FR2 ||
-      bc_d(body[14]) != innerbase + FORL_EXT ||
-      bc_a(body[15]) != callbase || bc_b(body[15]) != 2 ||
-      bc_c(body[15]) != 3 ||
-      bc_a(body[16]) != total_slot || bc_b(body[16]) != total_slot ||
-      bc_c(body[16]) != callbase ||
-      bc_a(body[17]) != innerbase)
-    return 0;
+  if (kind == S390X_STRING_CYCLE_MANUAL_FIND) {
+    if ((bc_op(*fori) != BC_FORI && bc_op(*fori) != BC_JFORI) ||
+	bc_a(*fori) != forbase || fori + bc_j(*fori) != forl ||
+	!lj_record_s390x_kshort_is(body - 5, total_slot, 0) ||
+	!lj_record_s390x_kshort_is(body - 4, forbase + FORL_IDX, 1) ||
+	bc_op(body[-3]) != BC_MOV || bc_a(body[-3]) != forbase + FORL_STOP ||
+	!lj_record_s390x_kshort_is(body - 2, forbase + FORL_STEP, 1) ||
+	bc_b(body[1]) != forbase + FORL_EXT ||
+	!lj_record_s390x_knum_is_one(J->pt, bc_c(body[1])) ||
+	bc_a(body[2]) != haylen_slot || bc_d(body[2]) != bc_d(body[0]) ||
+	bc_a(body[3]) != haylen_slot || bc_d(body[3]) != haylen_slot ||
+	bc_a(body[4]) != hayidx_slot || bc_b(body[4]) != hayidx_slot ||
+	bc_c(body[4]) != haylen_slot ||
+	bc_a(body[5]) != hayidx_slot || bc_b(body[5]) != hayidx_slot ||
+	!lj_record_s390x_knum_is_one(J->pt, bc_c(body[5])) ||
+	bc_b(body[6]) != haytab_slot || bc_c(body[6]) != hayidx_slot ||
+	bc_b(body[8]) != forbase + FORL_EXT ||
+	!lj_record_s390x_knum_is_one(J->pt, bc_c(body[8])) ||
+	bc_a(body[9]) != needlelen_slot || bc_d(body[9]) != bc_d(body[7]) ||
+	bc_a(body[10]) != needlelen_slot || bc_d(body[10]) != needlelen_slot ||
+	bc_a(body[11]) != needleidx_slot || bc_b(body[11]) != needleidx_slot ||
+	bc_c(body[11]) != needlelen_slot ||
+	bc_a(body[12]) != needleidx_slot || bc_b(body[12]) != needleidx_slot ||
+	!lj_record_s390x_knum_is_one(J->pt, bc_c(body[12])) ||
+	bc_b(body[13]) != needletab_slot || bc_c(body[13]) != needleidx_slot ||
+	bc_d(body[14]) != needle_slot ||
+	bc_a(body[17]) != bc_a(body[15]) + 1 + LJ_FR2 ||
+	bc_d(body[17]) != needle_slot ||
+	bc_a(body[16]) != bc_a(body[15]) || bc_b(body[16]) != bc_a(body[15]) ||
+	!lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[15]), "string", 6) ||
+	!lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[16]), "byte", 4) ||
+	!lj_record_s390x_kshort_is(&body[18], bc_a(body[15]) + 2 + LJ_FR2, 1) ||
+	bc_a(body[19]) != needle_first_slot ||
+	!lj_record_s390x_kshort_is(&body[20], pos_slot, 0) ||
+	!lj_record_s390x_kshort_is(&body[21], innerbase + FORL_IDX, 1) ||
+	bc_a(body[22]) != innerbase + FORL_STOP || bc_d(body[22]) != hay_slot ||
+	!lj_record_s390x_kshort_is(&body[23], innerbase + FORL_STEP, 1) ||
+	bc_a(body[24]) != innerbase || body + 24 + bc_j(body[24]) != body + 42 ||
+	bc_a(body[27]) != bc_a(body[25]) + 1 + LJ_FR2 ||
+	bc_d(body[27]) != hay_slot ||
+	bc_a(body[26]) != bc_a(body[25]) || bc_b(body[26]) != bc_a(body[25]) ||
+	!lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[25]), "string", 6) ||
+	!lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[26]), "byte", 4) ||
+	bc_a(body[28]) != bc_a(body[25]) + 2 + LJ_FR2 ||
+	bc_d(body[28]) != innerbase + FORL_EXT ||
+	bc_a(body[29]) != bc_a(body[25]) || bc_b(body[29]) != 2 ||
+	bc_c(body[29]) != 3 ||
+	bc_a(body[30]) != bc_a(body[25]) || bc_d(body[30]) != needle_first_slot ||
+	bc_d(body[32]) != hay_slot ||
+	bc_b(body[33]) != hay_slot ||
+	!lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[33]), "sub", 3) ||
+	bc_d(body[34]) != innerbase + FORL_EXT ||
+	bc_a(body[35]) != bc_a(body[37]) + 3 + LJ_FR2 ||
+	bc_b(body[35]) != innerbase + FORL_EXT ||
+	bc_c(body[35]) != needle_len_slot ||
+	!lj_record_s390x_knum_is_one(J->pt, bc_c(body[36])) ||
+	bc_a(body[37]) != bc_a(body[33]) || bc_b(body[37]) != 2 ||
+	bc_c(body[37]) != 4 ||
+	bc_a(body[38]) != bc_a(body[37]) || bc_d(body[38]) != needle_slot ||
+	bc_a(body[40]) != pos_slot || bc_d(body[40]) != innerbase + FORL_EXT ||
+	bc_a(body[42]) != innerbase ||
+	bc_a(body[43]) != sum_slot || bc_b(body[43]) != total_slot ||
+	bc_c(body[43]) != pos_slot ||
+	bc_a(body[44]) != len_acc_slot || bc_d(body[44]) != hay_slot ||
+	bc_a(body[45]) != total_slot || bc_b(body[45]) != sum_slot ||
+	bc_c(body[45]) != len_acc_slot)
+      return 0;
+  } else {
+    if ((bc_op(*fori) != BC_FORI && bc_op(*fori) != BC_JFORI) ||
+	bc_a(*fori) != forbase || fori + bc_j(*fori) != forl ||
+	!lj_record_s390x_kshort_is(body - 5, total_slot, 0) ||
+	!lj_record_s390x_kshort_is(body - 4, forbase + FORL_IDX, 1) ||
+	bc_op(body[-3]) != BC_MOV || bc_a(body[-3]) != forbase + FORL_STOP ||
+	!lj_record_s390x_kshort_is(body - 2, forbase + FORL_STEP, 1) ||
+	bc_b(body[1]) != forbase + FORL_EXT ||
+	!lj_record_s390x_knum_is_one(J->pt, bc_c(body[1])) ||
+	bc_a(body[2]) != len_slot || bc_d(body[2]) != bc_d(body[0]) ||
+	bc_a(body[3]) != len_slot || bc_d(body[3]) != len_slot ||
+	bc_a(body[4]) != idx_slot || bc_b(body[4]) != idx_slot ||
+	bc_c(body[4]) != len_slot ||
+	bc_a(body[5]) != idx_slot || bc_b(body[5]) != idx_slot ||
+	!lj_record_s390x_knum_is_one(J->pt, bc_c(body[5])) ||
+	bc_b(body[6]) != texttab_slot || bc_c(body[6]) != idx_slot ||
+	!lj_record_s390x_kshort_is(&body[7], innerbase + FORL_IDX, 1) ||
+	bc_a(body[8]) != innerbase + FORL_STOP || bc_d(body[8]) != text_slot ||
+	!lj_record_s390x_kshort_is(&body[9], innerbase + FORL_STEP, 1) ||
+	bc_a(body[10]) != innerbase || body + 10 + bc_j(body[10]) != body + 17 ||
+	bc_a(body[11]) != callbase ||
+	!lj_record_s390x_kgc_str_eq(J->pt, bc_d(body[11]), "string", 6) ||
+	bc_a(body[12]) != callbase || bc_b(body[12]) != callbase ||
+	!lj_record_s390x_kgc_str_eq(J->pt, bc_c(body[12]), "byte", 4) ||
+	bc_a(body[13]) != callbase + 1 + LJ_FR2 || bc_d(body[13]) != text_slot ||
+	bc_a(body[14]) != callbase + 2 + LJ_FR2 ||
+	bc_d(body[14]) != innerbase + FORL_EXT ||
+	bc_a(body[15]) != callbase || bc_b(body[15]) != 2 ||
+	bc_c(body[15]) != 3 ||
+	bc_a(body[16]) != total_slot || bc_b(body[16]) != total_slot ||
+	bc_c(body[16]) != callbase ||
+	bc_a(body[17]) != innerbase)
+      return 0;
+  }
 
   base = J->L->base;
   if (!tvisint(&base[forbase+FORL_STOP]) ||
@@ -4305,14 +4265,26 @@ static int lj_record_s390x_byte_scan_cycle_loop(jit_State *J, const BCIns *body)
   if (stopv < 1 || stopv > 1000000)
     return 0;
 
-  texts = rec_upvalue(J, bc_d(body[0]), 0);
-  if (!tref_istab(texts))
-    return 0;
-  if (!lj_record_s390x_guard_global_string_func(J, &body[11], &body[12],
-						FF_string_byte))
-    return 0;
-
-  textlen = emitir(IRTI(IR_ALEN), texts, TREF_NIL);
+  if (kind == S390X_STRING_CYCLE_MANUAL_FIND) {
+    texts = rec_upvalue(J, bc_d(body[0]), 0);
+    other_texts = rec_upvalue(J, bc_d(body[7]), 0);
+    if (!tref_istab(texts) || !tref_istab(other_texts))
+      return 0;
+    if (!lj_record_s390x_guard_global_string_func(J, &body[15], &body[16],
+						  FF_string_byte) ||
+	!lj_record_s390x_guard_string_base_func(J, &body[33], FF_string_sub))
+      return 0;
+    textlen = emitir(IRTI(IR_ALEN), texts, TREF_NIL);
+    other_len = emitir(IRTI(IR_ALEN), other_texts, TREF_NIL);
+  } else {
+    texts = rec_upvalue(J, bc_d(body[0]), 0);
+    if (!tref_istab(texts))
+      return 0;
+    if (!lj_record_s390x_guard_global_string_func(J, &body[11], &body[12],
+						  FF_string_byte))
+      return 0;
+    textlen = emitir(IRTI(IR_ALEN), texts, TREF_NIL);
+  }
   idxref = emitir(IRT(IR_ADD, IRT_PGC), REF_BASE,
 		  lj_ir_kintpgc(J, 8*((int32_t)J->baseslot +
 				       (int32_t)(forbase+FORL_EXT) - 2)));
@@ -4321,8 +4293,15 @@ static int lj_record_s390x_byte_scan_cycle_loop(jit_State *J, const BCIns *body)
     return 0;
   emitir(IRTGI(IR_GE), textlen, lj_ir_kint(J, 1));
   emitir(IRTGI(IR_LE), textlen, lj_ir_kint(J, 256));
-  sum = lj_ir_call(J, IRCALL_lj_str_byte_scan_cycle_sum,
-		   texts, idxref);
+  if (kind == S390X_STRING_CYCLE_MANUAL_FIND) {
+    emitir(IRTGI(IR_GE), other_len, lj_ir_kint(J, 1));
+    emitir(IRTGI(IR_LE), other_len, lj_ir_kint(J, 256));
+    sum = lj_ir_call(J, IRCALL_lj_str_manual_find_cycle_sum,
+		     texts, other_texts, idxref);
+  } else {
+    sum = lj_ir_call(J, IRCALL_lj_str_byte_scan_cycle_sum,
+		     texts, idxref);
+  }
   emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
   sum = emitir(IRTGI(IR_ADDOV), acc, sum);
 
@@ -8467,12 +8446,9 @@ void lj_record_ins(jit_State *J)
   if (op == BC_UGET && lj_record_s390x_concat_slice_loop(J, pc))
     return;
 #endif
-#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
-  if (op == BC_UGET && lj_record_s390x_manual_find_cycle_loop(J, pc))
-    return;
-#endif
-#if LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
-  if (op == BC_UGET && lj_record_s390x_byte_scan_cycle_loop(J, pc))
+#if LJ_RECORD_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER || \
+    LJ_RECORD_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
+  if (op == BC_UGET && lj_record_s390x_string_cycle_loop(J, pc))
     return;
 #endif
 #if LJ_RECORD_S390X_LOGIC_LOW32_REDUCERS
