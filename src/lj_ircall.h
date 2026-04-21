@@ -263,13 +263,7 @@ typedef struct CCallInfo {
 #define IRCALLDEF_S390X_COMPONENT_LOOP_REDUCERS(_)
 #endif
 
-#if LJ_TARGET_S390X && (LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS || \
-			LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER)
-#define IRCALLDEF_S390X_ITER_TABLE_SHARED_REDUCER(_) \
-  _(S390X,	lj_trace_s390x_iter_table_loop_sum, 4, N, INT, 0)
-#else
 #define IRCALLDEF_S390X_ITER_TABLE_SHARED_REDUCER(_)
-#endif
 
 /* Function definitions for CALL* instructions. */
 #define IRCALLDEF(_) \

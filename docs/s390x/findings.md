@@ -38770,3 +38770,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `numeric_ops abs=0.000017`, `div=0.000012`, `fp_mod=0.000016`,
   `sqrt=0.000014`, `min=0.000018`, `max=0.000017`;
   `ffi_calls direct_abs=0.000000`, `stored_abs=0.000000..0.000001`.
+
+## 2026-04-20: shared iterator/component helper retired into recorder IR
+
+- Removed `lj_trace_s390x_iter_table_loop_sum()` completely from
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h),
+  and [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- Added a recorder-local integer helper in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  for the exact closed form `acc + (stop - idx + 1) * per_iter`, and rewired
+  both call sites to use it:
+  - `lj_record_s390x_iterator_table_loop_sum()`
+  - `lj_record_s390x_component_loop_tail_sum()`
+- This retires one more target-local `IRCALL` without widening semantics. The
+  shared helper was only carrying simple integer arithmetic, so recorder IR is
+  the correct representation and keeps the component-tail route-around on the
+  same semantics.
+- Local checks:
+  `git diff --check` passed. The semantic reducer debt map stays at `26`
+  reducer matcher definitions, but `iterator_mixed` now shows only `lj_tab_nkeys`
+  as remaining helper usage and `lj_record_s390x_component_loop_tail_sum()`
+  no longer depends on the shared iterator helper.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  focused `tests/s390x/perf/iterator_table.lua`,
+  focused `tests/s390x/perf/route_around_reducers.lua`,
+  focused `tests/s390x/perf/mixed_noffi.lua`, and focused
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Hot medians stayed in band:
+  `iterator_table pairs_sum=0.000000`, `pairs_array_sum=0.000000`;
+  `route_around_reducers be_pack_literal_stop=0.000100`,
+  `be_pack_literal_stop_local_ops=0.000099`,
+  `be_pack_loop_local_ops=0.000099`;
+  `mixed_noffi mixed_loop=0.000002`;
+  `dispatch_trace numeric_loop=0.000000`,
+  `side_exit_loop=0.000001`, `hotexit_loop=0.000001`.

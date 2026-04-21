@@ -3053,6 +3053,16 @@ static int lj_record_s390x_guard_tab_str_int(jit_State *J, TRef tabref,
 #endif
 
 #if LJ_RECORD_S390X_ITERATOR_TABLE_REDUCER
+static TRef lj_record_s390x_iter_table_sum_int(jit_State *J, TRef acc, TRef idx,
+					       TRef stopref, int32_t per_iter)
+{
+  TRef count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+  TRef term;
+  count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+  term = emitir(IRTGI(IR_MULOV), count, lj_ir_kint(J, per_iter));
+  return emitir(IRTGI(IR_ADDOV), acc, term);
+}
+
 static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
 						   const BCIns *body)
 {
@@ -3163,8 +3173,7 @@ static int lj_record_s390x_iterator_table_loop_sum(jit_State *J,
   emitir(IRTGI(IR_LE), idx, stopref);
   emitir(IRTGI(IR_LE), acc,
 	 lj_ir_kint(J, (int32_t)(INT32_MAX - (int64_t)stopv * per_iter)));
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_iter_table_loop_sum, acc, idx,
-		   stopref, lj_ir_kint(J, per_iter));
+  sum = lj_record_s390x_iter_table_sum_int(J, acc, idx, stopref, per_iter);
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -3389,8 +3398,8 @@ static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
 		    stopref, lj_ir_kint(J, 4));
   emitir(IRTGI(IR_NE), term, lj_ir_kint(J, INT32_MIN));
   sum = emitir(IRTGI(IR_ADDOV), sum, term);
-  term = lj_ir_call(J, IRCALL_lj_trace_s390x_iter_table_loop_sum,
-		    lj_ir_kint(J, 0), nextidx, stopref, lj_ir_kint(J, 46));
+  term = lj_record_s390x_iter_table_sum_int(J, lj_ir_kint(J, 0),
+					    nextidx, stopref, 46);
   sum = emitir(IRTGI(IR_ADDOV), sum, term);
   sum = emitir(IRTGI(IR_ADDOV), acc, sum);
   J->base[accslot] = sum;
