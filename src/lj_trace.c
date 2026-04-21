@@ -252,28 +252,6 @@ double lj_trace_s390x_mixed_width_loop_sum(int32_t idx, int32_t stop)
   return (double)sum;
 }
 
-int32_t lj_trace_s390x_buffer_fref_loop_sum(int32_t idx, int32_t stop)
-{
-  int32_t n, q, rem, remsum;
-  int64_t sum;
-  if (idx < 1 || stop > 1000000)
-    return INT32_MIN;
-  if (stop < idx)
-    return 0;
-  n = stop - idx + 1;
-  q = n / 3;
-  rem = n % 3;
-  remsum = 0;
-  if (rem >= 1)
-    remsum += lj_trace_s390x_posmod_i32(idx, 3);
-  if (rem >= 2)
-    remsum += lj_trace_s390x_posmod_i32(idx + 1, 3);
-  /* Each official iteration is #("abcdef" after skip(i % 3)). */
-  sum = (int64_t)n * 6 - ((int64_t)q * 3 + remsum);
-  if (sum <= INT32_MIN || sum > INT32_MAX)
-    return INT32_MIN;
-  return (int32_t)sum;
-}
 #endif
 
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS

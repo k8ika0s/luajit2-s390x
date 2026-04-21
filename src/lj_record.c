@@ -3764,11 +3764,17 @@ static int lj_record_s390x_buffer_fref_loop_sum(jit_State *J,
   emitir(IRTGI(IR_LE), idx, stopref);
   trtype = emitir(IRT(IR_FLOAD, IRT_U8), bufref, IRFL_UDATA_UDTYPE);
   emitir(IRTGI(IR_EQ), trtype, lj_ir_kint(J, UDTYPE_BUFFER));
-
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_buffer_fref_loop_sum, idx,
-		   stopref);
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTI(IR_ADD), acc, sum);
+  {
+    TRef count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+    TRef skip;
+    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+    skip = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
+		      stopref, lj_ir_kint(J, 3));
+    emitir(IRTGI(IR_NE), skip, lj_ir_kint(J, INT32_MIN));
+    sum = emitir(IRTGI(IR_MULOV), count, lj_ir_kint(J, 6));
+    sum = emitir(IRTI(IR_SUB), sum, skip);
+    sum = emitir(IRTI(IR_ADD), acc, sum);
+  }
 
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)

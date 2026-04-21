@@ -1448,3 +1448,31 @@ kdz1 validation passed a warning-clean rebuild,
 `ffi_fixed_call_pressure_trace.lua`, `ffi_stack_call_trace.lua`,
 `ffi_abi/run.lua`, numeric/overflow guardrails, and focused
 `ffi_fixed_call_pressure.lua`.
+
+#### Buffer-FREF Helper Retired Into Generic Mod Contract
+
+The dedicated `lj_trace_s390x_buffer_fref_loop_sum()` helper is now gone.
+The official loop body is just:
+- `buf:put("abcdef")`
+- `buf:skip(i % 3)`
+- `total += #buf`
+
+That means the exact closed form is:
+- `count = stop - idx + 1`
+- `total = count * 6 - sum(i % 3)`
+
+Rather than introduce new direct `DIV/MOD` IR, the recorder now composes this
+from existing retained pieces in
+[src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+- direct integer IR for `count * 6`
+- the existing generic `lj_trace_s390x_mod_loop_sum(idx, stop, 3)` helper for
+  the residue sum
+
+This is upstream-cleaner than the dedicated buffer helper:
+- one fewer bespoke helper ABI
+- no new helper surface
+- no new dynamic modulo lowering debt
+- same semantic contract
+
+kdz1 validation passed a warning-clean rebuild, numeric/overflow guardrails,
+focused `ffi_cdata.lua`, and focused `dispatch_trace.lua`.
