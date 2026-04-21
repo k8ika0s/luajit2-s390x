@@ -1356,3 +1356,26 @@ focused `route_around_reducers.lua`.
 
 After this step the broader audit dropped to `99` findings and semantic reducer
 callinfo dropped to `21`.
+
+#### Const-I32 Mod17 Helper Retired Into Recorder IR
+
+The dedicated `lj_trace_s390x_const_i32_mod17_loop_sum()` helper is now gone.
+`lj_record_s390x_ffi_const_i32_mod17_loop_sum()` no longer exports a helper
+ABI for the `ffi_calls` `abs((i % 17) - 8)` loop family.
+
+The retained cleanup shape is intentionally narrow. A first attempt rebuilt the
+17-residue periodic sum as generic integer IR, but the official `ffi_calls`
+row exposed a wrong-result drift. The kept version instead proves the guarded
+const C function matches the centered-absolute `mod17` contract and then
+reuses the already-validated recorder-local centered-mod prefix math.
+
+This is upstream-cleaner than the old helper ABI while still preserving the
+measured lane: no `IRCALL`, no helper declaration, and no generic target-wide
+const-call export for this one benchmark family. kdz1 validation passed a
+warning-clean rebuild, `mod_int_trace.lua`, `mod_scaled_trace.lua`, numeric
+correctness, ADD/SUB overflow, MUL overflow, focused `numeric_ops.lua`, and
+focused `ffi_calls.lua`.
+
+After this step the broader audit dropped to `97` findings and semantic
+reducer callinfo dropped to `20`. Matcher definitions stayed at `26`, and
+`numeric_mod` stayed at `12`.
