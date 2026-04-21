@@ -4756,9 +4756,10 @@ static int lj_record_s390x_mod_scaled_loop_sum(jit_State *J, const BCIns *body)
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
   emitir(IRTGI(IR_GE), idx, lj_ir_kint(J, 1));
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_scaled_loop_sum, idx,
-		   stopref, lj_ir_kint(J, modk), lj_ir_kint(J, mulk));
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx, stopref,
+		   lj_ir_kint(J, modk));
   emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTGI(IR_MULOV), sum, lj_ir_kint(J, mulk));
   sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);

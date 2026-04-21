@@ -183,6 +183,27 @@ The current WIP is expected to pass the identity audit for production `src/`
   `tests/s390x/jit_core/mod_scaled_trace.lua`,
   plus focused `be_helpers.lua` and `numeric_ops.lua` on kdz1. All passed with
   a warning-clean build.
+
+## 2026-04-20: mod-scaled helper ABI removed
+
+- The `(i % mod) * mul` closed-form loop path no longer uses its own trace
+  helper in `src/lj_trace.c`. The recorder now reuses the generic
+  `lj_trace_s390x_mod_loop_sum()` contract and applies the integer scale with
+  `IR_MULOV` directly in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c).
+- Post-change source ledgers:
+  upstream-risk findings `107`,
+  semantic reducer callinfo `23`,
+  semantic reducer definitions `28`,
+  numeric_mod matcher count `14`.
+- Validation stayed on the modulo and overflow guardrails:
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  plus focused `numeric_ops.lua` on kdz1. All passed with a warning-clean
+  build.
 files. A new identity finding means a cleanup regression unless it is an
 explicitly allowlisted generic mechanism.
 
