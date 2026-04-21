@@ -39080,3 +39080,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `semantic_reducer_callinfo` drops from `17` to `16`. The numeric lane still
   has `26` reducer definitions overall, but two formula-specific helper ABIs
   are replaced by one shared exact-prefix contract.
+
+## 2026-04-21: ffi fixed-call pressure matchers merged
+
+- The retained fixed-call pressure lane no longer carries separate recorder
+  matcher definitions for GPR and FPR pressure. The former
+  `lj_record_s390x_ffi_fixed_call_pressure_gpr_sum()` and
+  `lj_record_s390x_ffi_fixed_call_pressure_fpr_sum()` shapes are now handled by
+  one shared matcher,
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_ffi_fixed_call_pressure_sum()`, which keeps the two helper
+  contracts but shares the bytecode-shape, slot, bounds, and step-16 advance
+  logic.
+- This is real reducer debt reduction, not just helper cleanup:
+  `semantic_reducer_definition` drops from `26` to `25` and
+  `semantic_reducer_dispatch` drops from `25` to `24`.
+- Current source audit after the merge is:
+  `88` upstream-risk findings,
+  `16` semantic reducer callinfo entries,
+  `25` semantic reducer definitions,
+  and `24` reducer dispatch sites.
+- Focused `kdz1` validation passed after a clean rebuild and oracle refresh:
+  `tests/s390x/jit_core/ffi_fixed_call_pressure_trace.lua`,
+  `tests/s390x/jit_core/ffi_stack_call_trace.lua`,
+  `tests/s390x/ffi_abi/run.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`, and
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua`.
+- Focused `ffi_fixed_call_pressure` perf stayed in the timer-floor band on
+  `kdz1`; hot rows remained `0.000000s..0.000001s`.

@@ -208,6 +208,34 @@ The current WIP is expected to pass the identity audit for production `src/`
   `tests/s390x/perf/dispatch_trace.lua`.
 - Focused `div_loop` and `sqrt_loop` stayed in band on `kdz1`.
 
+## 2026-04-21: ffi fixed-call pressure recorder definitions merged
+
+- The retained fixed-call pressure lane now uses one recorder matcher
+  definition instead of two. The old
+  `lj_record_s390x_ffi_fixed_call_pressure_gpr_sum()` and
+  `lj_record_s390x_ffi_fixed_call_pressure_fpr_sum()` functions are replaced by
+  one shared matcher,
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_ffi_fixed_call_pressure_sum()`.
+- This keeps the two helper ABIs,
+  `lj_trace_s390x_ffi_fixed_gpr_loop_sum()` and
+  `lj_trace_s390x_ffi_fixed_fpr_loop_sum()`, because the accumulator semantics
+  are still different, but it removes duplicate recorder-side bytecode-shape,
+  slot, bounds, and post-step logic.
+- Debt moved materially:
+  `semantic_reducer_definition` `26 -> 25`,
+  `semantic_reducer_dispatch` `25 -> 24`,
+  and the source audit is now `88` upstream-risk findings.
+- Focused `kdz1` validation passed after a clean rebuild plus
+  `CC=gcc sh tests/s390x/build_oracles.sh`:
+  `ffi_fixed_call_pressure_trace.lua`, `ffi_stack_call_trace.lua`,
+  `ffi_abi/run.lua`, `addsub_overflow_guard.lua`,
+  `mulov_overflow_guard.lua`, `numeric_ops.lua`, and
+  `tests/s390x/perf/ffi_fixed_call_pressure.lua`.
+- Focused `ffi_fixed_call_pressure` hot rows stayed in the same timer-floor
+  band (`0.000000s..0.000001s`) on `kdz1`, so this cleanup is performance
+  neutral on the official family.
+
 ## 2026-04-20: min/max helper ABI removed
 
 - The `math.min` / `math.max` closed-form loop path no longer depends on

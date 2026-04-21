@@ -1662,19 +1662,19 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
   return 1;
 }
 
-static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
-							   const BCIns *body)
+static int lj_record_s390x_ffi_fixed_call_pressure_sum(jit_State *J,
+						       const BCIns *body)
 {
   const BCIns *proto;
   BCIns cond_sub, cond_gt, loop, mul, baseadd, uget, tgets, call, add, inc;
   BCReg nslot, idxslot, accslot, a0slot, callbase, arg0;
-  TRef idx, stopref, lastref, acccd, typeid, acc64, sum64, newidx;
-  TRef newcd;
+  TRef idx, stopref, lastref, newidx;
   cTValue *base, *cdtv;
-  GCcdata *cd;
   void *func;
   int32_t slope, intercept;
-  int nargs, calli = 0, bodylen = 0, i;
+  int nargs, calli = 0, bodylen = 0, i, is_fpr = 0;
+  int argstart, minargs, maxargs;
+  BCReg cycle_base;
 
   if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
@@ -1688,26 +1688,53 @@ static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
   loop = body[-1];
   mul = body[0];
   baseadd = body[1];
-  uget = body[6];
-  tgets = body[7];
 
   if (bc_op(cond_sub) != BC_SUBVN || bc_op(cond_gt) != BC_ISGT ||
       (bc_op(loop) != BC_LOOP && bc_op(loop) != BC_JLOOP) ||
       bc_op(body[-2]) != BC_JMP ||
       bc_op(mul) != BC_MULNV || bc_op(baseadd) != BC_ADDVN ||
-      bc_op(body[2]) != BC_MOV || bc_op(body[3]) != BC_ADDVN ||
-      bc_op(body[4]) != BC_ADDVN || bc_op(body[5]) != BC_ADDVN ||
-      bc_op(uget) != BC_UGET || bc_op(tgets) != BC_TGETS ||
       !lj_record_s390x_knum_is_num(J->pt, bc_c(cond_sub), 15) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(mul), 16) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(baseadd), 120) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(body[3]), 16) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(body[4]), 32) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(body[5]), 48))
+      !lj_record_s390x_knum_is_num(J->pt, bc_c(mul), 16))
     return 0;
 
-  for (nargs = 5; nargs <= 7; nargs++) {
-    calli = 8 + nargs;
+  if ((MSize)((body + 8) - proto) < J->pt->sizebc &&
+      bc_op(body[2]) == BC_MOV &&
+      bc_op(body[3]) == BC_ADDVN &&
+      bc_op(body[4]) == BC_ADDVN &&
+      bc_op(body[5]) == BC_ADDVN &&
+      bc_op(body[6]) == BC_UGET &&
+      bc_op(body[7]) == BC_TGETS &&
+      lj_record_s390x_knum_is_num(J->pt, bc_c(baseadd), 120) &&
+      lj_record_s390x_knum_is_num(J->pt, bc_c(body[3]), 16) &&
+      lj_record_s390x_knum_is_num(J->pt, bc_c(body[4]), 32) &&
+      lj_record_s390x_knum_is_num(J->pt, bc_c(body[5]), 48)) {
+    uget = body[6];
+    tgets = body[7];
+    argstart = 8;
+    minargs = 5;
+    maxargs = 7;
+    cycle_base = 1;
+  } else if ((MSize)((body + 6) - proto) < J->pt->sizebc &&
+	     bc_op(body[2]) == BC_ADDVN &&
+	     bc_op(body[3]) == BC_ADDVN &&
+	     bc_op(body[4]) == BC_UGET &&
+	     bc_op(body[5]) == BC_TGETS &&
+	     lj_record_s390x_knum_is_num(J->pt, bc_c(baseadd), 124) &&
+	     lj_record_s390x_knum_is_num(J->pt, bc_c(body[2]), 20) &&
+	     lj_record_s390x_knum_is_num(J->pt, bc_c(body[3]), 40)) {
+    is_fpr = 1;
+    uget = body[4];
+    tgets = body[5];
+    argstart = 6;
+    minargs = 4;
+    maxargs = 6;
+    cycle_base = 0;
+  } else {
+    return 0;
+  }
+
+  for (nargs = minargs; nargs <= maxargs; nargs++) {
+    calli = argstart + nargs;
     bodylen = calli + 4;
     if ((MSize)((body + bodylen) - proto) >= J->pt->sizebc)
       return 0;
@@ -1719,7 +1746,7 @@ static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
 	lj_record_s390x_knum_is_num(J->pt, bc_c(inc), 16))
       break;
   }
-  if (nargs > 7)
+  if (nargs > maxargs)
     return 0;
 
   nslot = bc_b(cond_sub);
@@ -1730,10 +1757,6 @@ static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
   arg0 = callbase + 2;
 
   if (bc_a(baseadd) != a0slot || bc_b(baseadd) != a0slot ||
-      bc_a(body[2]) != (BCReg)(a0slot + 1) || bc_d(body[2]) != a0slot ||
-      bc_a(body[3]) != (BCReg)(a0slot + 2) || bc_b(body[3]) != a0slot ||
-      bc_a(body[4]) != (BCReg)(a0slot + 3) || bc_b(body[4]) != a0slot ||
-      bc_a(body[5]) != (BCReg)(a0slot + 4) || bc_b(body[5]) != a0slot ||
       bc_a(uget) != callbase || bc_a(tgets) != callbase ||
       bc_b(tgets) != callbase || bc_b(call) != 2 ||
       bc_c(call) != (BCReg)(nargs + 1) ||
@@ -1742,20 +1765,43 @@ static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
       bc_b(inc) != idxslot)
     return 0;
 
-  for (i = 0; i < nargs; i++)
-    if (bc_op(body[8 + i]) != BC_MOV ||
-	bc_a(body[8 + i]) != (BCReg)(arg0 + i) ||
-	bc_d(body[8 + i]) != (BCReg)(a0slot + 1 + (i & 3)))
+  if (!is_fpr) {
+    if (bc_a(body[2]) != (BCReg)(a0slot + 1) || bc_d(body[2]) != a0slot ||
+	bc_a(body[3]) != (BCReg)(a0slot + 2) || bc_b(body[3]) != a0slot ||
+	bc_a(body[4]) != (BCReg)(a0slot + 3) || bc_b(body[4]) != a0slot ||
+	bc_a(body[5]) != (BCReg)(a0slot + 4) || bc_b(body[5]) != a0slot)
       return 0;
+  } else {
+    if (bc_a(body[2]) != (BCReg)(a0slot + 1) || bc_b(body[2]) != a0slot ||
+	bc_a(body[3]) != (BCReg)(a0slot + 2) || bc_b(body[3]) != a0slot)
+      return 0;
+  }
 
-  if (!lj_record_s390x_const_sumargs_cfunc(J, &uget, &tgets, nargs, 0,
-					    &func) ||
-      !lj_record_s390x_ffi_fixed_gpr_coeff(func, nargs, &slope, &intercept))
+  for (i = 0; i < nargs; i++) {
+    BCIns arg = body[argstart + i];
+    if (bc_op(arg) != BC_MOV || bc_a(arg) != (BCReg)(arg0 + i))
+      return 0;
+    if (!is_fpr) {
+      if (bc_d(arg) != (BCReg)(a0slot + cycle_base + (i & 3)))
+	return 0;
+    } else {
+      if (bc_d(arg) != (BCReg)(a0slot + (i % 3)))
+	return 0;
+    }
+  }
+
+  if (!lj_record_s390x_const_sumargs_cfunc(J, &uget, &tgets, nargs, is_fpr,
+					    &func))
+    return 0;
+  if ((!is_fpr &&
+       !lj_record_s390x_ffi_fixed_gpr_coeff(func, nargs, &slope, &intercept)) ||
+      (is_fpr &&
+       !lj_record_s390x_ffi_fixed_fpr_coeff(func, nargs, &slope, &intercept)))
     return 0;
 
   base = J->L->base;
   if (!tvisint(&base[idxslot]) || !tvisint(&base[nslot]) ||
-      !tviscdata(&base[accslot]))
+      (!is_fpr && !tviscdata(&base[accslot])))
     return 0;
   if (intV(&base[idxslot]) < 1 || intV(&base[nslot]) > 1000000 ||
       intV(&base[nslot]) - 15 < intV(&base[idxslot]))
@@ -1763,24 +1809,43 @@ static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
 
   idx = getslot(J, idxslot);
   stopref = getslot(J, nslot);
-  acccd = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) || !tref_iscdata(acccd))
-    return 0;
   emitir(IRTGI(IR_GE), idx, lj_ir_kint(J, 1));
   emitir(IRTGI(IR_LE), stopref, lj_ir_kint(J, 1000000));
   lastref = emitir(IRTI(IR_SUB), stopref, lj_ir_kint(J, 15));
   emitir(IRTGI(IR_LE), idx, lastref);
 
-  cdtv = &base[accslot];
-  cd = cdataV(cdtv);
-  typeid = emitir(IRT(IR_FLOAD, IRT_U16), acccd, IRFL_CDATA_CTYPEID);
-  emitir(IRTGI(IR_EQ), typeid, lj_ir_kint(J, (int32_t)cd->ctypeid));
-  acc64 = emitir(IRT(IR_FLOAD, IRT_U64), acccd, IRFL_CDATA_INT64);
-  sum64 = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_gpr_loop_sum,
-		     acc64, idx, stopref, lj_ir_kint(J, slope),
+  if (!is_fpr) {
+    TRef acccd = getslot(J, accslot);
+    TRef typeid, acc64, sum64, newcd;
+    GCcdata *cd;
+
+    if (!tref_isinteger(idx) || !tref_isinteger(stopref) || !tref_iscdata(acccd))
+      return 0;
+    cdtv = &base[accslot];
+    cd = cdataV(cdtv);
+    typeid = emitir(IRT(IR_FLOAD, IRT_U16), acccd, IRFL_CDATA_CTYPEID);
+    emitir(IRTGI(IR_EQ), typeid, lj_ir_kint(J, (int32_t)cd->ctypeid));
+    acc64 = emitir(IRT(IR_FLOAD, IRT_U64), acccd, IRFL_CDATA_INT64);
+    sum64 = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_gpr_loop_sum,
+		       acc64, idx, stopref, lj_ir_kint(J, slope),
+		       lj_ir_kint(J, intercept));
+    newcd = emitir(IRTG(IR_CNEWI, IRT_CDATA),
+		   lj_ir_kint(J, (int32_t)cd->ctypeid), sum64);
+    J->base[accslot] = newcd;
+  } else {
+    TRef acc = getslot(J, accslot);
+    TRef sum;
+
+    if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
+	!(tref_isinteger(acc) || tref_isnum(acc)))
+      return 0;
+    if (tref_isinteger(acc))
+      acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
+    sum = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_fpr_loop_sum,
+		     acc, idx, stopref, lj_ir_kint(J, slope),
 		     lj_ir_kint(J, intercept));
-  newcd = emitir(IRTG(IR_CNEWI, IRT_CDATA), lj_ir_kint(J, (int32_t)cd->ctypeid),
-		 sum64);
+    J->base[accslot] = sum;
+  }
   {
     TRef delta = emitir(IRTI(IR_SUB), lastref, idx);
     TRef steps = emitir(IRTI(IR_BSHR), delta, lj_ir_kint(J, 4));
@@ -1789,133 +1854,6 @@ static int lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(jit_State *J,
     advance = emitir(IRTI(IR_BSHL), steps, lj_ir_kint(J, 4));
     newidx = emitir(IRTI(IR_ADD), idx, advance);
   }
-  J->base[accslot] = newcd;
-  J->base[idxslot] = newidx;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  if (idxslot >= J->maxslot)
-    J->maxslot = idxslot + 1;
-  J->pc = body + bodylen;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
-static int lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(jit_State *J,
-							   const BCIns *body)
-{
-  const BCIns *proto;
-  BCIns cond_sub, cond_gt, loop, mul, baseadd, uget, tgets, call, add, inc;
-  BCReg nslot, idxslot, accslot, a0slot, callbase, arg0;
-  TRef idx, stopref, lastref, acc, sum, newidx;
-  cTValue *base;
-  void *func;
-  int32_t slope, intercept;
-  int nargs, calli = 0, bodylen = 0, i;
-
-  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
-      J->parent != 0 || J->exitno != 0)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 || body >= proto + J->pt->sizebc)
-    return 0;
-
-  cond_sub = body[-4];
-  cond_gt = body[-3];
-  loop = body[-1];
-  mul = body[0];
-  baseadd = body[1];
-  uget = body[4];
-  tgets = body[5];
-
-  if (bc_op(cond_sub) != BC_SUBVN || bc_op(cond_gt) != BC_ISGT ||
-      (bc_op(loop) != BC_LOOP && bc_op(loop) != BC_JLOOP) ||
-      bc_op(body[-2]) != BC_JMP ||
-      bc_op(mul) != BC_MULNV || bc_op(baseadd) != BC_ADDVN ||
-      bc_op(body[2]) != BC_ADDVN || bc_op(body[3]) != BC_ADDVN ||
-      bc_op(uget) != BC_UGET || bc_op(tgets) != BC_TGETS ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(cond_sub), 15) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(mul), 16) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(baseadd), 124) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(body[2]), 20) ||
-      !lj_record_s390x_knum_is_num(J->pt, bc_c(body[3]), 40))
-    return 0;
-
-  for (nargs = 4; nargs <= 6; nargs++) {
-    calli = 6 + nargs;
-    bodylen = calli + 4;
-    if ((MSize)((body + bodylen) - proto) >= J->pt->sizebc)
-      return 0;
-    call = body[calli];
-    add = body[calli + 1];
-    inc = body[calli + 2];
-    if (bc_op(call) == BC_CALL && bc_op(add) == BC_ADDVV &&
-	bc_op(inc) == BC_ADDVN && bc_op(body[calli + 3]) == BC_JMP &&
-	lj_record_s390x_knum_is_num(J->pt, bc_c(inc), 16))
-      break;
-  }
-  if (nargs > 6)
-    return 0;
-
-  nslot = bc_b(cond_sub);
-  idxslot = bc_b(mul);
-  a0slot = bc_a(mul);
-  callbase = bc_a(call);
-  accslot = bc_b(add);
-  arg0 = callbase + 2;
-
-  if (bc_a(baseadd) != a0slot || bc_b(baseadd) != a0slot ||
-      bc_a(body[2]) != (BCReg)(a0slot + 1) || bc_b(body[2]) != a0slot ||
-      bc_a(body[3]) != (BCReg)(a0slot + 2) || bc_b(body[3]) != a0slot ||
-      bc_a(uget) != callbase || bc_a(tgets) != callbase ||
-      bc_b(tgets) != callbase || bc_b(call) != 2 ||
-      bc_c(call) != (BCReg)(nargs + 1) ||
-      bc_a(add) != accslot || bc_b(add) != accslot ||
-      bc_c(add) != callbase || bc_a(inc) != idxslot ||
-      bc_b(inc) != idxslot)
-    return 0;
-
-  for (i = 0; i < nargs; i++)
-    if (bc_op(body[6 + i]) != BC_MOV ||
-	bc_a(body[6 + i]) != (BCReg)(arg0 + i) ||
-	bc_d(body[6 + i]) != (BCReg)(a0slot + (i % 3)))
-      return 0;
-
-  if (!lj_record_s390x_const_sumargs_cfunc(J, &uget, &tgets, nargs, 1,
-					    &func) ||
-      !lj_record_s390x_ffi_fixed_fpr_coeff(func, nargs, &slope, &intercept))
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[idxslot]) || !tvisint(&base[nslot]))
-    return 0;
-  if (intV(&base[idxslot]) < 1 || intV(&base[nslot]) > 1000000 ||
-      intV(&base[nslot]) - 15 < intV(&base[idxslot]))
-    return 0;
-
-  idx = getslot(J, idxslot);
-  stopref = getslot(J, nslot);
-  acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !(tref_isinteger(acc) || tref_isnum(acc)))
-    return 0;
-  emitir(IRTGI(IR_GE), idx, lj_ir_kint(J, 1));
-  emitir(IRTGI(IR_LE), stopref, lj_ir_kint(J, 1000000));
-  lastref = emitir(IRTI(IR_SUB), stopref, lj_ir_kint(J, 15));
-  emitir(IRTGI(IR_LE), idx, lastref);
-  if (tref_isinteger(acc))
-    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_fpr_loop_sum,
-		   acc, idx, stopref, lj_ir_kint(J, slope),
-		   lj_ir_kint(J, intercept));
-  {
-    TRef delta = emitir(IRTI(IR_SUB), lastref, idx);
-    TRef steps = emitir(IRTI(IR_BSHR), delta, lj_ir_kint(J, 4));
-    TRef advance;
-    steps = emitir(IRTI(IR_ADD), steps, lj_ir_kint(J, 1));
-    advance = emitir(IRTI(IR_BSHL), steps, lj_ir_kint(J, 4));
-    newidx = emitir(IRTI(IR_ADD), idx, advance);
-  }
-  J->base[accslot] = sum;
   J->base[idxslot] = newidx;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -8559,9 +8497,7 @@ void lj_record_ins(jit_State *J)
   if ((op == BC_GGET || op == BC_UGET) &&
       lj_record_s390x_ffi_fixed_struct_loop_sum(J, pc))
     return;
-  if (op == BC_MULNV && lj_record_s390x_ffi_fixed_call_pressure_gpr_sum(J, pc))
-    return;
-  if (op == BC_MULNV && lj_record_s390x_ffi_fixed_call_pressure_fpr_sum(J, pc))
+  if (op == BC_MULNV && lj_record_s390x_ffi_fixed_call_pressure_sum(J, pc))
     return;
 #endif
 #if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
