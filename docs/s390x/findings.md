@@ -39057,3 +39057,26 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   ABI is gone from the numeric lane. The numeric reducer now depends on
   `lj_trace_s390x_i32_prefix_repeat_span_sum()` instead of the bespoke quarter
   helper.
+
+## 2026-04-21: div/sqrt helper ABIs consolidated
+
+- The retained `numeric_div_loop_accum4` and `numeric_sqrt_loop_accum4`
+  reducers no longer export separate helper ABIs. Both now route through a
+  shared exact-prefix helper, `lj_trace_s390x_num_prefix_accum4()`, which keeps
+  the official sequential FP accumulation contract and picks the div or sqrt
+  term internally.
+- Focused `kdz1` validation passed after a clean rebuild:
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`, and
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Focused perf stayed in band on `kdz1`:
+  `div_loop/hot` remained `0.000011s..0.000013s` and
+  `sqrt_loop/hot` remained `0.000014s..0.000016s`.
+- Debt read:
+  `semantic_reducer_callinfo` drops from `17` to `16`. The numeric lane still
+  has `26` reducer definitions overall, but two formula-specific helper ABIs
+  are replaced by one shared exact-prefix contract.

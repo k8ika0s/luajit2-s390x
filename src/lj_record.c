@@ -2299,8 +2299,8 @@ static int lj_record_s390x_numeric_div_loop_accum4(jit_State *J,
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_div_loop_accum4, acc, idx,
-		   stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_num_prefix_accum4, acc, idx,
+		   stopref, lj_ir_kint(J, 1));
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -2373,8 +2373,8 @@ static int lj_record_s390x_numeric_sqrt_loop_accum4(jit_State *J,
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_sqrt_loop_accum4, acc, idx,
-		   stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_num_prefix_accum4, acc, idx,
+		   stopref, lj_ir_kint(J, 2));
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;

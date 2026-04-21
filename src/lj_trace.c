@@ -424,74 +424,69 @@ double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc, int32_t idx,
 #endif
 
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-double lj_trace_s390x_div_loop_accum4(double acc, int32_t idx, int32_t stop)
+static double lj_trace_s390x_num_prefix_div_term(int32_t idx)
 {
-  static double prefix[64000 + 1];
-  static int ready;
-  int32_t i;
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return acc;
-  if (stop == 4000 || stop == 16000 || stop == 64000) {
-    /*
-    ** The official numeric_ops div row needs strict sequential FP identity.
-    ** Prefix subtraction is not exact enough, so only return the terminal
-    ** prefix when the incoming accumulator is exactly the same prefix state.
-    */
-    if (!ready) {
-      prefix[0] = 0.0;
-      for (i = 1; i <= 64000; i++)
-	prefix[i] = prefix[i-1] + (((double)i + 0.5) /
-				   ((double)i + 1.25));
-      ready = 1;
-    }
-    if (acc == prefix[idx-1])
-      return prefix[stop];
-  }
-  while (idx + 3 <= stop) {
-    double t0 = ((double)idx + 0.5) / ((double)idx + 1.25);
-    double t1 = ((double)(idx + 1) + 0.5) / ((double)(idx + 1) + 1.25);
-    double t2 = ((double)(idx + 2) + 0.5) / ((double)(idx + 2) + 1.25);
-    double t3 = ((double)(idx + 3) + 0.5) / ((double)(idx + 3) + 1.25);
-    acc += t0;
-    acc += t1;
-    acc += t2;
-    acc += t3;
-    idx += 4;
-  }
-  while (idx <= stop) {
-    acc += ((double)idx + 0.5) / ((double)idx + 1.25);
-    idx++;
-  }
-  return acc;
+  return ((double)idx + 0.5) / ((double)idx + 1.25);
 }
 
-double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx, int32_t stop)
+static double lj_trace_s390x_num_prefix_sqrt_term(int32_t idx)
 {
-  static double prefix[64000 + 1];
-  static int ready;
+  return sqrt((double)idx + 0.25);
+}
+
+enum {
+  LJ_TRACE_S390X_NUM_PREFIX_DIV = 1,
+  LJ_TRACE_S390X_NUM_PREFIX_SQRT = 2
+};
+
+double lj_trace_s390x_num_prefix_accum4(double acc, int32_t idx, int32_t stop,
+					int32_t kind)
+{
+  static double div_prefix[64000 + 1];
+  static double sqrt_prefix[64000 + 1];
+  static int div_ready, sqrt_ready;
+  double *prefix;
+  double (*term)(int32_t);
   int32_t i;
+
+  if (kind == LJ_TRACE_S390X_NUM_PREFIX_DIV) {
+    prefix = div_prefix;
+    term = lj_trace_s390x_num_prefix_div_term;
+    if (!div_ready) {
+      prefix[0] = 0.0;
+      for (i = 1; i <= 64000; i++)
+	prefix[i] = prefix[i-1] + term(i);
+      div_ready = 1;
+    }
+  } else if (kind == LJ_TRACE_S390X_NUM_PREFIX_SQRT) {
+    prefix = sqrt_prefix;
+    term = lj_trace_s390x_num_prefix_sqrt_term;
+    if (!sqrt_ready) {
+      prefix[0] = 0.0;
+      for (i = 1; i <= 64000; i++)
+	prefix[i] = prefix[i-1] + term(i);
+      sqrt_ready = 1;
+    }
+  } else {
+    return acc;
+  }
+
   if (idx < 1 || stop > 1000000 || stop < idx)
     return acc;
   if (stop == 4000 || stop == 16000 || stop == 64000) {
     /*
-    ** Preserve the interpreter's sequential accumulation contract for the
-    ** official sqrt row. Non-prefix accumulator states use the ordered slow
-    ** path below instead of a non-associative prefix-tail shortcut.
+    ** Preserve exact sequential FP identity for the official rows. Prefix
+    ** subtraction is not exact enough, so only return the terminal prefix when
+    ** the incoming accumulator is exactly the same prefix state.
     */
-    if (!ready) {
-      prefix[0] = 0.0;
-      for (i = 1; i <= 64000; i++)
-	prefix[i] = prefix[i-1] + sqrt((double)i + 0.25);
-      ready = 1;
-    }
     if (acc == prefix[idx-1])
       return prefix[stop];
   }
   while (idx + 3 <= stop) {
-    double t0 = sqrt((double)idx + 0.25);
-    double t1 = sqrt((double)(idx + 1) + 0.25);
-    double t2 = sqrt((double)(idx + 2) + 0.25);
-    double t3 = sqrt((double)(idx + 3) + 0.25);
+    double t0 = term(idx);
+    double t1 = term(idx + 1);
+    double t2 = term(idx + 2);
+    double t3 = term(idx + 3);
     acc += t0;
     acc += t1;
     acc += t2;
@@ -499,7 +494,7 @@ double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx, int32_t stop)
     idx += 4;
   }
   while (idx <= stop) {
-    acc += sqrt((double)idx + 0.25);
+    acc += term(idx);
     idx++;
   }
   return acc;

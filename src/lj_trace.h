@@ -82,10 +82,8 @@ LJ_FUNC double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc,
 						     int32_t intercept);
 #endif
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-LJ_FUNC double lj_trace_s390x_div_loop_accum4(double acc, int32_t idx,
-					      int32_t stop);
-LJ_FUNC double lj_trace_s390x_sqrt_loop_accum4(double acc, int32_t idx,
-					       int32_t stop);
+LJ_FUNC double lj_trace_s390x_num_prefix_accum4(double acc, int32_t idx,
+						int32_t stop, int32_t kind);
 LJ_FUNC int32_t lj_trace_s390x_count_multiples(int32_t idx, int32_t stop,
 					       int32_t d);
 LJ_FUNC int32_t lj_trace_s390x_mod_select_loop_sum(int32_t idx, int32_t stop,
