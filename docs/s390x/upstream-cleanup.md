@@ -1026,6 +1026,19 @@ This is still an isolation step. The `logic_low32` bucket remains active until
 the current semantic substitutions are replaced by low32/PHI backend mechanisms
 or held out of an upstream candidate.
 
+#### Logic Tail-Store Helper Removal
+
+`lj_trace_s390x_logic_tail_store_sum()` has been removed. The recorder still
+recognizes the exact loop family, but the final result is now emitted directly
+as integer IR (`outer_stop * 200`) instead of taking a dedicated helper call
+for a single multiply.
+
+kdz1 validation passed a warning-clean rebuild, `low32_home_contract.lua`,
+overflow guardrails, focused `logical_chain_tail_store.lua`,
+`logical_chain_tail_add.lua`, `logic_add_phi_noboundary.lua`,
+`bitops_mix.lua`, and `dispatch_trace.lua`. This reduces helper ABI surface
+without changing the retained matcher shape.
+
 ### Numeric-Mod Reducer Isolation
 
 The `numeric_mod` bucket is now compile-isolated behind

@@ -38495,3 +38495,25 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
   (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
   `sqrt=0.000014`, `min=0.000013`, `max=0.000013`).
+
+## 2026-04-20: logic tail-store helper removed
+
+- Removed `lj_trace_s390x_logic_tail_store_sum()` completely. The recorder
+  path in `lj_record_s390x_logic_chain_tail_store_sum()` now emits direct
+  integer IR for the exact same `outer_stop * 200` result instead of calling a
+  dedicated helper for a single multiply.
+- Local checks:
+  `git diff --check` passed and no live `logic_tail_store_sum` references
+  remain. The upstream-risk audit dropped from `120` to `118`, and the
+  semantic reducer callinfo ledger dropped from `29` to `28`. Matcher counts
+  are unchanged because this is helper-surface cleanup only.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_be/low32_home_contract.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/logical_chain_tail_store.lua`,
+  `tests/s390x/perf/logical_chain_tail_add.lua`,
+  `tests/s390x/perf/logic_add_phi_noboundary.lua`,
+  `tests/s390x/perf/bitops_mix.lua`, and
+  `tests/s390x/perf/dispatch_trace.lua`; all logic rows stayed at timer floor.

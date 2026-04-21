@@ -150,7 +150,6 @@ LJ_FUNC int32_t lj_trace_s390x_logic_tail_add_sum(int32_t acc,
 						  int32_t inner_stop,
 						  int32_t outer_idx,
 						  int32_t outer_stop);
-LJ_FUNC int32_t lj_trace_s390x_logic_tail_store_sum(int32_t outer_stop);
 #endif
 #if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS || \
     LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER
