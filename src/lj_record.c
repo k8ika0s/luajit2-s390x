@@ -3739,6 +3739,26 @@ static int lj_record_s390x_mod_rem_const_select_sum_fits_i32(int32_t stop,
   return sum > INT32_MIN && sum <= INT32_MAX;
 }
 
+static int lj_record_s390x_mod97_if5_if3_sum_fits_i32(int32_t stop)
+{
+  int64_t sum5, sum3, sum15, sum;
+  int32_t count, count3, count5, count15;
+  if (stop < 1)
+    return 1;
+  sum5 = lj_record_s390x_sum_mod_multiples(stop, 5, 97);
+  sum3 = lj_record_s390x_sum_mod_multiples(stop, 3, 97);
+  sum15 = lj_record_s390x_sum_mod_multiples(stop, 15, 97);
+  count = stop;
+  count3 = stop / 3;
+  count5 = stop / 5;
+  count15 = stop / 15;
+  sum = count;
+  sum += 3 * sum5 - count5;
+  sum -= sum3 - sum15;
+  sum -= count3 - count15;
+  return sum > INT32_MIN && sum <= INT32_MAX;
+}
+
 static int lj_record_s390x_mod_sum_fits_i32(int32_t stop, int32_t mod)
 {
   int64_t sum;
@@ -4876,7 +4896,7 @@ static int lj_record_s390x_mod97_if5_if3_loop_sum(jit_State *J, const BCIns *bod
   BCIns mod5, isn5, jmp5, mod97a, mul3, add3, jmpadd;
   BCIns mod3, isn3, jmp3, mod97b, sub, jmpsub, add1;
   BCReg forbase, idxslot, tmp, accslot;
-  TRef idx, stopref, acc, sum;
+  TRef idx, stopref, acc, sum, tmpref;
   cTValue *base;
   int32_t stopv;
 
@@ -4952,6 +4972,8 @@ static int lj_record_s390x_mod97_if5_if3_loop_sum(jit_State *J, const BCIns *bod
   stopv = intV(&base[forbase+FORL_STOP]);
   if (stopv < 1 || stopv > 1000000)
     return 0;
+  if (!lj_record_s390x_mod97_if5_if3_sum_fits_i32(stopv))
+    return 0;
   if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
     return 0;
 
@@ -4961,13 +4983,38 @@ static int lj_record_s390x_mod97_if5_if3_loop_sum(jit_State *J, const BCIns *bod
   if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod97_if5_if3_loop_sum, idx,
-		   stopref);
+  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
+		   stopref, lj_ir_kint(J, 5), lj_ir_kint(J, 97),
+		   lj_ir_kint(J, 3), lj_ir_kint(J, 0));
   emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
-  if (tref_isinteger(acc))
-    acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
-  sum = emitir(IRTN(IR_ADD), acc, sum);
+  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
+		      stopref, lj_ir_kint(J, 3), lj_ir_kint(J, 97),
+		      lj_ir_kint(J, -1), lj_ir_kint(J, 0));
+  emitir(IRTGI(IR_NE), tmpref, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
+  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
+		      stopref, lj_ir_kint(J, 15), lj_ir_kint(J, 97),
+		      lj_ir_kint(J, 1), lj_ir_kint(J, 0));
+  emitir(IRTGI(IR_NE), tmpref, lj_ir_kint(J, INT32_MIN));
+  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
+  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
+		      lj_ir_kint(J, 5));
+  sum = emitir(IRTGI(IR_SUBOV), sum, tmpref);
+  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
+		      lj_ir_kint(J, 3));
+  sum = emitir(IRTGI(IR_SUBOV), sum, tmpref);
+  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
+		      lj_ir_kint(J, 15));
+  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
+  tmpref = emitir(IRTGI(IR_SUBOV), stopref, idx);
+  tmpref = emitir(IRTGI(IR_ADDOV), tmpref, lj_ir_kint(J, 1));
+  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
+  if (tref_isinteger(acc)) {
+    sum = emitir(IRTGI(IR_ADDOV), acc, sum);
+  } else {
+    sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
+    sum = emitir(IRTN(IR_ADD), acc, sum);
+  }
 
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)

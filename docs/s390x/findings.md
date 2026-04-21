@@ -38465,3 +38465,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
   (`abs=0.000016`, `div=0.000012`, `fp_mod=0.000015`,
   `sqrt=0.000014`, `min=0.000013`, `max=0.000013`).
+
+## 2026-04-20: mod97 if5 if3 helper removed, matcher rebuilt from generic pieces
+
+- The last dedicated `%97` helper ABI is gone. The nested `%5/%3/%97` matcher
+  still exists, but it now builds the same result from generic
+  `lj_trace_s390x_mod_rem_select_loop_sum()` and
+  `lj_trace_s390x_count_multiples()` pieces instead of calling a bespoke
+  `lj_trace_s390x_mod97_if5_if3_loop_sum()` helper.
+- Added a local fit gate
+  `lj_record_s390x_mod97_if5_if3_sum_fits_i32()` in the recorder so the new
+  generic composition stays on the existing no-overflow route-around
+  contract.
+- Local checks:
+  `git diff --check` passed. The semantic reducer callinfo ledger dropped from
+  `30` to `29` while matcher definitions stayed at `29` and `numeric_mod`
+  stayed at `15`. The raw upstream-risk source count moved from `119` to
+  `120` because the audit still counts each generic helper call site inside
+  the matcher, even though the dedicated `%97` helper surface is gone.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
+  (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000014`, `min=0.000013`, `max=0.000013`).
