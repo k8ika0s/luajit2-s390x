@@ -118,6 +118,30 @@ python3 tools/s390x/audit_benchmark_fastpaths.py --scope identity --fail-on-find
 ```
 
 The current WIP is expected to pass the identity audit for production `src/`
+
+## 2026-04-20: plain mod97 loop helper retired
+
+- Folded the simple `%97` add/sub accumulator loop into the existing generic
+  `lj_trace_s390x_mod_loop_sum()` contract. This removed one more bespoke
+  numeric helper ABI from `src/lj_ircall.h`, one dedicated trace helper from
+  `src/lj_trace.c`, and one dedicated recorder dispatch/matcher from
+  `src/lj_record.c`.
+- The follow-up warning-clean kdz1 rebuild exposed a dead internal helper,
+  `lj_trace_s390x_sum_mod97_seq()`, which was also removed. That cleanup is
+  part of the same source reduction and should stay with this fold.
+- Post-change source ledgers:
+  upstream-risk findings `114`,
+  semantic reducer callinfo `27`,
+  semantic reducer definitions `28`,
+  numeric_mod matcher count `14`.
+- Validation stayed focused on the current numeric safety net:
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  plus focused `numeric_ops.lua`, `dispatch_trace.lua`, and
+  `route_around_reducers.lua` on kdz1. All passed with a warning-clean build.
 files. A new identity finding means a cleanup regression unless it is an
 explicitly allowlisted generic mechanism.
 

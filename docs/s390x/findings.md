@@ -38517,3 +38517,29 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/logic_add_phi_noboundary.lua`,
   `tests/s390x/perf/bitops_mix.lua`, and
   `tests/s390x/perf/dispatch_trace.lua`; all logic rows stayed at timer floor.
+
+## 2026-04-20: simple mod97 loop folded into generic mod loop
+
+- Removed the dedicated `lj_trace_s390x_mod97_loop_sum()` helper ABI and the
+  matching recorder path `lj_record_s390x_mod97_loop_sum()`. The plain
+  `%97` add/sub loop family now rides the existing generic
+  `lj_trace_s390x_mod_loop_sum()` contract instead of carrying a bespoke
+  trace helper and dispatch hook.
+- Removed the now-dead `lj_trace_s390x_sum_mod97_seq()` internal helper after
+  kdz1 warning-clean rebuilds proved it was no longer referenced.
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `118` to
+  `114`, semantic reducer callinfo dropped from `28` to `27`, and
+  `numeric_mod` dropped from `15` to `14`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua`,
+  `tests/s390x/perf/dispatch_trace.lua`, and
+  `tests/s390x/perf/route_around_reducers.lua`; hot medians remained in band
+  (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
+  `sqrt=0.000014`, `min=0.000014`, `max=0.000014`).
