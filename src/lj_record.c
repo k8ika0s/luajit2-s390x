@@ -2438,6 +2438,10 @@ static int lj_record_s390x_ffi_const_i32_mod17_loop_sum(jit_State *J,
 }
 #endif
 
+static TRef lj_record_s390x_tri_nonneg_num(jit_State *J, TRef x);
+static TRef lj_record_s390x_centered_mod_prefix_num(jit_State *J, TRef t,
+						    int32_t center);
+
 static int lj_record_s390x_centered_mod_abs_loop_sum(jit_State *J,
 						     const BCIns *body)
 {
@@ -2506,14 +2510,57 @@ static int lj_record_s390x_centered_mod_abs_loop_sum(jit_State *J,
   if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
     return 0;
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_centered_mod_abs_loop_sum, acc,
-		   idx, stopref, lj_ir_kint(J, modv), lj_ir_kint(J, centerv));
+  {
+    TRef count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+    TRef q, rem, startrem, after, wrap, afterrem;
+    TRef prefix0, prefix1, tail, qn, wrapn;
+    int32_t periodi = (centerv * (centerv + 1)) / 2 +
+		      ((modv - centerv - 1) * (modv - centerv)) / 2;
+    TRef period = lj_ir_knum(J, (double)periodi);
+    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+    q = emitir(IRTI(IR_DIV), count, lj_ir_kint(J, modv));
+    rem = emitir(IRTI(IR_MOD), count, lj_ir_kint(J, modv));
+    startrem = emitir(IRTI(IR_MOD), idx, lj_ir_kint(J, modv));
+    after = emitir(IRTGI(IR_ADDOV), startrem, rem);
+    wrap = emitir(IRTI(IR_DIV), after, lj_ir_kint(J, modv));
+    afterrem = emitir(IRTI(IR_MOD), after, lj_ir_kint(J, modv));
+    prefix0 = lj_record_s390x_centered_mod_prefix_num(J, startrem, centerv);
+    prefix1 = lj_record_s390x_centered_mod_prefix_num(J, afterrem, centerv);
+    tail = emitir(IRTN(IR_SUB), prefix1, prefix0);
+    wrapn = emitir(IRTN(IR_CONV), wrap, IRCONV_NUM_INT);
+    tail = emitir(IRTN(IR_ADD), tail, emitir(IRTN(IR_MUL), wrapn, period));
+    qn = emitir(IRTN(IR_CONV), q, IRCONV_NUM_INT);
+    sum = emitir(IRTN(IR_ADD), tail, emitir(IRTN(IR_MUL), qn, period));
+    sum = emitir(IRTN(IR_ADD), acc, sum);
+  }
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
   J->pc = forl + 1;
   lj_record_stop(J, LJ_TRLINK_INTERP, 0);
   return 1;
+}
+
+static TRef lj_record_s390x_tri_nonneg_num(jit_State *J, TRef x)
+{
+  TRef x1 = emitir(IRTGI(IR_ADDOV), x, lj_ir_kint(J, 1));
+  TRef xn = emitir(IRTN(IR_CONV), x, IRCONV_NUM_INT);
+  TRef x1n = emitir(IRTN(IR_CONV), x1, IRCONV_NUM_INT);
+  TRef tri = emitir(IRTN(IR_MUL), xn, x1n);
+  return emitir(IRTN(IR_MUL), tri, lj_ir_knum(J, 0.5));
+}
+
+static TRef lj_record_s390x_centered_mod_prefix_num(jit_State *J, TRef t,
+						    int32_t center)
+{
+  TRef left = emitir(IRTGI(IR_SUBOV), t, lj_ir_kint(J, center + 1));
+  TRef right = emitir(IRTGI(IR_SUBOV), lj_ir_kint(J, center), t);
+  TRef prefix = lj_ir_knum(J, 0.5 * (double)center * (double)(center + 1));
+
+  left = emitir(IRTI(IR_MAX), left, lj_ir_kint(J, 0));
+  right = emitir(IRTI(IR_MAX), right, lj_ir_kint(J, 0));
+  prefix = emitir(IRTN(IR_ADD), prefix, lj_record_s390x_tri_nonneg_num(J, left));
+  return emitir(IRTN(IR_SUB), prefix, lj_record_s390x_tri_nonneg_num(J, right));
 }
 
 static int lj_record_s390x_abs_parity_loop_sum(jit_State *J, const BCIns *body)

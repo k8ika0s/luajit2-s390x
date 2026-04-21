@@ -38703,3 +38703,33 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/numeric_ops.lua`; hot medians stayed in band
   (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
    `sqrt=0.000014`, `min=0.000017`, `max=0.000017`).
+
+## 2026-04-20: centered-mod-abs helper removed
+
+- Removed `lj_trace_s390x_centered_mod_abs_loop_sum()` completely from
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c),
+  [src/lj_trace.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.h),
+  and [src/lj_ircall.h](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_ircall.h).
+- [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  `lj_record_s390x_centered_mod_abs_loop_sum()` now computes the exact
+  periodic V-shape sum in recorder-local IR using:
+  - dynamic `DIV/MOD` cycle decomposition
+  - recorder-local triangular/prefix helpers
+  - one final int-to-num accumulation into the loop result
+- No helper ABI was added. The reducer ledger now shows
+  `lj_record_s390x_centered_mod_abs_loop_sum` as helper-free.
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `101` to
+  `99`, and semantic reducer callinfo dropped from `22` to `21`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  focused `tests/s390x/perf/numeric_ops.lua`, and focused
+  `tests/s390x/perf/route_around_reducers.lua`.
+- Hot medians stayed in the same timer-floor band
+  (`abs=0.000018`, `div=0.000012`, `fp_mod=0.000015`,
+   `sqrt=0.000014`, `min=0.000018`, `max=0.000018`).
