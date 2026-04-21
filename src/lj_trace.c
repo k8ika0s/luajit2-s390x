@@ -107,17 +107,6 @@ int32_t lj_trace_s390x_count_multiples(int32_t idx, int32_t stop,
   return q2 >= q1 ? q2 - q1 + 1 : 0;
 }
 
-static int64_t lj_trace_s390x_sum_mod97_multiples(int32_t idx, int32_t stop,
-						  int32_t d)
-{
-  int32_t q1 = (idx + d - 1) / d;
-  int32_t q2 = stop / d;
-  int32_t count = q2 >= q1 ? q2 - q1 + 1 : 0;
-  if (count == 0)
-    return 0;
-  return lj_trace_s390x_sum_mod97_seq((q1 * d) % 97, count, d);
-}
-
 static int64_t lj_trace_s390x_sum_mod_multiples(int32_t idx, int32_t stop,
 						int32_t d, int32_t mod)
 {
@@ -272,29 +261,6 @@ int32_t lj_trace_s390x_mod97_loop_sum(int32_t idx, int32_t stop)
   return (int32_t)sum;
 }
 
-int32_t lj_trace_s390x_mod97_if5_if3_loop_sum(int32_t idx, int32_t stop)
-{
-  int64_t sum;
-  int32_t remain, count3, count5, count15;
-
-  if (idx < 1 || stop > 1000000)
-    return INT32_MIN;
-  if (stop < idx)
-    return 0;
-
-  remain = stop - idx + 1;
-  count3 = lj_trace_s390x_count_multiples(idx, stop, 3);
-  count5 = lj_trace_s390x_count_multiples(idx, stop, 5);
-  count15 = lj_trace_s390x_count_multiples(idx, stop, 15);
-  sum = remain;
-  sum += 3 * lj_trace_s390x_sum_mod97_multiples(idx, stop, 5) - count5;
-  sum -= lj_trace_s390x_sum_mod97_multiples(idx, stop, 3) -
-	 lj_trace_s390x_sum_mod97_multiples(idx, stop, 15);
-  sum -= count3 - count15;
-  if (sum <= INT32_MIN || sum > INT32_MAX)
-    return INT32_MIN;
-  return (int32_t)sum;
-}
 #endif
 
 static int32_t lj_trace_s390x_posmod_i32(int32_t x, int32_t mod)

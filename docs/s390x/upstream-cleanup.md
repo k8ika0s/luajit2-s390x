@@ -1177,3 +1177,18 @@ This removed `lj_record_s390x_mod97_if5_else1_loop_sum()` and
 warning-clean rebuild, `mod_int_trace.lua`, `mod_scaled_trace.lua`, numeric
 correctness, ADD/SUB overflow, MUL overflow, focused `numeric_ops.lua`,
 focused `dispatch_trace.lua`, and focused `route_around_reducers.lua`.
+
+#### Mod97 If5 If3 Rebuilt From Generic Contracts
+
+The remaining nested `%5/%3/%97` route-around no longer exports a dedicated
+helper. `lj_record_s390x_mod97_if5_if3_loop_sum()` now assembles the result
+from generic `mod_rem_select` and `count_multiples` helper pieces plus a local
+fit gate, and `lj_trace_s390x_mod97_if5_if3_loop_sum()` is gone.
+
+This is a partial cleanup rather than a full matcher deletion. The dedicated
+matcher still exists because the nested bytecode-shape recognition has not yet
+been generalized, but the helper ABI surface is now generic. kdz1 validation
+passed a warning-clean rebuild, `mod_int_trace.lua`, `mod_scaled_trace.lua`,
+numeric correctness, ADD/SUB overflow, MUL overflow, focused
+`numeric_ops.lua`, focused `dispatch_trace.lua`, and focused
+`route_around_reducers.lua`.
