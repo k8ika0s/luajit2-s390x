@@ -651,11 +651,6 @@ static int lj_record_s390x_mod_scaled_loop_sum_enabled(void)
   return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
 
-static int lj_record_s390x_mod97_if5_if3_loop_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
 static int lj_record_s390x_minmax_loop_sum_enabled(void)
 {
   return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER;
@@ -3755,23 +3750,33 @@ static int lj_record_s390x_mod_rem_const_select_sum_fits_i32(int32_t stop,
   return sum > INT32_MIN && sum <= INT32_MAX;
 }
 
-static int lj_record_s390x_mod97_if5_if3_sum_fits_i32(int32_t stop)
+static int lj_record_s390x_mod_rem_nested_const_sum_fits_i32(int32_t stop,
+							     int32_t outer_cond,
+							     int32_t inner_cond,
+							     int32_t rem_mod,
+							     int32_t outer_mul,
+							     int32_t inner_mul,
+							     int32_t else_k)
 {
-  int64_t sum5, sum3, sum15, sum;
-  int32_t count, count3, count5, count15;
+  int32_t g, overlap_cond;
+  int64_t sum_outer, sum_inner, sum_overlap, sum;
+  int64_t count, count_outer, count_inner, count_overlap, count_else;
   if (stop < 1)
     return 1;
-  sum5 = lj_record_s390x_sum_mod_multiples(stop, 5, 97);
-  sum3 = lj_record_s390x_sum_mod_multiples(stop, 3, 97);
-  sum15 = lj_record_s390x_sum_mod_multiples(stop, 15, 97);
+  g = lj_record_s390x_gcd_i32(outer_cond, inner_cond);
+  overlap_cond = (outer_cond / g) * inner_cond;
+  sum_outer = lj_record_s390x_sum_mod_multiples(stop, outer_cond, rem_mod);
+  sum_inner = lj_record_s390x_sum_mod_multiples(stop, inner_cond, rem_mod);
+  sum_overlap = lj_record_s390x_sum_mod_multiples(stop, overlap_cond, rem_mod);
   count = stop;
-  count3 = stop / 3;
-  count5 = stop / 5;
-  count15 = stop / 15;
-  sum = count;
-  sum += 3 * sum5 - count5;
-  sum -= sum3 - sum15;
-  sum -= count3 - count15;
+  count_outer = stop / outer_cond;
+  count_inner = stop / inner_cond;
+  count_overlap = stop / overlap_cond;
+  count_else = count - count_outer - count_inner + count_overlap;
+  sum = (int64_t)outer_mul * sum_outer;
+  sum += (int64_t)inner_mul * sum_inner;
+  sum -= (int64_t)inner_mul * sum_overlap;
+  sum += (int64_t)else_k * count_else;
   return sum > INT32_MIN && sum <= INT32_MAX;
 }
 
@@ -4423,9 +4428,11 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
   TRef idx, stopref, acc, sum;
   cTValue *base;
   int32_t cond_mod, rem_mod, then_mul = 0, else_mul = 0, stopv;
+  int32_t cond_mod2 = 0;
   int32_t const_k = 0;
   int const_on_then = 0;
-  BCOp thenbc, elsebc;
+  int nested_else_if = 0;
+  BCOp thenbc = BC__MAX, elsebc = BC__MAX;
 
   if (!lj_record_s390x_mod_rem_select_loop_sum_enabled() ||
       !lj_record_s390x_root_frame(J) || J->pt == NULL ||
@@ -4435,7 +4442,60 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
   if (body < proto + 5)
     return 0;
 
-  if (bc_op(body[0]) == BC_MODVN && bc_op(body[3]) == BC_MODVN &&
+  if (bc_op(body[0]) == BC_MODVN && bc_op(body[7]) == BC_MODVN &&
+      bc_op(body[10]) == BC_MODVN) {
+    BCIns modif1, isn1, jmp1, modthen, multhen, addthen, jmpjoin;
+    BCIns modif2, isn2, jmp2, modinner, subinner, jmpinner, constop;
+    BCReg tmp;
+    if ((MSize)((body + 14) - proto) >= J->pt->sizebc)
+      return 0;
+    modif1 = body[0]; isn1 = body[1]; jmp1 = body[2];
+    modthen = body[3]; multhen = body[4]; addthen = body[5];
+    jmpjoin = body[6]; modif2 = body[7]; isn2 = body[8];
+    jmp2 = body[9]; modinner = body[10]; subinner = body[11];
+    jmpinner = body[12]; constop = body[13]; forl = body + 14;
+    if (bc_op(isn1) != BC_ISNEN || bc_op(jmp1) != BC_JMP ||
+	bc_op(modthen) != BC_MODVN || bc_op(multhen) != BC_MULVN ||
+	bc_op(addthen) != BC_ADDVV || bc_op(jmpjoin) != BC_JMP ||
+	bc_op(isn2) != BC_ISNEN || bc_op(jmp2) != BC_JMP ||
+	bc_op(subinner) != BC_SUBVV || bc_op(jmpinner) != BC_JMP ||
+	bc_op(constop) != BC_ADDVN ||
+	(bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
+      return 0;
+    forbase = bc_a(*forl);
+    tmp = bc_a(modif1);
+    idxslot = bc_b(modif1);
+    accslot = bc_b(addthen);
+    if (idxslot != forbase + FORL_EXT ||
+	!lj_record_s390x_knum_get_int(J->pt, bc_c(modif1), &cond_mod) ||
+	!lj_record_s390x_knum_get_int(J->pt, bc_c(modif2), &cond_mod2) ||
+	!lj_record_s390x_knum_get_int(J->pt, bc_c(modthen), &rem_mod) ||
+	!lj_record_s390x_knum_is_int(J->pt, bc_c(multhen), 3) ||
+	!lj_record_s390x_knum_is_int(J->pt, bc_c(constop), 1) ||
+	bc_b(modif2) != idxslot ||
+	tmp == idxslot || tmp == accslot || idxslot == accslot ||
+	bc_a(isn1) != tmp || !lj_record_s390x_knum_is_int(J->pt, bc_d(isn1), 0) ||
+	body + 3 + bc_j(jmp1) != body + 7 ||
+	bc_a(modthen) != tmp || bc_b(modthen) != idxslot ||
+	bc_a(multhen) != tmp || bc_b(multhen) != tmp ||
+	bc_a(addthen) != accslot || bc_b(addthen) != accslot ||
+	bc_c(addthen) != tmp ||
+	body + 7 + bc_j(jmpjoin) != body + 14 ||
+	bc_a(modif2) != tmp ||
+	bc_a(isn2) != tmp || !lj_record_s390x_knum_is_int(J->pt, bc_d(isn2), 0) ||
+	body + 10 + bc_j(jmp2) != body + 13 ||
+	bc_a(modinner) != tmp || bc_b(modinner) != idxslot ||
+	bc_c(modinner) != bc_c(modthen) ||
+	bc_a(subinner) != accslot || bc_b(subinner) != accslot ||
+	bc_c(subinner) != tmp ||
+	body + 13 + bc_j(jmpinner) != body + 14 ||
+	bc_a(constop) != accslot || bc_b(constop) != accslot)
+      return 0;
+    then_mul = 3;
+    else_mul = -1;
+    const_k = 1;
+    nested_else_if = 1;
+  } else if (bc_op(body[0]) == BC_MODVN && bc_op(body[3]) == BC_MODVN &&
       (bc_op(body[6]) == BC_ADDVN || bc_op(body[6]) == BC_SUBVN)) {
     BCIns modif, isn, jmp1, modthen, jmp2, constop;
     BCReg tmp;
@@ -4553,6 +4613,8 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
   }
   if (cond_mod < 2 || cond_mod > 32767 || rem_mod < 2 || rem_mod > 4096)
     return 0;
+  if (nested_else_if && (cond_mod2 < 2 || cond_mod2 > 32767))
+    return 0;
   if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
     return 0;
 
@@ -4564,7 +4626,13 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
   stopv = intV(&base[forbase+FORL_STOP]);
   if (stopv < 1 || stopv > 1000000)
     return 0;
-  if (const_k != 0) {
+  if (nested_else_if) {
+    if (!lj_record_s390x_mod_rem_nested_const_sum_fits_i32(stopv, cond_mod,
+							   cond_mod2, rem_mod,
+							   then_mul, else_mul,
+							   const_k))
+      return 0;
+  } else if (const_k != 0) {
     if (!lj_record_s390x_mod_rem_const_select_sum_fits_i32(stopv, cond_mod,
 							   rem_mod, then_mul,
 							   const_k,
@@ -4586,7 +4654,46 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
   if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
-  if (const_k != 0) {
+  if (nested_else_if) {
+    int32_t g = lj_record_s390x_gcd_i32(cond_mod, cond_mod2);
+    int32_t overlap_mod = (cond_mod / g) * cond_mod2;
+    TRef outer_sum, inner_sum, overlap_sum;
+    TRef count1, count2, count12, count, count_else, constsum;
+    outer_sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
+			   stopref, lj_ir_kint(J, cond_mod), lj_ir_kint(J, rem_mod),
+			   lj_ir_kint(J, then_mul), lj_ir_kint(J, 0));
+    emitir(IRTGI(IR_NE), outer_sum, lj_ir_kint(J, INT32_MIN));
+    inner_sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
+			   stopref, lj_ir_kint(J, cond_mod2), lj_ir_kint(J, rem_mod),
+			   lj_ir_kint(J, else_mul), lj_ir_kint(J, 0));
+    emitir(IRTGI(IR_NE), inner_sum, lj_ir_kint(J, INT32_MIN));
+    sum = emitir(IRTGI(IR_ADDOV), outer_sum, inner_sum);
+    overlap_sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
+			     stopref, lj_ir_kint(J, overlap_mod), lj_ir_kint(J, rem_mod),
+			     lj_ir_kint(J, -else_mul), lj_ir_kint(J, 0));
+    emitir(IRTGI(IR_NE), overlap_sum, lj_ir_kint(J, INT32_MIN));
+    sum = emitir(IRTGI(IR_ADDOV), sum, overlap_sum);
+    count1 = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
+			lj_ir_kint(J, cond_mod));
+    count2 = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
+			lj_ir_kint(J, cond_mod2));
+    count12 = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
+			 lj_ir_kint(J, overlap_mod));
+    count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+    count_else = emitir(IRTGI(IR_SUBOV), count, count1);
+    count_else = emitir(IRTGI(IR_SUBOV), count_else, count2);
+    count_else = emitir(IRTGI(IR_ADDOV), count_else, count12);
+    constsum = const_k == 1 ? count_else :
+      emitir(IRTGI(IR_MULOV), count_else, lj_ir_kint(J, const_k));
+    sum = emitir(IRTGI(IR_ADDOV), sum, constsum);
+    if (tref_isinteger(acc)) {
+      sum = emitir(IRTGI(IR_ADDOV), acc, sum);
+    } else {
+      sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
+      sum = emitir(IRTN(IR_ADD), acc, sum);
+    }
+  } else if (const_k != 0) {
     TRef countm, count, constcount, constsum;
     sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
 		     stopref, lj_ir_kint(J, cond_mod), lj_ir_kint(J, rem_mod),
@@ -4779,140 +4886,6 @@ static int lj_record_s390x_mod_loop_sum(jit_State *J, const BCIns *body)
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   sum = emitir(IRTN(IR_ADD), acc, sum);
-
-  J->base[accslot] = sum;
-  if (accslot >= J->maxslot)
-    J->maxslot = accslot + 1;
-  J->pc = forl + 1;
-  lj_record_stop(J, LJ_TRLINK_INTERP, 0);
-  return 1;
-}
-
-static int lj_record_s390x_mod97_if5_if3_loop_sum(jit_State *J, const BCIns *body)
-{
-  const BCIns *forl, *proto;
-  BCIns mod5, isn5, jmp5, mod97a, mul3, add3, jmpadd;
-  BCIns mod3, isn3, jmp3, mod97b, sub, jmpsub, add1;
-  BCReg forbase, idxslot, tmp, accslot;
-  TRef idx, stopref, acc, sum, tmpref;
-  cTValue *base;
-  int32_t stopv;
-
-  if (!lj_record_s390x_mod97_if5_if3_loop_sum_enabled() ||
-      !lj_record_s390x_root_frame(J) || J->pt == NULL ||
-      J->parent != 0 || J->exitno != 0)
-    return 0;
-  proto = proto_bc(J->pt);
-  if (body < proto + 5 ||
-      (MSize)((body + 14) - proto) >= J->pt->sizebc)
-    return 0;
-
-  mod5 = body[0];
-  isn5 = body[1];
-  jmp5 = body[2];
-  mod97a = body[3];
-  mul3 = body[4];
-  add3 = body[5];
-  jmpadd = body[6];
-  mod3 = body[7];
-  isn3 = body[8];
-  jmp3 = body[9];
-  mod97b = body[10];
-  sub = body[11];
-  jmpsub = body[12];
-  add1 = body[13];
-  forl = body + 14;
-  if (bc_op(mod5) != BC_MODVN || bc_op(isn5) != BC_ISNEN ||
-      bc_op(jmp5) != BC_JMP || bc_op(mod97a) != BC_MODVN ||
-      bc_op(mul3) != BC_MULVN || bc_op(add3) != BC_ADDVV ||
-      bc_op(jmpadd) != BC_JMP || bc_op(mod3) != BC_MODVN ||
-      bc_op(isn3) != BC_ISNEN || bc_op(jmp3) != BC_JMP ||
-      bc_op(mod97b) != BC_MODVN || bc_op(sub) != BC_SUBVV ||
-      bc_op(jmpsub) != BC_JMP || bc_op(add1) != BC_ADDVN ||
-      (bc_op(*forl) != BC_FORL && bc_op(*forl) != BC_JFORL))
-    return 0;
-
-  forbase = bc_a(*forl);
-  tmp = bc_a(mod5);
-  idxslot = bc_b(mod5);
-  accslot = bc_b(add3);
-  if (idxslot != forbase + FORL_EXT ||
-      tmp == idxslot || tmp == accslot || idxslot == accslot ||
-      bc_a(isn5) != tmp || !lj_record_s390x_knum_is_int(J->pt, bc_d(isn5), 0) ||
-      body + 3 + bc_j(jmp5) != body + 7 ||
-      bc_a(mod97a) != tmp || bc_b(mod97a) != idxslot ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(mod97a), 97) ||
-      bc_a(mul3) != tmp || bc_b(mul3) != tmp ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(mul3), 3) ||
-      bc_a(add3) != accslot || bc_b(add3) != accslot ||
-      bc_c(add3) != tmp ||
-      body + 7 + bc_j(jmpadd) != body + 14 ||
-      bc_a(mod3) != tmp || bc_b(mod3) != idxslot ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(mod3), 3) ||
-      bc_a(isn3) != tmp || !lj_record_s390x_knum_is_int(J->pt, bc_d(isn3), 0) ||
-      body + 10 + bc_j(jmp3) != body + 13 ||
-      bc_a(mod97b) != tmp || bc_b(mod97b) != idxslot ||
-      bc_c(mod97b) != bc_c(mod97a) ||
-      bc_a(sub) != accslot || bc_b(sub) != accslot || bc_c(sub) != tmp ||
-      body + 13 + bc_j(jmpsub) != body + 14 ||
-      bc_a(add1) != accslot || bc_b(add1) != accslot ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(add1), 1) ||
-      !lj_record_s390x_knum_is_int(J->pt, bc_c(mod5), 5))
-    return 0;
-  if (!lj_record_s390x_guard_for_idx_ge1(J, idxslot))
-    return 0;
-
-  base = J->L->base;
-  if (!tvisint(&base[forbase+FORL_STOP]) ||
-      !tvisint(&base[forbase+FORL_STEP]) ||
-      intV(&base[forbase+FORL_STEP]) != 1)
-    return 0;
-  stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
-    return 0;
-  if (!lj_record_s390x_mod97_if5_if3_sum_fits_i32(stopv))
-    return 0;
-  if (!lj_record_s390x_guard_for_stop(J, forbase, stopv))
-    return 0;
-
-  idx = getslot(J, idxslot);
-  stopref = getslot(J, forbase+FORL_STOP);
-  acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !(tref_isinteger(acc) || tref_isnum(acc)))
-    return 0;
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-		   stopref, lj_ir_kint(J, 5), lj_ir_kint(J, 97),
-		   lj_ir_kint(J, 3), lj_ir_kint(J, 0));
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-		      stopref, lj_ir_kint(J, 3), lj_ir_kint(J, 97),
-		      lj_ir_kint(J, -1), lj_ir_kint(J, 0));
-  emitir(IRTGI(IR_NE), tmpref, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
-  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-		      stopref, lj_ir_kint(J, 15), lj_ir_kint(J, 97),
-		      lj_ir_kint(J, 1), lj_ir_kint(J, 0));
-  emitir(IRTGI(IR_NE), tmpref, lj_ir_kint(J, INT32_MIN));
-  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
-  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
-		      lj_ir_kint(J, 5));
-  sum = emitir(IRTGI(IR_SUBOV), sum, tmpref);
-  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
-		      lj_ir_kint(J, 3));
-  sum = emitir(IRTGI(IR_SUBOV), sum, tmpref);
-  tmpref = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
-		      lj_ir_kint(J, 15));
-  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
-  tmpref = emitir(IRTGI(IR_SUBOV), stopref, idx);
-  tmpref = emitir(IRTGI(IR_ADDOV), tmpref, lj_ir_kint(J, 1));
-  sum = emitir(IRTGI(IR_ADDOV), sum, tmpref);
-  if (tref_isinteger(acc)) {
-    sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-  } else {
-    sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
-    sum = emitir(IRTN(IR_ADD), acc, sum);
-  }
 
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
@@ -8480,8 +8453,6 @@ void lj_record_ins(jit_State *J)
   if (op == BC_MODVN && lj_record_s390x_mod_loop_sum(J, pc))
     return;
   if (op == BC_MODVN && lj_record_s390x_mod_rem_select_loop_sum(J, pc))
-    return;
-  if (op == BC_MODVN && lj_record_s390x_mod97_if5_if3_loop_sum(J, pc))
     return;
 #endif
 #endif

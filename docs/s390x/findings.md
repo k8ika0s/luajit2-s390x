@@ -38675,3 +38675,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `tests/s390x/perf/numeric_ops.lua`; hot medians stayed in band
   (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
    `sqrt=0.000013`, `min=0.000017`, `max=0.000017`).
+
+## 2026-04-20: nested mod97 matcher absorbed into generic mod-rem-select
+
+- Removed the dedicated
+  `lj_record_s390x_mod97_if5_if3_loop_sum()` matcher from
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c).
+  The nested `%5 ? 3*(i%97) : (%3 ? -(i%97) : +1)` bytecode ladder is now
+  recognized inside the broader
+  `lj_record_s390x_mod_rem_select_loop_sum()` matcher as a nested remainder
+  select with overlap-count correction.
+- No new helper ABI was added. The retained path still uses the existing
+  generic `lj_trace_s390x_mod_rem_select_loop_sum()` and
+  `lj_trace_s390x_count_multiples()` helpers, plus a local
+  `lj_record_s390x_mod_rem_nested_const_sum_fits_i32()` fit gate.
+- Local checks:
+  `git diff --check` passed. The upstream-risk audit dropped from `103` to
+  `101`, total reducer matcher definitions dropped from `27` to `26`, and the
+  numeric_mod family count dropped from `13` to `12`.
+- kdz1 validation:
+  warning-clean tracked-mirror rebuild passed
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`, and
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`. Focused perf passed
+  `tests/s390x/perf/numeric_ops.lua`; hot medians stayed in band
+  (`abs=0.000017`, `div=0.000011`, `fp_mod=0.000015`,
+   `sqrt=0.000014`, `min=0.000017`, `max=0.000017`).
