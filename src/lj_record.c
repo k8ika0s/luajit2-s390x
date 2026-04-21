@@ -2030,7 +2030,7 @@ static int lj_record_s390x_logic_chain_tail_store_sum(jit_State *J,
   meta = emitir(IRT(IR_FLOAD, IRT_TAB), sink, IRFL_TAB_META);
   emitir(IRTG(IR_EQ, IRT_TAB), meta, lj_ir_knull(J, IRT_TAB));
 
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_logic_tail_store_sum, outerstop);
+  sum = emitir(IRTGI(IR_MULOV), outerstop, lj_ir_kint(J, 200));
   emitir(IRT(IR_ASTORE, IRT_INT), aref,
 	 lj_ir_kint(J, S390X_LOGIC_CHAIN_200));
   J->base[accslot] = sum;
