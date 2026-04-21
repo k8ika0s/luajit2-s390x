@@ -1320,3 +1320,22 @@ kdz1 validation again passed a warning-clean rebuild, `mod_int_trace.lua`,
 and focused `numeric_ops.lua`. The broader audit dropped to `103` findings and
 the semantic reducer debt map dropped to `27` total matcher definitions with
 `numeric_mod` down to `13`.
+
+#### Nested Mod97 Matcher Retired Into Generic Mod-Rem-Select
+
+The remaining dedicated nested `%5/%3/%97` matcher is now gone too.
+`lj_record_s390x_mod_rem_select_loop_sum()` was extended to absorb the
+`%5 ? 3*(i%97) : (%3 ? -(i%97) : +1)` ladder as a nested remainder-select with
+overlap-count correction, so `lj_record_s390x_mod97_if5_if3_loop_sum()` and its
+dispatch hook are removed.
+
+This keeps the existing generic helper ABI surface only:
+`lj_trace_s390x_mod_rem_select_loop_sum()` plus
+`lj_trace_s390x_count_multiples()`. The new local fit gate
+`lj_record_s390x_mod_rem_nested_const_sum_fits_i32()` is recorder-only and does
+not widen helper exports. kdz1 validation again passed a warning-clean rebuild,
+`mod_int_trace.lua`, `mod_scaled_trace.lua`, numeric correctness, ADD/SUB
+overflow, MUL overflow, and focused `numeric_ops.lua`.
+
+After this step the broader audit dropped to `101` findings, total reducer
+matcher definitions dropped to `26`, and `numeric_mod` dropped to `12`.
