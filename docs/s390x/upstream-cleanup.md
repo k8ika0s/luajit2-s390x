@@ -1306,3 +1306,17 @@ and focused `numeric_ops.lua`. The semantic audit dropped to `106` findings
 and semantic reducer callinfo dropped to `22`. Remaining debt in this lane is
 now matcher generalization or retirement, not another one-off mod-mul helper
 ABI.
+
+#### Mod-Mul Matcher Retired Into Generic Mod-Select
+
+The dedicated `lj_record_s390x_mod_mul_loop_sum()` matcher is now gone as
+well. Its two bytecode shapes are parsed directly by the broader
+`lj_record_s390x_mod_select_loop_sum()` matcher, which now covers plain
+`then_mul/else_mul` select shapes and the former `idx * mul` vs `idx` branch
+special case.
+
+kdz1 validation again passed a warning-clean rebuild, `mod_int_trace.lua`,
+`mod_scaled_trace.lua`, numeric correctness, ADD/SUB overflow, MUL overflow,
+and focused `numeric_ops.lua`. The broader audit dropped to `103` findings and
+the semantic reducer debt map dropped to `27` total matcher definitions with
+`numeric_mod` down to `13`.
