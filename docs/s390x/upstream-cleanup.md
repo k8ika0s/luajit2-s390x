@@ -1379,3 +1379,25 @@ focused `ffi_calls.lua`.
 After this step the broader audit dropped to `97` findings and semantic
 reducer callinfo dropped to `20`. Matcher definitions stayed at `26`, and
 `numeric_mod` stayed at `12`.
+
+#### Shared Iterator/Component Helper Retired Into Recorder IR
+
+The shared `lj_trace_s390x_iter_table_loop_sum()` helper is now gone. It was
+only encoding the exact integer closed form `acc + (stop - idx + 1) *
+per_iter`, so keeping it as a generic target helper ABI was unnecessary debt.
+
+The two call sites now use a recorder-local integer helper in
+[src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c):
+- `lj_record_s390x_iterator_table_loop_sum()`
+- `lj_record_s390x_component_loop_tail_sum()`
+
+This is the right cleanup shape:
+- no semantic widening
+- no new helper surface
+- no change to the iterator or component-loop matcher boundaries
+- one fewer s390x `IRCALL` exposed through the generic call table
+
+kdz1 validation passed a warning-clean rebuild, numeric correctness, overflow
+guardrails, focused `iterator_table.lua`, focused
+`route_around_reducers.lua`, focused `mixed_noffi.lua`, and focused
+`dispatch_trace.lua`.

@@ -691,21 +691,6 @@ int32_t lj_trace_s390x_logic_tail_add_sum(int32_t acc, int32_t inner_idx,
 
 #endif
 
-#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS || \
-    LUAJIT_ENABLE_S390X_ITERATOR_TABLE_REDUCER
-int32_t lj_trace_s390x_iter_table_loop_sum(int32_t acc, int32_t idx,
-					   int32_t stop, int32_t per_iter)
-{
-  int64_t n, sum;
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return acc;
-  n = (int64_t)stop - idx + 1;
-  sum = (int64_t)acc + n * per_iter;
-  if (sum < INT32_MIN || sum > INT32_MAX)
-    return acc;
-  return (int32_t)sum;
-}
-#endif
 #endif
 
 /* -- Error handling ------------------------------------------------------ */
