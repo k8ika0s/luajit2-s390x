@@ -39030,3 +39030,30 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   the branch is back on a clean authoritative full retained matrix. The next
   work should return to helper-backed semantic reducer debt cleanup rather than
   more perf-floor recovery.
+
+## 2026-04-21: fpmod-quarter helper ABI removed
+
+- The quarter-period FP modulo reducer no longer exports its own helper ABI.
+  The former `lj_trace_s390x_fpmod_quarter_loop_sum()` surface is replaced by
+  a generic numeric periodic-span helper,
+  `lj_trace_s390x_i32_prefix_repeat_span_sum()`, plus a static prefix table for
+  the retained quarter-period numerator sequence.
+- The recorder path in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  still owns the semantic fold, but it now depends on a generic repeated-prefix
+  contract instead of a formula-specific helper body.
+- Focused `kdz1` validation passed after a warning-clean rebuild:
+  `tests/s390x/jit_core/mod_int_trace.lua`,
+  `tests/s390x/jit_core/mod_scaled_trace.lua`,
+  `tests/s390x/jit_be/numeric_ops.lua`,
+  `tests/s390x/jit_be/addsub_overflow_guard.lua`,
+  `tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`, and
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Focused perf stayed in band on `kdz1`; `numeric_ops/fp_mod_loop/hot`
+  remained in the `0.000014s..0.000016s` band.
+- Debt read:
+  total reducer definitions remain `26`, but the quarter-mod helper-specific
+  ABI is gone from the numeric lane. The numeric reducer now depends on
+  `lj_trace_s390x_i32_prefix_repeat_span_sum()` instead of the bespoke quarter
+  helper.

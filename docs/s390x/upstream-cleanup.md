@@ -172,6 +172,23 @@ The current WIP is expected to pass the identity audit for production `src/`
 - Reducer debt and audit state are unchanged by this hold:
   `26` semantic reducer definitions and `91` upstream-risk source findings.
 
+## 2026-04-21: quarter-period FP modulo helper genericized
+
+- `lj_trace_s390x_fpmod_quarter_loop_sum()` is removed from the production
+  helper ABI surface. The numeric quarter-period fold in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now uses the generic
+  `lj_trace_s390x_i32_prefix_repeat_span_sum()` helper with a static prefix
+  table for the exact numerator sequence.
+- This does not retire the semantic reducer matcher itself, but it does remove
+  one formula-specific helper body and `IRCALL` entry from the numeric lane.
+- Focused `kdz1` validation passed after a warning-clean rebuild:
+  `mod_int_trace.lua`, `mod_scaled_trace.lua`, `numeric_ops.lua`,
+  `addsub_overflow_guard.lua`, `mulov_overflow_guard.lua`,
+  `tests/s390x/perf/numeric_ops.lua`, and
+  `tests/s390x/perf/dispatch_trace.lua`.
+- Focused `fp_mod_loop` stayed in band at `0.000014s..0.000016s` on `kdz1`.
+
 ## 2026-04-20: min/max helper ABI removed
 
 - The `math.min` / `math.max` closed-form loop path no longer depends on
