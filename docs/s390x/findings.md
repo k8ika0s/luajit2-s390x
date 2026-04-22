@@ -39371,3 +39371,45 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Current remaining upstream-risk source surface is definition/dispatch only:
   `semantic_reducer_definition` `20` and
   `semantic_reducer_dispatch` `18`.
+
+## 2026-04-22: low32 semantic reducer family removed from the recorder
+
+- Removed the three remaining `logic_low32` semantic reducers from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_logic_chain_tail_store_sum()`,
+  `lj_record_s390x_logic_chain_tail_add_sum()`, and
+  `lj_record_s390x_logic_add_phi_remainder_sum()`.
+- Removed the matching suffix tables and bucket scaffolding from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.c),
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.h](/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.h),
+  and
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_ircall.h](/private/tmp/luajit2-s390x-iterator-closure/src/lj_ircall.h).
+- This is the correct reclassification of the bucket after helper retirement:
+  it was no longer helper debt, it was still semantic recorder substitution.
+- Local validation passed on the clean worktree:
+  full `make -C src`,
+  `tests/s390x/jit_be/low32_home_contract.lua`,
+  `tests/s390x/jit_core/bitops_trace.lua`,
+  and `git diff --check`.
+- The broad source audit moved from `38` to `32`.
+- Debt moved:
+  `semantic_reducer_definition` `20 -> 17` and
+  `semantic_reducer_dispatch` `18 -> 15`.
+
+## 2026-04-22: iterator-table semantic reducer removed
+
+- Removed `lj_record_s390x_iterator_table_loop_sum()` and its recorder
+  dispatch site.
+- Kept the shared integer/string table-guard helpers plus
+  `lj_record_s390x_iter_table_sum_int()` because the component-loop family
+  still uses them. This cut only removes the dedicated `pairs()` semantic
+  substitution.
+- The focused validation result is narrow but sufficient for this cut:
+  `tests/s390x/jit_be/low32_home_contract.lua` remained green, and
+  `tests/s390x/jit_loops/pairs_loop.lua` still times out in the existing
+  branch-known way rather than exposing a new iterator failure mode.
+- `git diff --check` passed and the broad source audit moved from `32` to
+  `30`.
+- Current remaining recorder-side surface is now:
+  `semantic_reducer_definition` `16` and
+  `semantic_reducer_dispatch` `14`.
