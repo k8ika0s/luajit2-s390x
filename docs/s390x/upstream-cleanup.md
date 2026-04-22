@@ -28,7 +28,7 @@ python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
 As of the current checkpoint, the broader semantic audit intentionally fails
-with `38` findings. These are no longer benchmark-name keyed in many cases,
+with `30` findings. These are no longer benchmark-name keyed in many cases,
 but they remain semantic loop substitution in the core recorder and are the
 main upstream blocker.
 
@@ -55,7 +55,7 @@ Current production-source status:
   retired. Remaining upstream-risk findings now come from recorder definition
   and dispatch shape, not from active reducer `IRCALL` or helper ABI entries.
 - Current source ledgers:
-  `20` semantic reducer definitions and `18` reducer dispatch sites. The
+  `16` semantic reducer definitions and `14` reducer dispatch sites. The
   remaining upstream-risk source surface is now entirely recorder-side.
 - `src/lib_jit.c`: the broad s390x `hotexit=200` safety rail has been removed.
   The low-hotexit `vararg_paths.lua` crash was traced to missing numeric
@@ -1862,3 +1862,53 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
   and `semantic_reducer_ircall` `5 -> 2`.
 - Current read:
   only the low32 suffix repeat pair remains on the helper ABI surface.
+
+## 2026-04-22: low32 semantic reducer family retired
+
+- Retired the remaining `logic_low32` recorder family outright:
+  `lj_record_s390x_logic_chain_tail_store_sum()`,
+  `lj_record_s390x_logic_chain_tail_add_sum()`, and
+  `lj_record_s390x_logic_add_phi_remainder_sum()`.
+- This is the honest upstream-prep cut. The helper ABI was already gone; what
+  remained was branch-local semantic substitution for one specific low32
+  contract loop. Keeping that family would still have left benchmark-shaped
+  recorder dispatch in production source.
+- The supporting low32 suffix tables and compile-time bucket scaffolding were
+  removed from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.c),
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.h](/private/tmp/luajit2-s390x-iterator-closure/src/lj_trace.h),
+  and
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_ircall.h](/private/tmp/luajit2-s390x-iterator-closure/src/lj_ircall.h).
+- Local validation on the clean worktree:
+  `git diff --check` passed,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src` built cleanly enough to produce
+  `src/luajit`,
+  `./src/luajit tests/s390x/jit_be/low32_home_contract.lua` passed,
+  `./src/luajit tests/s390x/jit_core/bitops_trace.lua` passed,
+  and the broad source audit moved from `38` to `32`.
+- Debt moved:
+  `semantic_reducer_definition` `20 -> 17` and
+  `semantic_reducer_dispatch` `18 -> 15`.
+
+## 2026-04-22: iterator-table semantic reducer retired
+
+- Retired `lj_record_s390x_iterator_table_loop_sum()` and its dedicated
+  dispatch site from the recorder.
+- The shared table guard helpers and the simple `iter_table_sum_int()` utility
+  were retained because the component-loop lane still uses them. Only the
+  dedicated `pairs()` semantic substitution was removed.
+- This is another pure upstream-prep cut:
+  the family recognized one exact iterator benchmark shape and replaced the
+  ordinary recorded loop with a fixed per-iteration total. There was no helper
+  ABI left to salvage; the correct cleanup was removal.
+- Local validation on the clean worktree:
+  `git diff --check` passed,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o` passed,
+  `./src/luajit tests/s390x/jit_be/low32_home_contract.lua` stayed green,
+  and `./src/luajit tests/s390x/jit_loops/pairs_loop.lua` still timed out in
+  the existing branch-known way rather than regressing to a new failure mode.
+- The broad source audit moved from `32` to `30`.
+- Debt moved:
+  `semantic_reducer_definition` `17 -> 16` and
+  `semantic_reducer_dispatch` `15 -> 14`.
