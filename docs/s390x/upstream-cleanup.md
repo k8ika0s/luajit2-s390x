@@ -1810,3 +1810,34 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
 - Current read:
   the remaining helper-backed surface is now only the string helper trio plus
   the low32 suffix repeat pair.
+
+## 2026-04-22: string helper trio retired safely
+
+- Retired the remaining string helper ABI surface:
+  `lj_str_concat_slice_sum()`,
+  `lj_str_manual_find_cycle_sum()`, and
+  `lj_str_byte_scan_cycle_sum()`.
+- This cut was intentionally a retirement, not a fake recorder-side rewrite.
+  These reducers depended on live mutable table payload, so replacing them with
+  recorder-time cached prefixes would have required freezing or exhaustively
+  guarding table contents to stay correct. That is not a low-friction cleanup.
+- The safe upstream-facing move was to remove the bespoke string reducer family
+  entirely from:
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_str.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_str.c),
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_str.h](/private/tmp/luajit2-s390x-iterator-closure/src/lj_str.h),
+  and
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_ircall.h](/private/tmp/luajit2-s390x-iterator-closure/src/lj_ircall.h).
+- Local validation on the clean worktree:
+  `git diff --check` passed, a clean
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src clean && make -C src lj_record.o lj_trace.o`
+  passed, and
+  `python3 tools/s390x/audit_benchmark_fastpaths.py` moved the broad source
+  audit from `52` to `42`.
+- Debt moved:
+  `semantic_reducer_callinfo` `5 -> 2`,
+  `semantic_reducer_definition` `22 -> 20`,
+  `semantic_reducer_dispatch` `20 -> 18`,
+  and `semantic_reducer_ircall` `5 -> 2`.
+- Current read:
+  only the low32 suffix repeat pair remains on the helper ABI surface.
