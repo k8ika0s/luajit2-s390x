@@ -39346,3 +39346,28 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `semantic_reducer_dispatch` `20 -> 18`,
   and `semantic_reducer_ircall` `5 -> 2`.
 - Remaining helper-backed surface is now only the low32 suffix repeat pair.
+
+## 2026-04-22: low32 suffix helper pair retired
+
+- Retired the final helper-backed reducer pair:
+  `lj_trace_s390x_i32_suffix_repeat_sum()` and
+  `lj_trace_s390x_u32_suffix_repeat_sum()`.
+- The retained low32 recorders now emit the exact suffix/repeat expression
+  directly in IR from the fixed 200-step tables:
+  signed `ADDOV/MULOV` for the phi lane and wrapping integer `ADD/MUL` for the
+  tail lane.
+- This is the correct narrow replacement for the remaining low32 surface:
+  the tables stay fixed and exact, but the runtime helper ABI is gone. Nothing
+  in the retained branch still depends on reducer `IRCALL` or callinfo entries.
+- Local clean-worktree validation passed:
+  `git diff --check`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`,
+  and
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`.
+- The broad source audit moved from `42` to `38`.
+- Debt moved:
+  `semantic_reducer_callinfo` `2 -> 0` and
+  `semantic_reducer_ircall` `2 -> 0`.
+- Current remaining upstream-risk source surface is definition/dispatch only:
+  `semantic_reducer_definition` `20` and
+  `semantic_reducer_dispatch` `18`.
