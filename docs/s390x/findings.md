@@ -39322,3 +39322,27 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   `semantic_reducer_ircall` `11 -> 5`.
 - Remaining helper-backed surface is now reduced to two buckets:
   the string helper trio and the low32 suffix repeat pair.
+
+## 2026-04-22: string helper family retired instead of frozen
+
+- Retired the string helper trio:
+  `lj_str_concat_slice_sum()`,
+  `lj_str_manual_find_cycle_sum()`, and
+  `lj_str_byte_scan_cycle_sum()`.
+- The key correctness conclusion was that these reducers do not behave like the
+  modulo family. They depend on live table payload, so an exact recorder-side
+  cache would only be correct if the trace also froze or exhaustively guarded
+  the table contents. That is not a low-risk upstream cleanup.
+- The retained fix therefore removes the bespoke string reducer family outright
+  from the recorder and from `lj_str` helper entry points, instead of pretending
+  the current payload can be safely constant-folded.
+- Local clean-worktree validation passed:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src clean && make -C src lj_record.o lj_trace.o`,
+  and the broad source audit moved from `52` to `42`.
+- Debt moved:
+  `semantic_reducer_callinfo` `5 -> 2`,
+  `semantic_reducer_definition` `22 -> 20`,
+  `semantic_reducer_dispatch` `20 -> 18`,
+  and `semantic_reducer_ircall` `5 -> 2`.
+- Remaining helper-backed surface is now only the low32 suffix repeat pair.
