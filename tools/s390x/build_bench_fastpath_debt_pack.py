@@ -284,7 +284,7 @@ def write_summary(output_dir: pathlib.Path, payload: dict[str, Any]) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", choices=restamp.HOST_LABELS, default="kdz1")
+    parser.add_argument("--host", choices=restamp.HOST_LABELS, default="kdz")
     parser.add_argument("--repo")
     parser.add_argument("--family", action="append", choices=sorted(jitter.BENCH_FILES), default=[])
     parser.add_argument("--output-dir", type=pathlib.Path)
