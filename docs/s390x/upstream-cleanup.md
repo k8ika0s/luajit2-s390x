@@ -1938,3 +1938,24 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
 - Debt moved:
   `semantic_reducer_definition` `16 -> 13` and
   `semantic_reducer_dispatch` `14 -> 10`.
+
+## 2026-04-22: centered-mod-abs and fpmod-quarter semantic reducers retired
+
+- Retired two more numeric recorder-only semantic substitution families from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_centered_mod_abs_loop_sum()` and
+  `lj_record_s390x_fpmod_quarter_loop_sum()`.
+- This is the same cleanup class as the prior numeric batch:
+  both recognizers encoded exact benchmark-shaped loop bodies in the recorder,
+  but neither belonged in the upstream-ready production source once helper debt
+  was already gone.
+- Retained validation on the clean worktree:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`,
+  `./src/luajit tests/s390x/jit_be/centered_mod_abs_loop_sum.lua`, and
+  `./src/luajit tests/s390x/perf/numeric_ops.lua`.
+- The broad source audit moved from `23` to `19`.
+- Debt moved:
+  `semantic_reducer_definition` `13 -> 11` and
+  `semantic_reducer_dispatch` `10 -> 8`.
