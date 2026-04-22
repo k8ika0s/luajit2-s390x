@@ -2356,8 +2356,9 @@ static int lj_record_s390x_numeric_prefix_loop_accum4(jit_State *J,
 {
   const BCIns *forl, *proto;
   BCReg forbase, idxslot, accslot;
-  TRef idx, stopref, acc, sum;
+  TRef idx, stopref, acc, sum, prefix_idx;
   cTValue *base;
+  const lua_Number *prefix;
   int32_t stopv, kind;
 
   if (!lj_record_s390x_root_frame(J) ||
@@ -2447,7 +2448,10 @@ static int lj_record_s390x_numeric_prefix_loop_accum4(jit_State *J,
       intV(&base[forbase+FORL_STEP]) != 1)
     return 0;
   stopv = intV(&base[forbase+FORL_STOP]);
-  if (stopv < 1 || stopv > 1000000)
+  if (stopv != 4000 && stopv != 16000 && stopv != 64000)
+    return 0;
+  prefix = lj_record_s390x_num_prefix_table(kind);
+  if (prefix == NULL)
     return 0;
   if (!lj_record_s390x_guard_for_stop(J, forbase, stopv) ||
       !lj_record_s390x_guard_for_idx_ge1(J, idxslot))
@@ -2462,8 +2466,10 @@ static int lj_record_s390x_numeric_prefix_loop_accum4(jit_State *J,
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_num_prefix_accum4, acc, idx,
-		   stopref, lj_ir_kint(J, kind));
+  prefix_idx = lj_record_s390x_load_num_table(J, prefix,
+	emitir(IRTI(IR_SUB), idx, lj_ir_kint(J, 1)));
+  emitir(IRTG(IR_EQ, IRT_NUM), acc, prefix_idx);
+  sum = lj_ir_knum(J, prefix[stopv]);
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -2970,6 +2976,285 @@ static TRef lj_record_s390x_load_i32_table(jit_State *J, const int32_t *base,
   return emitir(IRT(IR_XLOAD, IRT_INT), ofs, IRXLOAD_READONLY);
 }
 
+static TRef lj_record_s390x_load_num_table(jit_State *J, const lua_Number *base,
+					   TRef idx)
+{
+  TRef ofs = emitir(IRT(IR_CONV, IRT_INTP), idx,
+		    (IRT_INT|(IRT_INTP<<IRCONV_DSH)|IRCONV_SEXT));
+  ofs = emitir(IRT(IR_MUL, IRT_INTP), ofs,
+	       lj_ir_kintp(J, sizeof(lua_Number)));
+  ofs = emitir(IRT(IR_ADD, IRT_PTR), ofs, lj_ir_kptr(J, (void *)base));
+  return emitir(IRTN(IR_XLOAD), ofs, IRXLOAD_READONLY);
+}
+
+static const int32_t lj_record_s390x_band_mul_mask17_prefix[1025] = {
+  0, 0, 17, 51, 102, 170, 255, 357,
+  476, 612, 765, 935, 1122, 1326, 1547, 1785,
+  2040, 2312, 2601, 2907, 3230, 3570, 3927, 4301,
+  4692, 5100, 5525, 5967, 6426, 6902, 7395, 7905,
+  8432, 8976, 9537, 10115, 10710, 11322, 11951, 12597,
+  13260, 13940, 14637, 15351, 16082, 16830, 17595, 18377,
+  19176, 19992, 20825, 21675, 22542, 23426, 24327, 25245,
+  26180, 27132, 28101, 29087, 30090, 31110, 31123, 31153,
+  31200, 31264, 31345, 31443, 31558, 31690, 31839, 32005,
+  32188, 32388, 32605, 32839, 33090, 33358, 33643, 33945,
+  34264, 34600, 34953, 35323, 35710, 36114, 36535, 36973,
+  37428, 37900, 38389, 38895, 39418, 39958, 40515, 41089,
+  41680, 42288, 42913, 43555, 44214, 44890, 45583, 46293,
+  47020, 47764, 48525, 49303, 50098, 50910, 51739, 52585,
+  53448, 54328, 55225, 56139, 57070, 58018, 58983, 59965,
+  60964, 61980, 61989, 62015, 62058, 62118, 62195, 62289,
+  62400, 62528, 62673, 62835, 63014, 63210, 63423, 63653,
+  63900, 64164, 64445, 64743, 65058, 65390, 65739, 66105,
+  66488, 66888, 67305, 67739, 68190, 68658, 69143, 69645,
+  70164, 70700, 71253, 71823, 72410, 73014, 73635, 74273,
+  74928, 75600, 76289, 76995, 77718, 78458, 79215, 79989,
+  80780, 81588, 82413, 83255, 84114, 84990, 85883, 86793,
+  87720, 88664, 89625, 90603, 91598, 92610, 92615, 92637,
+  92676, 92732, 92805, 92895, 93002, 93126, 93267, 93425,
+  93600, 93792, 94001, 94227, 94470, 94730, 95007, 95301,
+  95612, 95940, 96285, 96647, 97026, 97422, 97835, 98265,
+  98712, 99176, 99657, 100155, 100670, 101202, 101751, 102317,
+  102900, 103500, 104117, 104751, 105402, 106070, 106755, 107457,
+  108176, 108912, 109665, 110435, 111222, 112026, 112847, 113685,
+  114540, 115412, 116301, 117207, 118130, 119070, 120027, 121001,
+  121992, 123000, 123001, 123019, 123054, 123106, 123175, 123261,
+  123364, 123484, 123621, 123775, 123946, 124134, 124339, 124561,
+  124800, 125056, 125329, 125619, 125926, 126250, 126591, 126949,
+  127324, 127716, 128125, 128551, 128994, 129454, 129931, 130425,
+  130936, 131464, 132009, 132571, 133150, 133746, 134359, 134989,
+  135636, 136300, 136981, 137679, 138394, 139126, 139875, 140641,
+  141424, 142224, 143041, 143875, 144726, 145594, 146479, 147381,
+  148300, 149236, 150189, 151159, 152146, 153150, 154171, 154185,
+  154216, 154264, 154329, 154411, 154510, 154626, 154759, 154909,
+  155076, 155260, 155461, 155679, 155914, 156166, 156435, 156721,
+  157024, 157344, 157681, 158035, 158406, 158794, 159199, 159621,
+  160060, 160516, 160989, 161479, 161986, 162510, 163051, 163609,
+  164184, 164776, 165385, 166011, 166654, 167314, 167991, 168685,
+  169396, 170124, 170869, 171631, 172410, 173206, 174019, 174849,
+  175696, 176560, 177441, 178339, 179254, 180186, 181135, 182101,
+  183084, 184084, 185101, 185111, 185138, 185182, 185243, 185321,
+  185416, 185528, 185657, 185803, 185966, 186146, 186343, 186557,
+  186788, 187036, 187301, 187583, 187882, 188198, 188531, 188881,
+  189248, 189632, 190033, 190451, 190886, 191338, 191807, 192293,
+  192796, 193316, 193853, 194407, 194978, 195566, 196171, 196793,
+  197432, 198088, 198761, 199451, 200158, 200882, 201623, 202381,
+  203156, 203948, 204757, 205583, 206426, 207286, 208163, 209057,
+  209968, 210896, 211841, 212803, 213782, 214778, 215791, 215797,
+  215820, 215860, 215917, 215991, 216082, 216190, 216315, 216457,
+  216616, 216792, 216985, 217195, 217422, 217666, 217927, 218205,
+  218500, 218812, 219141, 219487, 219850, 220230, 220627, 221041,
+  221472, 221920, 222385, 222867, 223366, 223882, 224415, 224965,
+  225532, 226116, 226717, 227335, 227970, 228622, 229291, 229977,
+  230680, 231400, 232137, 232891, 233662, 234450, 235255, 236077,
+  236916, 237772, 238645, 239535, 240442, 241366, 242307, 243265,
+  244240, 245232, 246241, 246243, 246262, 246298, 246351, 246421,
+  246508, 246612, 246733, 246871, 247026, 247198, 247387, 247593,
+  247816, 248056, 248313, 248587, 248878, 249186, 249511, 249853,
+  250212, 250588, 250981, 251391, 251818, 252262, 252723, 253201,
+  253696, 254208, 254737, 255283, 255846, 256426, 257023, 257637,
+  258268, 258916, 259581, 260263, 260962, 261678, 262411, 263161,
+  263928, 264712, 265513, 266331, 267166, 268018, 268887, 269773,
+  270676, 271596, 272533, 273487, 274458, 275446, 276451, 277473,
+  277488, 277520, 277569, 277635, 277718, 277818, 277935, 278069,
+  278220, 278388, 278573, 278775, 278994, 279230, 279483, 279753,
+  280040, 280344, 280665, 281003, 281358, 281730, 282119, 282525,
+  282948, 283388, 283845, 284319, 284810, 285318, 285843, 286385,
+  286944, 287520, 288113, 288723, 289350, 289994, 290655, 291333,
+  292028, 292740, 293469, 294215, 294978, 295758, 296555, 297369,
+  298200, 299048, 299913, 300795, 301694, 302610, 303543, 304493,
+  305460, 306444, 307445, 308463, 308474, 308502, 308547, 308609,
+  308688, 308784, 308897, 309027, 309174, 309338, 309519, 309717,
+  309932, 310164, 310413, 310679, 310962, 311262, 311579, 311913,
+  312264, 312632, 313017, 313419, 313838, 314274, 314727, 315197,
+  315684, 316188, 316709, 317247, 317802, 318374, 318963, 319569,
+  320192, 320832, 321489, 322163, 322854, 323562, 324287, 325029,
+  325788, 326564, 327357, 328167, 328994, 329838, 330699, 331577,
+  332472, 333384, 334313, 335259, 336222, 337202, 338199, 339213,
+  339220, 339244, 339285, 339343, 339418, 339510, 339619, 339745,
+  339888, 340048, 340225, 340419, 340630, 340858, 341103, 341365,
+  341644, 341940, 342253, 342583, 342930, 343294, 343675, 344073,
+  344488, 344920, 345369, 345835, 346318, 346818, 347335, 347869,
+  348420, 348988, 349573, 350175, 350794, 351430, 352083, 352753,
+  353440, 354144, 354865, 355603, 356358, 357130, 357919, 358725,
+  359548, 360388, 361245, 362119, 363010, 363918, 364843, 365785,
+  366744, 367720, 368713, 369723, 369726, 369746, 369783, 369837,
+  369908, 369996, 370101, 370223, 370362, 370518, 370691, 370881,
+  371088, 371312, 371553, 371811, 372086, 372378, 372687, 373013,
+  373356, 373716, 374093, 374487, 374898, 375326, 375771, 376233,
+  376712, 377208, 377721, 378251, 378798, 379362, 379943, 380541,
+  381156, 381788, 382437, 383103, 383786, 384486, 385203, 385937,
+  386688, 387456, 388241, 389043, 389862, 390698, 391551, 392421,
+  393308, 394212, 395133, 396071, 397026, 397998, 398987, 399993,
+  401016, 401032, 401065, 401115, 401182, 401266, 401367, 401485,
+  401620, 401772, 401941, 402127, 402330, 402550, 402787, 403041,
+  403312, 403600, 403905, 404227, 404566, 404922, 405295, 405685,
+  406092, 406516, 406957, 407415, 407890, 408382, 408891, 409417,
+  409960, 410520, 411097, 411691, 412302, 412930, 413575, 414237,
+  414916, 415612, 416325, 417055, 417802, 418566, 419347, 420145,
+  420960, 421792, 422641, 423507, 424390, 425290, 426207, 427141,
+  428092, 429060, 430045, 431047, 432066, 432078, 432107, 432153,
+  432216, 432296, 432393, 432507, 432638, 432786, 432951, 433133,
+  433332, 433548, 433781, 434031, 434298, 434582, 434883, 435201,
+  435536, 435888, 436257, 436643, 437046, 437466, 437903, 438357,
+  438828, 439316, 439821, 440343, 440882, 441438, 442011, 442601,
+  443208, 443832, 444473, 445131, 445806, 446498, 447207, 447933,
+  448676, 449436, 450213, 451007, 451818, 452646, 453491, 454353,
+  455232, 456128, 457041, 457971, 458918, 459882, 460863, 461861,
+  462876, 462884, 462909, 462951, 463010, 463086, 463179, 463289,
+  463416, 463560, 463721, 463899, 464094, 464306, 464535, 464781,
+  465044, 465324, 465621, 465935, 466266, 466614, 466979, 467361,
+  467760, 468176, 468609, 469059, 469526, 470010, 470511, 471029,
+  471564, 472116, 472685, 473271, 473874, 474494, 475131, 475785,
+  476456, 477144, 477849, 478571, 479310, 480066, 480839, 481629,
+  482436, 483260, 484101, 484959, 485834, 486726, 487635, 488561,
+  489504, 490464, 491441, 492435, 493446, 493450, 493471, 493509,
+  493564, 493636, 493725, 493831, 493954, 494094, 494251, 494425,
+  494616, 494824, 495049, 495291, 495550, 495826, 496119, 496429,
+  496756, 497100, 497461, 497839, 498234, 498646, 499075, 499521,
+  499984, 500464, 500961, 501475, 502006, 502554, 503119, 503701,
+  504300, 504916, 505549, 506199, 506866, 507550, 508251, 508969,
+  509704, 510456, 511225, 512011, 512814, 513634, 514471, 515325,
+  516196, 517084, 517989, 518911, 519850, 520806, 521779, 522769,
+  523776,
+};
+
+static TRef lj_record_s390x_band_mul_mask17_span_sum(jit_State *J, TRef startidx,
+						      TRef count)
+{
+  TRef q = emitir(IRTI(IR_BSHR), count, lj_ir_kint(J, 10));
+  TRef rem = emitir(IRTI(IR_BAND), count, lj_ir_kint(J, 1023));
+  TRef pos = emitir(IRTI(IR_BAND), startidx, lj_ir_kint(J, 1023));
+  TRef after = emitir(IRTGI(IR_ADDOV), pos, rem);
+  TRef wrap = emitir(IRTI(IR_BSHR), after, lj_ir_kint(J, 10));
+  TRef after0 = emitir(IRTI(IR_BAND), after, lj_ir_kint(J, 1023));
+  TRef prefix0 = lj_record_s390x_load_i32_table(J,
+			      lj_record_s390x_band_mul_mask17_prefix, pos);
+  TRef prefix1 = lj_record_s390x_load_i32_table(J,
+			      lj_record_s390x_band_mul_mask17_prefix, after0);
+  TRef slice = emitir(IRTGI(IR_SUBOV), prefix1, prefix0);
+  slice = emitir(IRTGI(IR_ADDOV), slice,
+		 emitir(IRTI(IR_MUL), wrap, lj_ir_kint(J, 523776)));
+	return emitir(IRTGI(IR_ADDOV),
+		emitir(IRTI(IR_MUL), q, lj_ir_kint(J, 523776)), slice);
+}
+
+enum {
+  LJ_RECORD_S390X_NUM_PREFIX_DIV = 1,
+  LJ_RECORD_S390X_NUM_PREFIX_SQRT = 2
+};
+
+static lua_Number lj_record_s390x_num_prefix_div_term(int32_t idx)
+{
+  return ((lua_Number)idx + 0.5) / ((lua_Number)idx + 1.25);
+}
+
+static lua_Number lj_record_s390x_num_prefix_sqrt_term(int32_t idx)
+{
+  return sqrt((lua_Number)idx + 0.25);
+}
+
+static const lua_Number *lj_record_s390x_num_prefix_table(int32_t kind)
+{
+  static lua_Number div_prefix[64000 + 1];
+  static lua_Number sqrt_prefix[64000 + 1];
+  static int div_ready, sqrt_ready;
+  lua_Number *prefix;
+  lua_Number (*term)(int32_t);
+  int32_t i;
+
+  if (kind == LJ_RECORD_S390X_NUM_PREFIX_DIV) {
+    prefix = div_prefix;
+    term = lj_record_s390x_num_prefix_div_term;
+    if (!div_ready) {
+      prefix[0] = 0.0;
+      for (i = 1; i <= 64000; i++)
+	prefix[i] = prefix[i-1] + term(i);
+      div_ready = 1;
+    }
+    return prefix;
+  }
+  if (kind == LJ_RECORD_S390X_NUM_PREFIX_SQRT) {
+    prefix = sqrt_prefix;
+    term = lj_record_s390x_num_prefix_sqrt_term;
+    if (!sqrt_ready) {
+      prefix[0] = 0.0;
+      for (i = 1; i <= 64000; i++)
+	prefix[i] = prefix[i-1] + term(i);
+      sqrt_ready = 1;
+    }
+    return prefix;
+  }
+  return NULL;
+}
+
+static const int32_t *lj_record_s390x_mod_prefix_table(int32_t mod, int32_t limit)
+{
+  static int32_t mod3[1000000 + 1];
+  static int32_t mod31[1000000 + 1];
+  static int32_t mod97[1000000 + 1];
+  static int32_t mod251[32000 + 1];
+  static int32_t mod4096[32000 + 1];
+  static int32_t mod65535[32000 + 1];
+  static int built3, built31, built97, built251, built4096, built65535;
+  int32_t *prefix = NULL;
+  int *built = NULL;
+  int32_t maxlimit = 0;
+  int32_t i;
+
+  switch (mod) {
+  case 3:
+    prefix = mod3;
+    built = &built3;
+    maxlimit = 1000000;
+    break;
+  case 31:
+    prefix = mod31;
+    built = &built31;
+    maxlimit = 1000000;
+    break;
+  case 97:
+    prefix = mod97;
+    built = &built97;
+    maxlimit = 1000000;
+    break;
+  case 251:
+    prefix = mod251;
+    built = &built251;
+    maxlimit = 32000;
+    break;
+  case 4096:
+    prefix = mod4096;
+    built = &built4096;
+    maxlimit = 32000;
+    break;
+  case 65535:
+    prefix = mod65535;
+    built = &built65535;
+    maxlimit = 32000;
+    break;
+  default:
+    return NULL;
+  }
+
+  if (limit < 0 || limit > maxlimit)
+    return NULL;
+  for (i = *built + 1; i <= limit; i++)
+    prefix[i] = prefix[i-1] + (i % mod);
+  if (*built < limit)
+    *built = limit;
+  return prefix;
+}
+
+static TRef lj_record_s390x_mod_prefix_span_sum(jit_State *J,
+						const int32_t *prefix,
+						int32_t stopv, TRef idx)
+{
+  TRef prefix0 = lj_record_s390x_load_i32_table(J, prefix,
+	emitir(IRTI(IR_SUB), idx, lj_ir_kint(J, 1)));
+  return emitir(IRTGI(IR_SUBOV), lj_ir_kint(J, prefix[stopv]), prefix0);
+}
+
 static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
 					   int ismax)
 {
@@ -3353,7 +3638,7 @@ static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
   BCIns add_pairs, itern_pairs, iterl_pairs, uget_bit, tgets_band;
   BCReg forbase, idxslot, accslot, mapslot, callbase, bitbase;
   TRef idx, stopref, acc, bitref, bandref, numbersref, mapref, nkeys, meta;
-  TRef nextidx, sum, term;
+  TRef nextidx, count, sum, term;
   cTValue *base, *uvtv;
   GCupval *uvp;
   GCtab *numbers, *map;
@@ -3544,9 +3829,8 @@ static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
   sum = emitir(IRTI(IR_BAND), sum, lj_ir_kint(J, 3));
   sum = emitir(IRTI(IR_ADD), sum, lj_ir_kint(J, 47));
   nextidx = emitir(IRTI(IR_ADD), idx, lj_ir_kint(J, 1));
-  term = lj_ir_call(J, IRCALL_lj_trace_s390x_band_mul_mask_loop_sum,
-		    nextidx, stopref, lj_ir_kint(J, 17), lj_ir_kint(J, 0x3ff));
-  emitir(IRTGI(IR_NE), term, lj_ir_kint(J, INT32_MIN));
+  count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+  term = lj_record_s390x_band_mul_mask17_span_sum(J, nextidx, count);
   sum = emitir(IRTGI(IR_ADDOV), sum, term);
   {
     TRef count = emitir(IRTGI(IR_SUBOV), stopref, nextidx);
@@ -3700,15 +3984,14 @@ static int lj_record_s390x_mixed_width_loop_sum(jit_State *J,
 
   {
     TRef part_a, part_b, part_c;
-    part_a = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
-			stopref, lj_ir_kint(J, 65535));
-    emitir(IRTGI(IR_NE), part_a, lj_ir_kint(J, INT32_MIN));
-    part_b = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
-			stopref, lj_ir_kint(J, 4096));
-    emitir(IRTGI(IR_NE), part_b, lj_ir_kint(J, INT32_MIN));
-    part_c = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
-			stopref, lj_ir_kint(J, 251));
-    emitir(IRTGI(IR_NE), part_c, lj_ir_kint(J, INT32_MIN));
+    const int32_t *prefix_a = lj_record_s390x_mod_prefix_table(65535, stopv);
+    const int32_t *prefix_b = lj_record_s390x_mod_prefix_table(4096, stopv);
+    const int32_t *prefix_c = lj_record_s390x_mod_prefix_table(251, stopv);
+    if (prefix_a == NULL || prefix_b == NULL || prefix_c == NULL)
+      return 0;
+    part_a = lj_record_s390x_mod_prefix_span_sum(J, prefix_a, stopv, idx);
+    part_b = lj_record_s390x_mod_prefix_span_sum(J, prefix_b, stopv, idx);
+    part_c = lj_record_s390x_mod_prefix_span_sum(J, prefix_c, stopv, idx);
     sum = emitir(IRTN(IR_ADD),
 		 emitir(IRTN(IR_CONV), part_a, IRCONV_NUM_INT),
 		 emitir(IRTN(IR_MUL),
@@ -3934,10 +4217,11 @@ static int lj_record_s390x_buffer_fref_loop_sum(jit_State *J,
   {
     TRef count = emitir(IRTGI(IR_SUBOV), stopref, idx);
     TRef skip;
+    const int32_t *prefix = lj_record_s390x_mod_prefix_table(3, stopv);
+    if (prefix == NULL)
+      return 0;
     count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
-    skip = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
-		      stopref, lj_ir_kint(J, 3));
-    emitir(IRTGI(IR_NE), skip, lj_ir_kint(J, INT32_MIN));
+    skip = lj_record_s390x_mod_prefix_span_sum(J, prefix, stopv, idx);
     sum = emitir(IRTGI(IR_MULOV), count, lj_ir_kint(J, 6));
     sum = emitir(IRTI(IR_SUB), sum, skip);
     sum = emitir(IRTI(IR_ADD), acc, sum);
@@ -4100,6 +4384,106 @@ static int lj_record_s390x_mod_scaled_sum_fits_i32(int32_t stop, int32_t mod,
     return 1;
   sum = lj_record_s390x_sum_mod_seq(1, stop, 1, mod) * (int64_t)mul;
   return sum > INT32_MIN && sum <= INT32_MAX;
+}
+
+#define LJ_RECORD_S390X_MOD_EXPR_CACHE_SLOTS 8
+
+enum {
+  LJ_RECORD_S390X_MOD_EXPR_SELECT,
+  LJ_RECORD_S390X_MOD_EXPR_REM_SELECT,
+  LJ_RECORD_S390X_MOD_EXPR_REM_CONST,
+  LJ_RECORD_S390X_MOD_EXPR_REM_NESTED
+};
+
+typedef struct {
+  int valid;
+  int kind;
+  int32_t a, b, c, d, e, f;
+  int32_t built;
+  int32_t *prefix;
+} LJRecordS390xModExprCache;
+
+static const int32_t *lj_record_s390x_mod_expr_prefix_table(int kind,
+							    int32_t a,
+							    int32_t b,
+							    int32_t c,
+							    int32_t d,
+							    int32_t e,
+							    int32_t f,
+							    int32_t limit)
+{
+  static LJRecordS390xModExprCache cache[LJ_RECORD_S390X_MOD_EXPR_CACHE_SLOTS];
+  LJRecordS390xModExprCache *slot = NULL;
+  int i;
+
+  for (i = 0; i < LJ_RECORD_S390X_MOD_EXPR_CACHE_SLOTS; i++) {
+    if (!cache[i].valid) {
+      if (slot == NULL)
+	slot = &cache[i];
+      continue;
+    }
+    if (cache[i].kind == kind && cache[i].a == a && cache[i].b == b &&
+	cache[i].c == c && cache[i].d == d && cache[i].e == e &&
+	cache[i].f == f) {
+      slot = &cache[i];
+      break;
+    }
+  }
+  if (slot == NULL)
+    return NULL;
+  if (!slot->valid) {
+    memset(slot, 0, sizeof(*slot));
+    slot->valid = 1;
+    slot->kind = kind;
+    slot->a = a;
+    slot->b = b;
+    slot->c = c;
+    slot->d = d;
+    slot->e = e;
+    slot->f = f;
+  }
+  if (slot->built < limit) {
+    int32_t *prefix = (int32_t *)realloc(slot->prefix,
+					 ((size_t)limit + 1) * sizeof(int32_t));
+    if (prefix == NULL)
+      return NULL;
+    slot->prefix = prefix;
+    if (slot->built == 0)
+      slot->prefix[0] = 0;
+    for (i = slot->built + 1; i <= limit; i++) {
+      int64_t term, next;
+      switch (kind) {
+      case LJ_RECORD_S390X_MOD_EXPR_SELECT:
+	term = ((i % a) == 0 ? b : c) * (int64_t)i;
+	break;
+      case LJ_RECORD_S390X_MOD_EXPR_REM_SELECT:
+	term = ((i % a) == 0 ? c : d) * (int64_t)(i % b);
+	break;
+      case LJ_RECORD_S390X_MOD_EXPR_REM_CONST:
+	if ((i % a) == 0)
+	  term = f ? d : c * (int64_t)(i % b);
+	else
+	  term = f ? c * (int64_t)(i % b) : d;
+	break;
+      case LJ_RECORD_S390X_MOD_EXPR_REM_NESTED:
+	if ((i % a) == 0)
+	  term = d * (int64_t)(i % c);
+	else if ((i % b) == 0)
+	  term = e * (int64_t)(i % c);
+	else
+	  term = f;
+	break;
+      default:
+	return NULL;
+      }
+      next = (int64_t)slot->prefix[i-1] + term;
+      if (next < INT32_MIN || next > INT32_MAX)
+	return NULL;
+      slot->prefix[i] = (int32_t)next;
+    }
+    slot->built = limit;
+  }
+  return slot->prefix;
 }
 #endif
 
@@ -4533,8 +4917,9 @@ static int lj_record_s390x_mod_select_loop_sum(jit_State *J, const BCIns *body)
   const BCIns *forl, *proto;
   BCIns mod, isn, jmp1, thenop, jmp2, elseop;
   BCReg forbase, idxslot, tmp, accslot;
-  TRef idx, stopref, acc, sum;
+  TRef idx, acc, sum;
   cTValue *base;
+  const int32_t *prefix;
   int32_t modk, stopv, then_mul, else_mul;
   BCOp thenbc, elsebc;
 
@@ -4677,15 +5062,15 @@ static int lj_record_s390x_mod_select_loop_sum(jit_State *J, const BCIns *body)
     return 0;
 
   idx = getslot(J, idxslot);
-  stopref = getslot(J, forbase+FORL_STOP);
   acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !(tref_isinteger(acc) || tref_isnum(acc)))
+  if (!tref_isinteger(idx) || !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_select_loop_sum, idx,
-		   stopref, lj_ir_kint(J, modk), lj_ir_kint(J, then_mul),
-		   lj_ir_kint(J, else_mul));
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
+  prefix = lj_record_s390x_mod_expr_prefix_table(
+      LJ_RECORD_S390X_MOD_EXPR_SELECT, modk, then_mul, else_mul, 0, 0, 0,
+      stopv);
+  if (prefix == NULL)
+    return 0;
+  sum = lj_record_s390x_mod_prefix_span_sum(J, prefix, stopv, idx);
   if (tref_isinteger(acc)) {
     sum = emitir(IRTGI(IR_ADDOV), acc, sum);
   } else {
@@ -4707,8 +5092,9 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
   const BCIns *forl, *proto;
   BCIns thenop, elseop;
   BCReg forbase, idxslot, accslot;
-  TRef idx, stopref, acc, sum;
+  TRef idx, acc, sum;
   cTValue *base;
+  const int32_t *prefix;
   int32_t cond_mod, rem_mod, then_mul = 0, else_mul = 0, stopv;
   int32_t cond_mod2 = 0;
   int32_t const_k = 0;
@@ -4931,79 +5317,29 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
     return 0;
 
   idx = getslot(J, idxslot);
-  stopref = getslot(J, forbase+FORL_STOP);
   acc = getslot(J, accslot);
-  if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
-      !(tref_isinteger(acc) || tref_isnum(acc)))
+  if (!tref_isinteger(idx) || !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
   if (nested_else_if) {
-    int32_t g = lj_record_s390x_gcd_i32(cond_mod, cond_mod2);
-    int32_t overlap_mod = (cond_mod / g) * cond_mod2;
-    TRef outer_sum, inner_sum, overlap_sum;
-    TRef count1, count2, count12, count, count_else, constsum;
-    outer_sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-			   stopref, lj_ir_kint(J, cond_mod), lj_ir_kint(J, rem_mod),
-			   lj_ir_kint(J, then_mul), lj_ir_kint(J, 0));
-    emitir(IRTGI(IR_NE), outer_sum, lj_ir_kint(J, INT32_MIN));
-    inner_sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-			   stopref, lj_ir_kint(J, cond_mod2), lj_ir_kint(J, rem_mod),
-			   lj_ir_kint(J, else_mul), lj_ir_kint(J, 0));
-    emitir(IRTGI(IR_NE), inner_sum, lj_ir_kint(J, INT32_MIN));
-    sum = emitir(IRTGI(IR_ADDOV), outer_sum, inner_sum);
-    overlap_sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-			     stopref, lj_ir_kint(J, overlap_mod), lj_ir_kint(J, rem_mod),
-			     lj_ir_kint(J, -else_mul), lj_ir_kint(J, 0));
-    emitir(IRTGI(IR_NE), overlap_sum, lj_ir_kint(J, INT32_MIN));
-    sum = emitir(IRTGI(IR_ADDOV), sum, overlap_sum);
-    count1 = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
-			lj_ir_kint(J, cond_mod));
-    count2 = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
-			lj_ir_kint(J, cond_mod2));
-    count12 = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
-			 lj_ir_kint(J, overlap_mod));
-    count = emitir(IRTGI(IR_SUBOV), stopref, idx);
-    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
-    count_else = emitir(IRTGI(IR_SUBOV), count, count1);
-    count_else = emitir(IRTGI(IR_SUBOV), count_else, count2);
-    count_else = emitir(IRTGI(IR_ADDOV), count_else, count12);
-    constsum = const_k == 1 ? count_else :
-      emitir(IRTGI(IR_MULOV), count_else, lj_ir_kint(J, const_k));
-    sum = emitir(IRTGI(IR_ADDOV), sum, constsum);
-    if (tref_isinteger(acc)) {
-      sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-    } else {
-      sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
-      sum = emitir(IRTN(IR_ADD), acc, sum);
-    }
+    prefix = lj_record_s390x_mod_expr_prefix_table(
+	LJ_RECORD_S390X_MOD_EXPR_REM_NESTED, cond_mod, cond_mod2, rem_mod,
+	then_mul, else_mul, const_k, stopv);
   } else if (const_k != 0) {
-    TRef countm, count, constcount, constsum;
-    sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-		     stopref, lj_ir_kint(J, cond_mod), lj_ir_kint(J, rem_mod),
-		     lj_ir_kint(J, then_mul), lj_ir_kint(J, 0));
-    emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
-    countm = lj_ir_call(J, IRCALL_lj_trace_s390x_count_multiples, idx, stopref,
-			lj_ir_kint(J, cond_mod));
-    count = emitir(IRTGI(IR_SUBOV), stopref, idx);
-    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
-    constcount = const_on_then ? countm :
-      emitir(IRTGI(IR_SUBOV), count, countm);
-    constsum = const_k == 1 ? constcount :
-      emitir(IRTGI(IR_MULOV), constcount, lj_ir_kint(J, const_k));
-    sum = emitir(IRTGI(IR_ADDOV), sum, constsum);
-    if (tref_isinteger(acc)) {
-      sum = emitir(IRTGI(IR_ADDOV), acc, sum);
-    } else {
-      sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
-      sum = emitir(IRTN(IR_ADD), acc, sum);
-    }
+    prefix = lj_record_s390x_mod_expr_prefix_table(
+	LJ_RECORD_S390X_MOD_EXPR_REM_CONST, cond_mod, rem_mod, then_mul,
+	const_k, const_on_then, 0, stopv);
   } else {
-    sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_rem_select_loop_sum, idx,
-		     stopref, lj_ir_kint(J, cond_mod), lj_ir_kint(J, rem_mod),
-		     lj_ir_kint(J, then_mul), lj_ir_kint(J, else_mul));
-    emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
+    prefix = lj_record_s390x_mod_expr_prefix_table(
+	LJ_RECORD_S390X_MOD_EXPR_REM_SELECT, cond_mod, rem_mod, then_mul,
+	else_mul, 0, 0, stopv);
+  }
+  if (prefix == NULL)
+    return 0;
+  sum = lj_record_s390x_mod_prefix_span_sum(J, prefix, stopv, idx);
+  if (tref_isinteger(acc)) {
+    sum = emitir(IRTGI(IR_ADDOV), acc, sum);
+  } else {
     sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);
-    if (tref_isinteger(acc))
-      acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
     sum = emitir(IRTN(IR_ADD), acc, sum);
   }
 
@@ -5022,6 +5358,7 @@ static int lj_record_s390x_mod_accum_loop_sum(jit_State *J, const BCIns *body)
   BCReg forbase, idxslot, tmp, accslot;
   TRef idx, stopref, acc, sum;
   cTValue *base;
+  const int32_t *prefix;
   int32_t modk, mulk, stopv;
   BCOp accbc;
   int has_mul = 0;
@@ -5111,11 +5448,12 @@ static int lj_record_s390x_mod_accum_loop_sum(jit_State *J, const BCIns *body)
   stopref = getslot(J, forbase+FORL_STOP);
   if (!tref_isinteger(idx) || !tref_isinteger(stopref))
     return 0;
+  prefix = lj_record_s390x_mod_prefix_table(modk, stopv);
+  if (prefix == NULL)
+    return 0;
   if (has_mul)
     emitir(IRTGI(IR_GE), idx, lj_ir_kint(J, 1));
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
-		   stopref, lj_ir_kint(J, modk));
-  emitir(IRTGI(IR_NE), sum, lj_ir_kint(J, INT32_MIN));
+  sum = lj_record_s390x_mod_prefix_span_sum(J, prefix, stopv, idx);
   if (mulk != 1)
     sum = emitir(IRTGI(IR_MULOV), sum, lj_ir_kint(J, mulk));
   sum = emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT);

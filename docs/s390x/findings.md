@@ -39230,3 +39230,95 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   faults in its hook-heavy post-perf capture flow; that is no longer evidence
   of the live iterator lane, and any further cleanup there belongs to the
   tooling path rather than the retained iterator contract.
+
+## 2026-04-22: component band helper removed from helper surface
+
+- Retired the last component-specific helper ABI in the mixed/component lane:
+  `lj_trace_s390x_band_mul_mask_loop_sum()`.
+- The only retained live use was the fixed `((i * 17) & 1023)` span inside
+  `lj_record_s390x_component_loop_tail_sum()`, so the helper was replaced with
+  direct recorder-side math and a static 1024-step prefix-cycle table in
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c).
+- The new route is:
+  `count = stop - idx`, `q = count >> 10`, `rem = count & 1023`,
+  then a wrapped prefix subtraction over the read-only
+  `((17 * k) & 1023)` cycle with `523776` as the full-period sum.
+- Local validation on the clean worktree:
+  `git diff --check` passed, a clean
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src clean && make -C src lj_record.o lj_trace.o`
+  passed, and the source audit now reports `68` upstream-risk findings.
+- Debt moved:
+  `semantic_reducer_callinfo` `10 -> 9`,
+  `semantic_reducer_ircall` `18 -> 17`.
+- Remaining helper-backed debt after this cut is concentrated in:
+  `lj_trace_s390x_num_prefix_accum4()`, the three string helper contracts, and
+  the modulo helper family.
+
+## 2026-04-22: numeric-prefix exact helper removed from ABI surface
+
+- Retired `lj_trace_s390x_num_prefix_accum4()` from the runtime helper ABI.
+- The retained `lj_record_s390x_numeric_prefix_loop_accum4()` path now narrows
+  to the official exact-prefix stops `4000`, `16000`, and `64000`, lazily
+  initializes exact sequential prefix tables at record time, guards that the
+  live accumulator equals `prefix[idx-1]`, and then loads the terminal prefix
+  directly from that table.
+- This preserves the original correctness rule instead of weakening it:
+  prefix subtraction is still not treated as generally exact. The fold only
+  fires when the live FP state already matches the exact sequential prefix.
+- Local validation on the clean worktree:
+  `git diff --check` passed, a clean
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src clean && make -C src lj_record.o lj_trace.o`
+  passed, and the source audit now reports `66` upstream-risk findings.
+- Debt moved:
+  `semantic_reducer_callinfo` `9 -> 8`,
+  `semantic_reducer_ircall` `17 -> 16`.
+- Remaining helper-backed surface after this cut is concentrated in the string
+  helper trio and the modulo helper family.
+
+## 2026-04-22: modulo span helper removed from ABI surface
+
+- Retired `lj_trace_s390x_mod_loop_sum()` from the shared helper surface.
+- The retained recorder contracts in
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c)
+  now use exact prefix-table subtraction for the finite validated modulo
+  domains that were still reaching the helper:
+  `3`, `31`, `97`, `251`, `4096`, and `65535`.
+- This cut removed the remaining generic modulo-span `IRCALL` sites from:
+  - `lj_record_s390x_mixed_width_loop_sum()`
+  - `lj_record_s390x_buffer_fref_loop_sum()`
+  - `lj_record_s390x_mod_accum_loop_sum()`
+- Local clean-worktree validation passed:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src clean && make -C src lj_record.o lj_trace.o`,
+  and the broad source audit moved from `66` to `60`.
+- Debt moved:
+  `semantic_reducer_callinfo` `8 -> 7`,
+  `semantic_reducer_ircall` `16 -> 11`,
+  while `semantic_reducer_definition` and `semantic_reducer_dispatch`
+  remained unchanged.
+- Current remaining helper-backed surface is narrower and clearer:
+  the string helper trio, the mod-select/rem-select helper family, and the
+  low32 suffix repeat pair.
+
+## 2026-04-22: modulo select helper family removed from ABI surface
+
+- Retired the rest of the modulo helper family:
+  `lj_trace_s390x_count_multiples()`,
+  `lj_trace_s390x_mod_select_loop_sum()`, and
+  `lj_trace_s390x_mod_rem_select_loop_sum()`.
+- The retained `mod_select` and `mod_rem_select` recorders now rely on exact
+  recorder-side prefix caches keyed by the recorded modulo constants and
+  branch family, then materialize the final span sum as a prefix difference.
+- This removed the remaining modulo-family `IRCALL` surface without claiming a
+  broader closed form than we can justify. The replacement is still exact for
+  the narrowed recorded domain because the cached prefixes are built from the
+  exact final expression.
+- Local clean-worktree validation passed:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src clean && make -C src lj_record.o lj_trace.o`,
+  and the broad source audit moved from `60` to `52`.
+- Debt moved:
+  `semantic_reducer_callinfo` `7 -> 5` and
+  `semantic_reducer_ircall` `11 -> 5`.
+- Remaining helper-backed surface is now reduced to two buckets:
+  the string helper trio and the low32 suffix repeat pair.

@@ -68,28 +68,6 @@ enum {
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 #endif
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-LJ_FUNC double lj_trace_s390x_num_prefix_accum4(double acc, int32_t idx,
-						int32_t stop, int32_t kind);
-LJ_FUNC int32_t lj_trace_s390x_count_multiples(int32_t idx, int32_t stop,
-					       int32_t d);
-LJ_FUNC int32_t lj_trace_s390x_mod_select_loop_sum(int32_t idx, int32_t stop,
-						   int32_t mod,
-						   int32_t then_mul,
-						   int32_t else_mul);
-LJ_FUNC int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx,
-						       int32_t stop,
-						       int32_t cond_mod,
-						       int32_t rem_mod,
-						       int32_t then_mul,
-						       int32_t else_mul);
-LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
-					    int32_t mod);
-#endif
-#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
-LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,
-						      int32_t stop,
-						      int32_t mul,
-						      int32_t mask);
 #endif
 #if LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
 LJ_DATA const int32_t lj_trace_s390x_logic_phi_suffix200[200];
