@@ -111,31 +111,6 @@ LJ_DATADEF const uint32_t lj_trace_s390x_logic_tail_suffix200[200] = {
   1409348844u, 285267635u, 3405822067u, 2248186378u, 973110135u, 3942669501u, 2701147644u, 1476402964u
 };
 
-int32_t lj_trace_s390x_i32_suffix_repeat_sum(int32_t acc, int32_t idx,
-					     int32_t repeat,
-					     const int32_t *suffix,
-					     int32_t len, int32_t full)
-{
-  int64_t sum;
-  if (suffix == NULL || idx < 1 || idx > len || repeat < 0)
-    return acc;
-  sum = (int64_t)acc + suffix[idx - 1] + (int64_t)repeat * full;
-  if (sum < INT32_MIN || sum > INT32_MAX)
-    return acc;
-  return (int32_t)sum;
-}
-
-int32_t lj_trace_s390x_u32_suffix_repeat_sum(int32_t acc, int32_t idx,
-					     int32_t repeat,
-					     const uint32_t *suffix,
-					     int32_t len, uint32_t full)
-{
-  if (suffix == NULL || idx < 1 || idx > len || repeat < 0)
-    return acc;
-  return (int32_t)((uint32_t)acc + suffix[idx - 1] +
-		   (uint32_t)repeat * full);
-}
-
 #endif
 
 #endif

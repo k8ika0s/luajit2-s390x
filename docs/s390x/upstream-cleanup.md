@@ -28,7 +28,7 @@ python3 tools/s390x/audit_benchmark_fastpaths.py --fail-on-findings
 ```
 
 As of the current checkpoint, the broader semantic audit intentionally fails
-with `91` findings. These are no longer benchmark-name keyed in many cases,
+with `38` findings. These are no longer benchmark-name keyed in many cases,
 but they remain semantic loop substitution in the core recorder and are the
 main upstream blocker.
 
@@ -49,20 +49,14 @@ Current production-source status:
 - `src/lj_trace.c`: exact benchmark trace-control steering has been removed,
   including exact proto no-JIT paths, hotcount parks, blacklists, stale
   loop-descendant trace-save experiments, and exact iterator/mixed semantic
-  fold parks. The remaining `lj_trace_s390x_*_sum()` helpers are part of the
-  semantic reducer debt until each is replaced by backend/IR lowering or moved
-  out of the upstream candidate.
-- `src/lj_ircall.h`: s390x reducer/string helper callinfo entries are now
-  target-confined with `IRCALLCOND_S390X`, not exposed as active generic
-  architecture-neutral helper ABI. Target confinement fixed the ABI surface
-  issue, but it does not make the recorder-side semantic substitutions
-  upstream-clean by itself.
+  fold parks. The reducer helper ABI surface is now retired; remaining debt is
+  no longer concentrated in runtime helper bodies.
+- `src/lj_ircall.h`: the s390x reducer/string helper callinfo surface is
+  retired. Remaining upstream-risk findings now come from recorder definition
+  and dispatch shape, not from active reducer `IRCALL` or helper ABI entries.
 - Current source ledgers:
-  `26` semantic reducer definitions, `25` reducer dispatch sites, `23`
-  reducer IRCALL sites, and `17` target-confined reducer callinfo entries.
-  Current family split is:
-  `numeric_mod 12`, `ffi_cdata 6`, `logic_low32 3`, `string_cycle 3`,
-  `component_loop 1`, and `iterator_mixed 1`.
+  `20` semantic reducer definitions and `18` reducer dispatch sites. The
+  remaining upstream-risk source surface is now entirely recorder-side.
 - `src/lib_jit.c`: the broad s390x `hotexit=200` safety rail has been removed.
   The low-hotexit `vararg_paths.lua` crash was traced to missing numeric
   `ASTORE` lowering in `asm_ahustore()`, not to a need for target-specific JIT
@@ -124,6 +118,33 @@ python3 tools/s390x/audit_benchmark_fastpaths.py --scope identity --fail-on-find
 ```
 
 The current WIP is expected to pass the identity audit for production `src/`
+
+## 2026-04-22: low32 suffix helpers retired into recorder-side IR
+
+- Retired the last helper-backed reducer ABI surface:
+  `lj_trace_s390x_i32_suffix_repeat_sum()` and
+  `lj_trace_s390x_u32_suffix_repeat_sum()`.
+- The retained low32 logic reducers in
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c)
+  now build the exact signed and wrapping suffix/repeat expressions directly
+  in recorder IR:
+  `acc + suffix[idx-1] + repeat * full`.
+- This keeps the narrowing honest:
+  the fixed 200-step suffix tables remain, but the runtime helper ABI and
+  reducer `IRCALL` surface are gone. The remaining debt is definition/dispatch
+  only.
+- Local validation on the clean worktree:
+  `git diff --check` passed,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o` passed,
+  and
+  `python3 tools/s390x/audit_benchmark_fastpaths.py` moved the broad source
+  audit from `42` to `38`.
+- Debt moved:
+  `semantic_reducer_callinfo` `2 -> 0` and
+  `semantic_reducer_ircall` `2 -> 0`.
+- Current read:
+  there is no remaining helper-backed reducer ABI surface on this branch.
+  What remains is the recorder definition/dispatch backlog only.
 
 ## 2026-04-20: plain mod97 loop helper retired
 
