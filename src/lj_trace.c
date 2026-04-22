@@ -684,6 +684,16 @@ static int lj_trace_s390x_sload_probe_enabled(void)
   return 0;
 }
 
+static int lj_trace_s390x_root_itern_iterl_resume(GCtrace *T)
+{
+  BCOp op;
+  if (T == NULL || T->root != 0 || bc_op(T->startins) != BC_ITERN ||
+      !T->resumevalid)
+    return 0;
+  op = bc_op(T->resumeins);
+  return op == BC_ITERL || op == BC_IITERL || op == BC_JITERL;
+}
+
 static int lj_trace_s390x_traceconsts_log_enabled(void)
 {
   return 0;
@@ -2947,6 +2957,22 @@ static void trace_stop(jit_State *J)
 #if LJ_TARGET_S390X && LJ_GC64
   if (!lj_trace_s390x_traceconsts_valid(J, T))
     lj_trace_err(J, LJ_TRERR_RETRY);
+
+  if (J->cur.root == 0 &&
+      op == BC_FORL &&
+      J->cur.linktype == LJ_TRLINK_ROOT &&
+      J->cur.link != 0 &&
+      bc_op(traceref(J, J->cur.link)->startins) == BC_ITERN &&
+      !lj_trace_s390x_root_itern_iterl_resume(traceref(J, J->cur.link))) {
+    /* Root FORL -> root ITERN stitching skips the iterator restart contract.
+    ** Keep the handoff in the interpreter until the target root carries an
+    ** explicit ITERL resume contract.
+    */
+    J->cur.linktype = LJ_TRLINK_INTERP;
+    J->cur.link = 0;
+    T->linktype = LJ_TRLINK_INTERP;
+    T->link = 0;
+  }
 #endif
 
   lj_trace_s390x_dump_trace_snaps(J, T);
