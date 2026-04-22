@@ -1,0 +1,664 @@
+{
+  "schema_version": 1,
+  "name": "upstream-validation-performance-matrix",
+  "updated_at": "2026-04-21",
+  "purpose": "Define a single upstreamable validation and performance matrix that can be executed on any installed architecture without embedding transport, host, or comparison policy into the test definition.",
+  "principles": [
+    "The matrix defines what to test, not where or how to dispatch execution.",
+    "Validation coverage and performance coverage are both first-class and live in the same definition.",
+    "Architecture-specific applicability is expressed as scope metadata, not as deployment or host configuration.",
+    "The matrix must be verbose enough to produce the same report shape on every architecture, even when some lanes are not applicable."
+  ],
+  "non_goals": [
+    "No hostnames, SSH targets, remote mirrors, or transport details.",
+    "No architecture-to-architecture comparison policy.",
+    "No branch-local deployment gates such as downstream demos or environment-specific smoke wrappers."
+  ],
+  "report_shape": {
+    "validation_rows": [
+      "lane",
+      "variant",
+      "status",
+      "applicability",
+      "coverage_tags",
+      "source_paths"
+    ],
+    "performance_rows": [
+      "family",
+      "variant",
+      "workload",
+      "scale",
+      "status",
+      "median_runtime_sec",
+      "p95_runtime_sec",
+      "coverage_tags",
+      "source_path"
+    ]
+  },
+  "variant_sets": {
+    "validation_default": [
+      {
+        "id": "gcc-debug-jit-on",
+        "compiler": "gcc",
+        "mode": "debug",
+        "jit": "on",
+        "ffi": "on",
+        "build_style": "mixed"
+      },
+      {
+        "id": "gcc-release-jit-on",
+        "compiler": "gcc",
+        "mode": "release",
+        "jit": "on",
+        "ffi": "on",
+        "build_style": "mixed"
+      },
+      {
+        "id": "clang-release-jit-on",
+        "compiler": "clang",
+        "mode": "release",
+        "jit": "on",
+        "ffi": "on",
+        "build_style": "mixed"
+      }
+    ],
+    "performance_default": [
+      {
+        "id": "gcc-release-jit-off",
+        "compiler": "gcc",
+        "mode": "release",
+        "jit": "off",
+        "ffi": "on",
+        "build_style": "mixed"
+      },
+      {
+        "id": "gcc-release-jit-on",
+        "compiler": "gcc",
+        "mode": "release",
+        "jit": "on",
+        "ffi": "on",
+        "build_style": "mixed"
+      },
+      {
+        "id": "clang-release-jit-off",
+        "compiler": "clang",
+        "mode": "release",
+        "jit": "off",
+        "ffi": "on",
+        "build_style": "mixed"
+      },
+      {
+        "id": "clang-release-jit-on",
+        "compiler": "clang",
+        "mode": "release",
+        "jit": "on",
+        "ffi": "on",
+        "build_style": "mixed"
+      }
+    ]
+  },
+  "validation_lanes": [
+    {
+      "id": "smoke",
+      "description": "Build and runtime smoke checks covering binary startup, `jit.status()`, `jit.opt`, and FFI enablement semantics.",
+      "coverage_tags": [
+        "build",
+        "startup",
+        "jit-enablement",
+        "ffi-enablement"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all",
+        "jit": "on"
+      },
+      "variants": "validation_default",
+      "source_paths": []
+    },
+    {
+      "id": "pure_lua",
+      "description": "Interpreter-focused pure Lua and Perl harness coverage for table APIs, PRNG state, external data, iterators, arithmetic, strings, and hooks.",
+      "coverage_tags": [
+        "interpreter",
+        "stdlib",
+        "table-apis",
+        "hooks",
+        "strings",
+        "arithmetic"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all",
+        "jit": "on"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/pure_lua/*.lua",
+        "t/cli-errors.t",
+        "t/isempty.t",
+        "t/nkeys.t",
+        "t/table-clone.t",
+        "t/exdata.t",
+        "t/exdata2.t",
+        "t/prngstate.t",
+        "t/isarr-interp.t"
+      ]
+    },
+    {
+      "id": "ffi_abi",
+      "description": "Generated C-oracle validation for outbound FFI call ABI behavior.",
+      "coverage_tags": [
+        "ffi",
+        "abi",
+        "calling-convention"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all",
+        "jit": "on"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/build_oracles.sh",
+        "tests/s390x/ffi_abi/run.lua",
+        "tests/s390x/ffi_abi/oracle.c"
+      ]
+    },
+    {
+      "id": "callbacks",
+      "description": "FFI callback, callback stress, and unwind correctness coverage.",
+      "coverage_tags": [
+        "ffi",
+        "callbacks",
+        "unwind"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/build_oracles.sh",
+        "tests/s390x/callbacks/*.lua",
+        "tests/s390x/callbacks/callback_oracle.c"
+      ]
+    },
+    {
+      "id": "jit_core",
+      "description": "Core trace creation, exits, side exits, modulo, bitops, FFI trace formation, cdata handling, profile loop behavior, and basic JIT Perl harness coverage.",
+      "coverage_tags": [
+        "jit",
+        "trace-formation",
+        "trace-exits",
+        "side-exits",
+        "ffi-traces",
+        "cdata",
+        "modulo",
+        "bitops"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/jit_core/*.lua",
+        "t/isarr-jit.t"
+      ]
+    },
+    {
+      "id": "jit_loops",
+      "description": "Loop tracing, iterator behavior, explicit `next`, vararg correctness, vararg sequence/return handling, and loop Perl harness coverage.",
+      "coverage_tags": [
+        "jit",
+        "loops",
+        "iterators",
+        "varargs"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/jit_loops/*.lua",
+        "t/iter.t"
+      ]
+    },
+    {
+      "id": "trace_tools",
+      "description": "Trace observers, `jit.attach`, `jit.util.traceinfo`, `jit.v`, and `jit.dump` tooling behavior.",
+      "coverage_tags": [
+        "jit",
+        "observability",
+        "tooling",
+        "traceinfo"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/trace_tools/*.lua"
+      ]
+    },
+    {
+      "id": "soak",
+      "description": "Long-running mixed stress coverage for sustained JIT and GC pressure.",
+      "coverage_tags": [
+        "jit",
+        "gc",
+        "stress",
+        "soak"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all",
+        "jit": "on"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/soak/*.lua"
+      ]
+    },
+    {
+      "id": "jit_backend",
+      "description": "Backend-sensitive JIT correctness coverage for numeric helpers, overflow guards, buffer references, string globals, string keys, low-bit contracts, and mixed-width FFI backend paths.",
+      "coverage_tags": [
+        "jit",
+        "backend",
+        "numeric-helpers",
+        "overflow-guards",
+        "buffer-refs",
+        "strings",
+        "ffi-width"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all",
+        "jit": "on"
+      },
+      "variants": "validation_default",
+      "source_paths": [
+        "tests/s390x/jit_be/*.lua"
+      ]
+    }
+  ],
+  "performance_families": [
+    {
+      "id": "dispatch_trace",
+      "description": "Primary dispatch, side-exit, and hotexit performance gate.",
+      "coverage_tags": [
+        "dispatch",
+        "side-exits",
+        "trace-hotpath"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/dispatch_trace.lua",
+      "priority": "required"
+    },
+    {
+      "id": "iterator_table",
+      "description": "Iterator and table traversal performance coverage.",
+      "coverage_tags": [
+        "iterators",
+        "tables",
+        "loops"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/iterator_table.lua",
+      "priority": "required"
+    },
+    {
+      "id": "bitops_mix",
+      "description": "Bit operation throughput and mixed arithmetic/bit normalization coverage.",
+      "coverage_tags": [
+        "bitops",
+        "normalization",
+        "integer-math"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/bitops_mix.lua",
+      "priority": "required"
+    },
+    {
+      "id": "be_helpers_localized",
+      "description": "Localized endian-helper and tobit-lowering coverage for architectures where byte order materially changes code generation or helper behavior.",
+      "coverage_tags": [
+        "endianness",
+        "helpers",
+        "tobit"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "big"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/be_helpers_localized.lua",
+      "priority": "conditional"
+    },
+    {
+      "id": "vararg_paths",
+      "description": "Vararg select and return path throughput coverage.",
+      "coverage_tags": [
+        "varargs",
+        "returns",
+        "trace-handoff"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/vararg_paths.lua",
+      "priority": "required"
+    },
+    {
+      "id": "ffi_calls",
+      "description": "Direct and stored FFI call throughput coverage.",
+      "coverage_tags": [
+        "ffi",
+        "calls",
+        "lookup"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/ffi_calls.lua",
+      "priority": "required"
+    },
+    {
+      "id": "ffi_calls_static_stop",
+      "description": "Static-stop FFI call throughput coverage.",
+      "coverage_tags": [
+        "ffi",
+        "calls",
+        "static-stop"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/ffi_calls_static_stop.lua",
+      "priority": "required"
+    },
+    {
+      "id": "ffi_cdata",
+      "description": "Cdata load/store performance coverage.",
+      "coverage_tags": [
+        "ffi",
+        "cdata",
+        "loads",
+        "stores"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/ffi_cdata.lua",
+      "priority": "required"
+    },
+    {
+      "id": "ffi_fixed_call_pressure",
+      "description": "Fixed-arity FFI call pressure coverage across register and stack depth.",
+      "coverage_tags": [
+        "ffi",
+        "calls",
+        "abi-depth",
+        "register-pressure"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/ffi_fixed_call_pressure.lua",
+      "priority": "required"
+    },
+    {
+      "id": "ffi_fixed_struct_calls",
+      "description": "Struct-by-value FFI call throughput coverage.",
+      "coverage_tags": [
+        "ffi",
+        "structs",
+        "abi"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/ffi_fixed_struct_calls.lua",
+      "priority": "required"
+    },
+    {
+      "id": "be_helpers",
+      "description": "Endian-helper and pack/unpack throughput coverage for big-endian architectures.",
+      "coverage_tags": [
+        "endianness",
+        "helpers",
+        "pack",
+        "unpack"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "big"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/be_helpers.lua",
+      "priority": "conditional"
+    },
+    {
+      "id": "int_add_phi_only",
+      "description": "Integer recurrence and PHI throughput coverage.",
+      "coverage_tags": [
+        "integers",
+        "phi",
+        "loop-recurrence"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/int_add_phi_only.lua",
+      "priority": "required"
+    },
+    {
+      "id": "large_immediates",
+      "description": "Large-immediate compare, add, subtract, and addressing throughput coverage.",
+      "coverage_tags": [
+        "immediates",
+        "compare",
+        "addressing"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/large_immediates.lua",
+      "priority": "required"
+    },
+    {
+      "id": "logic_add_phi_noboundary",
+      "description": "Low-bit demanded PHI recurrence coverage without boundary churn.",
+      "coverage_tags": [
+        "logic",
+        "phi",
+        "lowbits"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/logic_add_phi_noboundary.lua",
+      "priority": "required"
+    },
+    {
+      "id": "logical_chain_tail_add",
+      "description": "Logical chain tail-add throughput coverage.",
+      "coverage_tags": [
+        "logic",
+        "tail-fold",
+        "loop-tail"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/logical_chain_tail_add.lua",
+      "priority": "required"
+    },
+    {
+      "id": "logical_chain_tail_store",
+      "description": "Logical chain tail-store throughput coverage.",
+      "coverage_tags": [
+        "logic",
+        "stores",
+        "loop-tail"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/logical_chain_tail_store.lua",
+      "priority": "required"
+    },
+    {
+      "id": "lower_frame_same_callsite",
+      "description": "Same-callsite lower-frame and call-boundary throughput coverage.",
+      "coverage_tags": [
+        "calls",
+        "frames",
+        "same-callsite"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/lower_frame_same_callsite.lua",
+      "priority": "required"
+    },
+    {
+      "id": "mixed_noffi",
+      "description": "Mixed workload throughput without FFI.",
+      "coverage_tags": [
+        "mixed-workload",
+        "jit",
+        "no-ffi"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/mixed_noffi.lua",
+      "priority": "required"
+    },
+    {
+      "id": "mixed_ffi",
+      "description": "Mixed workload throughput with FFI.",
+      "coverage_tags": [
+        "mixed-workload",
+        "jit",
+        "ffi"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/mixed_ffi.lua",
+      "priority": "required"
+    },
+    {
+      "id": "numeric_ops",
+      "description": "Numeric helper, division, modulo, sqrt, min, and max throughput coverage.",
+      "coverage_tags": [
+        "numeric",
+        "division",
+        "modulo",
+        "sqrt",
+        "minmax"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/numeric_ops.lua",
+      "priority": "required"
+    },
+    {
+      "id": "promotion_core_static_stop",
+      "description": "Promotion-core static-stop throughput coverage.",
+      "coverage_tags": [
+        "promotion",
+        "static-stop",
+        "reducers"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/promotion_core_static_stop.lua",
+      "priority": "required"
+    },
+    {
+      "id": "route_around_reducers",
+      "description": "Reducer route-around throughput coverage.",
+      "coverage_tags": [
+        "reducers",
+        "routing",
+        "byte-pack"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/route_around_reducers.lua",
+      "priority": "required"
+    },
+    {
+      "id": "string_heavy",
+      "description": "String compare, search, scan, and string-key lookup throughput coverage.",
+      "coverage_tags": [
+        "strings",
+        "compare",
+        "search",
+        "lookup"
+      ],
+      "applicability": {
+        "architectures": "all",
+        "endianness": "all"
+      },
+      "variants": "performance_default",
+      "source_path": "tests/s390x/perf/string_heavy.lua",
+      "priority": "required"
+    }
+  ]
+}

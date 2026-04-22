@@ -234,25 +234,25 @@ TARGET_ASHLDFLAGS= $(LDOPTIONS) $(TARGET_XSHLDFLAGS) $(TARGET_FLAGS) $(TARGET_SH
 TARGET_ALIBS= $(TARGET_XLIBS) $(LIBS) $(TARGET_LIBS)
 
 TARGET_TESTARCH:=$(shell $(TARGET_CC) $(TARGET_TCFLAGS) -E lj_arch.h -dM)
-ifneq (,$(findstring LJ_TARGET_X64 ,$(TARGET_TESTARCH)))
+ifneq (,$(findstring LJ_TARGET_X64 1,$(TARGET_TESTARCH)))
   TARGET_LJARCH= x64
 else
-ifneq (,$(findstring LJ_TARGET_X86 ,$(TARGET_TESTARCH)))
+ifneq (,$(findstring LJ_TARGET_X86 1,$(TARGET_TESTARCH)))
   TARGET_LJARCH= x86
 else
-ifneq (,$(findstring LJ_TARGET_ARM ,$(TARGET_TESTARCH)))
+ifneq (,$(findstring LJ_TARGET_ARM 1,$(TARGET_TESTARCH)))
   TARGET_LJARCH= arm
 else
-ifneq (,$(findstring LJ_TARGET_S390X ,$(TARGET_TESTARCH)))
+ifneq (,$(findstring LJ_TARGET_S390X 1,$(TARGET_TESTARCH)))
   TARGET_LJARCH= s390x
 else
-ifneq (,$(findstring LJ_TARGET_ARM64 ,$(TARGET_TESTARCH)))
+ifneq (,$(findstring LJ_TARGET_ARM64 1,$(TARGET_TESTARCH)))
   ifneq (,$(findstring __AARCH64EB__ ,$(TARGET_TESTARCH)))
     TARGET_ARCH= -D__AARCH64EB__=1
   endif
   TARGET_LJARCH= arm64
 else
-ifneq (,$(findstring LJ_TARGET_PPC ,$(TARGET_TESTARCH)))
+ifneq (,$(findstring LJ_TARGET_PPC 1,$(TARGET_TESTARCH)))
   ifneq (,$(findstring LJ_LE 1,$(TARGET_TESTARCH)))
     TARGET_ARCH= -DLJ_ARCH_ENDIAN=LUAJIT_LE
   else
@@ -260,11 +260,11 @@ ifneq (,$(findstring LJ_TARGET_PPC ,$(TARGET_TESTARCH)))
   endif
   TARGET_LJARCH= ppc
 else
-ifneq (,$(findstring LJ_TARGET_MIPS ,$(TARGET_TESTARCH)))
+ifneq (,$(findstring LJ_TARGET_MIPS 1,$(TARGET_TESTARCH)))
   ifneq (,$(findstring MIPSEL ,$(TARGET_TESTARCH)))
     TARGET_ARCH= -D__MIPSEL__=1
   endif
-  ifneq (,$(findstring LJ_TARGET_MIPS64 ,$(TARGET_TESTARCH)))
+  ifneq (,$(findstring LJ_TARGET_MIPS64 1,$(TARGET_TESTARCH)))
     TARGET_LJARCH= mips64
   else
     TARGET_LJARCH= mips
