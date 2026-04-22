@@ -1912,3 +1912,29 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
 - Debt moved:
   `semantic_reducer_definition` `17 -> 16` and
   `semantic_reducer_dispatch` `15 -> 14`.
+
+## 2026-04-22: scaled-tobit, abs-parity, and minmax semantic reducers retired
+
+- Retired three more recorder-only semantic substitution families from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_scaled_tobit_loop_sum()`,
+  `lj_record_s390x_abs_parity_loop_sum()`, and
+  `lj_record_s390x_minmax_loop_sum()`.
+- This is the right cleanup class for all three:
+  they were no longer helper-ABI debt, they were benchmark-shaped recorder
+  shortcuts. Upstream prep is cleaner without those target-local recognizers in
+  the recorder.
+- Retained validation on the clean worktree:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`,
+  `./src/luajit tests/s390x/jit_be/mulov_overflow_guard.lua`,
+  `./src/luajit tests/s390x/perf/be_helpers_localized.lua`,
+  `./src/luajit tests/s390x/jit_core/numeric_helpers.lua`,
+  `./src/luajit tests/s390x/jit_be/abs_parity_loop_sum.lua`,
+  `./src/luajit tests/s390x/jit_be/numeric_minmax_loop_sum.lua`, and
+  `./src/luajit tests/s390x/jit_be/numeric_ops.lua`.
+- The broad source audit moved from `30` to `23`.
+- Debt moved:
+  `semantic_reducer_definition` `16 -> 13` and
+  `semantic_reducer_dispatch` `14 -> 10`.
