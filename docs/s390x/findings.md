@@ -39191,3 +39191,42 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
   badly and was rejected. The retained version is the narrower branch-on-op
   merge only. On `kdz1`, `div_loop/hot` stayed around `0.000011s` and
   `sqrt_loop/hot` stayed around `0.000013s..0.000015s`.
+
+## 2026-04-22: root `FORL -> ITERN` array handoff fixed
+
+- The remaining live iterator blocker was the numeric-array `pairs()` lane
+  under the widened root `FORL -> ITERN` path. The bug was not branch shape,
+  child promotion, or generic snapshot restore. The bad state was already
+  present in the widened outer trace fallback after the first
+  `lj_vm_next(tab, nil)` step.
+- The retained source fix stays narrow:
+  [src/lj_record.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c)
+  now reopens the exact array widening path only through the existing
+  `FORL -> ITERN` matcher, and the widened root-array trace now defers its
+  first snapshot until the outer `FORL` state is materialized.
+- The key recorder contract change is that the widened root-array trace no
+  longer leaves `snap 0` empty. Before adding the first snapshot, it now keeps
+  alive:
+  the mutable accumulator window below the outer `FORL` base and the outer
+  `idx/stop/step/ext` carrier state, so interpreter fallback can restore a
+  real outer-loop state instead of inheriting stale exit-state garbage.
+- The existing
+  [src/lj_trace.c](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_trace.c)
+  root `FORL -> root ITERN` stitch demotion remains in place. That rail is
+  still correct: the fixed lane now relies on a valid interpreter fallback
+  handoff, not on reopening root-to-root iterator stitching.
+- Cross-host validation is green on the clean branch worktree:
+  - `kdz1`: warning-free rebuild passed; `tests/s390x/jit_loops/pairs_loop.lua`
+    passed with `pairs total 5050`; `tests/s390x/perf/iterator_table.lua`
+    returned timer-floor rows for both `pairs_sum` and `pairs_array_sum`;
+    `tests/s390x/perf/mixed_noffi.lua` stayed at `0.000002s`.
+  - `kdz`: warning-free rebuild passed; `tests/s390x/perf/iterator_table.lua`
+    returned timer-floor rows for both iterator workloads; reduced repeated-call
+    checks stayed exact at `fa(1)=25`, `fa(2000)=50000`, `fh(1)=15`,
+    `fh(2000)=30000`.
+- Manual post-run `jit.util` probes on `kdz1` confirmed the retained traces are
+  structurally readable through `traceinfo`, `tracesnap`, and `traceir` for the
+  active iterator traces. The older iterator terminal truth-pack helper still
+  faults in its hook-heavy post-perf capture flow; that is no longer evidence
+  of the live iterator lane, and any further cleanup there belongs to the
+  tooling path rather than the retained iterator contract.

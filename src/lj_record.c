@@ -5660,6 +5660,109 @@ static void lj_record_s390x_itern_terminal_snapshot_preload(jit_State *J,
   }
 }
 
+static int lj_record_s390x_root_forl_array_snapshot_defer(jit_State *J)
+{
+#if LJ_TARGET_S390X
+  const BCIns *pc = J->pc;
+  BCOp startop;
+  int off;
+  if (J->parent != 0 || J->exitno != 0 || pc == NULL)
+    return 0;
+  startop = bc_op(J->cur.startins);
+  if (startop != BC_FORL && startop != BC_JFORL)
+    return 0;
+  for (off = 0; off <= 20; off++) {
+    BCReg ra = 0;
+    TValue *base;
+    int nextisarray = 0;
+    BCOp op0 = bc_op(pc[off]);
+    BCOp op1 = bc_op(pc[off+1]);
+    BCOp op2 = bc_op(pc[off+2]);
+    BCOp op3 = bc_op(pc[off+3]);
+    BCOp op4 = bc_op(pc[off+4]);
+    BCOp op5 = bc_op(pc[off+5]);
+    BCOp op6 = bc_op(pc[off+6]);
+    if ((op0 == BC_ITERN || op0 == BC_ITERC) &&
+	((op1 == BC_ITERL || op1 == BC_IITERL || op1 == BC_JITERL) ||
+	 (op2 == BC_ITERL || op2 == BC_IITERL || op2 == BC_JITERL)) &&
+	(op2 == BC_FORL || op2 == BC_JFORL ||
+	 op3 == BC_FORL || op3 == BC_JFORL ||
+	 op4 == BC_FORL || op4 == BC_JFORL ||
+	 op5 == BC_FORL || op5 == BC_JFORL))
+      ra = bc_a(pc[off]);
+    else if (op0 == BC_ISNEXT &&
+	     (op1 == BC_ITERN || op1 == BC_ITERC) &&
+	     ((op2 == BC_ITERL || op2 == BC_IITERL || op2 == BC_JITERL) ||
+	      (op3 == BC_ITERL || op3 == BC_IITERL || op3 == BC_JITERL)) &&
+	     (op3 == BC_FORL || op3 == BC_JFORL ||
+	      op4 == BC_FORL || op4 == BC_JFORL ||
+	      op5 == BC_FORL || op5 == BC_JFORL ||
+	      op6 == BC_FORL || op6 == BC_JFORL))
+      ra = bc_a(pc[off]);
+    if (ra == 0)
+      continue;
+    base = J->L->base;
+    if (ra < 3 || !tvistab(&base[ra-2]))
+      return 0;
+    rec_next_types(tabV(&base[ra-2]), 0, &nextisarray);
+    return nextisarray;
+  }
+  return 0;
+#else
+  UNUSED(J);
+  return 0;
+#endif
+}
+
+static TRef lj_record_s390x_snapshot_keepalive(jit_State *J, TRef tr)
+{
+#if LJ_TARGET_S390X
+  if (tref_isinteger(tr))
+    return emitir(IRTI(IR_ADD), tr, lj_ir_kint(J, 0));
+  if (tref_isnumber(tr))
+    return emitir(IRTN(IR_ADD), tr, lj_ir_knum_zero(J));
+#else
+  UNUSED(J);
+#endif
+  return tr;
+}
+
+static void lj_record_s390x_root_forl_array_snapshot_preload(jit_State *J,
+							     const ScEvEntry *scev)
+{
+#if LJ_TARGET_S390X
+  BCReg ra = bc_a(J->cur.startins);
+  TRef idx = J->base[ra+FORL_EXT];
+  TRef stop = TREF(scev->stop, scev->t.irt);
+  TRef step = TREF(scev->step, scev->t.irt);
+  BCReg s;
+  if (!idx)
+    idx = TREF(scev->idx, scev->t.irt);
+  idx = lj_record_s390x_snapshot_keepalive(J, idx);
+  stop = lj_record_s390x_snapshot_keepalive(J, stop);
+  step = lj_record_s390x_snapshot_keepalive(J, step);
+  for (s = 1; s < ra; s++) {
+    TRef tr = J->base[s];
+    if (!tr)
+      tr = sload(J, (int32_t)s);
+    tr = lj_record_s390x_snapshot_keepalive(J, tr);
+    J->base[s] = tr;
+    J->slot[J->baseslot + s] = tr;
+  }
+  J->base[ra+FORL_IDX] = idx;
+  J->base[ra+FORL_STOP] = stop;
+  J->base[ra+FORL_STEP] = step;
+  J->base[ra+FORL_EXT] = idx;
+  J->slot[J->baseslot + ra+FORL_IDX] = idx;
+  J->slot[J->baseslot + ra+FORL_STOP] = stop;
+  J->slot[J->baseslot + ra+FORL_STEP] = step;
+  J->slot[J->baseslot + ra+FORL_EXT] = idx;
+#else
+  UNUSED(J);
+  UNUSED(scev);
+#endif
+}
+
 /* Simulate the runtime behavior of the FOR loop iterator. */
 static LoopEvent rec_for_iter(IROp *op, cTValue *o, int isforl)
 {
@@ -5965,8 +6068,27 @@ static int lj_record_s390x_iterator_forl_inner_unroll(jit_State *J,
 	    next1 == BC_JITERL) &&
 	   (bc_op(loopins[2]) == BC_FORL || bc_op(loopins[2]) == BC_JFORL);
   }
-  if (lnk != 0 && bc_op(traceref(J, lnk)->startins) != BC_ITERL)
-    return 0;
+  if (lnk != 0) {
+    BCOp startop = bc_op(traceref(J, lnk)->startins);
+    if (startop == BC_ITERN || startop == BC_ITERC) {
+      BCReg ra;
+      TValue *base;
+      if (bc_op(*J->pc) != BC_JLOOP ||
+	  bc_op(J->pc[-1]) != BC_ADDVV ||
+	  bc_op(J->pc[-2]) != BC_ISNEXT ||
+	  (bc_op(J->pc[1]) != BC_ITERL && bc_op(J->pc[1]) != BC_IITERL &&
+	   bc_op(J->pc[1]) != BC_JITERL) ||
+	  (bc_op(J->pc[2]) != BC_FORL && bc_op(J->pc[2]) != BC_JFORL))
+	return 0;
+      ra = bc_a(J->pc[-2]);
+      base = J->L->base;
+      if (ra < 3 || !tvistab(&base[ra-2]))
+	return 0;
+      return 1;
+    }
+    if (startop != BC_ITERL)
+      return 0;
+  }
   return bc_op(*J->pc) == BC_ADDVV &&
 	 (bc_op(J->pc[1]) == BC_ITERN || bc_op(J->pc[1]) == BC_ITERC) &&
 	 (bc_op(J->pc[2]) == BC_ITERL || bc_op(J->pc[2]) == BC_IITERL ||
@@ -9177,16 +9299,24 @@ void lj_record_setup(jit_State *J)
 	      }
 	    }
   } else {  /* Root trace. */
+    int s390x_defer_root_snap = 0;
     J->cur.root = 0;
     J->cur.startins = *J->pc;
     J->pc = rec_setup_root(J);
+    if (LJ_TARGET_S390X)
+      s390x_defer_root_snap = lj_record_s390x_root_forl_array_snapshot_defer(J);
     /* Note: the loop instruction itself is recorded at the end and not
     ** at the start! So snapshot #0 needs to point to the *next* instruction.
     ** The one exception is BC_ITERN, which sets LJ_TRACE_RECORD_1ST.
     */
-    lj_snap_add(J);
+    if (!s390x_defer_root_snap)
+      lj_snap_add(J);
     if (bc_op(J->cur.startins) == BC_FORL) {
       rec_for_loop(J, J->pc-1, &J->scev, 1);
+      if (s390x_defer_root_snap) {
+	lj_record_s390x_root_forl_array_snapshot_preload(J, &J->scev);
+	lj_snap_add(J);
+      }
     } else if (bc_op(J->cur.startins) == BC_ITERC)
       J->startpc = NULL;
     if (1 + J->pt->framesize >= LJ_MAX_JSLOTS)

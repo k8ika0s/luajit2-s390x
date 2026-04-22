@@ -603,3 +603,17 @@ Historical experiment detail lives in
   [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md).
 - This page should stay short and current. Do not add historical experiment
   logs here.
+
+## 2026-04-22 Iterator Closure
+
+- The long-running iterator blocker is no longer the numeric-array `pairs()`
+  lane. The root-owned widened `FORL -> ITERN` handoff is now restored through
+  a real fallback snapshot instead of the old empty `snap 0` path.
+- Current retained status:
+  `iterator_table/pairs_sum` and `iterator_table/pairs_array_sum` are both back
+  at the timer floor on `kdz1` and `kdz`, and reduced repeated-call checks stay
+  exact on both hosts.
+- Project impact:
+  iterator continuation is no longer the top live correctness blocker for the
+  s390x branch tip. Remaining source debt should be ranked again from the
+  reducer/helper backlog, not from the old iterator terminal ladder.

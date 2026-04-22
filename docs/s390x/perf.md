@@ -6193,3 +6193,30 @@ localized-helper carried-`total` lane
 - Full retained rerank:
   `/tmp/kdz1-post-iterator-rail-retire-202604191545/summary.md` completed with
   no JIT-on family red versus `-joff`.
+
+## 2026-04-22 Iterator Closure Restamp
+
+- The numeric-array `pairs()` root-owned widened `FORL -> ITERN` lane is no
+  longer the live blocker. The retained branch now carries the widened outer
+  trace with a real fallback snapshot and restores the outer `FORL` state
+  correctly before interpreter continuation.
+- `kdz1` clean validation:
+  - `tests/s390x/perf/iterator_table.lua`:
+    `pairs_sum/hot median=0.000000`,
+    `pairs_array_sum/hot median=0.000000`,
+    `pairs_sum/medium median=0.000001`,
+    `pairs_array_sum/medium median=0.000001`.
+  - `tests/s390x/jit_loops/pairs_loop.lua` passed with `pairs total 5050`.
+  - `tests/s390x/perf/mixed_noffi.lua` stayed at `mixed_loop/hot median=0.000002`.
+- `kdz` confirmation:
+  - `tests/s390x/perf/iterator_table.lua` stayed at the timer floor for both
+    `pairs_sum` and `pairs_array_sum`.
+  - Reduced official-value repeated-call checks stayed exact:
+    array `25/50000/50000`, hash `15/30000/30000`.
+- Old terminal-pack interpretation:
+  - the legacy iterator terminal truth-pack is no longer the authoritative gate
+    for this lane. Its retained official perf rows are clean, but its
+    hook-heavy post-run capture flow can still fault independently of the fixed
+    iterator runtime path.
+  - The live runtime gate is now the retained official `iterator_table` family
+    plus reduced repeated-call exactness on both hosts.
