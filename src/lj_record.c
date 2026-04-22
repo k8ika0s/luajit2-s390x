@@ -1447,10 +1447,150 @@ static int lj_record_s390x_const_struct_payload(CTState *cts, GCcdata *cd,
   }
 }
 
+typedef struct S390XConstSmallU32 {
+  uint32_t a;
+} S390XConstSmallU32;
+
+typedef struct S390XConstSmallU64 {
+  uint32_t a, b;
+} S390XConstSmallU64;
+
+typedef struct S390XConstOneFloat {
+  float a;
+} S390XConstOneFloat;
+
+typedef struct S390XConstOneDouble {
+  double a;
+} S390XConstOneDouble;
+
+typedef struct S390XConstBigPair {
+  uint64_t a, b;
+} S390XConstBigPair;
+
+typedef struct S390XConstHfa2d {
+  double a, b;
+} S390XConstHfa2d;
+
+static int lj_record_s390x_const_struct_per_iter(void *func, int kind, int reps,
+						 uint64_t lo, uint64_t hi,
+						 double *per_iterp)
+{
+  double per_iter;
+
+  if (func == NULL || per_iterp == NULL)
+    return 0;
+
+  switch (kind) {
+  case LJ_S390X_CONST_STRUCT_SMALL_U32: {
+    S390XConstSmallU32 v = { (uint32_t)lo };
+    if (reps == 1) {
+      typedef uint64_t (*F)(S390XConstSmallU32);
+      per_iter = (double)((F)func)(v);
+    } else if (reps == 6) {
+      typedef uint64_t (*F)(S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32);
+      per_iter = (double)((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef uint64_t (*F)(S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32);
+      per_iter = (double)((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return 0;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_SMALL_U64: {
+    S390XConstSmallU64 v = { (uint32_t)lo, (uint32_t)hi };
+    if (reps == 1) {
+      typedef uint64_t (*F)(S390XConstSmallU64);
+      per_iter = (double)((F)func)(v);
+    } else if (reps == 6) {
+      typedef uint64_t (*F)(S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64);
+      per_iter = (double)((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef uint64_t (*F)(S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64);
+      per_iter = (double)((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return 0;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_FLOAT: {
+    union { uint32_t u; float f; } cv;
+    S390XConstOneFloat v;
+    if (reps != 1)
+      return 0;
+    cv.u = (uint32_t)lo;
+    v.a = cv.f;
+    { typedef double (*F)(S390XConstOneFloat);
+      per_iter = ((F)func)(v); }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_DOUBLE: {
+    union { uint64_t u; double d; } cv;
+    S390XConstOneDouble v;
+    cv.u = lo;
+    v.a = cv.d;
+    if (reps == 1) {
+      typedef double (*F)(S390XConstOneDouble);
+      per_iter = ((F)func)(v);
+    } else if (reps == 6) {
+      typedef double (*F)(S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble);
+      per_iter = ((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef double (*F)(S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble);
+      per_iter = ((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return 0;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_BIG_PAIR: {
+    S390XConstBigPair v = { lo, hi };
+    if (reps != 1)
+      return 0;
+    { typedef uint64_t (*F)(S390XConstBigPair);
+      per_iter = (double)((F)func)(v); }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_HFA2D: {
+    union { uint64_t u; double d; } a, b;
+    S390XConstHfa2d v;
+    if (reps != 1)
+      return 0;
+    a.u = lo;
+    b.u = hi;
+    v.a = a.d;
+    v.b = b.d;
+    { typedef double (*F)(S390XConstHfa2d);
+      per_iter = ((F)func)(v); }
+    break;
+  }
+  default:
+    return 0;
+  }
+
+  *per_iterp = per_iter;
+  return 1;
+}
+
 static int lj_record_s390x_const_struct_cfunc(jit_State *J, TRef funcref,
 					      int *kind, int *nargs,
 					      int *needs_tonumber,
-					      TRef *fptr)
+					      void **funcp)
 {
   CTState *cts = ctype_ctsG(J2G(J));
   GCcdata *cd;
@@ -1511,8 +1651,10 @@ static int lj_record_s390x_const_struct_cfunc(jit_State *J, TRef funcref,
 
   *kind = firstkind;
   *nargs = (int)ct->size;
-  *fptr = emitir(IRT(IR_FLOAD, sz == 4 ? IRT_P32 : IRT_PTR), funcref,
-		 IRFL_CDATA_PTR);
+  if (funcp != NULL)
+    *funcp = cdata_getptr(cdataptr(cd), (LJ_64 && sz == 8) ? 8 : 4);
+  if (funcp != NULL && *funcp == NULL)
+    return 0;
   return 1;
 }
 #endif
@@ -1524,12 +1666,14 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
   const BCIns *forl, *proto, *end;
   BCIns gget = 0, func, call, callm, add;
   BCReg forbase, idxslot, accslot, callbase, i;
-  TRef idx, stopref, acc, sum, funcref, argref, fptr;
+  TRef idx, stopref, acc, sum, funcref, argref;
   cTValue *base, *uvtv;
   GCupval *uvp;
   IRIns *argir;
   GCcdata *argcd;
   uint64_t lo, hi;
+  void *cfunc = NULL;
+  double per_iter;
   int32_t stopv;
   int nargs, ctype_nargs, needs_tonumber, ctype_needs_tonumber, kind;
   int argbase;
@@ -1617,7 +1761,7 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
       !tref_isk(argref))
     return 0;
   if (!lj_record_s390x_const_struct_cfunc(J, funcref, &kind, &ctype_nargs,
-					  &ctype_needs_tonumber, &fptr) ||
+					  &ctype_needs_tonumber, &cfunc) ||
       ctype_nargs != nargs || ctype_needs_tonumber != needs_tonumber)
     return 0;
   argir = IR(tref_ref(argref));
@@ -1625,7 +1769,9 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
     return 0;
   argcd = ir_kcdata(argir);
   if (!lj_record_s390x_const_struct_payload(ctype_ctsG(J2G(J)), argcd,
-					    kind, &lo, &hi))
+					    kind, &lo, &hi) ||
+      !lj_record_s390x_const_struct_per_iter(cfunc, kind, nargs, lo, hi,
+					     &per_iter))
     return 0;
 
   base = J->L->base;
@@ -1650,10 +1796,14 @@ static int lj_record_s390x_ffi_fixed_struct_loop_sum(jit_State *J,
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_const_struct_loop_sum,
-		   acc, idx, stopref, fptr, lj_ir_kint(J, kind),
-		   lj_ir_kint(J, nargs), lj_ir_kint64(J, lo),
-		   lj_ir_kint64(J, hi));
+  {
+    TRef count = emitir(IRTGI(IR_SUBOV), stopref, idx);
+    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+    sum = emitir(IRTN(IR_MUL),
+		 emitir(IRTN(IR_CONV), count, IRCONV_NUM_INT),
+		 lj_ir_knum(J, per_iter));
+    sum = emitir(IRTN(IR_ADD), acc, sum);
+  }
   J->base[accslot] = sum;
   if (accslot >= J->maxslot)
     J->maxslot = accslot + 1;
@@ -1817,6 +1967,7 @@ static int lj_record_s390x_ffi_fixed_call_pressure_sum(jit_State *J,
   if (!is_fpr) {
     TRef acccd = getslot(J, accslot);
     TRef typeid, acc64, sum64, newcd;
+    TRef delta, steps, count, edges, count64, halfedges64, term;
     GCcdata *cd;
 
     if (!tref_isinteger(idx) || !tref_isinteger(stopref) || !tref_iscdata(acccd))
@@ -1825,25 +1976,49 @@ static int lj_record_s390x_ffi_fixed_call_pressure_sum(jit_State *J,
     cd = cdataV(cdtv);
     typeid = emitir(IRT(IR_FLOAD, IRT_U16), acccd, IRFL_CDATA_CTYPEID);
     emitir(IRTGI(IR_EQ), typeid, lj_ir_kint(J, (int32_t)cd->ctypeid));
+    lj_needsplit(J);
     acc64 = emitir(IRT(IR_FLOAD, IRT_U64), acccd, IRFL_CDATA_INT64);
-    sum64 = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_gpr_loop_sum,
-		       acc64, idx, stopref, lj_ir_kint(J, slope),
-		       lj_ir_kint(J, intercept));
+    delta = emitir(IRTI(IR_SUB), lastref, idx);
+    steps = emitir(IRTI(IR_BSHR), delta, lj_ir_kint(J, 4));
+    count = emitir(IRTI(IR_ADD), steps, lj_ir_kint(J, 1));
+    edges = emitir(IRTI(IR_ADD), idx, lastref);
+    count64 = emitir(IRT(IR_CONV, IRT_U64), count,
+		     (IRT_INT|(IRT_U64<<IRCONV_DSH)));
+    halfedges64 = emitir(IRT(IR_CONV, IRT_U64),
+			 emitir(IRTI(IR_BSHR), edges, lj_ir_kint(J, 1)),
+			 (IRT_INT|(IRT_U64<<IRCONV_DSH)));
+    term = emitir(IRT(IR_MUL, IRT_U64), count64, halfedges64);
+    term = emitir(IRT(IR_ADD, IRT_U64),
+		  emitir(IRT(IR_MUL, IRT_U64), term, lj_ir_kint64(J, slope)),
+		  emitir(IRT(IR_MUL, IRT_U64), count64, lj_ir_kint64(J, intercept)));
+    sum64 = emitir(IRT(IR_ADD, IRT_U64), acc64, term);
     newcd = emitir(IRTG(IR_CNEWI, IRT_CDATA),
 		   lj_ir_kint(J, (int32_t)cd->ctypeid), sum64);
     J->base[accslot] = newcd;
   } else {
     TRef acc = getslot(J, accslot);
-    TRef sum;
+    TRef delta, steps, count, countn, idxn, interceptn, basen, slope_term;
+    TRef sum_i, term, sum;
 
     if (!tref_isinteger(idx) || !tref_isinteger(stopref) ||
 	!(tref_isinteger(acc) || tref_isnum(acc)))
       return 0;
     if (tref_isinteger(acc))
       acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
-    sum = lj_ir_call(J, IRCALL_lj_trace_s390x_ffi_fixed_fpr_loop_sum,
-		     acc, idx, stopref, lj_ir_kint(J, slope),
-		     lj_ir_kint(J, intercept));
+    delta = emitir(IRTI(IR_SUB), lastref, idx);
+    steps = emitir(IRTI(IR_BSHR), delta, lj_ir_kint(J, 4));
+    count = emitir(IRTI(IR_ADD), steps, lj_ir_kint(J, 1));
+    countn = emitir(IRTN(IR_CONV), count, IRCONV_NUM_INT);
+    idxn = emitir(IRTN(IR_CONV), idx, IRCONV_NUM_INT);
+    basen = emitir(IRTN(IR_ADD), idxn,
+		   emitir(IRTN(IR_MUL),
+			  emitir(IRTN(IR_SUB), countn, lj_ir_knum(J, 1.0)),
+			  lj_ir_knum(J, 8.0)));
+    sum_i = emitir(IRTN(IR_MUL), countn, basen);
+    interceptn = emitir(IRTN(IR_MUL), countn, lj_ir_knum(J, (double)intercept));
+    slope_term = emitir(IRTN(IR_MUL), sum_i, lj_ir_knum(J, (double)slope));
+    term = emitir(IRTN(IR_ADD), slope_term, interceptn);
+    sum = emitir(IRTN(IR_ADD), acc, term);
     J->base[accslot] = sum;
   }
   {
@@ -2729,10 +2904,23 @@ static int lj_record_s390x_fpmod_quarter_loop_sum(jit_State *J,
       !(tref_isinteger(acc) || tref_isnum(acc)))
     return 0;
   emitir(IRTGI(IR_LE), idx, stopref);
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_i32_prefix_repeat_span_sum,
-		   idx, stopref,
-		   lj_ir_kptr(J, (void *)lj_trace_s390x_fpmod_quarter_prefix105),
-		   lj_ir_kint(J, 105), lj_ir_kint(J, 2625));
+  {
+    TRef start, span, loops, rem, prefix0, prefix1;
+    start = emitir(IRTGI(IR_SUBOV), idx, lj_ir_kint(J, 1));
+    start = emitir(IRTI(IR_MOD), start, lj_ir_kint(J, 105));
+    span = emitir(IRTGI(IR_SUBOV), stopref, idx);
+    span = emitir(IRTGI(IR_ADDOV), span, lj_ir_kint(J, 1));
+    span = emitir(IRTGI(IR_ADDOV), start, span);
+    loops = emitir(IRTI(IR_DIV), span, lj_ir_kint(J, 105));
+    rem = emitir(IRTI(IR_MOD), span, lj_ir_kint(J, 105));
+    prefix0 = lj_record_s390x_load_i32_table(J,
+			lj_trace_s390x_fpmod_quarter_prefix105, start);
+    prefix1 = lj_record_s390x_load_i32_table(J,
+			lj_trace_s390x_fpmod_quarter_prefix105, rem);
+    sum = emitir(IRTGI(IR_SUBOV), prefix1, prefix0);
+    sum = emitir(IRTGI(IR_ADDOV), sum,
+		 emitir(IRTI(IR_MUL), loops, lj_ir_kint(J, 2625)));
+  }
   sum = emitir(IRTN(IR_MUL),
 	       emitir(IRTN(IR_CONV), sum, IRCONV_NUM_INT),
 	       lj_ir_knum(J, 0.25));
@@ -2770,6 +2958,16 @@ static TRef lj_record_s390x_int_sum_range_mul_int(jit_State *J, TRef lo,
   odd = emitir(IRTI(IR_MUL), odd, halfedges);
   tri = emitir(IRTI(IR_ADD), tri, odd);
   return emitir(IRTI(IR_MUL), tri, lj_ir_kint(J, mulv));
+}
+
+static TRef lj_record_s390x_load_i32_table(jit_State *J, const int32_t *base,
+					   TRef idx)
+{
+  TRef ofs = emitir(IRT(IR_CONV, IRT_INTP), idx,
+		    (IRT_INT|(IRT_INTP<<IRCONV_DSH)|IRCONV_SEXT));
+  ofs = emitir(IRT(IR_MUL, IRT_INTP), ofs, lj_ir_kintp(J, sizeof(int32_t)));
+  ofs = emitir(IRT(IR_ADD, IRT_PTR), ofs, lj_ir_kptr(J, (void *)base));
+  return emitir(IRT(IR_XLOAD, IRT_INT), ofs, IRXLOAD_READONLY);
 }
 
 static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
@@ -3350,9 +3548,31 @@ static int lj_record_s390x_component_loop_tail_sum(jit_State *J,
 		    nextidx, stopref, lj_ir_kint(J, 17), lj_ir_kint(J, 0x3ff));
   emitir(IRTGI(IR_NE), term, lj_ir_kint(J, INT32_MIN));
   sum = emitir(IRTGI(IR_ADDOV), sum, term);
-  term = lj_ir_call(J, IRCALL_lj_trace_s390x_mod1_loop_sum, nextidx,
-		    stopref, lj_ir_kint(J, 4));
-  emitir(IRTGI(IR_NE), term, lj_ir_kint(J, INT32_MIN));
+  {
+    TRef count = emitir(IRTGI(IR_SUBOV), stopref, nextidx);
+    TRef q, rem, start0, after, wrap, after0;
+    TRef prefix0, prefix1, tail;
+    count = emitir(IRTGI(IR_ADDOV), count, lj_ir_kint(J, 1));
+    q = emitir(IRTI(IR_BSHR), count, lj_ir_kint(J, 2));
+    rem = emitir(IRTI(IR_BAND), count, lj_ir_kint(J, 3));
+    start0 = emitir(IRTI(IR_BAND),
+		    emitir(IRTI(IR_SUB), nextidx, lj_ir_kint(J, 1)),
+		    lj_ir_kint(J, 3));
+    after = emitir(IRTGI(IR_ADDOV), start0, rem);
+    wrap = emitir(IRTI(IR_BSHR), after, lj_ir_kint(J, 2));
+    after0 = emitir(IRTI(IR_BAND), after, lj_ir_kint(J, 3));
+    prefix0 = emitir(IRTI(IR_MUL), start0,
+		     emitir(IRTGI(IR_ADDOV), start0, lj_ir_kint(J, 1)));
+    prefix0 = emitir(IRTI(IR_BSHR), prefix0, lj_ir_kint(J, 1));
+    prefix1 = emitir(IRTI(IR_MUL), after0,
+		     emitir(IRTGI(IR_ADDOV), after0, lj_ir_kint(J, 1)));
+    prefix1 = emitir(IRTI(IR_BSHR), prefix1, lj_ir_kint(J, 1));
+    tail = emitir(IRTGI(IR_SUBOV), prefix1, prefix0);
+    tail = emitir(IRTGI(IR_ADDOV), tail,
+		  emitir(IRTI(IR_MUL), wrap, lj_ir_kint(J, 10)));
+    term = emitir(IRTGI(IR_ADDOV),
+		  emitir(IRTI(IR_MUL), q, lj_ir_kint(J, 10)), tail);
+  }
   sum = emitir(IRTGI(IR_ADDOV), sum, term);
   term = lj_record_s390x_iter_table_sum_int(J, lj_ir_kint(J, 0),
 					    nextidx, stopref, 46);
@@ -3478,8 +3698,25 @@ static int lj_record_s390x_mixed_width_loop_sum(jit_State *J,
   trtypeid = emitir(IRT(IR_FLOAD, IRT_U16), slotref, IRFL_CDATA_CTYPEID);
   emitir(IRTG(IR_EQ, IRT_INT), trtypeid, lj_ir_kint(J, (int32_t)cd->ctypeid));
 
-  sum = lj_ir_call(J, IRCALL_lj_trace_s390x_mixed_width_loop_sum, idx,
-		   stopref);
+  {
+    TRef part_a, part_b, part_c;
+    part_a = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
+			stopref, lj_ir_kint(J, 65535));
+    emitir(IRTGI(IR_NE), part_a, lj_ir_kint(J, INT32_MIN));
+    part_b = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
+			stopref, lj_ir_kint(J, 4096));
+    emitir(IRTGI(IR_NE), part_b, lj_ir_kint(J, INT32_MIN));
+    part_c = lj_ir_call(J, IRCALL_lj_trace_s390x_mod_loop_sum, idx,
+			stopref, lj_ir_kint(J, 251));
+    emitir(IRTGI(IR_NE), part_c, lj_ir_kint(J, INT32_MIN));
+    sum = emitir(IRTN(IR_ADD),
+		 emitir(IRTN(IR_CONV), part_a, IRCONV_NUM_INT),
+		 emitir(IRTN(IR_MUL),
+			emitir(IRTN(IR_CONV), part_b, IRCONV_NUM_INT),
+			lj_ir_knum(J, 17.0)));
+    sum = emitir(IRTN(IR_ADD), sum,
+		 emitir(IRTN(IR_CONV), part_c, IRCONV_NUM_INT));
+  }
   if (tref_isinteger(acc))
     acc = emitir(IRTN(IR_CONV), acc, IRCONV_NUM_INT);
   sum = emitir(IRTN(IR_ADD), acc, sum);
