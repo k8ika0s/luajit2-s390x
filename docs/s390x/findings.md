@@ -39448,3 +39448,31 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Current remaining recorder-side surface is now:
   `semantic_reducer_definition` `13` and
   `semantic_reducer_dispatch` `10`.
+
+## 2026-04-22: centered-mod-abs and fpmod-quarter recorder families removed
+
+- Removed `lj_record_s390x_centered_mod_abs_loop_sum()` and
+  `lj_record_s390x_fpmod_quarter_loop_sum()` from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  along with their dispatch sites.
+- The retained result is that the numeric semantic-reducer backlog is no
+  longer spread across six small arithmetic families. The remaining source
+  surface is now concentrated in:
+  `ffi_fixed_struct`,
+  `ffi_fixed_call_pressure`,
+  `ffi_const_i32_mod17`,
+  `component_loop`,
+  `mixed_width`,
+  `pair_loop`,
+  `buffer_fref`,
+  `mod_select`,
+  `mod_rem_select`, and
+  `mod_accum`.
+- Validation passed on the clean worktree:
+  `centered_mod_abs_loop_sum.lua`,
+  `numeric_ops.lua`,
+  `git diff --check`, and object rebuild of `lj_record.o`/`lj_trace.o`.
+- The broad source audit moved from `23` to `19`.
+- Current remaining recorder-side surface is now:
+  `semantic_reducer_definition` `11` and
+  `semantic_reducer_dispatch` `8`.
