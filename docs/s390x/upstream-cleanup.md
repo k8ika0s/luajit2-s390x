@@ -1959,3 +1959,23 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
 - Debt moved:
   `semantic_reducer_definition` `13 -> 11` and
   `semantic_reducer_dispatch` `10 -> 8`.
+
+## 2026-04-22: const-i32-mod17 and numeric-prefix semantic reducers retired
+
+- Retired the last narrow arithmetic recorder-only semantic substitution
+  families from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_ffi_const_i32_mod17_loop_sum()` and
+  `lj_record_s390x_numeric_prefix_loop_accum4()`.
+- Removed the dead centered-mod17 support and prefix-table helpers that no
+  longer had any call sites after those two reducers were deleted.
+- Retained validation on the clean worktree:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`,
+  `./src/luajit tests/s390x/jit_be/centered_mod_abs_loop_sum.lua`, and
+  `./src/luajit tests/s390x/perf/numeric_ops.lua`.
+- The broad source audit moved from `19` to `16`.
+- Debt moved:
+  `semantic_reducer_definition` `11 -> 9` and
+  `semantic_reducer_dispatch` `8 -> 7`.

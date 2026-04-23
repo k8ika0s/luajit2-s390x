@@ -39476,3 +39476,30 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Current remaining recorder-side surface is now:
   `semantic_reducer_definition` `11` and
   `semantic_reducer_dispatch` `8`.
+
+## 2026-04-22: const-i32-mod17 and numeric-prefix recorder families removed
+
+- Removed `lj_record_s390x_ffi_const_i32_mod17_loop_sum()` and
+  `lj_record_s390x_numeric_prefix_loop_accum4()` from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  along with the matching dispatch path and their now-dead arithmetic support.
+- This closes the remaining “easy” arithmetic recorder bucket. What remains is
+  no longer small standalone numeric algebra; it is the harder FFI/component
+  and modulo-shape work:
+  `ffi_fixed_struct`,
+  `ffi_fixed_call_pressure`,
+  `component_loop`,
+  `mixed_width`,
+  `pair_loop`,
+  `buffer_fref`,
+  `mod_select`,
+  `mod_rem_select`, and
+  `mod_accum`.
+- Validation passed on the clean worktree:
+  `centered_mod_abs_loop_sum.lua`,
+  `numeric_ops.lua`,
+  `git diff --check`, and object rebuild of `lj_record.o`/`lj_trace.o`.
+- The broad source audit moved from `19` to `16`.
+- Current remaining recorder-side surface is now:
+  `semantic_reducer_definition` `9` and
+  `semantic_reducer_dispatch` `7`.
