@@ -2021,3 +2021,39 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
 - Debt moved:
   `semantic_reducer_definition` `6 -> 4` and
   `semantic_reducer_dispatch` `5 -> 4`.
+
+## 2026-04-22: remaining FFI cdata semantic reducers retired
+
+- Retired the last FFI-shaped recorder semantic substitutions from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_mixed_width_loop_sum()`,
+  `lj_record_s390x_pair_loop_sum()`, and
+  `lj_record_s390x_buffer_fref_loop_sum()`.
+- Removed the now-dead arithmetic and modulo-prefix support that existed only
+  for those three reducers. The only reducer-local helper block still left in
+  the recorder is the `component_loop` support.
+- Retained validation on the clean worktree:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`, and
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`.
+- The broad source audit moved from `8` to `2`.
+- Debt moved:
+  `semantic_reducer_definition` `4 -> 1` and
+  `semantic_reducer_dispatch` `4 -> 1`.
+- Remaining recorder semantic-reducer surface is now one family only:
+  `lj_record_s390x_component_loop_tail_sum()`.
+
+## 2026-04-22: component-loop semantic reducer retired
+
+- Retired the last remaining recorder semantic substitution from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_component_loop_tail_sum()`.
+- Removed the component-loop matcher, its private helper block, and the final
+  dispatch hook in `lj_record_ins()`. There is no semantic-reducer family left
+  in the recorder after this cut.
+- Retained validation on the clean worktree:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`, and
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`.
+- The broad source audit moved from `2` to `0`.
+- Semantic reducer debt is now fully retired from the source audit.
