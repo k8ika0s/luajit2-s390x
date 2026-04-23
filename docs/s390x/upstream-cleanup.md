@@ -1999,3 +1999,25 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
 - Debt moved:
   `semantic_reducer_definition` `9 -> 6` and
   `semantic_reducer_dispatch` `7 -> 5`.
+
+## 2026-04-22: fixed-struct and fixed-call-pressure FFI reducers retired
+
+- Retired the two isolated FFI recorder semantic substitutions from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_ffi_fixed_struct_loop_sum()` and
+  `lj_record_s390x_ffi_fixed_call_pressure_sum()`.
+- Removed their dedicated const-struct and fixed-call ABI support machinery,
+  and tightened the remaining helper scopes so non-s390x builds no longer
+  compile the reducer-only helper block.
+- Retained validation on the clean worktree:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`, and
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`.
+- The focused `ffi_fixed_struct_call_trace.lua` and
+  `ffi_fixed_call_pressure_trace.lua` checks are currently blocked locally
+  because `tests/s390x/ffi_abi/build/liboracle.so` is not present in this
+  worktree.
+- The broad source audit moved from `11` to `8`.
+- Debt moved:
+  `semantic_reducer_definition` `6 -> 4` and
+  `semantic_reducer_dispatch` `5 -> 4`.

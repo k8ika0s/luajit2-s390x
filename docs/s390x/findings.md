@@ -39529,3 +39529,24 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Current remaining recorder-side surface is now:
   `semantic_reducer_definition` `6` and
   `semantic_reducer_dispatch` `5`.
+
+## 2026-04-22: fixed-struct and fixed-call-pressure FFI families removed
+
+- Removed `lj_record_s390x_ffi_fixed_struct_loop_sum()` and
+  `lj_record_s390x_ffi_fixed_call_pressure_sum()` from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  together with the dedicated const-struct and fixed-call ABI support they
+  depended on.
+- Also tightened the remaining helper scopes so non-s390x builds do not keep
+  compiling reducer-only helper blocks that now belong solely to the remaining
+  component/FFI families.
+- Validation passed on the clean worktree:
+  `git diff --check`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`, and object rebuild of
+  `lj_record.o`/`lj_trace.o`.
+- Focused FFI trace checks are locally blocked until
+  `tests/s390x/ffi_abi/build/liboracle.so` is available again.
+- The broad source audit moved from `11` to `8`.
+- Current remaining recorder-side surface is now:
+  `semantic_reducer_definition` `4` and
+  `semantic_reducer_dispatch` `4`.
