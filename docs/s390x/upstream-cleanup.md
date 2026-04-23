@@ -1979,3 +1979,23 @@ band for all focused rows, so this cleanup was retained as behavior-neutral.
 - Debt moved:
   `semantic_reducer_definition` `11 -> 9` and
   `semantic_reducer_dispatch` `8 -> 7`.
+
+## 2026-04-22: modulo semantic reducers retired
+
+- Retired the remaining modulo-shaped recorder semantic substitutions from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c):
+  `lj_record_s390x_mod_select_loop_sum()`,
+  `lj_record_s390x_mod_rem_select_loop_sum()`, and
+  `lj_record_s390x_mod_accum_loop_sum()`.
+- Removed the private fit/cache scaffolding that existed only to support those
+  three reducers, while keeping the shared modulo prefix helpers that the
+  remaining mixed-width and buffer-fref lanes still use.
+- Retained validation on the clean worktree:
+  `git diff --check`,
+  `MACOSX_DEPLOYMENT_TARGET=14.0 make -C src lj_record.o lj_trace.o`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`, and
+  `./src/luajit tests/s390x/perf/numeric_ops.lua`.
+- The broad source audit moved from `16` to `11`.
+- Debt moved:
+  `semantic_reducer_definition` `9 -> 6` and
+  `semantic_reducer_dispatch` `7 -> 5`.

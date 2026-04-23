@@ -39503,3 +39503,29 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Current remaining recorder-side surface is now:
   `semantic_reducer_definition` `9` and
   `semantic_reducer_dispatch` `7`.
+
+## 2026-04-22: modulo recorder families removed
+
+- Removed `lj_record_s390x_mod_select_loop_sum()`,
+  `lj_record_s390x_mod_rem_select_loop_sum()`, and
+  `lj_record_s390x_mod_accum_loop_sum()` from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  along with their dispatch path and the private fit/cache helpers that only
+  existed for those three reducers.
+- This closes the dedicated modulo semantic-reducer bucket. The remaining
+  recorder surface is now only the harder FFI/component-shaped families:
+  `ffi_fixed_struct`,
+  `ffi_fixed_call_pressure`,
+  `component_loop`,
+  `mixed_width`,
+  `pair_loop`, and
+  `buffer_fref`.
+- Validation passed on the clean worktree:
+  `numeric_ops.lua`,
+  `git diff --check`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`, and object rebuild of
+  `lj_record.o`/`lj_trace.o`.
+- The broad source audit moved from `16` to `11`.
+- Current remaining recorder-side surface is now:
+  `semantic_reducer_definition` `6` and
+  `semantic_reducer_dispatch` `5`.
