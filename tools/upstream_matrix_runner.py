@@ -203,19 +203,30 @@ def build_snapshot_tar(paths: list[pathlib.Path], output_path: pathlib.Path) -> 
             tf.add(path, arcname=str(path.relative_to(ROOT)))
 
 
-def build_snapshot_tar_from_rev(rev: str, output_path: pathlib.Path) -> None:
-    with output_path.open("wb") as fh:
+def build_snapshot_tar_from_rev(rev: str, output_path: pathlib.Path, overlay_paths: list[pathlib.Path]) -> None:
+    with tarfile.open(output_path, "w") as tf:
         proc = subprocess.run(
             ["git", "archive", "--format=tar", rev],
             cwd=str(ROOT),
-            stdout=fh,
+            stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=False,
         )
-    if proc.returncode != 0:
-        raise RunnerError(
-            f"git archive failed for {rev}: {proc.stderr.decode('utf-8', errors='replace')}"
-        )
+        if proc.returncode != 0:
+            raise RunnerError(
+                f"git archive failed for {rev}: {proc.stderr.decode('utf-8', errors='replace')}"
+            )
+        with tempfile.NamedTemporaryFile() as tfh:
+            tfh.write(proc.stdout)
+            tfh.flush()
+            with tarfile.open(tfh.name, "r:") as archive:
+                for member in archive.getmembers():
+                    extracted = archive.extractfile(member) if member.isfile() else None
+                    tf.addfile(member, extracted)
+        for path in overlay_paths:
+            if not path.exists():
+                raise RunnerError(f"overlay path missing for git-rev snapshot: {path}")
+            tf.add(path, arcname=str(path.relative_to(ROOT)))
 
 
 def detect_target_info_local() -> dict[str, str]:
@@ -893,16 +904,17 @@ def orchestrate_run(
         raise RunnerError(f"target artifact dir already exists: {target_dir}")
     target_dir.mkdir(parents=True, exist_ok=False)
 
-    snapshot_tar = output_root / f"{target_label}.tar"
-    if git_rev:
-        build_snapshot_tar_from_rev(git_rev, snapshot_tar)
-    else:
-        snapshot_paths = git_snapshot_paths()
-        build_snapshot_tar(snapshot_paths, snapshot_tar)
     try:
         matrix_rel = matrix_path.resolve().relative_to(ROOT.resolve())
     except ValueError as exc:
         raise RunnerError(f"matrix path must live under repo root: {matrix_path}") from exc
+
+    snapshot_tar = output_root / f"{target_label}.tar"
+    if git_rev:
+        build_snapshot_tar_from_rev(git_rev, snapshot_tar, [ROOT / "tools" / "upstream_matrix_runner.py", ROOT / matrix_rel])
+    else:
+        snapshot_paths = git_snapshot_paths()
+        build_snapshot_tar(snapshot_paths, snapshot_tar)
 
     workspace_name = f"luajit-upstream-matrix-{output_root.name}-{target_label}"
     if host:
