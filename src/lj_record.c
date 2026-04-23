@@ -505,7 +505,9 @@ typedef enum {
 
 static int lj_record_s390x_stop_log_enabled(void);
 static void lj_record_s390x_ir_log(jit_State *J, TraceLink linktype, TraceNo lnk);
+#if LJ_TARGET_S390X
 static int lj_record_s390x_mark_nil_desc_done_enabled(void);
+#endif
 static int lj_record_s390x_fori_arg_log_enabled(void);
 static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 
@@ -1146,11 +1148,6 @@ static int lj_record_s390x_stop_log_enabled(void)
   return enabled;
 }
 
-static int lj_record_s390x_recloop_focus_enabled(void)
-{
-  return 0;
-}
-
 static int lj_record_s390x_no_extra_loop_cont_stub_enabled(void)
 {
   return 0;
@@ -1185,6 +1182,12 @@ static void lj_record_s390x_ir_log(jit_State *J, TraceLink linktype, TraceNo lnk
 	    (int)ir->r, (int)ir->s);
   }
   fprintf(stderr, "S390X_RECIR_END trace=%u\n", (unsigned int)J->cur.traceno);
+}
+
+#if LJ_TARGET_S390X
+static int lj_record_s390x_recloop_focus_enabled(void)
+{
+  return 0;
 }
 
 static void lj_record_s390x_loopslot_log(jit_State *J, const char *site)
@@ -1224,11 +1227,6 @@ static int lj_record_s390x_root_itern_nil_desc_enabled(void)
   return 0;
 }
 
-static int lj_record_s390x_itern_hash_payload_enabled(void)
-{
-  return LJ_TARGET_S390X;
-}
-
 static int lj_record_s390x_mark_nil_desc_done_enabled(void)
 {
   return 0;
@@ -1239,17 +1237,23 @@ static int lj_record_s390x_skip_nil_desc_done_enabled(void)
   return 0;
 }
 
-static int lj_record_s390x_retry_first_array_exit_enabled(void)
-{
-  return 0;
-}
-
 static int lj_record_s390x_retry_first_array_exit_limit(void)
 {
   return 5;
 }
 
 static int lj_record_s390x_looplink_payload_desc_enabled(void)
+{
+  return 0;
+}
+#endif
+
+static int lj_record_s390x_itern_hash_payload_enabled(void)
+{
+  return LJ_TARGET_S390X;
+}
+
+static int lj_record_s390x_retry_first_array_exit_enabled(void)
 {
   return 0;
 }
@@ -1596,18 +1600,16 @@ static int lj_record_s390x_root_forl_array_snapshot_defer(jit_State *J)
 #endif
 }
 
+#if LJ_TARGET_S390X
 static TRef lj_record_s390x_snapshot_keepalive(jit_State *J, TRef tr)
 {
-#if LJ_TARGET_S390X
   if (tref_isinteger(tr))
     return emitir(IRTI(IR_ADD), tr, lj_ir_kint(J, 0));
   if (tref_isnumber(tr))
     return emitir(IRTN(IR_ADD), tr, lj_ir_knum_zero(J));
-#else
-  UNUSED(J);
-#endif
   return tr;
 }
+#endif
 
 static void lj_record_s390x_root_forl_array_snapshot_preload(jit_State *J,
 							     const ScEvEntry *scev)
@@ -2287,7 +2289,9 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     J->base[ra+1] = ix.val;
   lj_record_s390x_itern_focus_log(J, "after_next", ra, &ix, nextt, keyflags);
   if (!tref_isnil(ix.key) || s390x_hash_payload) {  /* Looping back? */
+#if LJ_TARGET_S390X
     const BCIns *oldpc = J->pc;
+#endif
     if (lj_record_s390x_retry_first_array_exit_enabled() &&
 	J->parent == 4 && J->exitno == 1 &&
 	(keyflags & IRSLOAD_KIDX_NUMKEY)) {
