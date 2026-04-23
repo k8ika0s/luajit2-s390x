@@ -2316,13 +2316,13 @@ static void trace_start(jit_State *J)
     J->state = LJ_TRACE_IDLE;
     return;
   }
-  if (J->parent >= 3) {
-    GCtrace *parent = traceref(J, J->parent);
-    if (parent != NULL && parent->root != 0) {
-      /* Deep child traces still corrupt loop state on s390x. */
-      J->state = LJ_TRACE_IDLE;
-      return;
-    }
+  if (J->parent != 0) {
+    /* Child/stitch traces are still not correctness-stable on s390x. Keep
+    ** execution on validated roots plus interpreter exits until that path is
+    ** fixed end-to-end.
+    */
+    J->state = LJ_TRACE_IDLE;
+    return;
   }
 #endif
 

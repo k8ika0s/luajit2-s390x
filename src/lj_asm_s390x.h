@@ -5091,8 +5091,57 @@ static void asm_abs(ASMState *as, IRIns *ir)
   emit_u32(as, S390X_INS_RXE(S390XI_LPDBR, dest, left));
 }
 
+static int asm_s390x_fpdiv_same_conv_addk_sched(ASMState *as, IRIns *ir)
+{
+  IRIns *numadd, *denadd, *conv;
+  IRRef ref = (IRRef)(ir - as->ir);
+  Reg dest, den, idx, nk, dk;
+  RegSet allow;
+  if (irref_isk(ir->op1) || irref_isk(ir->op2) ||
+      !mayfuse(as, ir->op1) || !mayfuse(as, ir->op2) ||
+      ir + 3 >= IR(as->orignins) ||
+      (ir + 1)->o != IR_ADD || !irt_isnum((ir + 1)->t) ||
+      (ir + 1)->op1 != ref ||
+      (ir + 2)->o != IR_ADD || !irt_isinteger((ir + 2)->t) ||
+      !irref_isk((ir + 2)->op2) ||
+      IR((ir + 2)->op2)->o != IR_KINT || IR((ir + 2)->op2)->i != 1 ||
+      (ir + 3)->o != IR_LE || !irt_isguard((ir + 3)->t) ||
+      (ir + 3)->op1 != (IRRef)(ref + 2))
+    return 0;
+  numadd = IR(ir->op1);
+  denadd = IR(ir->op2);
+  if (numadd->o != IR_ADD || denadd->o != IR_ADD ||
+      !irt_isnum(numadd->t) || !irt_isnum(denadd->t) ||
+      irref_isk(numadd->op1) || numadd->op1 != denadd->op1 ||
+      !irref_isk(numadd->op2) || !irref_isk(denadd->op2) ||
+      !mayfuse(as, numadd->op1))
+    return 0;
+  conv = IR(numadd->op1);
+  if (conv->o != IR_CONV || !irt_isnum(conv->t) ||
+      (IRType)(conv->op2 & IRCONV_SRCMASK) != IRT_INT ||
+      irref_isk(conv->op1) || (ir + 2)->op1 != conv->op1)
+    return 0;
+
+  dest = ra_dest(as, ir, RSET_FPR);
+  den = ra_scratch(as, rset_exclude(RSET_FPR, dest));
+  allow = rset_exclude(rset_exclude(RSET_FPR, dest), den);
+  nk = ra_alloc1(as, numadd->op2, allow);
+  dk = ra_alloc1(as, denadd->op2, rset_exclude(allow, nk));
+  idx = ra_alloc1_nobase(as, conv->op1, RSET_GPR_NOB, -287);
+  as->curins -= 3;
+  emit_u32(as, S390X_INS_RXE(S390XI_DDBR, dest, den));
+  emit_u32(as, S390X_INS_RXE(S390XI_ADBR, den, dk));
+  emit_u32(as, S390X_INS_RXE(S390XI_ADBR, dest, nk));
+  emit_movrr(as, ir, den, dest);
+  emit_u32(as, S390X_INS_RI(S390XI_AGHI, idx, 1));
+  emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, idx));
+  return 1;
+}
+
 static void asm_fpdiv(ASMState *as, IRIns *ir)
 {
+  if (asm_s390x_fpdiv_same_conv_addk_sched(as, ir))
+    return;
   Reg dest = ra_dest(as, ir, RSET_FPR);
   Reg lr = ra_alloc2(as, ir, RSET_FPR);
   Reg left = lr & 255;
