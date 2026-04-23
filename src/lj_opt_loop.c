@@ -337,12 +337,6 @@ static int loop_s390x_kint_ref(jit_State *J, IRRef ref, int32_t *kp)
 static int loop_s390x_mod_scev_inc(jit_State *J, IRIns *ir, int32_t *kp,
 				   int32_t *shiftp)
 {
-  /* The s390x modulo recurrence rewrite is currently unsound for reused
-  ** traces. Keep the generic loop form until the recurrence proof is fixed.
-  */
-  UNUSED(J); UNUSED(ir); UNUSED(kp); UNUSED(shiftp);
-  return 0;
-#if 0
   int64_t ofs;
   int32_t k;
   int32_t start, step;
@@ -366,7 +360,6 @@ static int loop_s390x_mod_scev_inc(jit_State *J, IRIns *ir, int32_t *kp,
   *kp = k;
   *shiftp = shift;
   return 1;
-#endif
 }
 
 static IRRef loop_s390x_emit_mod_step(jit_State *J, IRRef remref,

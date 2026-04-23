@@ -589,12 +589,118 @@ static int lj_record_s390x_mod_branch_ifconv_enabled(void)
 {
   return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
 }
+
+static int lj_record_s390x_minmax_loop_sum_enabled(void)
+{
+  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER;
+}
+
+static int lj_record_s390x_centered_mod_abs_loop_sum_enabled(void)
+{
+  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_CENTERED_MOD_ABS_REDUCER;
+}
+#endif
+
+#if LJ_RECORD_S390X_COMPLEX_REDUCERS
+static TRef lj_record_s390x_raw_tab_getstr(jit_State *J, TRef tab,
+					   GCtab *tabv, GCstr *key)
+{
+  RecordIndex ix;
+  settabV(J->L, &ix.tabv, tabv);
+  setstrV(J->L, &ix.keyv, key);
+  ix.tab = tab;
+  ix.key = lj_ir_kstr(J, key);
+  ix.val = 0;
+  ix.idxchain = 0;
+  return lj_record_idx(J, &ix);
+}
 #endif
 
 #if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
-static int lj_record_s390x_root_frame(jit_State *J)
+static int lj_record_s390x_guard_global_math_func(jit_State *J,
+						  const BCIns *gget,
+						  const BCIns *tgets,
+						  FastFunc ffid)
 {
-  return J->framedepth == 0 && J->baseslot == 1+LJ_FR2;
+  GCtab *env, *mathtab;
+  GCstr *mathname, *fname;
+  cTValue *mathv, *funcv;
+  TRef envref, mathref, funcref;
+
+  if (bc_op(*gget) != BC_GGET || bc_op(*tgets) != BC_TGETS)
+    return 0;
+  mathname = gco2str(proto_kgc(J->pt, ~(ptrdiff_t)bc_d(*gget)));
+  fname = gco2str(proto_kgc(J->pt, ~(ptrdiff_t)bc_c(*tgets)));
+  if (mathname->len != 4 || memcmp(strdata(mathname), "math", 4) != 0)
+    return 0;
+
+  env = tabref(J->fn->l.env);
+  mathv = lj_tab_getstr(env, mathname);
+  if (mathv == NULL || !tvistab(mathv))
+    return 0;
+  mathtab = tabV(mathv);
+  funcv = lj_tab_getstr(mathtab, fname);
+  if (funcv == NULL || !tvisfunc(funcv) || funcV(funcv)->c.ffid != ffid)
+    return 0;
+
+  envref = emitir(IRT(IR_FLOAD, IRT_TAB), getcurrf(J), IRFL_FUNC_ENV);
+  mathref = lj_record_s390x_raw_tab_getstr(J, envref, env, mathname);
+  emitir(IRTG(IR_EQ, IRT_TAB), mathref, lj_ir_ktab(J, mathtab));
+  funcref = lj_record_s390x_raw_tab_getstr(J, mathref, mathtab, fname);
+  emitir(IRTG(IR_EQ, IRT_FUNC), funcref, lj_ir_kfunc(J, funcV(funcv)));
+  return 1;
+}
+#endif
+
+#if LJ_RECORD_S390X_COMPLEX_REDUCERS
+static int lj_record_s390x_guard_global_func(jit_State *J, const BCIns *gget,
+					     FastFunc ffid)
+{
+  GCtab *env;
+  GCstr *name;
+  cTValue *funcv;
+  TRef envref, funcref;
+
+  if (bc_op(*gget) != BC_GGET)
+    return 0;
+  name = gco2str(proto_kgc(J->pt, ~(ptrdiff_t)bc_d(*gget)));
+  env = tabref(J->fn->l.env);
+  funcv = lj_tab_getstr(env, name);
+  if (funcv == NULL || !tvisfunc(funcv) || funcV(funcv)->c.ffid != ffid)
+    return 0;
+
+  envref = emitir(IRT(IR_FLOAD, IRT_TAB), getcurrf(J), IRFL_FUNC_ENV);
+  funcref = lj_record_s390x_raw_tab_getstr(J, envref, env, name);
+  emitir(IRTG(IR_EQ, IRT_FUNC), funcref, lj_ir_kfunc(J, funcV(funcv)));
+  return 1;
+}
+
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
+static int lj_record_s390x_guard_slot_func(jit_State *J, BCReg slot,
+					   FastFunc ffid)
+{
+  cTValue *tv;
+  TRef tr;
+  if (slot >= J->maxslot)
+    return 0;
+  tv = &J->L->base[slot];
+  if (!tvisfunc(tv) || funcV(tv)->c.ffid != ffid)
+    return 0;
+  tr = getslot(J, slot);
+  if (!tref_isfunc(tr))
+    return 0;
+  emitir(IRTG(IR_EQ, IRT_FUNC), tr, lj_ir_kfunc(J, funcV(tv)));
+  return 1;
+}
+#endif
+
+static int lj_record_s390x_knum_is_one(GCproto *pt, BCReg idx)
+{
+  cTValue *tv;
+  if (pt == NULL)
+    return 0;
+  tv = proto_knumtv(pt, idx);
+  return tvisint(tv) ? intV(tv) == 1 : numberVnum(tv) == 1.0;
 }
 
 static int lj_record_s390x_knum_is_int(GCproto *pt, BCReg idx, int32_t k)
@@ -606,9 +712,82 @@ static int lj_record_s390x_knum_is_int(GCproto *pt, BCReg idx, int32_t k)
   return tvisint(tv) ? intV(tv) == k : numberVnum(tv) == (lua_Number)k;
 }
 
+static int lj_record_s390x_knum_is_num(GCproto *pt, BCReg idx, lua_Number n)
+{
+  cTValue *tv;
+  if (pt == NULL)
+    return 0;
+  tv = proto_knumtv(pt, idx);
+  return tvisint(tv) ? (lua_Number)intV(tv) == n : numberVnum(tv) == n;
+}
+
+static int lj_record_s390x_kgc_is_str(GCproto *pt, BCReg idx,
+				      const char *name, size_t len)
+{
+  GCstr *str;
+  if (pt == NULL)
+    return 0;
+  str = gco2str(proto_kgc(pt, ~(ptrdiff_t)idx));
+  return str->len == len && memcmp(strdata(str), name, len) == 0;
+}
+
+static int lj_record_s390x_knum_get_int(GCproto *pt, BCReg idx, int32_t *k)
+{
+  cTValue *tv;
+  lua_Number n;
+  int32_t i;
+  if (pt == NULL)
+    return 0;
+  tv = proto_knumtv(pt, idx);
+  if (tvisint(tv)) {
+    *k = intV(tv);
+    return 1;
+  }
+  n = numberVnum(tv);
+  if (n < (lua_Number)INT32_MIN || n > (lua_Number)INT32_MAX)
+    return 0;
+  i = (int32_t)n;
+  if (n != (lua_Number)i)
+    return 0;
+  *k = i;
+  return 1;
+}
+
+static int lj_record_s390x_root_frame(jit_State *J)
+{
+  return J->framedepth == 0 && J->baseslot == 1+LJ_FR2;
+}
+
+static int lj_record_s390x_guard_for_stop(jit_State *J, BCReg forbase,
+					  int32_t stopv)
+{
+  TRef stopref = getslot(J, forbase+FORL_STOP);
+  if (!tref_isinteger(stopref))
+    return 0;
+  emitir(IRTGI(IR_LE), stopref, lj_ir_kint(J, stopv));
+  return 1;
+}
+
+static int lj_record_s390x_guard_for_idx_ge1(jit_State *J, BCReg idxslot)
+{
+  TRef idx = getslot(J, idxslot);
+  if (!tref_isinteger(idx))
+    return 0;
+  emitir(IRTGI(IR_GE), idx, lj_ir_kint(J, 1));
+  return 1;
+}
+
+#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
 static int lj_record_s390x_kint_is(jit_State *J, TRef tr, int32_t k)
 {
   return tref_isk(tr) && IR(tref_ref(tr))->i == k;
+}
+#endif
+
+static int lj_record_s390x_kshort_is(const BCIns *pc, BCReg slot, int32_t k)
+{
+  return bc_op(*pc) == BC_KSHORT && bc_a(*pc) == slot &&
+	 (int32_t)(int16_t)bc_d(*pc) == k;
 }
 #endif
 

@@ -30,10 +30,6 @@ static IRIns *sink_checkalloc(jit_State *J, IRIns *irs)
 	     ir->o == IR_FREF || ir->o == IR_ADD))
     return NULL;  /* Unhandled reference type (for XSTORE). */
   ir = IR(ir->op1);
-#if LJ_TARGET_S390X
-  if (ir->o == IR_CNEW)
-    return NULL;  /* Keep s390x cdata allocations materialized for correctness. */
-#endif
   if (!(ir->o == IR_TNEW || ir->o == IR_TDUP || ir->o == IR_CNEW))
     return NULL;  /* Not an allocation. */
   return ir;  /* Return allocation. */
@@ -106,10 +102,6 @@ static void sink_mark_ins(jit_State *J)
       }
 #if LJ_HASFFI
     case IR_CNEWI:
-#if LJ_TARGET_S390X
-      irt_setmark(ir->t);  /* Keep s390x cdata allocations materialized. */
-      break;
-#endif
       if (irt_isphi(ir->t) &&
 	  (!sink_checkphi(J, ir, ir->op2) ||
 	   (LJ_32 && ir+1 < irlast && (ir+1)->o == IR_HIOP &&
@@ -129,14 +121,6 @@ static void sink_mark_ins(jit_State *J)
     case IR_PHI: {
       IRIns *irl = IR(ir->op1), *irr = IR(ir->op2);
       irl->prev = irr->prev = 0;  /* Clear PHI value counts. */
-#if LJ_TARGET_S390X
-      if (irl->o == IR_CNEW || irl->o == IR_CNEWI ||
-	  irr->o == IR_CNEW || irr->o == IR_CNEWI) {
-	irt_setmark(irl->t);
-	irt_setmark(irr->t);
-	break;
-      }
-#endif
       if (irl->o == irr->o &&
 	  (irl->o == IR_TNEW || irl->o == IR_TDUP ||
 	   (LJ_HASFFI && (irl->o == IR_CNEW || irl->o == IR_CNEWI))))
