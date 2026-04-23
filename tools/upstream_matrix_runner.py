@@ -120,6 +120,7 @@ class Variant:
     jit: str
     ffi: str
     build_style: str
+    env: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
 def now_utc() -> str:
@@ -200,6 +201,21 @@ def build_snapshot_tar(paths: list[pathlib.Path], output_path: pathlib.Path) -> 
             if not path.exists():
                 continue
             tf.add(path, arcname=str(path.relative_to(ROOT)))
+
+
+def build_snapshot_tar_from_rev(rev: str, output_path: pathlib.Path) -> None:
+    with output_path.open("wb") as fh:
+        proc = subprocess.run(
+            ["git", "archive", "--format=tar", rev],
+            cwd=str(ROOT),
+            stdout=fh,
+            stderr=subprocess.PIPE,
+            text=False,
+        )
+    if proc.returncode != 0:
+        raise RunnerError(
+            f"git archive failed for {rev}: {proc.stderr.decode('utf-8', errors='replace')}"
+        )
 
 
 def detect_target_info_local() -> dict[str, str]:
@@ -298,6 +314,12 @@ def sanitized_build_env() -> dict[str, str]:
         if key.startswith("TARGET_") or key in SCRUBBED_BUILD_ENV_KEYS:
             env.pop(key, None)
     return env
+
+
+def variant_step_env(base_env: dict[str, str], variant: Variant) -> dict[str, str]:
+    merged = dict(base_env)
+    merged.update(variant.env or {})
+    return merged
 
 
 def build_selection_command(variant: Variant, expected_ljarch: str | None) -> str:
@@ -629,6 +651,7 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
     build_status: dict[str, dict[str, Any]] = {}
     build_root = output_dir / "builds"
     for variant in all_variants:
+        step_variant_env = variant_step_env(step_env, variant)
         variant_dir = build_root / variant.id
         stdout_path = variant_dir / "stdout.log"
         stderr_path = variant_dir / "stderr.log"
@@ -639,7 +662,7 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
             stdout_path=stdout_path,
             stderr_path=stderr_path,
             timeout_sec=BUILD_TIMEOUT_SEC,
-            env=step_env,
+            env=step_variant_env,
         )
         build_status[variant.id] = {
             "variant": dataclasses.asdict(variant),
@@ -685,7 +708,7 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
                 stdout_path=step_stdout,
                 stderr_path=step_stderr,
                 timeout_sec=VALIDATION_TIMEOUT_SEC,
-                env=step_env,
+                env=step_variant_env,
             )
             result["status"] = "passed" if step_exit == 0 else ("timeout" if step_timed_out else "failed")
             result["exit_code"] = step_exit
@@ -738,7 +761,7 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
                 stdout_path=step_stdout,
                 stderr_path=step_stderr,
                 timeout_sec=PERFORMANCE_TIMEOUT_SEC,
-                env=step_env,
+                env=step_variant_env,
             )
             if step_exit != 0:
                 perf_rows.append(
@@ -857,16 +880,29 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
     return 0 if not failures else 1
 
 
-def orchestrate_run(host: str | None, target_label: str, output_root: pathlib.Path) -> int:
+def orchestrate_run(
+    host: str | None,
+    target_label: str,
+    output_root: pathlib.Path,
+    matrix_path: pathlib.Path,
+    git_rev: str | None,
+) -> int:
     output_root.mkdir(parents=True, exist_ok=True)
     target_dir = output_root / "targets" / target_label
     if target_dir.exists():
         raise RunnerError(f"target artifact dir already exists: {target_dir}")
     target_dir.mkdir(parents=True, exist_ok=False)
 
-    snapshot_paths = git_snapshot_paths()
     snapshot_tar = output_root / f"{target_label}.tar"
-    build_snapshot_tar(snapshot_paths, snapshot_tar)
+    if git_rev:
+        build_snapshot_tar_from_rev(git_rev, snapshot_tar)
+    else:
+        snapshot_paths = git_snapshot_paths()
+        build_snapshot_tar(snapshot_paths, snapshot_tar)
+    try:
+        matrix_rel = matrix_path.resolve().relative_to(ROOT.resolve())
+    except ValueError as exc:
+        raise RunnerError(f"matrix path must live under repo root: {matrix_path}") from exc
 
     workspace_name = f"luajit-upstream-matrix-{output_root.name}-{target_label}"
     if host:
@@ -884,7 +920,7 @@ def orchestrate_run(host: str | None, target_label: str, output_root: pathlib.Pa
         exec_cmd = (
             f"cd {shlex.quote(remote_workspace)} && "
             "python3 tools/upstream_matrix_runner.py execute-target "
-            f"--matrix {shlex.quote('tests/matrix/upstream_validation_perf_matrix.json')} "
+            f"--matrix {shlex.quote(str(matrix_rel))} "
             f"--output-dir {shlex.quote('.matrix-output')} "
             f"--target-label {shlex.quote(target_label)}"
         )
@@ -923,7 +959,7 @@ def orchestrate_run(host: str | None, target_label: str, output_root: pathlib.Pa
                 "tools/upstream_matrix_runner.py",
                 "execute-target",
                 "--matrix",
-                "tests/matrix/upstream_validation_perf_matrix.json",
+                str(matrix_rel),
                 "--output-dir",
                 ".matrix-output",
                 "--target-label",
@@ -955,9 +991,11 @@ def parse_args() -> argparse.Namespace:
     run_target.add_argument("--target-label", required=True)
     run_target.add_argument("--host")
     run_target.add_argument("--output-root", type=pathlib.Path, required=True)
+    run_target.add_argument("--matrix", type=pathlib.Path, default=MATRIX_FILE)
+    run_target.add_argument("--git-rev")
 
     exec_target = sub.add_parser("execute-target")
-    exec_target.add_argument("--matrix", type=pathlib.Path, required=True)
+    exec_target.add_argument("--matrix", type=pathlib.Path, default=MATRIX_FILE)
     exec_target.add_argument("--output-dir", type=pathlib.Path, required=True)
     exec_target.add_argument("--target-label", required=True)
 
@@ -968,7 +1006,7 @@ def main() -> int:
     args = parse_args()
     if args.cmd == "execute-target":
         return execute_target(args.matrix, args.output_dir, args.target_label)
-    return orchestrate_run(args.host, args.target_label, args.output_root)
+    return orchestrate_run(args.host, args.target_label, args.output_root, args.matrix, args.git_rev)
 
 
 if __name__ == "__main__":
