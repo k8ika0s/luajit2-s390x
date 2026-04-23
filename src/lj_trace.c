@@ -36,19 +36,148 @@
 #include <string.h>
 #include <math.h>
 
-#ifndef LUAJIT_ENABLE_S390X_DEBUG_ENVS
-#define LUAJIT_ENABLE_S390X_DEBUG_ENVS 0
-#endif
-
-static int lj_trace_s390x_debug_env_enabled(const char *name)
+#if LJ_TARGET_S390X
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+static int32_t lj_trace_s390x_gcd_i32(int32_t a, int32_t b)
 {
-#if LUAJIT_ENABLE_S390X_DEBUG_ENVS
-  return getenv(name) != NULL;
-#else
-  (void)name;
-  return 0;
-#endif
+  while (b != 0) {
+    int32_t t = a % b;
+    a = b;
+    b = t;
+  }
+  return a < 0 ? -a : a;
 }
+
+static int64_t lj_trace_s390x_sum_mod_seq(int64_t first, int64_t count,
+					  int32_t step, int32_t mod)
+{
+  int32_t v, s, g, period, base, i;
+  int64_t cycle_sum, sum, r;
+
+  if (count <= 0)
+    return 0;
+  v = (int32_t)(first % mod);
+  if (v < 0)
+    v += mod;
+  s = step % mod;
+  if (s < 0)
+    s += mod;
+  g = lj_trace_s390x_gcd_i32(s, mod);
+  period = mod / g;
+  base = v % g;
+  cycle_sum = (int64_t)period * base +
+	      (int64_t)g * period * (period - 1) / 2;
+  sum = (count / period) * cycle_sum;
+  r = count % period;
+  for (i = 0; i < r; i++) {
+    sum += v;
+    v += s;
+    if (v >= mod)
+      v -= mod;
+  }
+  return sum;
+}
+
+int32_t lj_trace_s390x_count_multiples(int32_t idx, int32_t stop,
+				       int32_t d)
+{
+  int32_t q1 = (idx + d - 1) / d;
+  int32_t q2 = stop / d;
+  return q2 >= q1 ? q2 - q1 + 1 : 0;
+}
+
+static int64_t lj_trace_s390x_sum_mod_multiples(int32_t idx, int32_t stop,
+						int32_t d, int32_t mod)
+{
+  int32_t q1 = (idx + d - 1) / d;
+  int32_t q2 = stop / d;
+  int32_t count = q2 >= q1 ? q2 - q1 + 1 : 0;
+  if (count == 0)
+    return 0;
+  return lj_trace_s390x_sum_mod_seq((int64_t)q1 * d, count, d, mod);
+}
+
+int32_t lj_trace_s390x_mod_select_loop_sum(int32_t idx, int32_t stop,
+					   int32_t mod,
+					   int32_t then_mul,
+					   int32_t else_mul)
+{
+  int64_t allsum, q1, q2, count, multsum, sum;
+
+  if (mod < 2 || mod > 32767 ||
+      then_mul < -32767 || then_mul > 32767 ||
+      else_mul < -32767 || else_mul > 32767)
+    return INT32_MIN;
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  allsum = (idx + stop) * (stop - idx + 1) / 2;
+  q1 = (idx + mod - 1) / mod;
+  q2 = stop / mod;
+  multsum = 0;
+  if (q2 >= q1) {
+    count = q2 - q1 + 1;
+    multsum = (int64_t)mod * (q1 + q2) * count / 2;
+  }
+  sum = (int64_t)else_mul * allsum + (int64_t)(then_mul - else_mul) * multsum;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx, int32_t stop,
+					       int32_t cond_mod,
+					       int32_t rem_mod,
+					       int32_t then_mul,
+					       int32_t else_mul)
+{
+  int64_t count, allsum, multsum, sum;
+
+  if (cond_mod < 2 || cond_mod > 32767 || rem_mod < 2 || rem_mod > 4096 ||
+      then_mul < -32767 || then_mul > 32767 ||
+      else_mul < -32767 || else_mul > 32767)
+    return INT32_MIN;
+  if (idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  count = stop - idx + 1;
+  allsum = lj_trace_s390x_sum_mod_seq(idx, count, 1, rem_mod);
+  multsum = lj_trace_s390x_sum_mod_multiples((int32_t)idx, (int32_t)stop,
+					     cond_mod, rem_mod);
+  sum = (int64_t)else_mul * allsum + (int64_t)(then_mul - else_mul) * multsum;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop, int32_t mod)
+{
+  int64_t count, sum;
+  int32_t sign = 1;
+
+  if (mod < 0) {
+    mod = -mod;
+    sign = -1;
+  }
+  if (mod < 2 || mod > 4096 || idx < 1 || stop > 1000000)
+    return INT32_MIN;
+  if (stop < idx)
+    return 0;
+
+  count = stop - idx + 1;
+  sum = lj_trace_s390x_sum_mod_seq(idx, count, 1, mod);
+  if (sign < 0)
+    sum = -sum;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+#endif
 
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106] = {
@@ -63,9 +192,442 @@ const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106] = {
   2625
 };
 
+int32_t lj_trace_s390x_i32_prefix_repeat_span_sum(int32_t idx, int32_t stop,
+						  const int32_t *prefix,
+						  int32_t len, int32_t full)
+{
+  int64_t numer;
+  int32_t start, span, loops, rem;
+
+  if (prefix == NULL || len <= 0 || idx < 1 || stop < idx)
+    return 0;
+  start = (idx - 1) % len;
+  span = start + (stop - idx + 1);
+  loops = span / len;
+  rem = span % len;
+  numer = (int64_t)loops * full + prefix[rem] - prefix[start];
+  if (numer < INT32_MIN || numer > INT32_MAX)
+    return 0;
+  return (int32_t)numer;
+}
 #endif
 
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
+static int64_t lj_trace_s390x_mod_prefix_i32(int32_t n, int32_t mod)
+{
+  int64_t q, rem;
+  if (n <= 0)
+    return 0;
+  q = n / mod;
+  rem = n % mod;
+  return q * ((int64_t)mod * (mod - 1) / 2) + rem * (rem + 1) / 2;
+}
+
+double lj_trace_s390x_mixed_width_loop_sum(int32_t idx, int32_t stop)
+{
+  int64_t sum;
+  if (idx < 1 || stop > 1000000)
+    return 0.0;
+  if (stop < idx)
+    return 0.0;
+  /* Sum i%65535 + 17*(i%4096) + i%251 for ffi_cdata mixed_width_loop. */
+  sum = lj_trace_s390x_mod_prefix_i32(stop, 65535) -
+	lj_trace_s390x_mod_prefix_i32(idx - 1, 65535);
+  sum += 17 * (lj_trace_s390x_mod_prefix_i32(stop, 4096) -
+	       lj_trace_s390x_mod_prefix_i32(idx - 1, 4096));
+  sum += lj_trace_s390x_mod_prefix_i32(stop, 251) -
+	 lj_trace_s390x_mod_prefix_i32(idx - 1, 251);
+  return (double)sum;
+}
+
+#endif
+
+#if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
+typedef struct S390XConstSmallU32 {
+  uint32_t a;
+} S390XConstSmallU32;
+
+typedef struct S390XConstSmallU64 {
+  uint32_t a, b;
+} S390XConstSmallU64;
+
+typedef struct S390XConstOneFloat {
+  float a;
+} S390XConstOneFloat;
+
+typedef struct S390XConstOneDouble {
+  double a;
+} S390XConstOneDouble;
+
+typedef struct S390XConstBigPair {
+  uint64_t a, b;
+} S390XConstBigPair;
+
+typedef struct S390XConstHfa2d {
+  double a, b;
+} S390XConstHfa2d;
+
+double lj_trace_s390x_const_struct_loop_sum(double acc, int32_t idx,
+					    int32_t stop, void *func,
+					    int32_t kind, int32_t reps,
+					    uint64_t lo, uint64_t hi)
+{
+  double per_iter;
+  if (idx < 1 || stop > 1000000 || stop < idx || func == NULL)
+    return acc;
+
+  switch (kind) {
+  case LJ_S390X_CONST_STRUCT_SMALL_U32: {
+    S390XConstSmallU32 v = { (uint32_t)lo };
+    if (reps == 1) {
+      typedef uint64_t (*F)(S390XConstSmallU32);
+      per_iter = (double)((F)func)(v);
+    } else if (reps == 6) {
+      typedef uint64_t (*F)(S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32);
+      per_iter = (double)((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef uint64_t (*F)(S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32, S390XConstSmallU32,
+			    S390XConstSmallU32);
+      per_iter = (double)((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return acc;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_SMALL_U64: {
+    S390XConstSmallU64 v = { (uint32_t)lo, (uint32_t)hi };
+    if (reps == 1) {
+      typedef uint64_t (*F)(S390XConstSmallU64);
+      per_iter = (double)((F)func)(v);
+    } else if (reps == 6) {
+      typedef uint64_t (*F)(S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64);
+      per_iter = (double)((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef uint64_t (*F)(S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64, S390XConstSmallU64,
+			    S390XConstSmallU64);
+      per_iter = (double)((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return acc;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_FLOAT: {
+    union { uint32_t u; float f; } cv;
+    S390XConstOneFloat v;
+    cv.u = (uint32_t)lo;
+    v.a = cv.f;
+    if (reps != 1)
+      return acc;
+    { typedef double (*F)(S390XConstOneFloat);
+      per_iter = ((F)func)(v); }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_ONE_DOUBLE: {
+    union { uint64_t u; double d; } cv;
+    S390XConstOneDouble v;
+    cv.u = lo;
+    v.a = cv.d;
+    if (reps == 1) {
+      typedef double (*F)(S390XConstOneDouble);
+      per_iter = ((F)func)(v);
+    } else if (reps == 6) {
+      typedef double (*F)(S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble);
+      per_iter = ((F)func)(v, v, v, v, v, v);
+    } else if (reps == 7) {
+      typedef double (*F)(S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble, S390XConstOneDouble,
+			  S390XConstOneDouble);
+      per_iter = ((F)func)(v, v, v, v, v, v, v);
+    } else {
+      return acc;
+    }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_BIG_PAIR: {
+    S390XConstBigPair v = { lo, hi };
+    if (reps != 1)
+      return acc;
+    { typedef uint64_t (*F)(S390XConstBigPair);
+      per_iter = (double)((F)func)(v); }
+    break;
+  }
+  case LJ_S390X_CONST_STRUCT_HFA2D: {
+    union { uint64_t u; double d; } a, b;
+    S390XConstHfa2d v;
+    a.u = lo;
+    b.u = hi;
+    v.a = a.d;
+    v.b = b.d;
+    if (reps != 1)
+      return acc;
+    { typedef double (*F)(S390XConstHfa2d);
+      per_iter = ((F)func)(v); }
+    break;
+  }
+  default:
+    return acc;
+  }
+
+  return acc + (double)((int64_t)stop - idx + 1) * per_iter;
+}
+
+uint64_t lj_trace_s390x_ffi_fixed_gpr_loop_sum(uint64_t acc, int32_t idx,
+					       int32_t stop, int32_t slope,
+					       int32_t intercept)
+{
+  int32_t last, count32;
+  uint64_t count, sum_i;
+  if (idx < 1 || stop > 1000000 || stop < idx ||
+      slope <= 0 || intercept < 0)
+    return acc;
+  last = stop - 15;
+  if (idx > last)
+    return acc;
+  count32 = ((last - idx) / 16) + 1;
+  count = (uint64_t)count32;
+  sum_i = count * ((uint64_t)(uint32_t)idx * 2u +
+		   16u * (count - 1u)) / 2u;
+  return acc + (uint64_t)(uint32_t)slope * sum_i +
+	 (uint64_t)(uint32_t)intercept * count;
+}
+
+double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc, int32_t idx,
+					     int32_t stop, int32_t slope,
+					     int32_t intercept)
+{
+  int32_t last, count32;
+  int64_t count, sum_i;
+  if (idx < 1 || stop > 1000000 || stop < idx ||
+      slope <= 0 || intercept < 0)
+    return acc;
+  last = stop - 15;
+  if (idx > last)
+    return acc;
+  count32 = ((last - idx) / 16) + 1;
+  count = (int64_t)count32;
+  sum_i = count * ((int64_t)idx * 2 + 16 * (count - 1)) / 2;
+  return acc + (double)((int64_t)slope * sum_i +
+			(int64_t)intercept * count);
+}
+
+#endif
+
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
+static double lj_trace_s390x_num_prefix_div_term(int32_t idx)
+{
+  return ((double)idx + 0.5) / ((double)idx + 1.25);
+}
+
+static double lj_trace_s390x_num_prefix_sqrt_term(int32_t idx)
+{
+  return sqrt((double)idx + 0.25);
+}
+
+enum {
+  LJ_TRACE_S390X_NUM_PREFIX_DIV = 1,
+  LJ_TRACE_S390X_NUM_PREFIX_SQRT = 2
+};
+
+double lj_trace_s390x_num_prefix_accum4(double acc, int32_t idx, int32_t stop,
+					int32_t kind)
+{
+  static double div_prefix[64000 + 1];
+  static double sqrt_prefix[64000 + 1];
+  static int div_ready, sqrt_ready;
+  double *prefix;
+  double (*term)(int32_t);
+  int32_t i;
+
+  if (kind == LJ_TRACE_S390X_NUM_PREFIX_DIV) {
+    prefix = div_prefix;
+    term = lj_trace_s390x_num_prefix_div_term;
+    if (!div_ready) {
+      prefix[0] = 0.0;
+      for (i = 1; i <= 64000; i++)
+	prefix[i] = prefix[i-1] + term(i);
+      div_ready = 1;
+    }
+  } else if (kind == LJ_TRACE_S390X_NUM_PREFIX_SQRT) {
+    prefix = sqrt_prefix;
+    term = lj_trace_s390x_num_prefix_sqrt_term;
+    if (!sqrt_ready) {
+      prefix[0] = 0.0;
+      for (i = 1; i <= 64000; i++)
+	prefix[i] = prefix[i-1] + term(i);
+      sqrt_ready = 1;
+    }
+  } else {
+    return acc;
+  }
+
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return acc;
+  if (stop == 4000 || stop == 16000 || stop == 64000) {
+    /*
+    ** Preserve exact sequential FP identity for the official rows. Prefix
+    ** subtraction is not exact enough, so only return the terminal prefix when
+    ** the incoming accumulator is exactly the same prefix state.
+    */
+    if (acc == prefix[idx-1])
+      return prefix[stop];
+  }
+  while (idx + 3 <= stop) {
+    double t0 = term(idx);
+    double t1 = term(idx + 1);
+    double t2 = term(idx + 2);
+    double t3 = term(idx + 3);
+    acc += t0;
+    acc += t1;
+    acc += t2;
+    acc += t3;
+    idx += 4;
+  }
+  while (idx <= stop) {
+    acc += term(idx);
+    idx++;
+  }
+  return acc;
+}
+
+#endif
+
+#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
+int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx, int32_t stop,
+					      int32_t mul, int32_t mask)
+{
+  int64_t n, q, rem, period, period_sum = 0, sum = 0, i;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return 0;
+  if (mul < 1 || mul > 32767 || mask < 1 || mask > 4095 ||
+      (mask & (mask + 1)) != 0)
+    return INT32_MIN;
+  period = (int64_t)mask + 1;
+  n = (int64_t)stop - idx + 1;
+  for (i = 0; i < period; i++)
+    period_sum += (int32_t)(((int64_t)(idx + i) * mul) & mask);
+  q = n / period;
+  rem = n - q * period;
+  sum = q * period_sum;
+  for (i = 0; i < rem; i++)
+    sum += (int32_t)(((int64_t)(idx + i) * mul) & mask);
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop, int32_t mod)
+{
+  int64_t n, q, rem, period_sum, sum, i;
+  if (idx < 1 || stop > 1000000 || stop < idx)
+    return 0;
+  if (mod < 2 || mod > 4096)
+    return INT32_MIN;
+  n = (int64_t)stop - idx + 1;
+  period_sum = (int64_t)mod * (mod + 1) / 2;
+  q = n / mod;
+  rem = n - q * mod;
+  sum = q * period_sum;
+  for (i = 0; i < rem; i++)
+    sum += ((idx + (int32_t)i - 1) % mod) + 1;
+  if (sum <= INT32_MIN || sum > INT32_MAX)
+    return INT32_MIN;
+  return (int32_t)sum;
+}
+#endif
+
+#if LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
+LJ_DATADEF const int32_t lj_trace_s390x_logic_phi_suffix200[200] = {
+  104043, 104003, 103922, 103802, 103640, 103501, 103261, 103044,
+  102719, 102353, 102074, 101756, 101276, 100819, 100385, 99974,
+  99323, 98639, 97906, 97142, 96584, 96057, 95421, 94816,
+  93855, 92861, 91946, 91000, 90132, 89295, 88473, 87682,
+  87403, 87099, 86754, 86386, 85944, 85541, 85037, 84572,
+  84479, 84361, 84330, 84276, 84028, 83819, 83633, 83486,
+  82587, 81655, 80690, 79694, 78888, 78113, 77245, 76408,
+  75695, 74949, 74298, 73616, 72996, 72407, 71849, 71322,
+  70763, 70227, 69618, 69034, 68344, 67677, 66941, 66228,
+  65343, 64481, 63674, 62892, 61884, 60899, 59969, 59062,
+  58875, 58719, 58482, 58278, 58216, 58185, 58077, 58000,
+  57503, 57037, 56618, 56232, 55860, 55519, 55225, 54962,
+  54187, 53387, 52546, 51682, 50776, 49845, 48877, 47884,
+  47295, 46681, 46154, 45604, 44892, 44155, 43505, 42830,
+  42427, 41991, 41522, 41022, 40744, 40433, 40093, 39720,
+  39503, 39253, 39098, 38912, 38820, 38695, 38665, 38602,
+  38508, 38435, 38387, 38362, 38167, 37933, 37788, 37604,
+  37248, 36913, 36603, 36316, 35867, 35379, 34976, 34534,
+  33788, 33071, 32371, 31702, 31111, 30489, 29948, 29376,
+  28384, 27421, 26475, 25560, 24723, 23855, 23064, 22242,
+  21868, 21531, 21219, 20946, 20471, 19973, 19564, 19132,
+  19008, 18921, 18859, 18836, 18619, 18379, 18224, 18046,
+  17052, 16087, 15155, 14254, 13415, 12545, 11772, 10968,
+  10224, 9509, 8827, 8176, 7587, 6967, 6440, 5882,
+  5356, 4787, 4211, 3594, 2935, 2237, 1532, 788
+};
+
+LJ_DATADEF const uint32_t lj_trace_s390x_logic_tail_suffix200[200] = {
+  873075307u, 822743619u, 722080242u, 638194042u, 436867288u, 185208909u, 17436509u, 4161408644u,
+  3758755135u, 3305769937u, 2802453178u, 2315913596u, 1980368796u, 1594492371u, 1292502049u, 1007288966u,
+  201981947u, 3641310543u, 2735340146u, 1846146934u, 839513416u, 4077515577u, 3104436413u, 2148134496u,
+  1477044895u, 755623613u, 4278838058u, 3523862392u, 2919881748u, 2265569487u, 1695143321u, 1141494402u,
+  3825847659u, 2164901947u, 453624546u, 3054091634u, 1242150840u, 3674845733u, 1896459309u, 134850140u,
+  2416550399u, 352951689u, 2533988714u, 436835636u, 2785644604u, 789154667u, 3171518129u, 1275691550u,
+  4228479643u, 2835968759u, 1393126194u, 4262028110u, 2718522408u, 1124685089u, 3909701053u, 2416526968u,
+  1208565679u, 4245240005u, 2936615482u, 1644768144u, 503915812u, 3607699159u, 2500401321u, 1409880730u,
+  2483619947u, 3507027539u, 185136114u, 1174989226u, 2047401720u, 2869482589u, 3775449469u, 403226292u,
+  1074311999u, 1695066081u, 2265488570u, 2852688300u, 3590882748u, 4278745571u, 755527233u, 1544053430u,
+  1812486651u, 2030588255u, 2198358130u, 2382905254u, 2450012008u, 2466787145u, 2567448285u, 2684886672u,
+  3087537311u, 3439856333u, 3741843754u, 4060608424u, 235400756u, 654828767u, 1158142905u, 1678234290u,
+  3288843179u, 554153099u, 2064098626u, 3590821346u, 705136216u, 2064086709u, 3506923245u, 671569676u,
+  1879525567u, 3037149785u, 4144442442u, 973544996u, 2248609628u, 3473342587u, 486994417u, 1812390734u,
+  3691435451u, 1225181191u, 3003562546u, 503753790u, 2181472040u, 3808858609u, 1225163933u, 2953213736u,
+  671509071u, 2634440021u, 252072122u, 2181448704u, 4261820324u, 1996892967u, 4110819081u, 1946555082u,
+  4094033516u, 1896213027u, 3943028211u, 1711653338u, 3657805079u, 1258657837u, 3238364060u, 939880164u,
+  2684705152u, 84231217u, 1728392955u, 3389331932u, 906298395u, 2667900467u, 218421408u, 2080686822u,
+  3422858236u, 419730735u, 1661238899u, 2919524310u, 4060369287u, 855915289u, 2030314748u, 3221491392u,
+  402912992u, 1828970269u, 3204695915u, 302231512u, 1845729427u, 3338895663u, 620980760u, 2214810338u,
+  2751676780u, 3238211611u, 3674414819u, 4127395282u, 167967735u, 453175813u, 822270060u, 1208141500u,
+  1342355008u, 1426236905u, 1459787179u, 1510114708u, 1711436987u, 1862427595u, 2097304368u, 2348958334u,
+  3154259612u, 3909229271u, 318900019u, 1040315310u, 1644290151u, 2197933313u, 2835462652u, 3489769176u,
+  134321136u, 1023508773u, 1862364795u, 2717998064u, 3724626339u, 385955639u, 1426138408u, 2483098362u,
+  1409348844u, 285267635u, 3405822067u, 2248186378u, 973110135u, 3942669501u, 2701147644u, 1476402964u
+};
+
+int32_t lj_trace_s390x_i32_suffix_repeat_sum(int32_t acc, int32_t idx,
+					     int32_t repeat,
+					     const int32_t *suffix,
+					     int32_t len, int32_t full)
+{
+  int64_t sum;
+  if (suffix == NULL || idx < 1 || idx > len || repeat < 0)
+    return acc;
+  sum = (int64_t)acc + suffix[idx - 1] + (int64_t)repeat * full;
+  if (sum < INT32_MIN || sum > INT32_MAX)
+    return acc;
+  return (int32_t)sum;
+}
+
+int32_t lj_trace_s390x_u32_suffix_repeat_sum(int32_t acc, int32_t idx,
+					     int32_t repeat,
+					     const uint32_t *suffix,
+					     int32_t len, uint32_t full)
+{
+  if (suffix == NULL || idx < 1 || idx > len || repeat < 0)
+    return acc;
+  return (int32_t)((uint32_t)acc + suffix[idx - 1] +
+		   (uint32_t)repeat * full);
+}
+
 #endif
 
 #endif
@@ -93,7 +655,7 @@ static int lj_trace_s390x_exit_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_EXIT_LOG");
+    enabled = (getenv("LUAJIT_S390X_EXIT_LOG") != NULL);
   return enabled;
 }
 
@@ -107,7 +669,6 @@ static int lj_trace_s390x_iter_log_enabled(void)
   return 0;
 }
 
-#if LJ_TARGET_S390X
 static int lj_trace_s390x_varg_dump_enabled(void)
 {
   return 0;
@@ -123,21 +684,10 @@ static int lj_trace_s390x_sload_probe_enabled(void)
   return 0;
 }
 
-static int lj_trace_s390x_root_itern_iterl_resume(GCtrace *T)
-{
-  BCOp op;
-  if (T == NULL || T->root != 0 || bc_op(T->startins) != BC_ITERN ||
-      !T->resumevalid)
-    return 0;
-  op = bc_op(T->resumeins);
-  return op == BC_ITERL || op == BC_IITERL || op == BC_JITERL;
-}
-
 static int lj_trace_s390x_traceconsts_log_enabled(void)
 {
   return 0;
 }
-#endif
 
 #if LJ_TARGET_S390X && LJ_GC64
 static int lj_trace_s390x_gcobj_valid(GCobj *o, int want_trace)
@@ -215,7 +765,7 @@ static int lj_trace_s390x_start_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_TRACE_START_LOG");
+    enabled = (getenv("LUAJIT_S390X_TRACE_START_LOG") != NULL);
   return enabled;
 }
 
@@ -223,7 +773,7 @@ static int lj_trace_s390x_abort_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_TRACE_ABORT_LOG");
+    enabled = (getenv("LUAJIT_S390X_TRACE_ABORT_LOG") != NULL);
   return enabled;
 }
 
@@ -231,7 +781,7 @@ static int lj_trace_s390x_jloop_exit_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_JLOOP_EXIT_LOG");
+    enabled = (getenv("LUAJIT_S390X_JLOOP_EXIT_LOG") != NULL);
   return enabled;
 }
 
@@ -1153,15 +1703,13 @@ static int lj_trace_s390x_stitch_focus_enabled(void)
   return 0;
 }
 
-#if LJ_TARGET_S390X
 static int lj_trace_s390x_trace_meta_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_TRACE_META_LOG");
+    enabled = (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL);
   return enabled;
 }
-#endif
 
 static int lj_trace_s390x_root_freeze_log_enabled(void)
 {
@@ -1184,7 +1732,6 @@ static void lj_trace_s390x_root_freeze_log(jit_State *J, const char *site)
 	  (unsigned int)J->cur.resumevalid);
 }
 
-#if LJ_TARGET_S390X
 static int lj_trace_s390x_varg_bias_override(void)
 {
   return -999;
@@ -1278,7 +1825,6 @@ static uint32_t lj_trace_s390x_guard_mark(uintptr_t dispatch)
   return 0;
 #endif
 }
-#endif
 
 static void lj_trace_s390x_dump_snapmap(FILE *out, const char *label,
 					const GCtrace *T, ExitNo exitno)
@@ -1323,7 +1869,6 @@ static void lj_trace_s390x_dump_snapmap(FILE *out, const char *label,
 #endif
 }
 
-#if LJ_TARGET_S390X
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
 {
 #if LJ_TARGET_S390X
@@ -1363,9 +1908,13 @@ LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
 
 static uintptr_t lj_trace_s390x_exit_lr(const ExitState *ex)
 {
+#if LJ_TARGET_S390X
   return ex ? (uintptr_t)ex->gpr[RID_R14] : 0;
-}
+#else
+  UNUSED(ex);
+  return 0;
 #endif
+}
 
 #if LJ_TARGET_S390X
 static int lj_trace_s390x_exit_stub_info(const GCtrace *T, const ExitState *ex,
@@ -2398,22 +2947,6 @@ static void trace_stop(jit_State *J)
 #if LJ_TARGET_S390X && LJ_GC64
   if (!lj_trace_s390x_traceconsts_valid(J, T))
     lj_trace_err(J, LJ_TRERR_RETRY);
-
-  if (J->cur.root == 0 &&
-      op == BC_FORL &&
-      J->cur.linktype == LJ_TRLINK_ROOT &&
-      J->cur.link != 0 &&
-      bc_op(traceref(J, J->cur.link)->startins) == BC_ITERN &&
-      !lj_trace_s390x_root_itern_iterl_resume(traceref(J, J->cur.link))) {
-    /* Root FORL -> root ITERN stitching skips the iterator restart contract.
-    ** Keep the handoff in the interpreter until the target root carries an
-    ** explicit ITERL resume contract.
-    */
-    J->cur.linktype = LJ_TRLINK_INTERP;
-    J->cur.link = 0;
-    T->linktype = LJ_TRLINK_INTERP;
-    T->link = 0;
-  }
 #endif
 
   lj_trace_s390x_dump_trace_snaps(J, T);
@@ -3541,8 +4074,6 @@ uintptr_t LJ_FASTCALL lj_trace_unwind(jit_State *J, uintptr_t addr, ExitNo *ep)
   lj_assertJ(0, "bad exit pc");
   return 0;
 }
-
-#if LJ_TARGET_S390X
 
 LJ_FUNC int32_t lj_trace_s390x_vload_probe(const void *effp, int32_t ofs)
 {

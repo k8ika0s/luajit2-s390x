@@ -1,13 +1,17 @@
 # s390x State Of The Project
 
-Last updated: 2026-04-21 08:47 PDT
+Last updated: 2026-04-23 15:20 PDT
 
 Recovery note as of 2026-04-23:
-- This document is the last trusted plain-language status page through the
-  April 21 integration point.
-- The authoritative recovery anchor is `7c4610b5` (`2026-04-21 09:37 PDT`).
-- Commits after that point must be revalidated against remote `kdz1`/`kdz`
-  evidence before they are treated as project truth.
+- The April 21 anchor (`7c4610b5`, `2026-04-21 09:37 PDT`) was the last trusted
+  pre-recovery source point.
+- Recovery is now complete on the current WIP source: the full
+  `upstream_validation_perf_matrix.json` rerun passed on both real s390x hosts
+  `kdz1` and `kdz` with `27` validation rows, `800` performance rows, `800`
+  benchmark records, and `0` failures.
+- The authoritative fetched recovery artifacts are:
+  - `artifacts/s390x/perf/20260423-upstream-validation-perf-kdz1-postfix5`
+  - `artifacts/s390x/perf/20260423-upstream-validation-perf-kdz-postfix5`
 - Canonical recovery workflow and standard performance-matrix notes live in
   [recovery-from-7c4610b5.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/recovery-from-7c4610b5.md).
 

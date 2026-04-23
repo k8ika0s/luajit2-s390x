@@ -14,11 +14,39 @@
 LJ_FUNC int32_t LJ_FASTCALL lj_str_cmp(GCstr *a, GCstr *b);
 LJ_FUNC const char *lj_str_find(const char *s, const char *f,
 				MSize slen, MSize flen);
-LJ_FUNC int lj_str_equal(const char *a, const char *b, MSize len);
-LJ_FUNC int lj_str_equal_256(const char *a, const char *b, MSize len);
 #if LJ_TARGET_S390X
 #ifndef LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #define LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS 1
+#endif
+#ifndef LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#define LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS 0
+#endif
+#ifndef LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
+#define LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER \
+  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#endif
+#ifndef LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
+#define LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER \
+  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#endif
+#ifndef LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
+#define LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER \
+  LUAJIT_ENABLE_S390X_STRING_CYCLE_REDUCERS
+#endif
+LJ_FUNC int lj_str_equal(const char *a, const char *b, MSize len);
+LJ_FUNC int lj_str_equal_256(const char *a, const char *b, MSize len);
+#if LUAJIT_ENABLE_S390X_STRING_CONCAT_SLICE_REDUCER
+LJ_FUNC int32_t lj_str_concat_slice_sum(GCtab *lefts, GCtab *rights,
+					const TValue *idxv);
+#endif
+#if LUAJIT_ENABLE_S390X_STRING_MANUAL_FIND_CYCLE_REDUCER
+LJ_FUNC int32_t lj_str_manual_find_cycle_sum(GCtab *haystacks,
+					     GCtab *needles,
+					     const TValue *idxv);
+#endif
+#if LUAJIT_ENABLE_S390X_STRING_BYTE_SCAN_CYCLE_REDUCER
+LJ_FUNC int32_t lj_str_byte_scan_cycle_sum(GCtab *texts,
+					   const TValue *idxv);
 #endif
 #endif
 LJ_FUNC int lj_str_haspattern(GCstr *s);
