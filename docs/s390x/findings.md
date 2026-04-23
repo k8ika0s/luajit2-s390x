@@ -39550,3 +39550,39 @@ mixed floor; the remaining payer is now explicitly `pairs_only` on both hosts:
 - Current remaining recorder-side surface is now:
   `semantic_reducer_definition` `4` and
   `semantic_reducer_dispatch` `4`.
+
+## 2026-04-22: mixed-width, pair-loop, and buffer-fref recorder families removed
+
+- Removed `lj_record_s390x_mixed_width_loop_sum()`,
+  `lj_record_s390x_pair_loop_sum()`, and
+  `lj_record_s390x_buffer_fref_loop_sum()` from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  together with the remaining FFI-only arithmetic and modulo-prefix support
+  they depended on.
+- This closes the FFI-shaped recorder bucket completely. The broad audit no
+  longer has any `ffi_cdata`-style semantic reducer families left.
+- Validation passed on the clean worktree:
+  `git diff --check`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`, and object rebuild of
+  `lj_record.o`/`lj_trace.o`.
+- The broad source audit moved from `8` to `2`.
+- Current remaining recorder-side surface is now:
+  `semantic_reducer_definition` `1` and
+  `semantic_reducer_dispatch` `1`.
+- The only remaining semantic reducer family is
+  `lj_record_s390x_component_loop_tail_sum()`.
+
+## 2026-04-22: component-loop recorder family removed
+
+- Removed `lj_record_s390x_component_loop_tail_sum()` from
+  [/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c](/private/tmp/luajit2-s390x-iterator-closure/src/lj_record.c),
+  together with the last reducer-local helper block and the final semantic
+  reducer dispatch hook.
+- This closes the semantic-reducer cleanup completely. The recorder no longer
+  contains any of the benchmark-shaped s390x semantic substitution families
+  tracked by the upstream-risk audit.
+- Validation passed on the clean worktree:
+  `git diff --check`,
+  `python3 tools/s390x/audit_benchmark_fastpaths.py`, and object rebuild of
+  `lj_record.o`/`lj_trace.o`.
+- The broad source audit moved from `2` to `0`.
