@@ -834,10 +834,6 @@ TRef LJ_FASTCALL lj_opt_fwd_xload(jit_State *J)
     goto cselim;
   if ((fins->op2 & IRXLOAD_VOLATILE))
     goto doemit;
-#if LJ_TARGET_S390X
-  if (aa_findcnew(J, xr) != NULL)
-    goto doemit;  /* Keep traced cdata field loads exact on s390x. */
-#endif
 
   /* Search for conflicting stores. */
   ref = J->chain[IR_XSTORE];
@@ -903,10 +899,6 @@ TRef LJ_FASTCALL lj_opt_dse_xstore(jit_State *J)
   IRRef val = fins->op2;  /* Stored value reference. */
   IRRef1 *refp = &J->chain[IR_XSTORE];
   IRRef ref = *refp;
-#if LJ_TARGET_S390X
-  if (aa_findcnew(J, xr) != NULL)
-    goto doemit;  /* Keep traced cdata field stores exact on s390x. */
-#endif
   if (J->chain[IR_CALLXS] > lim) lim = J->chain[IR_CALLXS];
   if (J->chain[IR_XBAR] > lim) lim = J->chain[IR_XBAR];
   if (J->chain[IR_XSNEW] > lim) lim = J->chain[IR_XSNEW];

@@ -1100,8 +1100,7 @@ static void snap_restoredata(jit_State *J, GCtrace *T, ExitState *ex,
 #endif
       {
 	src = (int32_t *)&ex->gpr[r-RID_MIN_GPR];
-	/* 64-bit big-endian GPRs expose the low integer word in the upper slot. */
-	if (LJ_64 && LJ_BE && sz < 8) src++;
+	if (LJ_64 && LJ_BE && sz == 4) src++;
       }
     }
   }

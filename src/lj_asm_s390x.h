@@ -3795,6 +3795,15 @@ static void asm_add(ASMState *as, IRIns *ir)
 	IR(ir->op2)->r >= RID_MIN_FPR)
       allow = RID2RSET(IR(ir->op2)->r);
     dest = ra_dest(as, ir, allow);
+    if (ir->op1 != ir->op2 && !irref_isk(ir->op1) && !irref_isk(ir->op2) &&
+	(IR(ir->op1)->o == IR_ABS || IR(ir->op1)->o == IR_DIV ||
+	 IR(ir->op1)->o == IR_FPMATH) &&
+	!(ra_hasreg(IR(ir->op1)->r) && IR(ir->op1)->r == dest)) {
+      left = ra_hintalloc(as, ir->op2, dest, RSET_FPR);
+      right = ra_alloc1(as, ir->op1, rset_exclude(RSET_FPR, left));
+      emit_u32(as, S390X_INS_RXE(S390XI_ADBR, dest, right));
+      return;
+    }
     left = ra_hintalloc(as, ir->op1, dest, RSET_FPR);
     right = ra_alloc1(as, ir->op2, rset_exclude(RSET_FPR, left));
     if (asm_s390x_ir_log_enabled()) {
@@ -5049,13 +5058,116 @@ static int asm_s390x_mod_operand_nonnegative(ASMState *as, IRRef ref)
 static int asm_modk_int(ASMState *as, IRIns *ir)
 {
   IRIns *k = IR(ir->op2);
-  UNUSED(as);
-  UNUSED(ir);
-  UNUSED(k);
+  Reg dest, left, divr;
+  RegSet allow;
+  MCode *l_done;
+  const Reg rem = RID_R4;
+  const Reg quot = RID_R5;
 
   if (!irt_isint(ir->t) || !irref_isk(ir->op2) || k->o != IR_KINT || k->i <= 0)
     return 0;
-  return 0;
+
+  if (k->i == 1) {
+    dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -278);
+    emit_u32(as, S390X_INS_RXE(S390XI_XGR, dest, dest));
+    return 1;
+  }
+
+  if (asm_s390x_mod_operand_nonnegative(as, ir->op1)) {
+    uint64_t magic;
+    Reg qhi = rem;
+    Reg qlo = quot;
+    Reg mreg;
+
+    allow = RSET_GPR_NOB;
+    rset_clear(allow, qhi);
+    rset_clear(allow, qlo);
+    dest = ra_dest_nobase(as, ir, allow, -278);
+    magic = UINT64_MAX/(uint32_t)k->i + 1u;
+    ra_evictset(as, RID2RSET(qhi)|RID2RSET(qlo));
+    ra_modified(as, qhi);
+    ra_modified(as, qlo);
+    allow = RSET_GPR_NOB;
+    rset_clear(allow, qhi);
+    rset_clear(allow, qlo);
+    rset_clear(allow, dest);
+    left = ra_alloc1_nobase(as, ir->op1, allow, -279);
+    allow = rset_exclude(RSET_GPR_NOB, left);
+    rset_clear(allow, qhi);
+    rset_clear(allow, qlo);
+    rset_clear(allow, dest);
+    mreg = ra_scratch(as, allow);
+
+    emit_u32(as, S390X_INS_RXE(S390XI_SGR, dest, qhi));
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_MSGFI, qhi, k->i));
+    emit_u32(as, S390X_INS_RXE(S390XI_MLGR, qhi, mreg));
+    emit_loadu64(as, mreg, magic);
+    emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, qlo, left));
+    emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
+    return 1;
+  }
+
+  /* Signed integer modulo by a positive constant divisor. Split off the
+  ** nonnegative runtime path for reciprocal multiply; keep DSGR for negatives
+  ** to preserve Lua's floor-mod correction.
+  */
+  allow = RSET_GPR_NOB;
+  rset_clear(allow, rem);
+  rset_clear(allow, quot);
+  dest = ra_dest_nobase(as, ir, allow, -278);
+  ra_evictset(as, RID2RSET(rem)|RID2RSET(quot));
+  ra_modified(as, rem);
+  ra_modified(as, quot);
+  allow = RSET_GPR_NOB;
+  rset_clear(allow, rem);
+  rset_clear(allow, quot);
+  rset_clear(allow, dest);
+  left = ra_alloc1_nobase(as, ir->op1, allow, -279);
+  allow = rset_exclude(RSET_GPR_NOB, left);
+  rset_clear(allow, rem);
+  rset_clear(allow, quot);
+  rset_clear(allow, dest);
+  divr = ra_allock(as, k->i, allow);
+  rset_clear(allow, divr);
+  if (allow) {
+    uint64_t magic = UINT64_MAX/(uint32_t)k->i + 1u;
+    Reg mreg = ra_scratch(as, allow);
+    MCode *l_slow, *l_slow_copy, *l_done;
+
+    l_done = as->mcp;
+    if (dest != rem)
+      emit_movrr(as, ir, dest, rem);
+    l_slow_copy = as->mcp;
+    emit_u32(as, S390X_INS_RXE(S390XI_AGR, rem, divr));
+    emit_condbranch(as, CC_GE, l_slow_copy);
+    emit_u32(as, S390X_INS_RI(S390XI_CGHI, rem, 0));
+    emit_u32(as, S390X_INS_RXE(S390XI_DSGR, rem, divr));
+    emit_shiftimm(as, S390XI_SRAG, rem, quot, 63);
+    l_slow = as->mcp;
+    emit_condbranch(as, CC_AL, l_done);
+    emit_u32(as, S390X_INS_RXE(S390XI_SGR, dest, rem));
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_MSGFI, rem, k->i));
+    emit_u32(as, S390X_INS_RXE(S390XI_MLGR, rem, mreg));
+    emit_loadu64(as, mreg, magic);
+    emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, quot, left));
+    emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
+    emit_condbranch(as, CC_LT, l_slow);
+    emit_u32(as, S390X_INS_RI(S390XI_CGHI, quot, 0));
+    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, quot, left));
+    return 1;
+  }
+  if (dest != rem)
+    emit_movrr(as, ir, dest, rem);
+  l_done = as->mcp;
+  emit_u32(as, S390X_INS_RXE(S390XI_AGR, rem, divr));
+  emit_condbranch(as, CC_GE, l_done);
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, rem, 0));
+  emit_u32(as, S390X_INS_RXE(S390XI_DSGR, rem, divr));
+  emit_shiftimm(as, S390XI_SRAG, rem, quot, 63);
+  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, quot, quot));
+  if (quot != left)
+    emit_movrr(as, ir, quot, left);
+  return 1;
 }
 
 static void asm_neg(ASMState *as, IRIns *ir)
@@ -5157,13 +5269,6 @@ static void asm_fpdiv(ASMState *as, IRIns *ir)
   Reg lr = ra_alloc2(as, ir, RSET_FPR);
   Reg left = lr & 255;
   Reg right = lr >> 8;
-  if (dest == right && dest != left) {
-    Reg copy = ra_scratch(as, rset_exclude(rset_exclude(RSET_FPR, dest), left));
-    emit_u32(as, S390X_INS_RXE(S390XI_DDBR, dest, copy));
-    asm_s390x_fpleft(as, ir, dest, left);
-    emit_movrr(as, ir, copy, right);
-    return;
-  }
   emit_u32(as, S390X_INS_RXE(S390XI_DDBR, dest, right));
   asm_s390x_fpleft(as, ir, dest, left);
 }
@@ -6454,12 +6559,8 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	    return;
       }
       left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -271);
-      if (st == IRT_U32) {
+      if (st == IRT_U32 || st == IRT_U16 || st == IRT_U8) {
 	emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, left, left));
-      } else if (st == IRT_U16) {
-	emit_u32(as, S390X_INS_RXE(S390XI_LLGHR, left, left));
-      } else if (st == IRT_U8) {
-	emit_u32(as, S390X_INS_RXE(S390XI_LLGCR, left, left));
       } else {
 	if (!asm_s390x_int_result_normalized(IR(lref)))
 	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, left, left));
@@ -6501,10 +6602,6 @@ static void asm_conv(ASMState *as, IRIns *ir)
     lj_assertA(irt_isint(ir->t) || irt_isu32(ir->t), "bad type for CONV EXT");
     if ((ir->op2 & IRCONV_SEXT) || st == IRT_I8 || st == IRT_I16)
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, left));
-    else if (st == IRT_U16)
-      emit_u32(as, S390X_INS_RXE(S390XI_LLGHR, dest, left));
-    else if (st == IRT_U8)
-      emit_u32(as, S390X_INS_RXE(S390XI_LLGCR, dest, left));
     else
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
     return;

@@ -380,27 +380,22 @@ static void *callback_mcode_init(global_State *g, uint8_t *page)
 
   {
     intptr_t commonofs = (intptr_t)(common - page);
-    intptr_t glitofs = commonofs + 40;
+    intptr_t glitofs = commonofs + 32;
     intptr_t targetlitofs = glitofs + 8;
 
     /* Stash g in the reserved caller save area so vm_ffi_callback can pick
     ** it up without clobbering any callee-saved GPR before saveregs.
-    ** Preserve the callback slot in r0, then reuse r1 as the literal base
-    ** and final branch register. br r0 is not usable here: r0 is special
-    ** for BCR/BR and falls through instead of branching.
     */
-    S390X_WRITE32(p, 0xb9040001u);  /* lgr r0, r1 */
-    S390X_EMIT_LARL(p, 1, (int32_t)((glitofs - (commonofs + 4)) >> 1));
-    S390X_WRITE32(p, 0xe3101000u);  /* lg r1, 0(r1) */
+    S390X_EMIT_LARL(p, 12, (int32_t)((glitofs - commonofs) >> 1));
+    S390X_WRITE32(p, 0xe300c000u);  /* lg r0, 0(r12) */
     S390X_WRITE16(p, 0x0004u);
-    S390X_WRITE32(p, 0xe310f008u);  /* stg r1, 8(r15) */
+    S390X_WRITE32(p, 0xe300f008u);  /* stg r0, 8(r15) */
     S390X_WRITE16(p, 0x0024u);
 
-    S390X_EMIT_LARL(p, 1, (int32_t)((targetlitofs - (commonofs + 22)) >> 1));
-    S390X_WRITE32(p, 0xe3101000u);  /* lg r1, 0(r1) */
+    S390X_EMIT_LARL(p, 12, (int32_t)((targetlitofs - (commonofs + 18)) >> 1));
+    S390X_WRITE32(p, 0xe3c0c000u);  /* lg r12, 0(r12) */
     S390X_WRITE16(p, 0x0004u);
-    S390X_WRITE16(p, 0x07f1u);  /* br r1 */
-    S390X_WRITE32(p, 0u);       /* Align 64-bit literals. */
+    S390X_WRITE16(p, 0x07fcu);  /* br r12 */
 
     S390X_WRITE64(p, (uintptr_t)(void *)g);
     S390X_WRITE64(p, target);

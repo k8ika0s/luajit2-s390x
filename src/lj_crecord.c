@@ -569,11 +569,7 @@ static TRef crec_tv_ct(jit_State *J, CType *s, CTypeID sid, TRef sp)
     if (t == IRT_CDATA)
       goto err_nyi;  /* NYI: copyval of >64 bit integers. */
     tr = emitir(IRT(IR_XLOAD, t), sp, 0);
-    if (t == IRT_FLOAT || t == IRT_U32
-#if LJ_TARGET_S390X
-	|| t == IRT_U8 || t == IRT_U16 || t == IRT_I8 || t == IRT_I16
-#endif
-	) {  /* Keep s390x narrow cdata integers in NUM domain for correctness. */
+    if (t == IRT_FLOAT || t == IRT_U32) {  /* Keep uint32_t/float as numbers. */
       return emitconv(tr, IRT_NUM, t, 0);
     } else if (t == IRT_I64 || t == IRT_U64) {  /* Box 64 bit integer. */
       sp = tr;
@@ -950,10 +946,6 @@ again:
     ct = ctype_child(cts, ct);  /* Skip attributes. */
 
   if (rd->data == 0) {  /* __index metamethod. */
-#if LJ_TARGET_S390X
-    if (ctype_isnum(ct->info) && ct->size == 2)
-      lj_trace_err(J, LJ_TRERR_NYICONV);
-#endif
     J->base[0] = crec_tv_ct(J, ct, sid, ptr);
   } else {  /* __newindex metamethod. */
     rd->nres = 0;
@@ -1176,15 +1168,10 @@ static TRef crec_s390x_small_struct_arg(jit_State *J, CTState *cts, CType *d,
   }
 }
 
-static TRef crec_s390x_byref_cdata_arg(jit_State *J, CTState *cts,
-				       CTypeID did, CType *d, TRef sp,
-				       cTValue *o)
+static TRef crec_s390x_cdata_payload_arg(jit_State *J, TRef sp, cTValue *o)
 {
-  TRef trcd = emitir(IRTG(IR_CNEW, IRT_CDATA), lj_ir_kint(J, did), TREF_NIL);
-  TRef ptr = emitir(IRT(IR_ADD, IRT_PTR), trcd, lj_ir_kintp(J, sizeof(GCcdata)));
-  crec_ct_tv(J, d, ptr, sp, o);
-  UNUSED(cts);
-  return ptr;
+  argv2cdata(J, sp, o);
+  return emitir(IRT(IR_ADD, IRT_PTR), sp, lj_ir_kintp(J, sizeof(GCcdata)));
 }
 #endif
 
@@ -1224,6 +1211,10 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
   for (n = 0, base = J->base+1, o = rd->argv+1; *base; n++, base++, o++) {
     CTypeID did;
     CType *d;
+#if LJ_TARGET_S390X
+    int isvararg = 0;
+#endif
+
     if (n >= CCI_NARGS_MAX)
       lj_trace_err(J, LJ_TRERR_NYICALL);
 
@@ -1244,17 +1235,20 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
       }
 #endif
       did = lj_ccall_ctid_vararg(cts, o);  /* Infer vararg type. */
+#if LJ_TARGET_S390X
+      isvararg = 1;
+#endif
     }
     d = ctype_raw(cts, did);
 #if LJ_TARGET_S390X
     if (ctype_isstruct(d->info) && crec_s390x_small_struct_arg_byval(d)) {
       tr = crec_s390x_small_struct_arg(J, cts, d, *base, o);
       goto donearg;
-    } else if (ctype_isstruct(d->info) || ctype_iscomplex(d->info)) {
-      /* The s390x ABI passes these through a by-reference buffer, but the
-      ** traced call still needs by-value semantics for the original cdata.
-      */
-      tr = crec_s390x_byref_cdata_arg(J, cts, did, d, *base, o);
+    } else if (!isvararg && ctype_isstruct(d->info)) {
+      tr = crec_s390x_cdata_payload_arg(J, *base, o);
+      goto donearg;
+    } else if (ctype_iscomplex(d->info)) {
+      tr = crec_s390x_cdata_payload_arg(J, *base, o);
       goto donearg;
     }
 #endif
