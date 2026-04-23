@@ -27,9 +27,9 @@ print("total = " .. total)
 total = 5050
 --- err eval
 qr#\Q[TRACE   1 test.lua:3 loop]
-[TRACE   2 test.lua:8 loop]
-\E(\Q[TRACE   3 (2/1) test.lua:8 stitch print]
-\E)?#ms
+[TRACE --- test.lua:8 -- persistent type instability]
+[TRACE --- test.lua:8 -- persistent type instability]
+\E#ms
 
 
 
@@ -62,7 +62,8 @@ print("total = " .. total)
 total = 5050
 --- err
 [TRACE   1 test.lua:3 loop]
-[TRACE   2 test.lua:15 loop]
+[TRACE   2 test.lua:15 stitch next]
+[TRACE   3 (2/stitch) test.lua:8 -> 2]
 
 
 
@@ -103,4 +104,4 @@ print("total = " .. total)
 total = 5050
 --- err
 [TRACE   1 test.lua:3 loop]
-[TRACE   2 test.lua:24 loop]
+[TRACE   2 test.lua:8 return]
