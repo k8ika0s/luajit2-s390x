@@ -123,14 +123,6 @@ typedef struct ASMState {
   uint16_t parentmap[LJ_MAX_JSLOTS];  /* Parent instruction to RegSP map. */
 } ASMState;
 
-static int lj_asm_s390x_guard_log_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = lj_asm_s390x_debug_env_enabled("LUAJIT_S390X_GUARD_LOG");
-  return enabled;
-}
-
 static int lj_asm_s390x_asmir_log_enabled(void)
 {
   static int enabled = -1;
@@ -155,6 +147,15 @@ static void lj_asm_s390x_asmir_log(ASMState *as, const char *phase, IRIns *ir)
 	  (int)(ir->prev - REF_BIAS),
 	  (unsigned int)as->freeset,
 	  (unsigned int)as->phiset);
+}
+
+#if LJ_TARGET_S390X
+static int lj_asm_s390x_guard_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = lj_asm_s390x_debug_env_enabled("LUAJIT_S390X_GUARD_LOG");
+  return enabled;
 }
 
 static void lj_asm_s390x_guard_log(ASMState *as, int cc, const void *target,
@@ -219,6 +220,7 @@ static RegSP ra_s390x_sanitize_regsp(ASMState *as, RegSP rs,
   }
   return rs;
 }
+#endif
 
 static int lj_asm_s390x_phi_log_enabled(void)
 {
