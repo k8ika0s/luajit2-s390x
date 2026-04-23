@@ -569,7 +569,11 @@ static TRef crec_tv_ct(jit_State *J, CType *s, CTypeID sid, TRef sp)
     if (t == IRT_CDATA)
       goto err_nyi;  /* NYI: copyval of >64 bit integers. */
     tr = emitir(IRT(IR_XLOAD, t), sp, 0);
-    if (t == IRT_FLOAT || t == IRT_U32) {  /* Keep uint32_t/float as numbers. */
+    if (t == IRT_FLOAT || t == IRT_U32
+#if LJ_TARGET_S390X
+	|| t == IRT_U8 || t == IRT_U16 || t == IRT_I8 || t == IRT_I16
+#endif
+	) {  /* Keep s390x narrow cdata integers in NUM domain for correctness. */
       return emitconv(tr, IRT_NUM, t, 0);
     } else if (t == IRT_I64 || t == IRT_U64) {  /* Box 64 bit integer. */
       sp = tr;
@@ -946,6 +950,10 @@ again:
     ct = ctype_child(cts, ct);  /* Skip attributes. */
 
   if (rd->data == 0) {  /* __index metamethod. */
+#if LJ_TARGET_S390X
+    if (ctype_isnum(ct->info) && ct->size == 2)
+      lj_trace_err(J, LJ_TRERR_NYICONV);
+#endif
     J->base[0] = crec_tv_ct(J, ct, sid, ptr);
   } else {  /* __newindex metamethod. */
     rd->nres = 0;
