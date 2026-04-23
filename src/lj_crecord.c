@@ -1211,7 +1211,9 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
   for (n = 0, base = J->base+1, o = rd->argv+1; *base; n++, base++, o++) {
     CTypeID did;
     CType *d;
+#if LJ_TARGET_S390X
     int isvararg = 0;
+#endif
 
     if (n >= CCI_NARGS_MAX)
       lj_trace_err(J, LJ_TRERR_NYICALL);
@@ -1233,7 +1235,9 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
       }
 #endif
       did = lj_ccall_ctid_vararg(cts, o);  /* Infer vararg type. */
+#if LJ_TARGET_S390X
       isvararg = 1;
+#endif
     }
     d = ctype_raw(cts, did);
 #if LJ_TARGET_S390X

@@ -517,6 +517,12 @@ static LJ_AINLINE RegSP snap_ref_regsp(GCtrace *T, SnapNo lim,
   return rs;
 }
 
+static int snap_s390x_unsink_log_enabled(void)
+{
+  return 0;
+}
+
+#if LJ_TARGET_S390X
 static int snap_s390x_restore_log_enabled(void)
 {
   static int enabled = -1;
@@ -548,11 +554,6 @@ static int snap_s390x_restore_pref_reg_enabled(void)
   return 0;
 }
 
-static int snap_s390x_unsink_log_enabled(void)
-{
-  return 0;
-}
-
 static int snap_s390x_bridge_restore_slot13_log_enabled(void)
 {
   return 0;
@@ -565,6 +566,7 @@ static int snap_s390x_bridge_restore_slot13_focus(jit_State *J)
   return (parent < 0 || J->parent == (TraceNo)parent) &&
 	 (exitno < 0 || J->exitno == (ExitNo)exitno);
 }
+#endif
 
 static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRIns *ir,
 				   IRRef ref, RegSP orig_rs, RegSP renamed_rs,
@@ -702,14 +704,6 @@ static int snap_sunk_store2(GCtrace *T, IRIns *ira, IRIns *irs)
     return (&T->ir[irk->op1] == ira);
   }
   return 0;
-}
-
-/* Check whether a sunk store corresponds to an allocation. Fast path. */
-static LJ_AINLINE int snap_sunk_store(GCtrace *T, IRIns *ira, IRIns *irs)
-{
-  if (irs->s != 255)
-    return (ira + irs->s == irs);  /* Fast check. */
-  return snap_sunk_store2(T, ira, irs);
 }
 
 static int snap_store_for_alloc(GCtrace *T, IRIns *ira, IRIns *irs)
