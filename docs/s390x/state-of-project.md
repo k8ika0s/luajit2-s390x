@@ -2,6 +2,15 @@
 
 Last updated: 2026-04-21 08:47 PDT
 
+Recovery note as of 2026-04-23:
+- This document is the last trusted plain-language status page through the
+  April 21 integration point.
+- The authoritative recovery anchor is `7c4610b5` (`2026-04-21 09:37 PDT`).
+- Commits after that point must be revalidated against remote `kdz1`/`kdz`
+  evidence before they are treated as project truth.
+- Canonical recovery workflow and standard performance-matrix notes live in
+  [recovery-from-7c4610b5.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/recovery-from-7c4610b5.md).
+
 This file is the current plain-language status page for the s390x bring-up.
 Historical experiment detail lives in
 [findings.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/findings.md).
