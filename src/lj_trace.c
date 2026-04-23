@@ -93,6 +93,7 @@ static int lj_trace_s390x_iter_log_enabled(void)
   return 0;
 }
 
+#if LJ_TARGET_S390X
 static int lj_trace_s390x_varg_dump_enabled(void)
 {
   return 0;
@@ -122,6 +123,7 @@ static int lj_trace_s390x_traceconsts_log_enabled(void)
 {
   return 0;
 }
+#endif
 
 #if LJ_TARGET_S390X && LJ_GC64
 static int lj_trace_s390x_gcobj_valid(GCobj *o, int want_trace)
@@ -1137,6 +1139,7 @@ static int lj_trace_s390x_stitch_focus_enabled(void)
   return 0;
 }
 
+#if LJ_TARGET_S390X
 static int lj_trace_s390x_trace_meta_log_enabled(void)
 {
   static int enabled = -1;
@@ -1144,6 +1147,7 @@ static int lj_trace_s390x_trace_meta_log_enabled(void)
     enabled = (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL);
   return enabled;
 }
+#endif
 
 static int lj_trace_s390x_root_freeze_log_enabled(void)
 {
@@ -1166,6 +1170,7 @@ static void lj_trace_s390x_root_freeze_log(jit_State *J, const char *site)
 	  (unsigned int)J->cur.resumevalid);
 }
 
+#if LJ_TARGET_S390X
 static int lj_trace_s390x_varg_bias_override(void)
 {
   return -999;
@@ -1259,6 +1264,7 @@ static uint32_t lj_trace_s390x_guard_mark(uintptr_t dispatch)
   return 0;
 #endif
 }
+#endif
 
 static void lj_trace_s390x_dump_snapmap(FILE *out, const char *label,
 					const GCtrace *T, ExitNo exitno)
@@ -1303,6 +1309,7 @@ static void lj_trace_s390x_dump_snapmap(FILE *out, const char *label,
 #endif
 }
 
+#if LJ_TARGET_S390X
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
 {
 #if LJ_TARGET_S390X
@@ -1342,13 +1349,9 @@ LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
 
 static uintptr_t lj_trace_s390x_exit_lr(const ExitState *ex)
 {
-#if LJ_TARGET_S390X
   return ex ? (uintptr_t)ex->gpr[RID_R14] : 0;
-#else
-  UNUSED(ex);
-  return 0;
-#endif
 }
+#endif
 
 #if LJ_TARGET_S390X
 static int lj_trace_s390x_exit_stub_info(const GCtrace *T, const ExitState *ex,
