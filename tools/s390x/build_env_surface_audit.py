@@ -35,6 +35,10 @@ SOURCE_GLOBS = (
     "tests/s390x/**/*.lua",
     "tools/s390x/*.py",
 )
+AUDIT_IGNORED_TOOL_PATHS = {
+    "tools/s390x/build_env_surface_audit.py",
+    "tools/s390x/build_guard_retirement_ledger.py",
+}
 
 DEBUG_MARKERS = (
     "LOG",
@@ -112,7 +116,11 @@ def iter_files() -> list[pathlib.Path]:
     files: set[pathlib.Path] = set()
     for glob in SOURCE_GLOBS:
         files.update(path.resolve() for path in ROOT.glob(glob))
-    return sorted(files)
+    return sorted(
+        path
+        for path in files
+        if str(path.relative_to(ROOT)) not in AUDIT_IGNORED_TOOL_PATHS
+    )
 
 
 def collect_refs() -> dict[str, list[Ref]]:
@@ -144,8 +152,6 @@ def category_for(env: str, retained: set[str], refs: list[Ref]) -> tuple[str, st
 
     if env in retained:
         return "retained opt-in safety rail", RETAINED_NOTES.get(env, "")
-    if not source_refs and not test_refs and tool_refs:
-        return "tooling-only historical reference", "Referenced by tooling only; not a live source behavior knob."
     if env in DEFAULT_ON_KNOWN or env.startswith("LUAJIT_S390X_DISABLE_"):
         return "default-on feature opt-out", "Feature is enabled by default; env disables it for causality or safety checks."
     if is_debug_env(env):
@@ -154,6 +160,8 @@ def category_for(env: str, retained: set[str], refs: list[Ref]) -> tuple[str, st
         return "test-only setup", "Only referenced by tests or perf probes."
     if is_experiment_env(env):
         return "experimental opt-in or historical route-around", "Not part of the retained perf contract; requires fresh mechanism proof before use."
+    if not source_refs and not test_refs and tool_refs:
+        return "tooling-only historical reference", "Referenced by tooling only; not a live source behavior knob."
     return "unclassified source knob", "Needs owner review before removal or promotion."
 
 
@@ -188,6 +196,7 @@ def write_markdown(path: pathlib.Path, rows: list[dict[str, Any]]) -> None:
         "",
         f"- Generated: `{dt.datetime.now().astimezone().isoformat()}`",
         "- Scope: `src/`, `tests/s390x/`, and `tools/s390x/` source references",
+        f"- Ignored tooling inventories: {', '.join(f'`{path}`' for path in sorted(AUDIT_IGNORED_TOOL_PATHS))}",
         f"- Total unique env names: `{len(rows)}`",
         f"- Retained perf env count: `{len(restamp.RETAINED_BASELINE_ENV)}`",
         "",

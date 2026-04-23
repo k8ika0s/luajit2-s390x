@@ -114,6 +114,17 @@ const char *lj_str_find(const char *s, const char *p, MSize slen, MSize plen)
   return NULL;
 }
 
+int lj_str_equal(const char *a, const char *b, MSize len)
+{
+  return memcmp(a, b, len) == 0;
+}
+
+int lj_str_equal_256(const char *a, const char *b, MSize len)
+{
+  lj_assertX(len <= 256, "bounded string equality length too large");
+  return memcmp(a, b, len) == 0;
+}
+
 /* Check whether a string has a pattern matching character. */
 int lj_str_haspattern(GCstr *s)
 {

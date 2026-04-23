@@ -36,6 +36,20 @@
 #include <string.h>
 #include <math.h>
 
+#ifndef LUAJIT_ENABLE_S390X_DEBUG_ENVS
+#define LUAJIT_ENABLE_S390X_DEBUG_ENVS 0
+#endif
+
+static int lj_trace_s390x_debug_env_enabled(const char *name)
+{
+#if LUAJIT_ENABLE_S390X_DEBUG_ENVS
+  return getenv(name) != NULL;
+#else
+  (void)name;
+  return 0;
+#endif
+}
+
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106] = {
   0, 20, 40, 60, 80, 121, 162, 203, 214, 225, 236, 268, 300, 332, 364, 366,
@@ -79,7 +93,7 @@ static int lj_trace_s390x_exit_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_EXIT_LOG") != NULL);
+    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_EXIT_LOG");
   return enabled;
 }
 
@@ -201,7 +215,7 @@ static int lj_trace_s390x_start_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_TRACE_START_LOG") != NULL);
+    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_TRACE_START_LOG");
   return enabled;
 }
 
@@ -209,7 +223,7 @@ static int lj_trace_s390x_abort_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_TRACE_ABORT_LOG") != NULL);
+    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_TRACE_ABORT_LOG");
   return enabled;
 }
 
@@ -217,7 +231,7 @@ static int lj_trace_s390x_jloop_exit_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_JLOOP_EXIT_LOG") != NULL);
+    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_JLOOP_EXIT_LOG");
   return enabled;
 }
 
@@ -1144,7 +1158,7 @@ static int lj_trace_s390x_trace_meta_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_TRACE_META_LOG") != NULL);
+    enabled = lj_trace_s390x_debug_env_enabled("LUAJIT_S390X_TRACE_META_LOG");
   return enabled;
 }
 #endif
