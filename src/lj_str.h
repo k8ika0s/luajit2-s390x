@@ -14,6 +14,8 @@
 LJ_FUNC int32_t LJ_FASTCALL lj_str_cmp(GCstr *a, GCstr *b);
 LJ_FUNC const char *lj_str_find(const char *s, const char *f,
 				MSize slen, MSize flen);
+LJ_FUNC int lj_str_equal(const char *a, const char *b, MSize len);
+LJ_FUNC int lj_str_equal_256(const char *a, const char *b, MSize len);
 #if LJ_TARGET_S390X
 #ifndef LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #define LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS 1

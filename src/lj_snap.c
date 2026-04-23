@@ -28,6 +28,20 @@
 #include "lj_cdata.h"
 #endif
 
+#ifndef LUAJIT_ENABLE_S390X_DEBUG_ENVS
+#define LUAJIT_ENABLE_S390X_DEBUG_ENVS 0
+#endif
+
+static int lj_snap_s390x_debug_env_enabled(const char *name)
+{
+#if LUAJIT_ENABLE_S390X_DEBUG_ENVS
+  return getenv(name) != NULL;
+#else
+  (void)name;
+  return 0;
+#endif
+}
+
 /* Pass IR on to next optimization in chain (FOLD). */
 #define emitir(ot, a, b)	(lj_ir_set(J, (ot), (a), (b)), lj_opt_fold(J))
 
@@ -38,7 +52,7 @@ static int lj_snap_s390x_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SNAP_LOG") != NULL);
+    enabled = lj_snap_s390x_debug_env_enabled("LUAJIT_S390X_SNAP_LOG");
   return enabled;
 }
 
@@ -507,7 +521,7 @@ static int snap_s390x_restore_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RESTORE_LOG") != NULL);
+    enabled = lj_snap_s390x_debug_env_enabled("LUAJIT_S390X_RESTORE_LOG");
   return enabled;
 }
 

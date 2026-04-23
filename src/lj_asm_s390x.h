@@ -6,6 +6,20 @@
 ** target-specific forms use explicit NYI fallbacks while bring-up continues.
 */
 
+#ifndef LUAJIT_ENABLE_S390X_DEBUG_ENVS
+#define LUAJIT_ENABLE_S390X_DEBUG_ENVS 0
+#endif
+
+static int asm_s390x_debug_env_enabled(const char *name)
+{
+#if LUAJIT_ENABLE_S390X_DEBUG_ENVS
+  return getenv(name) != NULL;
+#else
+  (void)name;
+  return 0;
+#endif
+}
+
 /* -- Register allocator extensions --------------------------------------- */
 
 static Reg ra_hintalloc(ASMState *as, IRRef ref, Reg hint, RegSet allow)
@@ -77,7 +91,7 @@ static int asm_s390x_ir_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_IR_LOG") != NULL);
+    enabled = asm_s390x_debug_env_enabled("LUAJIT_S390X_IR_LOG");
   return enabled;
 }
 
@@ -85,7 +99,7 @@ static int asm_s390x_guard_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_GUARD_LOG") != NULL);
+    enabled = asm_s390x_debug_env_enabled("LUAJIT_S390X_GUARD_LOG");
   return enabled;
 }
 
@@ -6636,7 +6650,7 @@ static int lj_asm_s390x_direct_patchexit_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_DIRECT_PATCHEXIT_LOG") != NULL);
+    enabled = asm_s390x_debug_env_enabled("LUAJIT_S390X_DIRECT_PATCHEXIT_LOG");
   return enabled;
 }
 
@@ -6644,7 +6658,7 @@ static int lj_asm_s390x_direct_patchexit_miss_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_DIRECT_PATCHEXIT_MISS_LOG") != NULL);
+    enabled = asm_s390x_debug_env_enabled("LUAJIT_S390X_DIRECT_PATCHEXIT_MISS_LOG");
   return enabled;
 }
 

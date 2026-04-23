@@ -11,7 +11,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef LUAJIT_ENABLE_S390X_DEBUG_ENVS
+#define LUAJIT_ENABLE_S390X_DEBUG_ENVS 0
+#endif
+
 #if LJ_HASJIT
+
+static int lj_record_s390x_debug_env_enabled(const char *name)
+{
+#if LUAJIT_ENABLE_S390X_DEBUG_ENVS
+  return getenv(name) != NULL;
+#else
+  (void)name;
+  return 0;
+#endif
+}
 
 #include "lj_err.h"
 #include "lj_str.h"
@@ -1144,7 +1158,7 @@ static int lj_record_s390x_stop_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RECSTOP_LOG") != NULL);
+    enabled = lj_record_s390x_debug_env_enabled("LUAJIT_S390X_RECSTOP_LOG");
   return enabled;
 }
 
@@ -1157,7 +1171,7 @@ static int lj_record_s390x_ir_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RECIR_LOG") != NULL);
+    enabled = lj_record_s390x_debug_env_enabled("LUAJIT_S390X_RECIR_LOG");
   return enabled;
 }
 

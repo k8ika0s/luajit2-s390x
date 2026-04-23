@@ -33,6 +33,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifndef LUAJIT_ENABLE_S390X_DEBUG_ENVS
+#define LUAJIT_ENABLE_S390X_DEBUG_ENVS 0
+#endif
+
+static int lj_asm_s390x_debug_env_enabled(const char *name)
+{
+#if LUAJIT_ENABLE_S390X_DEBUG_ENVS
+  return getenv(name) != NULL;
+#else
+  (void)name;
+  return 0;
+#endif
+}
+
 /* -- Assembler state and common macros ----------------------------------- */
 
 /* Assembler state. */
@@ -113,7 +127,7 @@ static int lj_asm_s390x_guard_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_GUARD_LOG") != NULL);
+    enabled = lj_asm_s390x_debug_env_enabled("LUAJIT_S390X_GUARD_LOG");
   return enabled;
 }
 
@@ -121,7 +135,7 @@ static int lj_asm_s390x_asmir_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_ASMIR_LOG") != NULL);
+    enabled = lj_asm_s390x_debug_env_enabled("LUAJIT_S390X_ASMIR_LOG");
   return enabled;
 }
 
@@ -238,7 +252,15 @@ static int lj_asm_s390x_badra_log_enabled(void)
 {
   static int enabled = -1;
   if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_BADRA_LOG") != NULL);
+    enabled = lj_asm_s390x_debug_env_enabled("LUAJIT_S390X_BADRA_LOG");
+  return enabled;
+}
+
+static int lj_asm_s390x_ra_log_enabled(void)
+{
+  static int enabled = -1;
+  if (enabled == -1)
+    enabled = lj_asm_s390x_debug_env_enabled("LUAJIT_S390X_RA_LOG");
   return enabled;
 }
 
@@ -659,8 +681,7 @@ static Reg ra_rematk(ASMState *as, IRRef ref)
   ra_free(as, r);
   ra_modified(as, r);
   ir->r = RID_INIT;  /* Do not keep any hint. */
-  if (LJ_UNLIKELY(r >= RID_MIN_FPR &&
-		  getenv("LUAJIT_S390X_RA_LOG") != NULL)) {
+  if (LJ_UNLIKELY(r >= RID_MIN_FPR && lj_asm_s390x_ra_log_enabled())) {
     fprintf(stderr, "S390X_REMAT curins=%d ref=%d op=%d r=%d i=%d t=%d\n",
 	    (int)(as->curins - REF_BIAS), (int)(ref - REF_BIAS), (int)ir->o,
 	    (int)r, (int)ir->i, (int)irt_type(ir->t));
@@ -968,8 +989,7 @@ static Reg ra_allock(ASMState *as, intptr_t k, RegSet allow)
     ra_s390x_nosp(as, -303);
 #endif
   RA_DBGX((as, "allock    $x $r", k, r));
-  if (LJ_UNLIKELY(r >= RID_MIN_FPR &&
-		  getenv("LUAJIT_S390X_RA_LOG") != NULL)) {
+  if (LJ_UNLIKELY(r >= RID_MIN_FPR && lj_asm_s390x_ra_log_enabled())) {
     fprintf(stderr, "S390X_ALLOCK curins=%d k=%lld r=%d allow=0x%llx\n",
 	    (int)(as->curins - REF_BIAS), (long long)k, (int)r,
 	    (unsigned long long)allow);
