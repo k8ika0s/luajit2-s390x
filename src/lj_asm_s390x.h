@@ -6405,8 +6405,12 @@ static void asm_conv(ASMState *as, IRIns *ir)
 	    return;
       }
       left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -271);
-      if (st == IRT_U32 || st == IRT_U16 || st == IRT_U8) {
+      if (st == IRT_U32) {
 	emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, left, left));
+      } else if (st == IRT_U16) {
+	emit_u32(as, S390X_INS_RXE(S390XI_LLGHR, left, left));
+      } else if (st == IRT_U8) {
+	emit_u32(as, S390X_INS_RXE(S390XI_LLGCR, left, left));
       } else {
 	if (!asm_s390x_int_result_normalized(IR(lref)))
 	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, left, left));
@@ -6448,6 +6452,10 @@ static void asm_conv(ASMState *as, IRIns *ir)
     lj_assertA(irt_isint(ir->t) || irt_isu32(ir->t), "bad type for CONV EXT");
     if ((ir->op2 & IRCONV_SEXT) || st == IRT_I8 || st == IRT_I16)
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, left));
+    else if (st == IRT_U16)
+      emit_u32(as, S390X_INS_RXE(S390XI_LLGHR, dest, left));
+    else if (st == IRT_U8)
+      emit_u32(as, S390X_INS_RXE(S390XI_LLGCR, dest, left));
     else
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
     return;
