@@ -2316,6 +2316,14 @@ static void trace_start(jit_State *J)
     J->state = LJ_TRACE_IDLE;
     return;
   }
+  if (J->parent >= 3) {
+    GCtrace *parent = traceref(J, J->parent);
+    if (parent != NULL && parent->root != 0) {
+      /* Deep child traces still corrupt loop state on s390x. */
+      J->state = LJ_TRACE_IDLE;
+      return;
+    }
+  }
 #endif
 
   /* Ensuring forward progress for BC_ITERN can trigger hotcount again. */

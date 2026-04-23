@@ -2665,10 +2665,12 @@ static void build_subroutines(BuildCtx *ctx)
   |//-- FFI helper functions -----------------------------------------------
   |//-----------------------------------------------------------------------
   |
-  |// Handler for callback functions. Callback slot in r1.
+  |// Handler for callback functions. Callback slot arrives in r0 and is
+  |// restored to r1 before the VM saves registers.
   |// The trampoline stashes g in the reserved caller save area at 8(sp).
   |->vm_ffi_callback:
   |.if FFI
+  |  lgr TMPR1, TMPR0
   |.type CTSTATE, CTState, PC
   |  saveregs
   |  lg RB, RESERVED
