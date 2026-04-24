@@ -968,7 +968,11 @@ found:
   return top;
 }
 
-/* Check for function pointer and supported argument/result types. */
+/* Check for function pointer and supported argument/result types.
+**
+** Complex callbacks stay unsupported: the callback bridge only marshals
+** pointers, enums, and scalar numbers <= 8 bytes today.
+*/
 static CType *callback_checkfunc(CTState *cts, CType *ct)
 {
   int narg = 0;

@@ -1244,8 +1244,9 @@ static TRef crec_call_args(jit_State *J, RecordFFData *rd,
       tr = crec_s390x_small_struct_arg(J, cts, d, *base, o);
       goto donearg;
     } else if (ctype_isstruct(d->info) || ctype_iscomplex(d->info)) {
-      /* The s390x ABI passes these through a by-reference buffer, but the
-      ** traced call still needs by-value semantics for the original cdata.
+      /* The s390x ABI passes non-small structs and all C99 complex values
+      ** through an indirect buffer, but the traced call still needs by-value
+      ** semantics for the original cdata object.
       */
       tr = crec_s390x_byref_cdata_arg(J, cts, did, d, *base, o);
       goto donearg;
