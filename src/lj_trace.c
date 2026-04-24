@@ -1310,7 +1310,7 @@ static int lj_trace_s390x_hotside_equiv_log_enabled(void)
 
 static int lj_trace_s390x_hotside_uget_looproot_enabled(void)
 {
-  return 1;
+  return 0;
 }
 
 static int lj_trace_s390x_hotside_match_log_enabled(void)

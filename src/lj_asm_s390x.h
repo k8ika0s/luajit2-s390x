@@ -6742,7 +6742,7 @@ void lj_asm_patchexit(jit_State *J, GCtrace *T, ExitNo exitno, MCode *target)
       } else if (lj_asm_s390x_patch_brc_to(p, px, target)) {
 	brc_patch++;
 	if (p < cstart) cstart = p;
-      } else if (p + 6 <= pe &&
+      } else if (p + 8 <= pe &&
 		 lj_asm_s390x_patch_rie_branch_to(p, px, target)) {
 	rie_patch++;
 	if (p < cstart) cstart = p;
