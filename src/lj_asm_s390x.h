@@ -2327,18 +2327,21 @@ static void asm_tvstore64x(ASMState *as, Reg base, int32_t ofs, IRRef ref,
     emit_loadu64(as, tmp, (uint64_t)(~((int64_t)~irt_toitype(ir->t) << 47)));
   } else {
     Reg src = ra_alloc1(as, ref, allow);
-    Reg tmp, type;
+    Reg tmp;
     allow = rset_exclude(allow, src);
     tmp = ra_scratch(as, allow);
-    allow = rset_exclude(allow, tmp);
-    type = ra_scratch(as, allow);
-    emit_store64ofs(as, tmp, base, ofs);
-    emit_u32(as, S390X_INS_RXE(S390XI_AGR, tmp, type));
     if (irt_isinteger(ir->t)) {
-      emit_loadu64(as, type, (uint64_t)(uint32_t)LJ_TISNUM << 47);
+      uint32_t tag_hi = (uint32_t)(((uint64_t)(uint32_t)LJ_TISNUM << 47) >> 32);
+      emit_store64ofs(as, tmp, base, ofs);
+      emit_u48_pad8(as, S390X_INS_RIL(S390XI_IIHF, tmp, tag_hi));
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, tmp, src));
     } else {
+      Reg type;
       Reg mask = RID_NONE;
+      allow = rset_exclude(allow, tmp);
+      type = ra_scratch(as, allow);
+      emit_store64ofs(as, tmp, base, ofs);
+      emit_u32(as, S390X_INS_RXE(S390XI_AGR, tmp, type));
       if (irt_isgcv(ir->t)) {
         allow = rset_exclude(allow, type);
         mask = ra_scratch(as, allow);
