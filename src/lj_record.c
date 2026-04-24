@@ -512,47 +512,10 @@ static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 #define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 1
 #endif
 
-#ifndef LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER
-#define LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER \
-  LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#endif
-
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 #define LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS 1
 #else
 #define LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS 0
-#endif
-
-#if LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS
-static int lj_record_s390x_mod_branch_ifconv_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
-static int lj_record_s390x_mod_select_loop_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
-static int lj_record_s390x_mod_rem_select_loop_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
-static int lj_record_s390x_mod_loop_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
-static int lj_record_s390x_mod_scaled_loop_sum_enabled(void)
-{
-  return LJ_RECORD_S390X_NUMERIC_MOD_REDUCERS;
-}
-
-static int lj_record_s390x_minmax_loop_sum_enabled(void)
-{
-  return LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_MINMAX_LOOP_REDUCER;
-}
 #endif
 
 static TRef lj_record_s390x_raw_tab_getstr(jit_State *J, TRef tab,
@@ -1296,8 +1259,7 @@ static int lj_record_s390x_minmax_loop_sum(jit_State *J, const BCIns *body,
   cTValue *base;
   int32_t stopv;
 
-  if (!lj_record_s390x_minmax_loop_sum_enabled() ||
-      !lj_record_s390x_root_frame(J) ||
+  if (!lj_record_s390x_root_frame(J) ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -1643,8 +1605,7 @@ static int lj_record_s390x_mod_select_loop_sum(jit_State *J, const BCIns *body)
   int32_t modk, stopv, then_mul, else_mul;
   BCOp thenbc, elsebc;
 
-  if (!lj_record_s390x_mod_select_loop_sum_enabled() ||
-      !lj_record_s390x_root_frame(J) || J->pt == NULL ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -1821,8 +1782,7 @@ static int lj_record_s390x_mod_rem_select_loop_sum(jit_State *J,
   int nested_else_if = 0;
   BCOp thenbc = BC__MAX, elsebc = BC__MAX;
 
-  if (!lj_record_s390x_mod_rem_select_loop_sum_enabled() ||
-      !lj_record_s390x_root_frame(J) || J->pt == NULL ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0)
     return 0;
   proto = proto_bc(J->pt);
@@ -2146,8 +2106,6 @@ static int lj_record_s390x_mod_accum_loop_sum(jit_State *J, const BCIns *body)
       bc_op(body[1]) == BC_MULVN &&
       (bc_op(body[2]) == BC_ADDVV || bc_op(body[2]) == BC_SUBVV) &&
       (bc_op(body[3]) == BC_FORL || bc_op(body[3]) == BC_JFORL)) {
-    if (!lj_record_s390x_mod_scaled_loop_sum_enabled())
-      return 0;
     has_mul = 1;
     mul = body[1];
     accop = body[2];
@@ -2155,8 +2113,6 @@ static int lj_record_s390x_mod_accum_loop_sum(jit_State *J, const BCIns *body)
   } else if ((MSize)((body + 2) - proto) < J->pt->sizebc &&
 	     (bc_op(body[1]) == BC_ADDVV || bc_op(body[1]) == BC_SUBVV) &&
 	     (bc_op(body[2]) == BC_FORL || bc_op(body[2]) == BC_JFORL)) {
-    if (!lj_record_s390x_mod_loop_sum_enabled())
-      return 0;
     mul = 0;
     accop = body[1];
     forl = body + 2;
@@ -2244,8 +2200,7 @@ static int lj_record_s390x_mod_branch_ifconv(jit_State *J, const BCIns *pc,
   BCReg tmp, idxslot, accslot;
   TRef idx, acc, mod, mask, delta;
 
-  if (!lj_record_s390x_mod_branch_ifconv_enabled() ||
-      !lj_record_s390x_root_frame(J) || J->pt == NULL ||
+  if (!lj_record_s390x_root_frame(J) || J->pt == NULL ||
       J->parent != 0 || J->exitno != 0 ||
       bc_op(*pc) != BC_ISNEN || !tref_isinteger(remref) ||
       !lj_record_s390x_kint_is(J, zeroref, 0))
