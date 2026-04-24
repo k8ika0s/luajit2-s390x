@@ -38,9 +38,6 @@ LJ_FUNC void lj_trace_freestate(global_State *g);
 #ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 #define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 1
 #endif
-#ifndef LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
-#define LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS 0
-#endif
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
 enum {
@@ -88,14 +85,6 @@ LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
 #if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
 LJ_FUNC double lj_trace_s390x_mixed_width_loop_sum(int32_t idx,
 						   int32_t stop);
-#endif
-#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
-LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,
-						      int32_t stop,
-						      int32_t mul,
-						      int32_t mask);
-LJ_FUNC int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop,
-					     int32_t mod);
 #endif
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 LJ_DATA const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106];
