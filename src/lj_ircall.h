@@ -155,20 +155,8 @@ typedef struct CCallInfo {
 #define XA2_64		0
 #endif
 
-#ifndef LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
-#define LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS 0
-#endif
 #ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 #define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 1
-#endif
-#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
-#define IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_) \
-  _(S390X,	lj_trace_s390x_const_struct_loop_sum, 8, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_ffi_fixed_gpr_loop_sum, 5, N, U64, 0) \
-  _(S390X,	lj_trace_s390x_ffi_fixed_fpr_loop_sum, 5, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_mixed_width_loop_sum, 2, N, NUM, 0)
-#else
-#define IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_)
 #endif
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
@@ -190,7 +178,6 @@ typedef struct CCallInfo {
   /* s390x recorder/backend reducers. Keep target-confined, not generic ABI. */ \
   _(S390X,	lj_str_equal,		3,   N, INT, 0) \
   _(S390X,	lj_str_equal_256,	3,   N, INT, 0) \
-  IRCALLDEF_S390X_FFI_CDATA_REDUCERS(_) \
   IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \
