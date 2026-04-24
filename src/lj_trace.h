@@ -32,38 +32,11 @@ LJ_FUNC int lj_trace_flushall(lua_State *L);
 LJ_FUNC void lj_trace_initstate(global_State *g);
 LJ_FUNC void lj_trace_freestate(global_State *g);
 #if LJ_TARGET_S390X
-#ifndef LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
-#define LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS 0
-#endif
 #ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 #define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 1
 #endif
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
-enum {
-  LJ_S390X_CONST_STRUCT_SMALL_U32,
-  LJ_S390X_CONST_STRUCT_SMALL_U64,
-  LJ_S390X_CONST_STRUCT_ONE_FLOAT,
-  LJ_S390X_CONST_STRUCT_ONE_DOUBLE,
-  LJ_S390X_CONST_STRUCT_BIG_PAIR,
-  LJ_S390X_CONST_STRUCT_HFA2D
-};
-#if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
-LJ_FUNC double lj_trace_s390x_const_struct_loop_sum(double acc, int32_t idx,
-						    int32_t stop, void *func,
-						    int32_t kind, int32_t reps,
-						    uint64_t lo, uint64_t hi);
-LJ_FUNC uint64_t lj_trace_s390x_ffi_fixed_gpr_loop_sum(uint64_t acc,
-						       int32_t idx,
-						       int32_t stop,
-						       int32_t slope,
-						       int32_t intercept);
-LJ_FUNC double lj_trace_s390x_ffi_fixed_fpr_loop_sum(double acc,
-						     int32_t idx,
-						     int32_t stop,
-						     int32_t slope,
-						     int32_t intercept);
-#endif
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 LJ_FUNC double lj_trace_s390x_num_prefix_accum4(double acc, int32_t idx,
 						int32_t stop, int32_t kind);
@@ -81,10 +54,6 @@ LJ_FUNC int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx,
 						       int32_t else_mul);
 LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
 					    int32_t mod);
-#endif
-#if LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS
-LJ_FUNC double lj_trace_s390x_mixed_width_loop_sum(int32_t idx,
-						   int32_t stop);
 #endif
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 LJ_DATA const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106];
