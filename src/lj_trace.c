@@ -2898,9 +2898,6 @@ static void trace_start(jit_State *J)
   J->postproc = LJ_POST_NONE;
   lj_resetsplit(J);
   J->retryrec = 0;
-#if LJ_TARGET_S390X
-  J->s390x_nil_restart_desc = 0;
-#endif
   J->ktrace = 0;
   setgcref(J->cur.startpt, obj2gco(J->pt));
 
