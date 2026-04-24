@@ -1,187 +1,86 @@
 # s390x Validation Runbook
 
-Last updated: 2026-04-06 12:20:00 PDT
+This runbook describes the generic validation workflow for native s390x work in
+this repository. It is deliberately host-agnostic: the same rules should apply
+whether validation runs locally, on a shared machine, or in automation.
 
 ## Purpose
 
-This runbook describes the authoritative s390x validation loop after the
-layout reset. The remote trees are deliberate nongit mirrors, not remote git
-worktrees.
+Use this document when you need to:
 
-For current status, read
-[state-of-project.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/state-of-project.md)
-first.
+- rebuild the repository on a real s390x machine,
+- run the native validation matrix,
+- capture repeatable performance results, or
+- restamp previously validated areas after a source change.
 
-## Canonical Layout
+For the current project state, read
+[state-of-project.md](state-of-project.md) first.
 
-### Local
+## Workspace Rules
 
-- authoritative repo:
-  `/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x`
-- disposable scratch:
-  `/private/tmp/luajit2-s390x-scratch/<purpose>/`
-- generated outputs:
-  [artifacts/s390x](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x)
-- archived generated journal payloads:
-  [artifacts/archive/s390x/analyze-journal](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/archive/s390x/analyze-journal)
+- Build from a clean checkout or a clearly scoped worktree.
+- Keep generated output outside tracked source directories.
+- Treat native build directories as disposable mirrors of the repository, not
+  as long-lived scratchpads.
+- Do not mix local experiment debris with the tree used for validation claims.
 
-### Remote
+## Sync And Build Discipline
 
-Keep exactly one canonical mirror path per host:
+- Sync tracked files only.
+- Preserve repository-relative paths during any copy or mirror step.
+- Rebuild from `src/` after sync instead of copying build products between
+  machines.
+- Keep validation commands and artifacts reproducible from a fresh checkout.
 
-- `kdz:/root/luajit2-s390x/canon/repo`
-- `zkd0:/root/luajit2-s390x/canon/repo`
+## Native Validation Flow
 
-Keep exactly one timestamped output namespace per host:
+1. Sync the source tree to the native s390x environment.
+2. Rebuild from `src/`.
+3. Confirm the interpreter starts cleanly and JIT is available.
+4. Run the targeted validation lane or matrix row.
+5. Capture outputs in a timestamped results directory outside the tracked tree.
+6. Record only the results needed to justify the current change.
 
-- `kdz:/root/luajit2-s390x/runs/<timestamp>-<purpose>/`
-- `zkd0:/root/luajit2-s390x/runs/<timestamp>-<purpose>/`
+## Minimum Correctness Expectations
 
-Optional quarantine/archive namespace:
+Before using a run for support claims, keep these categories green on real
+s390x hardware:
 
-- `kdz:/root/luajit2-s390x/archive/<timestamp>/`
-- `zkd0:/root/luajit2-s390x/archive/<timestamp>/`
+- baseline interpreter startup,
+- core JIT validation,
+- focused backend or runtime repros relevant to the current patch,
+- any perf-family correctness oracles touched by the change.
 
-## Authoritative Sync Entry Point
+If a change modifies helper ABI, exit handling, callback ABI, or cdata
+lowering, rerun the focused lane that exercises that mechanism even if a
+broader matrix row already passed.
 
-Use the checked-in helper before any manual native run:
+## Performance Restamps
 
-```sh
-python3 tools/s390x/sync_remote_mirror.py \
-  --host kdz \
-  --verify-path src/lj_trace.c \
-  --verify-path docs/s390x/findings.md
+When restamping performance:
 
-python3 tools/s390x/sync_remote_mirror.py \
-  --host zkd0 \
-  --verify-path src/lj_trace.c \
-  --verify-path docs/s390x/findings.md
-```
+- compare like-for-like builds,
+- use the same benchmark file for `jit.on` and `-joff` comparisons,
+- keep warmup and sample policy fixed for a given report,
+- capture raw logs alongside summarized tables,
+- avoid mixing exploratory instrumentation into the numbers used for claims.
 
-That helper is the only approved manual sync entrypoint because it enforces:
-
-- tracked-file sync only
-- canonical `canon/repo` target only
-- preserved relative paths only
-- `runs/` and `archive/` namespace creation beside the mirror
-- post-sync verification of relative landing paths
-
-## Layout Invariants
-
-- The mirror root must stay buildable and free of experiment debris.
-- All source sync must preserve relative paths under `canon/repo`.
-- Single-file syncs must still preserve relative paths.
-- Run outputs must land under `runs/<timestamp>-<purpose>/`, never under
-  `canon/repo`.
-- The mirror root is not a scratchpad, and it is not a git checkout.
-
-Correct:
-
-```sh
-python3 tools/s390x/sync_remote_mirror.py --host kdz --verify-path src/lj_record.c
-rsync -aR src/lj_trace.c kdz:/root/luajit2-s390x/canon/repo/
-ssh kdz 'mkdir -p /root/luajit2-s390x/runs/20260406-sanity'
-```
-
-Wrong:
-
-```sh
-scp src/lj_trace.c kdz:/root/luajit2-s390x/canon/repo/
-rsync -a src/lj_trace.c kdz:/root/luajit2-s390x/canon/repo/
-scp findings.md kdz:/root/luajit2-s390x/canon/repo/
-ssh kdz 'cd /root/luajit2-s390x/canon/repo && ./src/luajit ... >/root/luajit2-s390x/canon/repo/out.log'
-```
-
-## Authoritative Restamp Entry Points
-
-Use the checked-in helpers from the clean local repo. They now default to the
-canonical remote mirror path.
-
-```sh
-python3 tools/s390x/restamp_iterator_perf.py \
-  --host kdz \
-  --output-dir artifacts/s390x/restamps/20260406-kdz-restamp
-
-python3 tools/s390x/restamp_iterator_perf.py \
-  --host zkd0 \
-  --output-dir artifacts/s390x/restamps/20260406-zkd0-restamp
-```
-
-For focused truth packs:
-
-```sh
-python3 tools/s390x/build_iterator_truth_pack.py \
-  --host kdz \
-  --output-dir artifacts/s390x/truth-packs/20260406-kdz-iterator-truth-pack
-```
-
-The helper contract remains:
-
-- tracked-file sync only
-- direct `src/` rebuild only
-- `S390X_PERF_SAMPLES=9`
-- `S390X_PERF_WARMUP=2`
-- pinned `taskset -c 0` benchmark runs where supported
-- same benchmark file for `jit.on` and `-joff`
-- raw owner logs and IR dumps retained beside the benchmark JSONL
-
-## Non-Negotiable Validation Rules
-
-- sync through
-  [tools/s390x/sync_remote_mirror.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/sync_remote_mirror.py)
-  or through helpers that call the same tracked-file sync path
-- rebuild in `src/` only
-- treat `kdz` same-host pinned A/B as the policy signal
-- treat `zkd0` as a regression screen, not a policy chooser
-- use low-noise manual logs or debugger only
-- do not use the dirty-tree
-  [tools/s390x/iterator_probe.py](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tools/s390x/iterator_probe.py)
-  wrapper for perf decisions
-- do not add helper-call probes in VM fast paths
-
-## Clean Rebuild
-
-From the canonical remote mirror:
-
-```sh
-export LUA_PATH="./src/?.lua;./src/jit/?.lua;;"
-make -C src clean
-make -C src -j4
-./src/luajit -e 'local a,b,c=jit.status(); print(a,b,c)'
-```
-
-Current expected result on both hosts:
-
-- `true fold cse`
-
-This should work without `XCFLAGS=-DLUAJIT_ENABLE_S390X_JIT`.
-
-## Baseline Correctness Checks
-
-Keep these green before perf work:
-
-```sh
-./src/luajit /tmp/oneshot_iter.lua 20
-./src/luajit /tmp/oneshot_iter.lua 2000
-./src/luajit /tmp/oneshot_iter.lua 200000
-./src/luajit -joff /tmp/oneshot_iter.lua 200000
-```
-
-Current expected outputs:
-
-- `RESULT 500`
-- `RESULT 50000`
-- `RESULT 5000000`
-- `RESULT 5000000`
+See [perf.md](perf.md) for benchmark and oracle policy.
 
 ## Output Discipline
 
-- Write run bundles under
-  [artifacts/s390x/manual](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual),
-  [artifacts/s390x/restamps](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/restamps),
-  or
-  [artifacts/s390x/truth-packs](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/truth-packs)
-  locally.
-- Use `runs/<timestamp>-<purpose>/` remotely only for transient native outputs.
-- If a remote run leaves behind ad hoc files in `canon/repo`, stop and clean
-  the mirror before opening another perf branch.
+- Store generated validation bundles under a dedicated results directory such as
+  `artifacts/s390x/` or another ignored output root.
+- Keep reports, raw logs, JSON summaries, and trace dumps together.
+- Do not treat ad hoc terminal output as the canonical record of a validation
+  run.
+- Prefer compact summaries that point back to reproducible commands.
+
+## What Not To Encode In Docs
+
+- personal filesystem paths,
+- private hostnames,
+- one-off recovery trees,
+- commands that only make sense in one lab environment,
+- dated instructions whose only purpose was to recover a temporary branch
+  state.
