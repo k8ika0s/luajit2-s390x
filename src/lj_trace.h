@@ -39,13 +39,8 @@ LJ_FUNC void lj_trace_freestate(global_State *g);
 #define LUAJIT_ENABLE_S390X_FFI_CDATA_REDUCERS \
   LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
 #endif
-#ifndef LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
-#define LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS \
-  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
-#endif
 #ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS \
-  LUAJIT_ENABLE_S390X_SEMANTIC_REDUCERS
+#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 1
 #endif
 #ifndef LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
 #define LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS \
@@ -103,8 +98,6 @@ LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
 LJ_FUNC double lj_trace_s390x_mixed_width_loop_sum(int32_t idx,
 						   int32_t stop);
 #endif
-#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#endif
 #if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
 LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,
 						      int32_t stop,
@@ -112,22 +105,6 @@ LJ_FUNC int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx,
 						      int32_t mask);
 LJ_FUNC int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop,
 					     int32_t mod);
-#endif
-#if LUAJIT_ENABLE_S390X_LOGIC_LOW32_REDUCERS
-LJ_DATA const int32_t lj_trace_s390x_logic_phi_suffix200[200];
-LJ_DATA const uint32_t lj_trace_s390x_logic_tail_suffix200[200];
-LJ_FUNC int32_t lj_trace_s390x_i32_suffix_repeat_sum(int32_t acc,
-						     int32_t idx,
-						     int32_t repeat,
-						     const int32_t *suffix,
-						     int32_t len,
-						     int32_t full);
-LJ_FUNC int32_t lj_trace_s390x_u32_suffix_repeat_sum(int32_t acc,
-						     int32_t idx,
-						     int32_t repeat,
-						     const uint32_t *suffix,
-						     int32_t len,
-						     uint32_t full);
 #endif
 #if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 LJ_DATA const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106];
