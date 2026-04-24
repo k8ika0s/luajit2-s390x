@@ -21,8 +21,24 @@ from typing import Any
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-MATRIX_FILE = ROOT / "tests" / "matrix" / "upstream_validation_perf_matrix.json"
-ARTIFACTS_ROOT = ROOT / "artifacts" / "s390x"
+
+
+def env_path(name: str, default: pathlib.Path) -> pathlib.Path:
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    path = pathlib.Path(raw).expanduser()
+    return path if path.is_absolute() else ROOT / path
+
+
+MATRIX_FILE = env_path(
+    "LUAJIT_UPSTREAM_MATRIX_FILE",
+    ROOT / "tests" / "matrix" / "upstream_validation_perf_matrix.json",
+)
+ARTIFACTS_ROOT = env_path(
+    "LUAJIT_UPSTREAM_MATRIX_ARTIFACTS_ROOT",
+    ROOT / "artifacts" / "s390x",
+)
 
 PURE_LUA_T_FILES = [
     "cli-errors.t",
@@ -276,6 +292,9 @@ def applicability_matches(applicability: dict[str, Any], target: dict[str, str],
     jit_rule = applicability.get("jit")
     if jit_rule and variant.jit != jit_rule:
         return False, f"jit={variant.jit}"
+    ffi_rule = applicability.get("ffi")
+    if ffi_rule and variant.ffi != ffi_rule:
+        return False, f"ffi={variant.ffi}"
     return True, "applicable"
 
 

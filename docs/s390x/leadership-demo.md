@@ -1,105 +1,72 @@
 # Leadership Demo: OpenResty Gateway on s390x
 
-This demo is the clearest same-day proof of what the LuaJIT `s390x` port
-unlocked: a recognizable gateway and plugin surface, running natively on IBM Z,
-with Lua policy code and LuaJIT FFI in the live request path.
+This note describes the demonstration path that best shows what the LuaJIT
+`s390x` port enables for downstream software.
 
-The current operator stance is:
+## Demo Goal
 
-- OpenResty is the primary proof and should be used first.
-- Kong is the next-layer proof and now has a scripted native `s390x` path in
-  `demo/kong/run_kong_demo.sh`.
-- The fully JIT-enabled Kong nginx startup path now passes on the current
-  branch; the remaining demo-only caveat is the `/root` worker permission
-  bridge tracked in
-  [runtime-remediation.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/runtime-remediation.md).
+The strongest public proof is a recognizable gateway workload running natively
+on s390x with Lua policy code and LuaJIT FFI in the live request path.
 
-## Why this demo
+OpenResty is still the cleanest first demonstration. Kong is the higher-level
+follow-on because it exercises the same general OpenResty and LuaJIT substrate
+through a more recognizable gateway stack.
 
-- OpenResty embeds LuaJIT into NGINX workers.
-- `lua-resty-core` depends on LuaJIT FFI for core APIs.
-- Kong Gateway builds its plugin model on top of OpenResty.
-- This means a working OpenResty request path on `s390x` is a credible proxy
-  for the category of downstream software that was blocked before native
-  LuaJIT support existed on the architecture.
+## What The Demo Shows
 
-## What it shows
+- a request path implemented in Lua,
+- LuaJIT JIT activity on native s390x,
+- at least one real FFI call in the hot policy path,
+- an operational gateway surface rather than a microbenchmark alone.
 
-- `POST /payments/authorize` accepts a small JSON authorization request.
-- A Lua policy engine computes a risk score in the hot path.
-- The score uses `ffi.C.abs(...)` to keep a real LuaJIT FFI call in the path.
-- The gateway routes the request to mock `approve` or `review` backends.
-- `GET /__jit` exposes `jit.status()`, compiled-trace count from `jit.util`,
-  policy-path counters, worker PID, and arch.
-- The default demo path still uses the conservative metrics mode:
-  - `trace_count` comes from `jit.util.traceinfo()`
-  - no live observer is attached in the worker by default
-- An opt-in observer mode now exists for hardening and tooling work:
-  - set `S390X_DEMO_TRACE_OBSERVER=1`
-  - `/__jit` then reports worker-local `jit.attach("trace")` and
-    `jit.attach("texit")` counters in addition to the `jit.util` trace count
-  - this mode is intended for staged validation first, not as the default
-    leadership demo setting
+The OpenResty demo remains the preferred first proof. Kong is useful as a
+follow-up demonstration when the environment is already prepared.
 
-## How to run
+## How To Run
 
-From this repo:
+From this repository:
 
 ```bash
 demo/openresty/run_demo.sh
 ```
 
-Defaults:
-
-- primary host: `kdz`
-- fallback host: `zkd0`
-- remote root: `/root/luajit2-s390x/leadership-demo-<timestamp>`
-- OpenResty source tarball:
-  `https://openresty.org/download/openresty-1.27.1.2.tar.gz`
-
-Useful overrides:
+Optional variants:
 
 ```bash
 OPENRESTY_VERSION=1.27.1.2 demo/openresty/run_demo.sh
-S390X_PRIMARY_HOST=zkd0 demo/openresty/run_demo.sh
 REMOTE_HTTP_PORT=18080 demo/openresty/run_demo.sh
 S390X_DEMO_TRACE_OBSERVER=1 demo/openresty/run_demo.sh
 KONG_FORCE_JIT_OFF_IN_NGINX=1 demo/kong/run_kong_demo.sh
 ```
 
-## Leadership talking track
+Use an execution environment where the worker user can read the runtime tree.
+Do not rely on `/root`-hosted paths or other machine-local permissions
+arrangements in the checked-in workflow.
+
+## Talking Track
 
 Use this framing:
 
-1. Before the LuaJIT `s390x` bring-up, the LuaJIT-dependent gateway surface was
-   unavailable on IBM Z.
-2. Now the same class of software can run natively on `s390x`, including a
-   request path that uses Lua policy code and FFI in the hot path.
-3. This is a capability proof, not a blanket performance claim. The current
-   measured optimization work is still separate and tracked in
-   [perf.md](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/docs/s390x/perf.md).
+1. Before native s390x support, LuaJIT-dependent gateway software was not a
+   viable downstream path on IBM Z.
+2. Now that same class of software can run natively, with Lua policy code and
+   FFI in the request path.
+3. This is a capability proof, not a blanket throughput claim. Performance
+   evidence is tracked separately in [perf.md](perf.md).
 
-For the current branch, keep one sentence explicit:
+## Fallback Proof
 
-- OpenResty is still the cleanest native proof.
-- Kong is now also demonstrable with full JIT enabled on native `s390x`; the
-  remaining caveat is demo-only worker permissions for `/root`-hosted runtime
-  trees.
+If the gateway demo is blocked by local packaging or deployment friction, fall
+back to the checked-in LuaJIT JIT and FFI trace proofs:
 
-## Fallback if OpenResty build friction appears
+- `tests/s390x/jit_core/ffi_call_trace.lua`
+- `tests/s390x/jit_core/ffi_ptr_call_trace.lua`
 
-If the OpenResty build path is blocked during the meeting, use the existing
-native traced-FFI proofs directly:
+Those are weaker than the full gateway demo, but they still provide a direct
+native s390x proof for JIT and FFI behavior.
 
-```bash
-ssh kdz 'cd /root/luajit2-s390x/clean-loop-20260321 && src/luajit tests/s390x/jit_core/ffi_call_trace.lua'
-ssh kdz 'cd /root/luajit2-s390x/clean-loop-20260321 && src/luajit tests/s390x/jit_core/ffi_ptr_call_trace.lua'
-```
+## Related Notes
 
-Those are weaker than the gateway demo, but they still prove native LuaJIT JIT
-and FFI behavior on `s390x`.
-
-The operator script also does this automatically if the OpenResty request path
-crashes during warmup on the current branch. In that case it writes the nginx
-error log to the remote log directory and then runs the bundled LuaJIT FFI
-trace proofs so the meeting still has a native `s390x` proof point.
+- [runtime-remediation.md](runtime-remediation.md)
+- [perf.md](perf.md)
+- [state-of-project.md](state-of-project.md)

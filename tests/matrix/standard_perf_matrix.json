@@ -135,7 +135,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/dispatch_trace.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "iterator_table",
@@ -151,7 +154,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/iterator_table.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "bitops_mix",
@@ -167,7 +173,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/bitops_mix.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "be_helpers_localized",
@@ -183,7 +192,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/be_helpers_localized.lua",
-      "priority": "conditional"
+      "priority": "conditional",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "vararg_paths",
@@ -199,7 +211,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/vararg_paths.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "ffi_calls",
@@ -215,7 +230,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/ffi_calls.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "ffi_calls_static_stop",
@@ -231,7 +249,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/ffi_calls_static_stop.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "ffi_cdata",
@@ -248,7 +269,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/ffi_cdata.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "ffi_fixed_call_pressure",
@@ -265,7 +289,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/ffi_fixed_call_pressure.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "ffi_fixed_struct_calls",
@@ -281,7 +308,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/ffi_fixed_struct_calls.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "be_helpers",
@@ -298,7 +328,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/be_helpers.lua",
-      "priority": "conditional"
+      "priority": "conditional",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "int_add_phi_only",
@@ -314,7 +347,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/int_add_phi_only.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "large_immediates",
@@ -330,7 +366,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/large_immediates.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "logic_add_phi_noboundary",
@@ -346,7 +385,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/logic_add_phi_noboundary.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "logical_chain_tail_add",
@@ -362,7 +404,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/logical_chain_tail_add.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "logical_chain_tail_store",
@@ -378,7 +423,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/logical_chain_tail_store.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "lower_frame_same_callsite",
@@ -394,7 +442,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/lower_frame_same_callsite.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "mixed_noffi",
@@ -410,7 +461,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/mixed_noffi.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "mixed_ffi",
@@ -426,7 +480,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/mixed_ffi.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "numeric_ops",
@@ -444,7 +501,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/numeric_ops.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "promotion_core_static_stop",
@@ -460,7 +520,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/promotion_core_static_stop.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "route_around_reducers",
@@ -476,7 +539,10 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/route_around_reducers.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     },
     {
       "id": "string_heavy",
@@ -493,7 +559,13 @@
       },
       "variants": "performance_standard",
       "source_path": "tests/s390x/perf/string_heavy.lua",
-      "priority": "required"
+      "priority": "required",
+      "owner_architectures": [
+        "s390x"
+      ]
     }
-  ]
+  ],
+  "metadata_conventions": {
+    "owner_architectures": "Descriptive ownership of the lane or family definition only. Use applicability for execution filtering."
+  }
 }

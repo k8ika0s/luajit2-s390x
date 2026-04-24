@@ -33,6 +33,14 @@ PROFILE_TITLES = {
 }
 
 
+def load_manifest(artifact: pathlib.Path) -> dict:
+    manifest = artifact / "manifest.json"
+    if not manifest.exists():
+        return {}
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {}
+
+
 def relpath(path: pathlib.Path) -> str:
     try:
         return str(path.resolve().relative_to(ROOT.resolve()))
@@ -62,6 +70,21 @@ def load_records(artifact: pathlib.Path) -> list[dict]:
                 records.append(json.loads(line))
         return records
     raise SystemExit(f"no benchmark records found under {artifact}")
+
+
+def infer_target_label(artifact: pathlib.Path, records: list[dict], manifest: dict, fallback: str) -> str:
+    archs = {
+        str(record.get("target_arch"))
+        for record in records
+        if record.get("target_arch")
+    }
+    if len(archs) == 1:
+        return next(iter(archs))
+    for key in ("target_arch", "arch"):
+        value = manifest.get(key)
+        if value:
+            return str(value)
+    return fallback
 
 
 def load_failure_count(artifact: pathlib.Path) -> int:
@@ -130,6 +153,29 @@ def markdown_table(headers: list[str], body: list[list[str]]) -> list[str]:
         "| " + " | ".join("---" for _ in headers) + " |",
     ]
     lines.extend("| " + " | ".join(row) + " |" for row in body)
+    return lines
+
+
+def glossary_lines(cross_target: bool) -> list[str]:
+    lines = [
+        "## Glossary",
+        "- `small`, `medium`, `hot`, and any extra labels such as `xhot` are family-local workload buckets, not global sizes. Read them against the owning benchmark file.",
+    ]
+    if cross_target:
+        lines.extend(
+            [
+                "- `JIT on faster` means the geometric-mean `jit-off / jit-on` speedup for the listed row set on that architecture.",
+                "- Architecture comparison columns use `x86_jit_on / s390x_jit_on` or `x86_jit_off / s390x_jit_off`. Positive values mean s390x is faster; negative values mean s390x is slower by that factor.",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- `h1e10` means `hotloop=1 hotexit=10`.",
+                "- `h1e1` means `hotloop=1 hotexit=1`.",
+                "- Family rollups and conclusion rows use geometric means over the rows with data for that comparison.",
+            ]
+        )
     return lines
 
 
@@ -431,6 +477,8 @@ def write_cross_target_markdown(
     rollup: list[dict],
     s390x_artifact: pathlib.Path,
     x86_artifact: pathlib.Path,
+    s390x_label: str,
+    x86_label: str,
     previous: pathlib.Path | None,
     s390x_failures: int,
     x86_failures: int,
@@ -439,13 +487,13 @@ def write_cross_target_markdown(
     missing_s390x = sum(1 for row in rows if row["s390x_jit_on"] is None or row["s390x_jit_off"] is None)
     missing_x86 = sum(1 for row in rows if row["x86_jit_on"] is None or row["x86_jit_off"] is None)
     lines = [
-        "# kdz1 s390x vs ka0s01 x86 Performance Matrix",
+        f"# {s390x_label} vs {x86_label} Performance Matrix",
         "",
-        "Positive architecture ratios mean s390x is faster than x86 for that JIT mode. Negative ratios mean s390x is slower than x86, with the magnitude showing how many times slower.",
+        f"Positive architecture ratios mean {s390x_label} is faster than {x86_label} for that JIT mode. Negative ratios mean {s390x_label} is slower than {x86_label}, with the magnitude showing how many times slower.",
         "",
         "## Inputs",
-        f"- s390x artifact: `{relpath(s390x_artifact)}`",
-        f"- x86 artifact: `{relpath(x86_artifact)}`",
+        f"- {s390x_label} artifact: `{relpath(s390x_artifact)}`",
+        f"- {x86_label} artifact: `{relpath(x86_artifact)}`",
     ]
     if previous:
         lines.append(f"- Previous comparison format reference: `{relpath(previous)}`")
@@ -453,6 +501,12 @@ def write_cross_target_markdown(
         [
             "- Full CSV: `combined-comparison.csv`",
             "- Family rollup CSV: `family-rollup.csv`",
+            "",
+        ]
+    )
+    lines.extend(glossary_lines(cross_target=True))
+    lines.extend(
+        [
             "",
             "## Run Counts",
             f"- Total comparison rows: `{len(rows)}`",
@@ -471,10 +525,10 @@ def write_cross_target_markdown(
                 "Compiler",
                 "Family",
                 "Rows",
-                "s390x JIT on faster",
-                "x86 JIT on faster",
-                "s390x vs x86 JIT on",
-                "s390x vs x86 JIT off",
+                f"{s390x_label} JIT on faster",
+                f"{x86_label} JIT on faster",
+                f"{s390x_label} vs {x86_label} JIT on",
+                f"{s390x_label} vs {x86_label} JIT off",
             ],
             [
                 [
@@ -512,30 +566,30 @@ def write_cross_target_markdown(
         "Family",
         "Workload",
         "Scale",
-        "s390x JIT on (s)",
-        "s390x JIT off (s)",
-        "s390x JIT on faster",
-        "x86 JIT on (s)",
-        "x86 JIT off (s)",
-        "x86 JIT on faster",
-        "s390x vs x86 JIT on",
-        "s390x vs x86 JIT off",
+        f"{s390x_label} JIT on (s)",
+        f"{s390x_label} JIT off (s)",
+        f"{s390x_label} JIT on faster",
+        f"{x86_label} JIT on (s)",
+        f"{x86_label} JIT off (s)",
+        f"{x86_label} JIT on faster",
+        f"{s390x_label} vs {x86_label} JIT on",
+        f"{s390x_label} vs {x86_label} JIT off",
     ]
     advantages = sorted([row for row in rows if row["s390x_vs_x86_jit_on"] is not None], key=lambda row: row["s390x_vs_x86_jit_on"], reverse=True)[:20]
     disadvantages = sorted([row for row in rows if row["s390x_vs_x86_jit_on"] is not None], key=lambda row: row["s390x_vs_x86_jit_on"])[:20]
     slowest = sorted([row for row in rows if row["s390x_jit_on"] is not None], key=lambda row: row["s390x_jit_on"], reverse=True)[:20]
     regressions = sorted([row for row in rows if row["s390x_jit_on_faster"] is not None and row["s390x_jit_on_faster"] < 1.0], key=lambda row: row["s390x_jit_on_faster"])[:20]
     missing = [row for row in rows if not cross_target_row_complete(row)][:40]
-    lines.extend(["", "## Largest s390x JIT-On Advantages"])
+    lines.extend(["", f"## Largest {s390x_label} JIT-On Advantages"])
     lines.extend(markdown_table(headers, [row_fields(row) for row in advantages]))
-    lines.extend(["", "## Largest s390x JIT-On Disadvantages"])
+    lines.extend(["", f"## Largest {s390x_label} JIT-On Disadvantages"])
     lines.extend(markdown_table(headers, [row_fields(row) for row in disadvantages]))
-    lines.extend(["", "## Largest s390x JIT-On Runtimes"])
+    lines.extend(["", f"## Largest {s390x_label} JIT-On Runtimes"])
     lines.extend(markdown_table(headers, [row_fields(row) for row in slowest]))
-    lines.extend(["", "## s390x JIT-On Slower Than -joff"])
+    lines.extend(["", f"## {s390x_label} JIT-On Slower Than -joff"])
     lines.extend(markdown_table(headers, [row_fields(row) for row in regressions]) if regressions else ["- None"])
     lines.extend(["", "## Missing Data Audit"])
-    lines.extend(markdown_table(headers, [row_fields(row) for row in missing]) if missing else ["- No missing s390x/x86 on/off cells."])
+    lines.extend(markdown_table(headers, [row_fields(row) for row in missing]) if missing else [f"- No missing {s390x_label}/{x86_label} on/off cells."])
     lines.extend(["", "## Full Matrix"])
     lines.extend(markdown_table(headers, [row_fields(row) for row in rows]))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -573,6 +627,12 @@ def write_profile_markdown(
         [
             "- Full CSV: `combined-comparison.csv`",
             "- Family rollup CSV: `family-rollup.csv`",
+            "",
+        ]
+    )
+    lines.extend(glossary_lines(cross_target=False))
+    lines.extend(
+        [
             "",
             "## Run Counts",
             f"- Total comparison rows: `{len(rows)}`",
@@ -673,6 +733,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--previous-comparison", type=pathlib.Path)
     parser.add_argument("--s390x-artifact", type=pathlib.Path)
     parser.add_argument("--x86-artifact", type=pathlib.Path)
+    parser.add_argument("--s390x-label")
+    parser.add_argument("--x86-label")
     parser.add_argument("--profile-artifact", action="append", type=pathlib.Path, default=[])
     parser.add_argument("--profile-label")
     return parser.parse_args()
@@ -687,6 +749,10 @@ def run_cross_target(args: argparse.Namespace) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     s390x_records = load_records(s390x_artifact)
     x86_records = load_records(x86_artifact)
+    s390x_manifest = load_manifest(s390x_artifact)
+    x86_manifest = load_manifest(x86_artifact)
+    s390x_label = args.s390x_label or infer_target_label(s390x_artifact, s390x_records, s390x_manifest, "s390x")
+    x86_label = args.x86_label or infer_target_label(x86_artifact, x86_records, x86_manifest, "x86")
     rows = build_cross_target_rows(s390x_records, x86_records)
     rollup = cross_target_family_rollup(rows)
     write_cross_target_csv(output_dir / "combined-comparison.csv", rows)
@@ -701,6 +767,8 @@ def run_cross_target(args: argparse.Namespace) -> int:
         "x86_missing_rows": sum(1 for row in rows if row["x86_jit_on"] is None or row["x86_jit_off"] is None),
         "s390x_failures": s390x_failures,
         "x86_failures": x86_failures,
+        "s390x_label": s390x_label,
+        "x86_label": x86_label,
         "s390x_artifact": relpath(s390x_artifact),
         "x86_artifact": relpath(x86_artifact),
         "previous_comparison_format_reference": relpath(args.previous_comparison) if args.previous_comparison else None,
@@ -713,6 +781,8 @@ def run_cross_target(args: argparse.Namespace) -> int:
         rollup=rollup,
         s390x_artifact=s390x_artifact,
         x86_artifact=x86_artifact,
+        s390x_label=s390x_label,
+        x86_label=x86_label,
         previous=args.previous_comparison,
         s390x_failures=s390x_failures,
         x86_failures=x86_failures,

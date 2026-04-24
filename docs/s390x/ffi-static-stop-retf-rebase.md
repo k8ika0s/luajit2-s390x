@@ -1,228 +1,77 @@
 # Same-Callsite Lower-Frame Continuation Rebase
 
-Status: active design note
+This note records the technical boundary behind an earlier same-callsite
+lower-frame continuation failure. The useful lesson remains current even though
+the original reproducer trail was tied to one historical FFI lane.
 
-Current exact seam on clean `kdz`:
+## Core Reading
 
-- checked-in generic reducer:
-  - [lower_frame_same_callsite.lua](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/tests/s390x/perf/lower_frame_same_callsite.lua)
-- reducer boundary:
-  - the bench harness stays correct on clean `kdz`
-  - the exact direct same-callsite script on clean `kdz` still returns:
-    - `LUA1 0`
-    - `LUA2 0`
-  - so the checked-in bench is a control surface, not the authoritative bug
-    reproducer
-- generic control:
-  - local constant-return outer-call shape stays correct
-  - pure-Lua inner hot loop under the same outer call/loop/return shape also
-    collapses to the same `trace 4 exit 2` / `slot2=ref1[...]` continuation
-    seam on `kdz`
-- consequence:
-  - this is not FFI-specific
-  - the old static-stop FFI lane is one instance of a generic same-callsite
-    lower-frame continuation / result-slot identity bug after a hot inner loop
+The failure was not specific to FFI. The FFI-shaped workload only exposed a
+more general problem:
 
-- workload:
-  - `direct_abs_literal_stop_same_callsite`
-- artifact:
-  - [20260403-kdz-ffi-static-stop-same-callsite-recret](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-kdz-ffi-static-stop-same-callsite-recret/summary.md)
-- continuation trace:
-  - `trace 4 start 3/1`
-  - first IR lane:
-    - `num SLOAD #2 PI`
-  - later exact exit:
-    - `trace 4 exit 2`
-    - `guardmark=0x6`
-    - `curins 6`
-    - `IR LE`
+- a hot inner loop returns through a lower-frame path,
+- continuation recording resumes later at the caller return path,
+- the caller-visible result slot can still be anchored to the pre-`IR_RETF`
+  inherited lane instead of the shifted lower-frame destination.
 
-Pinned contract mismatch:
+That means the continuation can consume the wrong result identity even though
+the lower-frame call-result destination itself was materialized correctly.
 
-- [lj_record_ret()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_record.c#L2016) enters `lua_lower_frame_retf`
-  with one live result `TRef`
-- `S390X_RECRET_SLOTS` shows that live `TRef` being shifted from the callee
-  lane only into the lower-frame call-result destination:
-  - pre-shift `idx=0`
-  - post-shift `idx=5`
-  - `cbase=5`
-  - `nresults=1`
-- the same-callsite continuation is already recording later at caller `RET1`
-  with `prevop=JFORL`, not at the bytecode `MOV` that would normally copy the
-  call-result slot into the caller-visible destination/local
-- but the continuation snapshot still keeps the inherited caller-visible result
-  lane:
-  - `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
-  - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
-- [snapshot_slots()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L103) uses the current `IR_RETF` chain as
-  the cutoff for SLOAD restore elimination, so the continuation can keep the
-  old inherited result identity even though the lower-frame path only
-  materialized the shifted `cbase=5` destination
+## Why The Old Local Fixes Failed
 
-Current exact reading:
+The rejected local fixes all had the same weakness: they tried to repair the
+value too early or too late.
 
-- this is not a generic bad-base replay bug
-- this is not an immediate resumed-`MOV` peephole
-- it is a generic caller-visible result-alias mismatch across `IR_RETF`:
-  - the lower-frame path materializes the call-result destination
-  - the continuation later consumes a caller-visible result alias
-  - that alias is still anchored to the pre-`RETF` inherited lane
-- [snap_usedef()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L305) makes the boundary sharper:
-  - at caller `RET1`, only the caller-visible return slot is live
-  - the shifted call-result destination (`cbase=5`) is not preserved by the
-    snapshot on its own
-  - if the path reaches `RET1` without recording the intervening `MOV`, the
-    only surviving identity for that live return slot is the stale pre-`RETF`
-    inherited alias
+Too early:
 
-Bounded remediation target:
+- local rebinding in `lj_record_ret()`
+- rematerializing the shifted destination directly after the lower-frame shift
 
-- do not treat the caller-loop `LE` as the primary failure
-- do not reopen `CALLXS`/`ADDOV` narrowing
-- do not reopen promotion-core dynamic-stop work
-- do not chase local resumed-`MOV` window patches
-- instead:
-  - rebase or rematerialize the caller-visible result alias across `IR_RETF`
-  - keep the continuation loading a slot identity derived from the shifted
-    lower-frame destination, not the pre-`RETF` inherited lane
-  - do it before the `RET1`-side snapshot/use-def pass can prune the only
-    correct shifted destination slot
+Too late:
 
-Hard stop conditions:
+- trying to rescue the value during the final snapshot build
 
-- if the attempted repair only moves the exact exit later without fixing the
-  same-callsite correctness failure, reject it
-- if the repair broadens lower-frame return behavior outside this tiny FFI
-  static-stop lane before proof exists, reject it
+Both approaches missed the actual collapse point. The useful conclusion from
+the earlier probes is that the identity loss happens at the return-window
+boundary while `IR_RETF` is still active, before the final continuation
+snapshot becomes observable.
 
-Rejected direct local repair:
+Relevant code areas:
 
-- artifact:
-  - [20260403-075054-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-075054-kdz-baseline-core-exit-mechanism/summary.md)
-- direct `lj_record_ret()` experiment:
-  - after the lower-frame shift, if `bc_op(*J->pc) == BC_RET1`, assign the
-    caller-visible return slot from `J->base[cbase]`
-- result:
-  - no structural change
-  - `RESULT 0`
-  - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
-  - exit snapshots still keep `slot2=ref1[...]`
-- conclusion:
-  - the live mismatch is deeper than a local post-shift slot assignment inside
-    `lj_record_ret()`
+- [`src/lj_record.c`](../../src/lj_record.c)
+- [`src/lj_snap.c`](../../src/lj_snap.c)
 
-Rejected fresh lower-frame destination rematerialization:
+## Most Likely Real Boundary
 
-- artifact:
-  - [20260403-080443-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080443-kdz-baseline-core-exit-mechanism/summary.md)
-- direct `lj_record_ret()` experiment:
-  - after the lower-frame shift, if `nresults == 1` and the immediate caller
-    bytecode at `frame_pc(frame)` is `RET1`, rematerialize the caller-visible
-    lane from the shifted lower-frame destination with `sload(J, cbase)`
-- result:
-  - no structural change
-  - `RESULT 0`
-  - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
-  - exit snapshots still keep `slot2=ref1[...]`
-- correction:
-  - this probe shows the active seam is later than the local
-    `lua_lower_frame_retf` handoff window
-  - on the first failing chain, `lua_lower_frame_retf` sees `frame_pc(frame)`
-    at an earlier caller PC, while the live failing continuation snapshot is
-    already one bytecode later at caller `RET1`
-  - by then, `snap_usedef()` has already reduced the live set to the
-    caller-visible return slot, so the shifted lower-frame destination is gone
-    unless it was rebound before that later continuation step
-- conclusion:
-  - the live mismatch is deeper than any local post-shift rematerialization
-    inside `lj_record_ret()`
-  - the next honest remediation family is at the `IR_RETF` / snapshot/use-def
-    identity boundary itself
+The honest boundary is the interaction between:
 
-Snapshot-window correction:
+- lower-frame result shifting,
+- active `IR_RETF`,
+- return-window liveness in `snap_usedef()`,
+- inherited-lane identity carried into later continuation recording.
 
-- artifact:
-  - [20260403-080945-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-080945-kdz-baseline-core-exit-mechanism/summary.md)
-- targeted `snapshot_slots()` slot logging at `IR_RETF` + caller `RET1` shows:
-  - at the actual failing `RET1` snapshot pass, the current frame window is
-    already collapsed to `baseslot=2`, `maxslot=1`
-  - inside that pass, only the stale caller-visible lane is considered/kept:
-    - `slot=2`, `rel=0`, `op=SLOAD`, `op1=2`, `op2=33`
-  - the shifted lower-frame destination lane is not pruned there; it is no
-    longer in the current `nslots = baseslot + maxslot` window at all
-- conclusion:
-  - the loss happens before the failing `RET1` snapshot build
-  - `snapshot_slots()` on that final pass cannot rescue the shifted destination
-    because the destination lane is already out of scope
-  - the next honest target is earlier than `snapshot_slots()` itself:
-    where the caller frame window and slot identity collapse from the shifted
-    lower-frame destination back to the caller-visible return slot
+The important point is not "the caller loop exits on `LE`" or "the failing
+trace starts at `RET1`". Those are symptoms. The deeper problem is that the
+caller-visible result alias survives with the wrong identity across the
+`IR_RETF` transition.
 
-Exact collapse-site correction:
+## Safe Next Fix Area
 
-- artifact:
-  - [20260403-082040-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082040-kdz-baseline-core-exit-mechanism/summary.md)
-- targeted `snap_usedef()` logging with active `IR_RETF` now pins the first
-  real collapse point:
-  - it is not the later failing caller `RET1` pass (`op=76`)
-  - it is the earlier caller `RET0` liveness pass (`op=75`) with
-    `prevop=UCLO`
-  - there, the current window is already operating with the rebased caller
-    frame and only one live inherited result identity:
-    - `baseslot=2`
-    - `maxslot=18`
-    - `retf=3`
-    - only `idx=17` carries `ref=1`, `type=14`
-  - the `BC_RET0/RET1` liveness rule in
-    [snap_usedef()](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/src/lj_snap.c#L305)
-    then keeps only the caller-visible return window and discards everything
-    else for that continuation frame
-- conclusion:
-  - the first deep loss is the `BC_RET0` use/def collapse while `IR_RETF`
-    is still active
-  - the later failing `RET1` snapshot is only where the already-collapsed
-    identity becomes observable as `slot2=ref1[...]`
-  - `lj_record_ret()` is too early, and the final `snapshot_slots()` pass is
-    too late
-  - the next honest remediation boundary is the `snap_usedef()` return-window
-    rule under active `IR_RETF`, not another local slot assignment
+If this family needs further work, the smallest credible fix area is the
+snapshot and inherited-lane identity boundary under active `IR_RETF`, not a new
+special case in `lj_record_ret()` and not another local `J->base[]` tweak.
 
-Rejected direct `snap_usedef()` remediation attempts:
+That means:
 
-- artifact:
-  - [20260403-082728-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082728-kdz-baseline-core-exit-mechanism/summary.md)
-- gate:
-  - `LUAJIT_S390X_RETF_RET0_KEEP_LIVE=1`
-- experiment:
-  - on active `IR_RETF` + caller `RET0`, keep all currently nonzero `J->base`
-    lanes live through the `BC_RET0/RET1` use/def collapse
-- result:
-  - structurally inert
-  - same `RESULT 0`
-  - same `TRACE_START 4`, `TRACE_STOP 3`, `TEXIT_COUNT 1`
-  - same continuation front:
-    - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
-    - `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
+- rebase the caller-visible result identity from the shifted lower-frame
+  destination,
+- or replace the stale inherited alias before the return-window collapse makes
+  it the only surviving live identity.
 
-- artifact:
-  - [20260403-082941-kdz-baseline-core-exit-mechanism](/Users/kaitlyndavis/dev/github.com/k8ika0s/luajit2-s390x/artifacts/s390x/manual/20260403-082941-kdz-baseline-core-exit-mechanism/summary.md)
-- gate:
-  - `LUAJIT_S390X_RETF_RET0_REBIND_SLOT0=1`
-- experiment:
-  - before snapshot build on active `IR_RETF` + caller `RET0`, if slot `0` is
-    empty and there is exactly one live lane in the current frame, copy that
-    live lane into `J->base[0]`
-- result:
-  - structurally inert
-  - same `RESULT 0`
-  - same continuation front:
-    - `TRACEIR tr=4 ins=1 op=SLOAD op1=2 op2=33`
-    - `slot2=ref1[o=71 t=14 op1=2 op2=33 ...]`
+## What Not To Reopen
 
-Current correction:
-
-- the remaining mismatch is deeper than return-window liveness alone
-- it is deeper than local slot `0` rebinding before snapshot build
-- the next honest remediation family is snapshot-map / inherited-lane identity
-  replacement at the `IR_RETF` continuation boundary, not another local
-  `snap_usedef()` or `J->base[]` tweak
+- benchmark-specific FFI static-stop workarounds,
+- generic `CALLXS` narrowing changes,
+- unrelated promotion or dynamic-stop experiments,
+- one-off resumed-`MOV` patches without proof that the identity boundary is
+  fixed.
