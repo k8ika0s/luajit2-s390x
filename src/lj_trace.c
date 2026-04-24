@@ -502,50 +502,6 @@ double lj_trace_s390x_num_prefix_accum4(double acc, int32_t idx, int32_t stop,
 
 #endif
 
-#if LUAJIT_ENABLE_S390X_COMPONENT_LOOP_REDUCERS
-int32_t lj_trace_s390x_band_mul_mask_loop_sum(int32_t idx, int32_t stop,
-					      int32_t mul, int32_t mask)
-{
-  int64_t n, q, rem, period, period_sum = 0, sum = 0, i;
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return 0;
-  if (mul < 1 || mul > 32767 || mask < 1 || mask > 4095 ||
-      (mask & (mask + 1)) != 0)
-    return INT32_MIN;
-  period = (int64_t)mask + 1;
-  n = (int64_t)stop - idx + 1;
-  for (i = 0; i < period; i++)
-    period_sum += (int32_t)(((int64_t)(idx + i) * mul) & mask);
-  q = n / period;
-  rem = n - q * period;
-  sum = q * period_sum;
-  for (i = 0; i < rem; i++)
-    sum += (int32_t)(((int64_t)(idx + i) * mul) & mask);
-  if (sum <= INT32_MIN || sum > INT32_MAX)
-    return INT32_MIN;
-  return (int32_t)sum;
-}
-
-int32_t lj_trace_s390x_mod1_loop_sum(int32_t idx, int32_t stop, int32_t mod)
-{
-  int64_t n, q, rem, period_sum, sum, i;
-  if (idx < 1 || stop > 1000000 || stop < idx)
-    return 0;
-  if (mod < 2 || mod > 4096)
-    return INT32_MIN;
-  n = (int64_t)stop - idx + 1;
-  period_sum = (int64_t)mod * (mod + 1) / 2;
-  q = n / mod;
-  rem = n - q * mod;
-  sum = q * period_sum;
-  for (i = 0; i < rem; i++)
-    sum += ((idx + (int32_t)i - 1) % mod) + 1;
-  if (sum <= INT32_MIN || sum > INT32_MAX)
-    return INT32_MIN;
-  return (int32_t)sum;
-}
-#endif
-
 #endif
 
 /* -- Error handling ------------------------------------------------------ */
