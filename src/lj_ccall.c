@@ -201,7 +201,9 @@
   if (cc->retref) cc->gpr[ngpr++] = (GPRArg)dp;
 
 #define CCALL_HANDLE_COMPLEXRET \
-  cc->retref = 1;  /* Return all complex values by reference. */ \
+  /* z/Architecture returns C99 complex values indirectly, unlike small */ \
+  /* integer-only structs that may stay in a GPR. */ \
+  cc->retref = 1; \
   cc->gpr[ngpr++] = (GPRArg)dp;
 
 #define CCALL_HANDLE_COMPLEXRET2 \
@@ -708,8 +710,8 @@ static int ccall_s390x_struct_1fp(CTState *cts, CType *ct)
   } }
 
 #define CCALL_HANDLE_COMPLEXARG \
-  /* Pass complex numbers by reference. */ \
-  /* TODO: not sure why this is different to structs. */ \
+  /* z/Architecture passes C99 complex values indirectly, even when an */ \
+  /* equivalent two-field float struct may stay in registers by value. */ \
   rp = cdataptr(lj_cdata_new(cts, did, sz)); \
   sz = CTSIZE_PTR; \
 

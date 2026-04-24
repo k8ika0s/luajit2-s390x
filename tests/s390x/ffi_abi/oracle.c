@@ -57,17 +57,35 @@ uint64_t echo_u64(uint64_t value) { return value; }
 
 float add_float(float a, float b) { return a + b; }
 double add_double(double a, double b) { return a + b; }
+float complex add_complexf(float complex a, float complex b) { return a + b; }
 double complex add_complex(double complex a, double complex b) { return a + b; }
 double complex mul_complex(double complex a, double complex b) { return a * b; }
+float take_complexf_sum(float complex value)
+{
+  return crealf(value) + 10.0f * cimagf(value);
+}
 double take_complex_sum(double complex value)
 {
   return creal(value) + 10.0 * cimag(value);
+}
+
+float take_complexf_pair(float seed, float complex a, float complex b)
+{
+  return seed + crealf(a) + 3.0f * cimagf(a) +
+	 5.0f * crealf(b) + 7.0f * cimagf(b);
 }
 
 double take_complex_pair(double seed, double complex a, double complex b)
 {
   return seed + creal(a) + 3.0 * cimag(a) +
 	 5.0 * creal(b) + 7.0 * cimag(b);
+}
+
+float mutate_complexf_arg(float complex value)
+{
+  volatile float complex *p = &value;
+  *p = 31.0f + 7.0f * I;
+  return crealf(*p) + cimagf(*p);
 }
 
 double mutate_complex_arg(double complex value)

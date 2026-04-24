@@ -33,10 +33,14 @@ uint64_t echo_u64(uint64_t value);
 
 float add_float(float a, float b);
 double add_double(double a, double b);
+complex float add_complexf(complex float a, complex float b);
 complex double add_complex(complex double a, complex double b);
 complex double mul_complex(complex double a, complex double b);
+float take_complexf_sum(complex float value);
 double take_complex_sum(complex double value);
+float take_complexf_pair(float seed, complex float a, complex float b);
 double take_complex_pair(double seed, complex double a, complex double b);
+float mutate_complexf_arg(complex float value);
 double mutate_complex_arg(complex double value);
 
 small_u8 echo_small_u8(small_u8 value);
@@ -117,6 +121,18 @@ t.eq(tonumber(lib.echo_u64(u64(9000000000000))), 9000000000000, "echo_u64")
 
 t.approx(lib.add_float(1.5, 2.25), 3.75, 1e-6, "add_float")
 t.approx(lib.add_double(1.5, 2.25), 3.75, 1e-12, "add_double")
+local zf1 = ffi.new("complex float", { 1.5, -2.25 })
+local zf2 = ffi.new("complex float", { -0.5, 0.75 })
+local zfsum = lib.add_complexf(zf1, zf2)
+t.approx(zfsum.re, 1.0, 1e-6, "add_complexf.re")
+t.approx(zfsum.im, -1.5, 1e-6, "add_complexf.im")
+local zfmut = ffi.new("complex float", { 3.0, 4.0 })
+t.approx(lib.take_complexf_sum(zf1), -21.0, 1e-6, "take_complexf_sum")
+t.approx(lib.take_complexf_pair(2.0, zf1, zf2), -0.5, 1e-6,
+         "take_complexf_pair")
+t.approx(lib.mutate_complexf_arg(zfmut), 38.0, 1e-6, "mutate_complexf_arg")
+t.approx(zfmut.re, 3.0, 1e-6, "mutate_complexf_arg.re")
+t.approx(zfmut.im, 4.0, 1e-6, "mutate_complexf_arg.im")
 local z1 = ffi.new("complex double", { 1.5, -2.25 })
 local z2 = ffi.new("complex double", { -0.5, 0.75 })
 local zsum = lib.add_complex(z1, z2)

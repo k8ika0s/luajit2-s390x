@@ -8,6 +8,7 @@ typedef int (*int_cb_t)(int);
 typedef int (*sum6_cb_t)(int, int, int, int, int, int);
 typedef double (*mix_cb_t)(double, double, int, double, int);
 typedef uint64_t (*u64_cb_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+typedef complex double (*complex_cb_t)(complex double);
 
 int call_once(int_cb_t cb, int value);
 int call_many(int_cb_t cb, int start, int count);
@@ -99,6 +100,15 @@ local ok_bad_ret, bad_ret_msg = pcall(function()
 end)
 t.eq(ok_bad_ret, false, "callback bad result propagates")
 t.truthy(type(bad_ret_msg) == "string" and #bad_ret_msg > 0, "callback bad result message")
+
+local ok_complex_cb, complex_cb_or_err = pcall(function()
+  return ffi.cast("complex_cb_t", function(value)
+    return value
+  end)
+end)
+t.eq(ok_complex_cb, false, "complex callback rejected")
+t.truthy(type(complex_cb_or_err) == "string" and #complex_cb_or_err > 0,
+         "complex callback rejection message")
 
 cb:free()
 sum6:free()
