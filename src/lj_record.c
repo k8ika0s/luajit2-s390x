@@ -5324,11 +5324,6 @@ static int lj_record_s390x_recloop_exit2_enabled(void)
   return 0;
 }
 
-static int lj_record_s390x_allow_iter_desc_enabled(void)
-{
-  return 0;
-}
-
 static int lj_record_s390x_restart_desc_loop_enabled(void)
 {
   return 0;
@@ -6301,23 +6296,6 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     J->pc += bc_j(J->pc[1])+2;
 #if LJ_TARGET_S390X
     TraceNo root = J->cur.root;
-    int allow_payload_desc = 0;
-	    if (root != 0 &&
-		J->exitno == 1 &&
-		bc_op(J->cur.startins) == BC_JMP &&
-		bc_op(*J->pc) == BC_ADDVV) {
-	      if (J->parent == root) {
-	allow_payload_desc = 1;
-      } else if ((keyflags & IRSLOAD_KIDX_NUMKEY) &&
-		 J->parent != 0 && traceref(J, J->parent)->root == root) {
-	/* Allow payload descendants that stay within the same iterator-root
-	** family only for numeric-key iterators. The deeper trace is needed
-	** to get past the hot trace-2 exit-1 loop on native s390x for array
-	** traversal, but the same widening is not safe for hash iterators.
-	*/
-		allow_payload_desc = 1;
-	      }
-	    }
 	    if (lj_record_s390x_stop_log_enabled()) {
 	      fprintf(stderr,
 		      "S390X_RECITERN trace=%u parent=%u exit=%u oldpc=%p oldop=%u newpc=%p newop=%u startpc=%p key_nil=0\n",
@@ -6325,31 +6303,6 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
 	      (unsigned int)J->exitno, (const void *)oldpc,
 	      (unsigned int)bc_op(*oldpc), (const void *)J->pc,
 	      (unsigned int)bc_op(*J->pc), (const void *)J->startpc);
-    }
-    /* Once the payload path is already behind a side trace, permanently stop
-    ** tracing that parent exit and fall back to the interpreter directly.
-    ** This avoids pathological descendant retry ladders on native s390x.
-    */
-    if (!lj_record_s390x_allow_iter_desc_enabled() &&
-	J->parent != 0 && J->exitno == 1) {
-      GCtrace *parent = traceref(J, J->parent);
-      if (parent->linktype == LJ_TRLINK_LOOP &&
-	  parent->root != 0 &&
-	  !allow_payload_desc) {
-	parent->snap[J->exitno].count = SNAPCOUNT_DONE;
-	lj_record_s390x_lleave_log(J, "rec_itern_payload_loop_descendant");
-	lj_trace_err(J, LJ_TRERR_LLEAVE);
-      }
-      if (parent->root != 0) {
-	/* Allow only the direct payload descendant behind the iterator
-	** restart loop to record. Suppress any deeper descendant ladders.
-	*/
-	if (!allow_payload_desc) {
-	  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
-	  lj_record_s390x_lleave_log(J, "rec_itern_payload_descendant");
-	  lj_trace_err(J, LJ_TRERR_LLEAVE);
-	}
-      }
     }
 #endif
     return LOOPEV_ENTER;
@@ -6390,37 +6343,7 @@ static LoopEvent rec_itern(jit_State *J, BCReg ra, BCReg rb)
     if (allow_numkey_nil_desc)
       J->s390x_nil_restart_desc = J->s390x_nil_restart_desc ?
 				  J->s390x_nil_restart_desc : 1;
-    if (!lj_record_s390x_allow_iter_desc_enabled() &&
-	J->parent != 0 && J->exitno == 1) {
-      GCtrace *parent = traceref(J, J->parent);
-      int skip_done = lj_record_s390x_skip_nil_desc_done_enabled();
-      if (lj_record_s390x_retry_first_array_exit_enabled() &&
-	  J->parent == 4 && J->exitno == 1 &&
-	  (keyflags & IRSLOAD_KIDX_NUMKEY) == 0 &&
-	  parent->snap[J->exitno].count <
-	    J->param[JIT_P_hotexit] + lj_record_s390x_retry_first_array_exit_limit())
-	skip_done = 1;
-      if (parent->linktype == LJ_TRLINK_LOOP && parent->root != 0 &&
-	  !allow_numkey_nil_desc) {
-	if (!skip_done)
-	  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
-	lj_record_s390x_lleave_log(J, "rec_itern_nil_loop_descendant");
-	lj_trace_err(J, LJ_TRERR_LLEAVE);
-      }
-      /* Do not record iterator restart descendants on native s390x.
-      ** If the nil/restart path wins the exit-1 race, it seeds the slow
-      ** root-linked trace family. Keep restart handling in the interpreter
-      ** and wait for the payload path off the same parent exit instead.
-      */
-      if (parent->root != 0 && !allow_numkey_nil_desc)
-	if (!skip_done)
-	  parent->snap[J->exitno].count = SNAPCOUNT_DONE;
-      if (!allow_numkey_nil_desc) {
-	UNUSED(nextop);
-	lj_record_s390x_lleave_log(J, "rec_itern_nil_descendant");
-	lj_trace_err(J, LJ_TRERR_LLEAVE);
-      }
-    }
+    UNUSED(nextop);
 #endif
     J->maxslot = ra-3;
     J->pc += 2;
