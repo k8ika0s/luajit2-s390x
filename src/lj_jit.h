@@ -474,10 +474,6 @@ typedef struct jit_State {
   uint8_t needsplit;	/* Need SPLIT pass. */
 #endif
   uint8_t retryrec;	/* Retry recording. */
-#if LJ_TARGET_S390X
-  uint8_t s390x_nil_restart_desc;  /* Scratch flag for nil-restart descendants. */
-#endif
-
   GCRef *trace;		/* Array of traces. */
   TraceNo freetrace;	/* Start of scan for next free trace. */
   MSize sizetrace;	/* Size of trace array. */
