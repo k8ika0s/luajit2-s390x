@@ -2279,7 +2279,7 @@ static void asm_setupresult(ASMState *as, IRIns *ir, const CCallInfo *ci)
       ra_destpair(as, ir);
     } else {
       ra_destreg(as, ir, retreg);
-      if (irt_isint(ir->t))
+      if (irt_isint(ir->t) && ci != &lj_ir_callinfo[IRCALL_lj_str_equal_256])
         emit_u32(as, S390X_INS_RXE(S390XI_LGFR, retreg, retreg));
       else if (irt_isu32(ir->t))
         emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, retreg, retreg));
