@@ -587,6 +587,9 @@ static int asm_s390x_guarded_addsub_op32home_depth(ASMState *as, IRRef ref,
   if (irref_isk(ref))
     return IR(ref)->o == IR_KINT;
   ir = IR(ref);
+  /* Zero-extended byte loads are already valid low-32 ADDOV operands. */
+  if (ir->o == IR_XLOAD && irt_isu8(ir->t))
+    return 1;
   if (!irt_isint(ir->t))
     return 0;
   switch (ir->o) {
