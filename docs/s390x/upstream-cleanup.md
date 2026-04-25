@@ -8,6 +8,17 @@ current blocker map small and actionable.
 
 ## Cleanup Categories To Keep Closed
 
+### 0. Do not add new cleanup debt
+
+Do not add s390x-only recorder substitutions, helper ABIs, or backend peepholes
+that exist solely for a benchmark workload. Temporary scaffolding used for
+diagnosis must be removed before moving to the next family.
+
+Allowed exceptions need a durable justification such as ABI correctness, a
+generic lowering rule, or a reusable backend mechanism. If the explanation is
+only "this benchmark gets faster," reject the change instead of carrying new
+upstream review debt.
+
 ### 1. s390x-only semantic reducers and helper ABIs
 
 The highest-value cleanup remains the removal or narrowing of benchmark-shaped

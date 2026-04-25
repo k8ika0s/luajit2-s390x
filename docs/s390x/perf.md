@@ -26,6 +26,22 @@ Use this document to decide:
 - Keep benchmark harness changes separate from backend or runtime changes where
   possible.
 
+## Performance Acceptance Gate
+
+- Do not commit benchmark-specific micro-optimizations or special cases just
+  because one row, profile, or narrow family improves.
+- Focused performance runs are diagnostic. Acceptance requires correctness
+  validation plus evidence that a reusable mechanism or broader family-level
+  path improved without hiding regressions.
+- Put raw correctness and perf logs under the matching run directory in
+  `artifacts/s390x/correctness/`, `artifacts/s390x/perf/`, or
+  `artifacts/s390x/investigate/`.
+- Put retained comparison documents only under
+  `artifacts/s390x/compare/<timestamp>-<target>-vs-ka0s01-full/combined-comparison.md`.
+  Do not leave comparison docs in individual perf run directories.
+- A change that cannot be explained beyond "this benchmark got faster" is not
+  upstream-ready performance work.
+
 ## Oracle Rules
 
 Expected values used by perf-family tests must not be derived from the same hot

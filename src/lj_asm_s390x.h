@@ -587,9 +587,6 @@ static int asm_s390x_guarded_addsub_op32home_depth(ASMState *as, IRRef ref,
   if (irref_isk(ref))
     return IR(ref)->o == IR_KINT;
   ir = IR(ref);
-  /* Zero-extended byte loads are already valid low-32 ADDOV operands. */
-  if (ir->o == IR_XLOAD && irt_isu8(ir->t))
-    return 1;
   if (!irt_isint(ir->t))
     return 0;
   switch (ir->o) {
@@ -2282,7 +2279,7 @@ static void asm_setupresult(ASMState *as, IRIns *ir, const CCallInfo *ci)
       ra_destpair(as, ir);
     } else {
       ra_destreg(as, ir, retreg);
-      if (irt_isint(ir->t) && ci != &lj_ir_callinfo[IRCALL_lj_str_equal_256])
+      if (irt_isint(ir->t))
         emit_u32(as, S390X_INS_RXE(S390XI_LGFR, retreg, retreg));
       else if (irt_isu32(ir->t))
         emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, retreg, retreg));
@@ -4087,6 +4084,7 @@ static void asm_add(ASMState *as, IRIns *ir)
 			  (int)(ir->op2 - REF_BIAS));
       if (low32home && dest != preserve) {
 	asm_guardcc(as, CC_OF);
+	emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_OF, preserve));
 	emit_u32(as, S390X_INS_RRF_M(S390XI_ARK, dest, right, left));
       } else {
 	if (low32home) {
