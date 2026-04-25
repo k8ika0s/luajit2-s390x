@@ -1592,6 +1592,9 @@ static void asm_gcstep(ASMState *as, IRIns *ir)
 static void asm_tvptr(ASMState *as, Reg dest, IRRef ref, MSize mode);
 #if LJ_HASBUFFER
 static void asm_bufhdr_write(ASMState *as, Reg sb);
+#if LJ_TARGET_S390X
+static int asm_s390x_bufput_kchar(ASMState *as, IRIns *ir, int kchar);
+#endif
 #endif
 
 static void asm_bufhdr(ASMState *as, IRIns *ir)
@@ -1672,6 +1675,10 @@ static void asm_bufput(ASMState *as, IRIns *ir)
       ci = &lj_ir_callinfo[IRCALL_lj_buf_putmem];
     }
   }
+#if LJ_TARGET_S390X
+  if (kchar != -129 && asm_s390x_bufput_kchar(as, ir, kchar))
+    return;
+#endif
   asm_setupresult(as, ir, ci);  /* SBuf * */
   asm_gencall(as, ci, args);
   if (args[1] == ASMREF_TMP1) {
