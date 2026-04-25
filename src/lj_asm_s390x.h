@@ -2367,6 +2367,27 @@ static void asm_tvstore64x(ASMState *as, Reg base, int32_t ofs, IRRef ref,
   }
 }
 
+static int asm_tvstore64x_int_inplace(ASMState *as, Reg base, int32_t ofs,
+				      IRRef ref, RegSet forbid, IRRef useref)
+{
+  RegSet allow = rset_exclude(RSET_GPR, base) & ~forbid;
+  IRIns *ir = IR(ref);
+  Reg src = ir->r;
+  uint32_t tag_hi;
+
+  if (irref_isk(ref) || !irt_isinteger(ir->t) ||
+      !asm_s390x_only_used_by_ref(as, ir, useref))
+    return 0;
+  if (ra_hasreg(src) && !rset_test(allow, src))
+    return 0;
+
+  src = ra_alloc1(as, ref, allow);
+  tag_hi = (uint32_t)(((uint64_t)(uint32_t)LJ_TISNUM << 47) >> 32);
+  emit_store64ofs(as, src, base, ofs);
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_IIHF, src, tag_hi));
+  return 1;
+}
+
 static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref)
 {
   asm_tvstore64x(as, base, ofs, ref, RSET_EMPTY);
@@ -6287,7 +6308,9 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
     forbid |= RID2RSET(fr.base);
   if (fr.idx != RID_NONE)
     forbid |= RID2RSET(fr.idx);
-  asm_tvstore64x(as, fr.reg, fr.ofs, ir->op2, forbid);
+  if (!asm_tvstore64x_int_inplace(as, fr.reg, fr.ofs, ir->op2, forbid,
+				  (IRRef)(ir - as->ir)))
+    asm_tvstore64x(as, fr.reg, fr.ofs, ir->op2, forbid);
   asm_emitfuseahuref(as, ir, &fr);
 }
 
