@@ -133,11 +133,19 @@ local function append_jsonl(record)
   fh:close()
 end
 
+local function flush_traces()
+  local ok_jit, jit = pcall(require, "jit")
+  if ok_jit and select(1, jit.status()) then
+    jit.flush()
+  end
+end
+
 do
   local ok_jit, jit = pcall(require, "jit")
   if ok_jit then
     jit.off(encode_json, true)
     jit.off(append_jsonl, true)
+    jit.off(flush_traces, true)
   end
 end
 
@@ -181,6 +189,7 @@ function M.run_suite(spec)
     if case.setup then
       case.setup()
     end
+    flush_traces()
     local baseline = run(iterations)
     validate(baseline)
     for _ = 1, warmup_runs do
