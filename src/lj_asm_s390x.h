@@ -5711,18 +5711,11 @@ dotypecheck:
     emit_load64ofs(as, tmp, fr.reg, ofs);
   } else if (asm_s390x_hload_dynamic_str_href_int_typecheck(as, ir)) {
     Reg tmp = ra_scratch(as, allow);
-    Reg expected = ra_scratch(as, rset_exclude(allow, tmp));
+    uint32_t tag_hi = (uint32_t)(((uint64_t)(uint32_t)LJ_TISNUM << 47) >> 32);
     asm_s390x_guard_log(as, "hload_str_href_int", ir, CC_NE, ofs, 0);
     asm_guardcc(as, CC_NE);
-    emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
-    if (LJ_GC64 && asm_s390x_gc64_signed_int_sload_enabled()) {
-      emit_loadu64(as, expected, (uint64_t)(int64_t)(int32_t)LJ_TISNUM);
-      emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
-    } else {
-      emit_loadu64(as, expected, (uint64_t)((uint32_t)LJ_TISNUM >> 15));
-      emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
-    }
-    emit_load64ofs(as, tmp, fr.reg, ofs);
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_CLFI, tmp, (int32_t)tag_hi));
+    emit_loadu32ofs(as, tmp, fr.reg, ofs);
   }
   if (ra_hasreg(dest)) {
     if (irt_isnum(t)) {
