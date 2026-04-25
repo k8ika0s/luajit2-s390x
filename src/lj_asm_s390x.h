@@ -5663,6 +5663,7 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
   Reg dest, tab, key, sid, tmp, tkey;
   MCode *l_end, *l_loop, *l_start;
   ptrdiff_t delta;
+  uint32_t tag_hi;
 
   if (merge != 0 || irref_isk(ir->op2) || !irt_isstr(irkey->t) || !ra_used(ir))
     return 0;
@@ -5707,8 +5708,8 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
   emit_u32(as, S390X_INS_RXE(S390XI_NGR, dest, sid));
   emit_loadu32ofs(as, sid, key, (int32_t)offsetof(GCstr, sid));
   emit_loadu32ofs(as, dest, tab, (int32_t)offsetof(GCtab, hmask));
-  emit_u32(as, S390X_INS_RXE(S390XI_OGR, tkey, tmp));
-  emit_loadu64(as, tmp, (uint64_t)irt_toitype(irkey->t) << 47);
+  tag_hi = (uint32_t)(((uint64_t)irt_toitype(irkey->t) << 47) >> 32);
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_OIHF, tkey, tag_hi));
   if (tkey != key)
     emit_movrr(as, ir, tkey, key);
   return 1;
