@@ -205,7 +205,8 @@ static int asm_s390x_is_low32home_conv_boundary(IRIns *use, IRRef ref)
   if (use->o != IR_CONV || use->op1 != ref)
     return 0;
   st = (IRType)(use->op2 & IRCONV_SRCMASK);
-  return (st == IRT_INT || st == IRT_U32) && irt_isnum(use->t);
+  return (st == IRT_INT || st == IRT_U32) &&
+	 (irt_isnum(use->t) || irt_is64(use->t));
 }
 
 static const char *asm_s390x_low32home_hard_kind(IRIns *use)
@@ -6743,6 +6744,14 @@ static void asm_conv(ASMState *as, IRIns *ir)
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, left));
     else
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
+    return;
+  }
+
+  if ((st == IRT_INT || st == IRT_U32) && irt_is64(ir->t)) {
+    Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -276);
+    Reg left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -276);
+    emit_u32(as, S390X_INS_RXE(st == IRT_INT ? S390XI_LGFR : S390XI_LLGFR,
+			       dest, left));
     return;
   }
 
