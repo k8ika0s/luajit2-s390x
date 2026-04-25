@@ -24,6 +24,19 @@ For the current project state, read
   as long-lived scratchpads.
 - Do not mix local experiment debris with the tree used for validation claims.
 
+## Upstream-Readiness Gate
+
+- Do not accept benchmark-shaped backend, recorder, or helper changes whose
+  primary justification is one row or one trace shape getting faster.
+- Before coding a performance fix, name the reusable mechanism being improved
+  and the family-level validation lane that can prove it.
+- Treat targeted row wins as diagnostic evidence only. A commit needs either a
+  correctness fix or a reusable architecture/runtime improvement.
+- The safe rollback checkpoint before the rejected narrow tweaks is
+  `1efd7dcc` (`Use NIHF for s390x TValue pointer untag`). Preserve that as the
+  known pre-junk landing point unless a newer validated checkpoint supersedes
+  it in this document.
+
 ## Sync And Build Discipline
 
 - Sync tracked files only.
