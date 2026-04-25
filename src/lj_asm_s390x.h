@@ -1260,23 +1260,30 @@ static IRRef asm_s390x_guarded_ov_preserve_ref(ASMState *as, IRIns *ir)
   return ir->op1;
 }
 
-static int asm_s390x_loop_phi_carry_in_dest(ASMState *as, IRIns *ir,
-					    Reg dest, Reg left)
+static int asm_s390x_loop_phi_carry_ref_in_dest(ASMState *as, IRIns *ir,
+						IRRef carryref, Reg dest,
+						Reg carry)
 {
   IRRef ref = (IRRef)(ir - as->ir);
   IRIns *use;
 
-  if (!as->loopref || as->curins <= as->loopref || irref_isk(ir->op1))
+  if (!as->loopref || as->curins <= as->loopref || irref_isk(carryref))
     return 0;
-  if (!ra_hasreg(IR(ir->op1)->r) || IR(ir->op1)->r != left)
+  if (!ra_hasreg(IR(carryref)->r) || IR(carryref)->r != carry)
     return 0;
 
   for (use = IR(as->orignins-1); use > ir; use--)
-    if (use->o == IR_PHI && use->op1 == ir->op1 && use->op2 == ref &&
+    if (use->o == IR_PHI && use->op1 == carryref && use->op2 == ref &&
 	ra_hasreg(use->r) && use->r == dest)
       return 1;
 
   return 0;
+}
+
+static int asm_s390x_loop_phi_carry_in_dest(ASMState *as, IRIns *ir,
+					    Reg dest, Reg left)
+{
+  return asm_s390x_loop_phi_carry_ref_in_dest(as, ir, ir->op1, dest, left);
 }
 
 static int asm_s390x_guarded_addsub_can_stay_low32(ASMState *as, IRIns *ir)
@@ -3757,7 +3764,7 @@ static void asm_s390x_guarded_int_rr32(ASMState *as, IRIns *ir, Reg dest,
   IRRef pref = asm_s390x_guarded_ov_preserve_ref(as, ir);
   Reg preserve = (pref == ir->op2) ? right : left;
   if (dest != preserve &&
-      asm_s390x_loop_phi_carry_in_dest(as, ir, dest, preserve)) {
+      asm_s390x_loop_phi_carry_ref_in_dest(as, ir, pref, dest, preserve)) {
     asm_guardcc(as, CC_OF);
     emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, res));
     emit_u32(as, S390X_INS_RRF_M(op, res, right, left));
