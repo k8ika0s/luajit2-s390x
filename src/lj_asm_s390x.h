@@ -6065,19 +6065,13 @@ static void asm_fload(ASMState *as, IRIns *ir)
   if (irt_isint64(t) || irt_isaddr(t) || irt_isgcv(t)) {
     emit_load64ofs(as, dest, base, ofs);
   } else if (irt_isu8(t)) {
-    emit_shiftimm(as, S390XI_SRLG, dest, dest, 56);
-    emit_load64ofs(as, dest, base, ofs);
+    emit_loadu8ofs(as, dest, base, ofs);
   } else if (irt_isu16(t)) {
-    emit_shiftimm(as, S390XI_SRLG, dest, dest, 48);
-    emit_load64ofs(as, dest, base, ofs);
+    emit_loadu16ofs(as, dest, base, ofs);
   } else if (irt_isi8(t)) {
-    emit_shiftimm(as, S390XI_SRAG, dest, dest, 56);
-    emit_shiftimm(as, S390XI_SLLG, dest, dest, 56);
-    emit_load64ofs(as, dest, base, ofs);
+    emit_loadi8ofs(as, dest, base, ofs);
   } else if (irt_isi16(t)) {
-    emit_shiftimm(as, S390XI_SRAG, dest, dest, 48);
-    emit_shiftimm(as, S390XI_SLLG, dest, dest, 48);
-    emit_load64ofs(as, dest, base, ofs);
+    emit_loadi16ofs(as, dest, base, ofs);
   } else {
     if (irt_isint(t))
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
