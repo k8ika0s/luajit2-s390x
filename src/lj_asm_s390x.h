@@ -6216,7 +6216,7 @@ static void asm_fload(ASMState *as, IRIns *ir)
   } else if (irt_isi16(t)) {
     emit_loadi16ofs(as, dest, base, ofs);
   } else {
-    if (irt_isint(t))
+    if (irt_isint(t) && ir->op2 != IRFL_STR_LEN)
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
     emit_loadu32ofs(as, dest, base, ofs);
   }
