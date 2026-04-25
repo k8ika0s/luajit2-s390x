@@ -5551,8 +5551,6 @@ static void asm_aref(ASMState *as, IRIns *ir)
     asm_s390x_ir_log_aref(as, ir, ir->op1, ir->op2, base, idx, dest, 0);
     emit_u32(as, S390X_INS_RXE(S390XI_AGR, dest, base));
     emit_shiftimm(as, S390XI_SLLG, dest, idx, 3);
-    if (dest != idx)
-      emit_movrr(as, ir, dest, idx);
   }
 }
 
@@ -5635,8 +5633,6 @@ static void asm_emitfuseahuref(ASMState *as, IRIns *ir,
     return;
   emit_u32(as, S390X_INS_RXE(S390XI_AGR, fr->reg, fr->base));
   emit_shiftimm(as, S390XI_SLLG, fr->reg, fr->idx, 3);
-  if (fr->reg != fr->idx)
-    emit_movrr(as, ir, fr->reg, fr->idx);
 }
 
 static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
