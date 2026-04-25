@@ -39,7 +39,7 @@ local function observed_after_loop(n)
   return total, slot[0].a, slot[0].b, slot[0].c
 end
 
-for _, n in ipairs({1, 251, 4096, 32000, 70000}) do
+for _, n in ipairs({1, 251, 4096, 32000, 70000, 131070, 131071}) do
   jit.flush()
   local got = mixed_width_sum(n)
   local exp = expected(n)

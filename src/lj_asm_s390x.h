@@ -5057,6 +5057,34 @@ static int asm_modk_int(ASMState *as, IRIns *ir)
     Reg qlo = quot;
     Reg mreg;
 
+    if (k->i == 65535) {
+      /* For nonnegative int32 x, x % (2^16-1) is one 16-bit fold plus
+      ** one correction subtract. This avoids the reciprocal multiply path.
+      */
+      allow = RSET_GPR_NOB;
+      rset_clear(allow, qhi);
+      dest = ra_dest_nobase(as, ir, allow, -278);
+      ra_evictset(as, RID2RSET(qhi));
+      ra_modified(as, qhi);
+      allow = RSET_GPR_NOB;
+      rset_clear(allow, qhi);
+      rset_clear(allow, dest);
+      left = ra_alloc1_nobase(as, ir->op1, allow, -279);
+      allow = rset_exclude(RSET_GPR_NOB, left);
+      rset_clear(allow, qhi);
+      rset_clear(allow, dest);
+      divr = ra_allock(as, k->i, allow);
+      l_done = as->mcp;
+      emit_u32(as, S390X_INS_RXE(S390XI_SGR, dest, divr));
+      emit_condbranch(as, CC_LO, l_done);
+      emit_u32(as, S390X_INS_RXE(S390XI_CLGR, dest, divr));
+      emit_u32(as, S390X_INS_RXE(S390XI_AGR, dest, qhi));
+      emit_u32(as, S390X_INS_RXE(S390XI_NGR, dest, divr));
+      emit_shiftimm(as, S390XI_SRLG, qhi, dest, 16);
+      emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, left));
+      return 1;
+    }
+
     allow = RSET_GPR_NOB;
     rset_clear(allow, qhi);
     rset_clear(allow, qlo);
