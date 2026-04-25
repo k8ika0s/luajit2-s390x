@@ -2454,6 +2454,59 @@ static int asm_s390x_bufput_kchar(ASMState *as, IRIns *ir, int kchar)
   return 1;
 }
 
+static int asm_s390x_bufput_str(ASMState *as, IRIns *ir)
+{
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_buf_putstr];
+  RegSet allow = RSET_GPR_NOB;
+  Reg sb = RID_RET;
+  Reg str = RID_R3;
+  Reg w, e, len, neww;
+  MCode *l_done, *l_slow, *l_mvc;
+
+  asm_setupresult(as, ir, ci);
+  if (as->evenspill < SPS_FIRST + S390X_CALL_SPS_EXTRA * 2)
+    as->evenspill = SPS_FIRST + S390X_CALL_SPS_EXTRA * 2;
+
+  rset_clear(allow, sb);
+  rset_clear(allow, str);
+  w = ra_scratch(as, allow);
+  rset_clear(allow, w);
+  e = ra_scratch(as, allow);
+  rset_clear(allow, e);
+  len = ra_scratch(as, allow);
+  rset_clear(allow, len);
+  neww = ra_scratch(as, allow);
+
+  l_done = emit_label(as);
+  emit_call(as, RID_R14, (void *)ci->func);
+  l_slow = as->mcp;
+
+  emit_u48_pad8(as, S390X_INS_SS(S390XI_MVC, 0, w, 0, e, 0));
+  l_mvc = as->mcp;
+  emit_jmp(as, l_done);
+  emit_store64ofs(as, neww, sb, (int32_t)offsetof(SBuf, w));
+  emit_exrl(as, len, l_mvc);
+  emit_u32(as, S390X_INS_RI(S390XI_AGHI, len, -1));
+  emit_addptr(as, e, (int32_t)sizeof(GCstr));
+  if (e != str)
+    emit_movrr(as, IR(ir->op2), e, str);
+  emit_condbranch(as, CC_HI, l_slow);
+  emit_u32(as, S390X_INS_RXE(S390XI_CLGR, neww, e));
+  emit_load64ofs(as, e, sb, (int32_t)offsetof(SBuf, e));
+  emit_u32(as, S390X_INS_RXE(S390XI_AGR, neww, len));
+  if (neww != w)
+    emit_movrr(as, ir, neww, w);
+  emit_load64ofs(as, w, sb, (int32_t)offsetof(SBuf, w));
+  emit_condbranch(as, CC_HI, l_slow);
+  emit_u48_pad8(as, S390X_INS_RIL(S390XI_CLFI, len, 256));
+  emit_condbranch(as, CC_EQ, l_done);
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, len, 0));
+  emit_loadu32ofs(as, len, str, (int32_t)offsetof(GCstr, len));
+  ra_alloc1_nobase(as, ir->op2, RID2RSET(str), -296);
+  ra_leftov(as, sb, ir->op1);
+  return 1;
+}
+
 static Reg asm_setup_call_slots(ASMState *as, IRIns *ir, const CCallInfo *ci)
 {
   IRRef args[CCI_NARGS_MAX*2];
