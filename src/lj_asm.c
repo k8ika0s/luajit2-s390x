@@ -1594,6 +1594,7 @@ static void asm_tvptr(ASMState *as, Reg dest, IRRef ref, MSize mode);
 static void asm_bufhdr_write(ASMState *as, Reg sb);
 #if LJ_TARGET_S390X
 static int asm_s390x_bufput_kchar(ASMState *as, IRIns *ir, int kchar);
+static int asm_s390x_bufput_str(ASMState *as, IRIns *ir);
 #endif
 #endif
 
@@ -1677,6 +1678,9 @@ static void asm_bufput(ASMState *as, IRIns *ir)
   }
 #if LJ_TARGET_S390X
   if (kchar != -129 && asm_s390x_bufput_kchar(as, ir, kchar))
+    return;
+  if (ci == &lj_ir_callinfo[IRCALL_lj_buf_putstr] &&
+      asm_s390x_bufput_str(as, ir))
     return;
 #endif
   asm_setupresult(as, ir, ci);  /* SBuf * */
