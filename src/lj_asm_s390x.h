@@ -192,6 +192,22 @@ static int asm_s390x_is_low32home_family_use(IRIns *use)
 	 use->o == IR_PHI;
 }
 
+static int asm_s390x_is_guarded_low32home_family_use(IRIns *use)
+{
+  return asm_s390x_is_low32home_family_use(use) ||
+	 ((use->o == IR_ADDOV || use->o == IR_SUBOV) &&
+	  irt_isguard(use->t) && irt_isinteger(use->t));
+}
+
+static int asm_s390x_is_low32home_conv_boundary(IRIns *use, IRRef ref)
+{
+  IRType st;
+  if (use->o != IR_CONV || use->op1 != ref)
+    return 0;
+  st = (IRType)(use->op2 & IRCONV_SRCMASK);
+  return (st == IRT_INT || st == IRT_U32) && irt_isnum(use->t);
+}
+
 static const char *asm_s390x_low32home_hard_kind(IRIns *use)
 {
   if (irt_isguard(use->t))
@@ -1289,18 +1305,23 @@ static int asm_s390x_guarded_addsub_can_stay_low32(ASMState *as, IRIns *ir)
   IRRef ref = (IRRef)(ir - as->ir);
   IRIns *use;
   int family_uses = 0;
+  int boundary_uses = 0;
 
   for (use = IR(as->orignins-1); use > ir; use--) {
     if (use->op1 != ref && use->op2 != ref)
       continue;
-    if (asm_s390x_is_low32home_family_use(use)) {
+    if (asm_s390x_is_guarded_low32home_family_use(use)) {
       family_uses++;
+      continue;
+    }
+    if (asm_s390x_is_low32home_conv_boundary(use, ref)) {
+      boundary_uses++;
       continue;
     }
     return 0;
   }
 
-  return family_uses != 0;
+  return family_uses + boundary_uses != 0;
 }
 
 static void asm_s390x_guard_log(ASMState *as, const char *kind, IRIns *ir,
