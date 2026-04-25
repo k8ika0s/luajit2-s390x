@@ -1613,8 +1613,7 @@ static int asm_gencall_sload(ASMState *as, Reg gpr, IRRef ref)
     emit_load64ofs(as, tmp, base, ofs);
   }
   if (irt_isaddr(t)) {
-    emit_shiftimm(as, S390XI_SRLG, gpr, gpr, 17);
-    emit_shiftimm(as, S390XI_SLLG, gpr, gpr, 17);
+    emit_u48_pad8(as, S390X_INS_RIL(S390XI_NIHF, gpr, 0x00007fff));
     emit_load64ofs(as, gpr, base, ofs);
   } else {
     if (irt_isint(t))
@@ -5765,8 +5764,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
       ofs += 8 * ir->op2;
     asm_s390x_ir_log_vload(as, ir, ir->op1, fr.reg, fr.base, fr.idx, dest, ofs);
     if (irt_isaddr(t)) {
-      emit_shiftimm(as, S390XI_SRLG, dest, dest, 17);
-      emit_shiftimm(as, S390XI_SLLG, dest, dest, 17);
+      emit_u48_pad8(as, S390X_INS_RIL(S390XI_NIHF, dest, 0x00007fff));
     } else if (irt_isint(t)) {
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
     } else if (irt_isu32(t)) {
@@ -6252,8 +6250,7 @@ static void asm_sload(ASMState *as, IRIns *ir)
       base = ra_allocbase(as, rset_clear(allow, dest));
     }
     if (irt_isaddr(t)) {
-      emit_shiftimm(as, S390XI_SRLG, dest, dest, 17);
-      emit_shiftimm(as, S390XI_SLLG, dest, dest, 17);
+      emit_u48_pad8(as, S390X_INS_RIL(S390XI_NIHF, dest, 0x00007fff));
     } else if (irt_isint(t) && !(ir->op2 & IRSLOAD_FRAME)) {
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
     }
