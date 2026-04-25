@@ -1639,6 +1639,15 @@ static int asm_gencall_const_gpr(ASMState *as, Reg gpr, IRRef ref)
   return 1;
 }
 
+static int asm_s390x_call_arg_i32_done(ASMState *as, IRRef ref)
+{
+  IRIns *ir;
+  if (irref_isk(ref))
+    return 0;
+  ir = IR(ref);
+  return ir->o == IR_FLOAD && ir->op2 == IRFL_STR_LEN;
+}
+
 /* -- Shared NYI helpers -------------------------------------------------- */
 
 static LJ_NORET LJ_NOINLINE void asm_s390x_nyi_tag(ASMState *as, int32_t tag)
@@ -2231,7 +2240,8 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
       lj_assertA(rset_test(as->freeset, gpr), "reg %d not free", gpr);
       asm_gencall_dup_fanout(as, args, nargs, n, loc_kind, loc_reg,
 			     loc_ofs, dup_first);
-      if (irt_isint(IR(ref)->t) || irt_isu32(IR(ref)->t))
+      if ((irt_isint(IR(ref)->t) || irt_isu32(IR(ref)->t)) &&
+	  !asm_s390x_call_arg_i32_done(as, ref))
 	emit_u32(as, S390X_INS_RXE(irt_isint(IR(ref)->t) ? S390XI_LGFR :
 				   S390XI_LLGFR, gpr, gpr));
       ra_leftov(as, gpr, ref);
