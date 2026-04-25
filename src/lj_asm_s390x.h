@@ -608,6 +608,8 @@ static int asm_s390x_guarded_addsub_op32home_depth(ASMState *as, IRRef ref,
     return 0;
   switch (ir->o) {
   case IR_SLOAD:
+  case IR_ALOAD:
+  case IR_HLOAD:
   case IR_ADDOV:
   case IR_SUBOV:
     return 1;
