@@ -38,6 +38,16 @@ local function max_loop(n)
   return total
 end
 
+local scan_bytes = string.rep(string.char(100), 16)
+
+local function byte_scan_seed_loop(seed, n)
+  local total = seed
+  for i = 1, n do
+    total = total + string.byte(scan_bytes, i)
+  end
+  return total
+end
+
 local function run_sum_boundaries()
   return sum_loop(65535), sum_loop(65536), sum_loop(65537), sum_loop(70000)
 end
@@ -48,6 +58,10 @@ end
 
 local function run_max_boundaries()
   return max_loop(60000), max_loop(64000), max_loop(70000), max_loop(80000)
+end
+
+local function run_byte_scan_seed_boundaries()
+  return byte_scan_seed_loop(0, 10), byte_scan_seed_loop(2147483400, 4)
 end
 
 local s65535, s65536, s65537, s70000 = expect_trace("ADDOV boundary", run_sum_boundaries)
@@ -68,3 +82,8 @@ t.eq(m60000, 2700030000, "max_loop(60000)")
 t.eq(m64000, 3072032000, "max_loop(64000)")
 t.eq(m70000, 3675035000, "max_loop(70000)")
 t.eq(m80000, 4800040000, "max_loop(80000)")
+
+local bnormal, boverflow =
+  expect_trace("ADDOV byte-scan seed boundary", run_byte_scan_seed_boundaries)
+t.eq(bnormal, 1000, "byte_scan_seed_loop normal")
+t.eq(boverflow, 2147483800, "byte_scan_seed_loop overflow side exit")
