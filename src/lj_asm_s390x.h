@@ -3993,8 +3993,6 @@ static void asm_add(ASMState *as, IRIns *ir)
 			      low32home ? CC_OF : CC_NE, 0, k);
 	  if (low32home && dest != left) {
 	    asm_guardcc(as, CC_OF);
-	    if (!asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
-	      emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_OF, left));
 	    emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, dest, left, k));
 	  } else {
 	    RegSet sallow = rset_exclude(allow, left);
@@ -4108,7 +4106,6 @@ static void asm_add(ASMState *as, IRIns *ir)
 			  (int)(ir->op2 - REF_BIAS));
       if (low32home && dest != preserve) {
 	asm_guardcc(as, CC_OF);
-	emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_OF, preserve));
 	emit_u32(as, S390X_INS_RRF_M(S390XI_ARK, dest, right, left));
       } else {
 	if (low32home) {
@@ -4940,8 +4937,6 @@ static void asm_sub(ASMState *as, IRIns *ir)
 			      low32home ? CC_OF : CC_NE, 0, -k);
 	  if (low32home && dest != left) {
 	    asm_guardcc(as, CC_OF);
-	    if (!asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
-	      emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_OF, left));
 	    emit_u48_pad8(as, S390X_INS_RIE_D(S390XI_AHIK, dest, left, -k));
 	  } else {
 	    RegSet sallow = rset_exclude(allow, left);
