@@ -2421,6 +2421,41 @@ static void asm_bufhdr_write(ASMState *as, Reg sb)
   emit_loadofs(as, &irgc, tmp, sb, (int32_t)offsetof(SBuf, L));
 }
 
+static int asm_s390x_bufput_kchar(ASMState *as, IRIns *ir, int kchar)
+{
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_buf_putchar];
+  RegSet allow = RSET_GPR_NOB;
+  Reg sb = RID_RET;
+  Reg w, e;
+  MCode *l_done, *l_slow;
+
+  asm_setupresult(as, ir, ci);
+  if (as->evenspill < SPS_FIRST + S390X_CALL_SPS_EXTRA * 2)
+    as->evenspill = SPS_FIRST + S390X_CALL_SPS_EXTRA * 2;
+
+  rset_clear(allow, sb);
+  w = ra_scratch(as, allow);
+  rset_clear(allow, w);
+  e = ra_scratch(as, allow);
+
+  l_done = as->mcp;
+  emit_call(as, RID_R14, (void *)ci->func);
+  emit_loadi(as, RID_R3, (int8_t)kchar);
+  l_slow = as->mcp;
+
+  emit_jmp(as, l_done);
+  emit_store64ofs(as, w, sb, (int32_t)offsetof(SBuf, w));
+  emit_u32(as, S390X_INS_RI(S390XI_AGHI, w, 1));
+  emit_store8ofs(as, e, w, 0);
+  emit_loadi(as, e, (int8_t)kchar);
+  emit_condbranch(as, CC_HS, l_slow);
+  emit_u32(as, S390X_INS_RXE(S390XI_CLGR, w, e));
+  emit_load64ofs(as, e, sb, (int32_t)offsetof(SBuf, e));
+  emit_load64ofs(as, w, sb, (int32_t)offsetof(SBuf, w));
+  ra_leftov(as, sb, ir->op1);
+  return 1;
+}
+
 static Reg asm_setup_call_slots(ASMState *as, IRIns *ir, const CCallInfo *ci)
 {
   IRRef args[CCI_NARGS_MAX*2];
