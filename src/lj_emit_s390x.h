@@ -215,6 +215,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_AHIK	0xec00000000d8ull
 #define S390XI_AGHIK	0xec00000000d9ull
 #define S390XI_LG	0xe30000000004ull
+#define S390XI_LGF	0xe30000000014ull
 #define S390XI_LLGF	0xe30000000016ull
 #define S390XI_LGH	0xe30000000015ull
 #define S390XI_LLGC	0xe30000000090ull
@@ -360,6 +361,12 @@ static void emit_loadu32ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
   emit_u48_pad8(as, S390X_INS_RXY(S390XI_LLGF, r, 0, base, ofs));
 }
 
+static void emit_loadi32ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
+{
+  lj_assertA(checki20(ofs), "s390x load32 offset out of range");
+  emit_u48_pad8(as, S390X_INS_RXY(S390XI_LGF, r, 0, base, ofs));
+}
+
 static void emit_loadu16ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
 {
   lj_assertA(checki20(ofs), "s390x load16 offset out of range");
@@ -460,9 +467,10 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
   if (irt_is64(ir->t) || irt_isaddr(ir->t) || irt_isgcv(ir->t)) {
     emit_load64ofs(as, r, base, ofs);
   } else {
-    emit_loadu32ofs(as, r, base, ofs);
     if (irt_isint(ir->t))
-      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, r, r));
+      emit_loadi32ofs(as, r, base, ofs);
+    else
+      emit_loadu32ofs(as, r, base, ofs);
   }
 }
 
