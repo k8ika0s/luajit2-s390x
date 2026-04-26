@@ -1419,6 +1419,23 @@ static int lj_asm_s390x_aref_base_allgpr_enabled(void)
 #define S390X_CALLARG_STACK_GPR	3
 #define S390X_CALLARG_STACK_FPR	4
 
+static int asm_gencall_uses_r6(ASMState *as, const CCallInfo *ci, IRRef *args)
+{
+  uint32_t n, nargs = CCI_XNARGS(ci);
+  Reg gpr = REGARG_FIRSTGPR;
+  if (ci->flags & CCI_VARARG)
+    return 1;
+  for (n = 0; n < nargs; n++) {
+    IRRef ref = args[n];
+    if (!ref || irt_isfp(IR(ref)->t))
+      continue;
+    if (gpr == RID_R6)
+      return 1;
+    gpr++;
+  }
+  return 0;
+}
+
 static void asm_s390x_call_preserve_log(ASMState *as, const char *kind,
 					int slot, IRRef ref, Reg src,
 					Reg target, Reg save)
@@ -2138,6 +2155,7 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
   uint8_t dup_first[CCI_NARGS_MAX*2];
   int32_t loc_ofs[CCI_NARGS_MAX*2];
   int direct_call_arg = asm_s390x_direct_call_arg_enabled();
+  int uses_r6 = asm_gencall_uses_r6(as, ci, args);
   if (asm_gencall_str_equal_256(as, ci, args))
     return;
   for (n = 0; n < CCI_NARGS_MAX*2; n++) {
@@ -2152,6 +2170,8 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
     emit_call(as, RID_R14, (void *)ci->func);
   for (gpr = REGARG_FIRSTGPR; gpr <= REGARG_LASTGPR; gpr++) {
     IRRef ref = regcost_ref(as->cost[gpr]);
+    if (gpr == RID_R6 && !uses_r6)
+      continue;
     if (!ra_iskref(ref) && ref <= as->T->nins && IR(ref)->r == gpr)
       ra_sethint(IR(ref)->r, gpr);
     as->cost[gpr] = REGCOST(~0u, ASMREF_L);
@@ -2276,9 +2296,9 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
   asm_s390x_call_log(as, "assigned", nargs, args);
 }
 
-static void asm_setupresult(ASMState *as, IRIns *ir, const CCallInfo *ci)
+static void asm_setupresult_drop(ASMState *as, IRIns *ir, const CCallInfo *ci,
+				 RegSet drop)
 {
-  RegSet drop = RSET_SCRATCH;
   Reg retreg = RID_RET;
   int hiop = ((ir+1)->o == IR_HIOP && !irt_isnil((ir+1)->t));
   if (ir->o == IR_CALLL && ir->op2 == IRCALL_lj_vm_next)
@@ -2309,6 +2329,20 @@ static void asm_setupresult(ASMState *as, IRIns *ir, const CCallInfo *ci)
         emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, retreg, retreg));
     }
   }
+}
+
+static void asm_setupresult(ASMState *as, IRIns *ir, const CCallInfo *ci)
+{
+  asm_setupresult_drop(as, ir, ci, RSET_SCRATCH);
+}
+
+static void asm_setupresult_callx(ASMState *as, IRIns *ir, const CCallInfo *ci,
+				  IRRef *args)
+{
+  RegSet drop = RSET_SCRATCH;
+  if (!asm_gencall_uses_r6(as, ci, args))
+    drop &= ~RID2RSET(RID_R6);
+  asm_setupresult_drop(as, ir, ci, drop);
 }
 
 static void asm_gc_check(ASMState *as)
@@ -2580,7 +2614,7 @@ static void asm_callx(ASMState *as, IRIns *ir)
 
   ci.flags = asm_callx_flags(as, ir);
   asm_collectargs(as, ir, &ci, args);
-  asm_setupresult(as, ir, &ci);
+  asm_setupresult_callx(as, ir, &ci, args);
 
   func = ir->op2;
   irf = IR(func);
