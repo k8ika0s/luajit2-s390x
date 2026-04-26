@@ -205,8 +205,11 @@ static int asm_s390x_is_low32home_conv_boundary(IRIns *use, IRRef ref)
   if (use->o != IR_CONV || use->op1 != ref)
     return 0;
   st = (IRType)(use->op2 & IRCONV_SRCMASK);
-  return (st == IRT_INT || st == IRT_U32) &&
-	 (irt_isnum(use->t) || irt_is64(use->t));
+  /* NUM conversion consumes the low 32-bit input directly. 64-bit integer
+  ** conversion is a real sign/zero-extension boundary and should not keep
+  ** the producer in the low32-home form only to normalize it later.
+  */
+  return (st == IRT_INT || st == IRT_U32) && irt_isnum(use->t);
 }
 
 static const char *asm_s390x_low32home_hard_kind(IRIns *use)
@@ -1620,6 +1623,14 @@ static void asm_gencall_dup_fanout(ASMState *as, IRRef *args, uint32_t nargs,
   }
 }
 
+static int asm_gencall_arg_ref_count(IRRef *args, uint32_t nargs, IRRef ref)
+{
+  uint32_t n, count = 0;
+  for (n = 0; n < nargs; n++)
+    count += args[n] == ref;
+  return (int)count;
+}
+
 static void asm_guardcc(ASMState *as, int cc);
 static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref);
 static void asm_tvstore64x(ASMState *as, Reg base, int32_t ofs, IRRef ref,
@@ -2249,12 +2260,18 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
     if (irt_isfp(IR(ref)->t)) {
       if (fpr <= REGARG_LASTFPR) {
 	if (!irref_isk(ref)) {
+	  IRIns *ir = IR(ref);
 	  Reg src = IR(ref)->r;
+	  int direct_fpr_arg = !ra_used(ir) &&
+			       asm_gencall_arg_ref_count(args, nargs, ref) == 1;
 	  asm_s390x_call_arg_log(as, "fpr", (int)n, ref, src, fpr);
-	  if (ra_hasreg(src) &&
-	      src >= REGARG_FIRSTFPR && src <= REGARG_LASTFPR && (src & 1) == 0)
-	    asm_gencall_preserve_fpr(as, ref, src, fpr, (int)n, "fpr");
-	  ra_alloc1(as, ref, asm_gencall_nonarg_fpr(fpr));
+	  if (!direct_fpr_arg) {
+	    if (ra_hasreg(src) &&
+		src >= REGARG_FIRSTFPR && src <= REGARG_LASTFPR &&
+		(src & 1) == 0)
+	      asm_gencall_preserve_fpr(as, ref, src, fpr, (int)n, "fpr");
+	    ra_alloc1(as, ref, asm_gencall_nonarg_fpr(fpr));
+	  }
 	}
 	lj_assertA(rset_test(as->freeset, fpr), "reg %d not free", fpr);
 	ra_leftov(as, fpr, ref);
