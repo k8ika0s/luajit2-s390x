@@ -212,6 +212,23 @@ static int asm_s390x_is_low32home_conv_boundary(IRIns *use, IRRef ref)
   return (st == IRT_INT || st == IRT_U32) && irt_isnum(use->t);
 }
 
+static int asm_s390x_is_low32home_store_value(IRIns *use, IRRef ref)
+{
+  if (use->op2 != ref)
+    return 0;
+  switch (use->o) {
+  case IR_ASTORE:
+  case IR_HSTORE:
+  case IR_USTORE:
+    return irt_isinteger(use->t);
+  case IR_FSTORE:
+  case IR_XSTORE:
+    return irt_isinteger(use->t) || irt_isu32(use->t);
+  default:
+    return 0;
+  }
+}
+
 static const char *asm_s390x_low32home_hard_kind(IRIns *use)
 {
   if (irt_isguard(use->t))
@@ -569,18 +586,25 @@ static void asm_s390x_bnorm_log(ASMState *as, IRIns *ir, Reg dest)
 
 static int asm_s390x_can_defer_bnorm32(ASMState *as, IRIns *ir)
 {
-  int safe_bitop_uses, unsafe_bitop_uses, intarith_uses, other_uses;
-  int guard_uses, first_use_op, first_nonbitop_use_op;
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int uses = 0;
   if (!asm_s390x_is_bitop_op(ir->o))
     return 0;
   if (ir->o == IR_BAND && irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT &&
       IR(ir->op2)->i >= 0)
     return 1;
-  asm_s390x_bnorm_use_counts(as, ir, &safe_bitop_uses, &unsafe_bitop_uses,
-			     &intarith_uses, &other_uses, &guard_uses,
-			     &first_use_op, &first_nonbitop_use_op);
-  return safe_bitop_uses > 0 && unsafe_bitop_uses == 0 &&
-	 intarith_uses == 0 && other_uses == 0 && guard_uses == 0;
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (asm_s390x_is_int32home_safe_bitop_consumer(use->o) ||
+	asm_s390x_is_low32home_store_value(use, ref)) {
+      uses++;
+      continue;
+    }
+    return 0;
+  }
+  return uses > 0;
 }
 
 static int asm_s390x_only_used_by_ref(ASMState *as, IRIns *ir, IRRef useref)
@@ -776,15 +800,22 @@ static int asm_s390x_can_defer_neg_bnorm32(ASMState *as, IRIns *ir)
 
 static int asm_s390x_can_use_low32_logic_op(ASMState *as, IRIns *ir)
 {
-  int safe_bitop_uses, unsafe_bitop_uses, intarith_uses, other_uses;
-  int guard_uses, first_use_op, first_nonbitop_use_op;
+  IRRef ref = (IRRef)(ir - as->ir);
+  IRIns *use;
+  int uses = 0;
   if (!asm_s390x_is_logic_bitop_op(ir->o))
     return 0;
-  asm_s390x_bnorm_use_counts(as, ir, &safe_bitop_uses, &unsafe_bitop_uses,
-			     &intarith_uses, &other_uses, &guard_uses,
-			     &first_use_op, &first_nonbitop_use_op);
-  return safe_bitop_uses > 0 && unsafe_bitop_uses == 0 &&
-	 intarith_uses == 0 && other_uses == 0 && guard_uses == 0;
+  for (use = IR(as->orignins-1); use > ir; use--) {
+    if (use->op1 != ref && use->op2 != ref)
+      continue;
+    if (asm_s390x_is_int32home_safe_bitop_consumer(use->o) ||
+	asm_s390x_is_low32home_store_value(use, ref)) {
+      uses++;
+      continue;
+    }
+    return 0;
+  }
+  return uses > 0;
 }
 
 static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
