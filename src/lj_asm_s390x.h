@@ -4162,10 +4162,9 @@ static void asm_add(ASMState *as, IRIns *ir)
 	asm_s390x_guarded_addsub_op32home(as, ir->op1) &&
 	asm_s390x_guarded_addsub_can_stay_low32(as, ir)) {
       asm_s390x_ir_log_addk(as, ir, ir->op1, ir->op2, dest, left, k);
-      asm_s390x_guard_log(as, "addov_k_int32", ir, CC_NE, 0, k);
-      asm_guardcc(as, CC_NE);
-      emit_u32(as, S390X_INS_RXE(S390XI_CGFR, dest, dest));
-      emit_u48_pad8(as, S390X_INS_RIL(S390XI_AGFI, dest, k));
+      asm_s390x_guard_log(as, "addov_k_int32", ir, CC_OF, 0, k);
+      asm_guardcc(as, CC_OF);
+      emit_u48_pad8(as, S390X_INS_RIL(S390XI_AFI, dest, k));
       if (dest != left &&
 	  !asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
 	emit_movrr(as, ir, dest, left);
@@ -5099,10 +5098,9 @@ static void asm_sub(ASMState *as, IRIns *ir)
       left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
       asm_s390x_add_log(as, "subov_k_int32", ir, dest, left, RID_NONE,
 			RID_NONE);
-      asm_s390x_guard_log(as, "subov_k_int32", ir, CC_NE, 0, -k);
-      asm_guardcc(as, CC_NE);
-      emit_u32(as, S390X_INS_RXE(S390XI_CGFR, dest, dest));
-      emit_u48_pad8(as, S390X_INS_RIL(S390XI_AGFI, dest, -k));
+      asm_s390x_guard_log(as, "subov_k_int32", ir, CC_OF, 0, -k);
+      asm_guardcc(as, CC_OF);
+      emit_u48_pad8(as, S390X_INS_RIL(S390XI_AFI, dest, -k));
       if (dest != left &&
 	  !asm_s390x_loop_phi_carry_in_dest(as, ir, dest, left))
 	emit_movrr(as, ir, dest, left);
