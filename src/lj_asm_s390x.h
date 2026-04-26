@@ -4582,16 +4582,13 @@ static void asm_bswap(ASMState *as, IRIns *ir)
 {
   Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -235);
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -236);
-  int guard_nonnegative = !irref_isk(ir->op1);
   asm_s390x_bitop_log(as, "bswap", ir, dest, left, RID_NONE, 0);
   if (!irt_is64(ir->t)) {
-    asm_bnorm32(as, ir, dest);
     emit_u32(as, S390X_INS_RXE(S390XI_LRVR, dest, dest));
-    if (guard_nonnegative) {
-      asm_guardcc(as, CC_LT);
-      emit_u16_pad4(as, S390X_INS_RR(S390XI_LTR, dest, dest));
-    }
-    emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+    if (irt_isu32(ir->t))
+      emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, dest));
+    else
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
     if (dest != left)
       emit_movrr(as, ir, dest, left);
   } else {
