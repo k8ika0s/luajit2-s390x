@@ -6856,9 +6856,18 @@ static void asm_conv(ASMState *as, IRIns *ir)
 
   if ((st == IRT_INT || st == IRT_U32) && irt_is64(ir->t)) {
     Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -276);
-    Reg left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -276);
-    emit_u32(as, S390X_INS_RXE(st == IRT_INT ? S390XI_LGFR : S390XI_LLGFR,
-			       dest, left));
+    int sext_ready = st == IRT_INT &&
+		     asm_s390x_int_input_signext_ready(as, lref);
+    Reg left = sext_ready ?
+      ra_hintalloc(as, lref, dest, RSET_GPR_NOB) :
+      ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -276);
+    if (sext_ready) {
+      if (dest != left)
+	emit_movrr(as, ir, dest, left);
+    } else {
+      emit_u32(as, S390X_INS_RXE(st == IRT_INT ? S390XI_LGFR : S390XI_LLGFR,
+				 dest, left));
+    }
     return;
   }
 
