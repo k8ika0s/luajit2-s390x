@@ -1602,7 +1602,8 @@ static void asm_gencall_dup_fanout(ASMState *as, IRRef *args, uint32_t nargs,
   IRIns *ir = IR(ref);
   uint32_t m;
   Reg src = (Reg)loc_reg[n];
-  lj_assertA(loc_kind[n] == S390X_CALLARG_GPR,
+  lj_assertA(loc_kind[n] == S390X_CALLARG_GPR ||
+	     loc_kind[n] == S390X_CALLARG_FPR,
 	     "bad duplicate source call arg %u", (unsigned)n);
   /* Backward emission: these copies/stores execute after the source arg setup. */
   for (m = n + 1; m < nargs; m++) {
@@ -1614,6 +1615,17 @@ static void asm_gencall_dup_fanout(ASMState *as, IRRef *args, uint32_t nargs,
       break;
     case S390X_CALLARG_STACK_GPR:
       emit_store64ofs(as, src, RID_SP, loc_ofs[m]);
+      break;
+    case S390X_CALLARG_FPR:
+      emit_movrr(as, ir, (Reg)loc_reg[m], src);
+      break;
+    case S390X_CALLARG_STACK_FPR:
+      if (irt_isfloat(ir->t))
+	emit_u48_pad8(as, S390X_INS_RXY(S390XI_STEY, src, 0, RID_SP,
+					loc_ofs[m] + (LJ_BE ? 4 : 0)));
+      else
+	emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, src, 0, RID_SP,
+					loc_ofs[m]));
       break;
     default:
       break;
@@ -1627,6 +1639,19 @@ static int asm_gencall_arg_ref_count(IRRef *args, uint32_t nargs, IRRef ref)
   for (n = 0; n < nargs; n++)
     count += args[n] == ref;
   return (int)count;
+}
+
+static int asm_gencall_arg_has_fpr_dup(uint8_t *loc_kind, uint8_t *dup_first,
+				       uint32_t nargs, uint32_t n)
+{
+  uint32_t m;
+  for (m = n + 1; m < nargs; m++) {
+    if (dup_first[m] == n &&
+	(loc_kind[m] == S390X_CALLARG_FPR ||
+	 loc_kind[m] == S390X_CALLARG_STACK_FPR))
+      return 1;
+  }
+  return 0;
 }
 
 static void asm_guardcc(ASMState *as, int cc);
@@ -2226,13 +2251,20 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
   for (n = 0; n < nargs; n++) {
     uint32_t m;
     IRRef ref = args[n];
-    if (!ref || irref_isk(ref) ||
-	loc_kind[n] != S390X_CALLARG_GPR)
+    uint8_t first_kind;
+    if (!ref || irref_isk(ref))
+      continue;
+    first_kind = loc_kind[n];
+    if (first_kind != S390X_CALLARG_GPR && first_kind != S390X_CALLARG_FPR)
       continue;
     for (m = n + 1; m < nargs; m++) {
       if (args[m] == ref &&
-	  (loc_kind[m] == S390X_CALLARG_GPR ||
-	   loc_kind[m] == S390X_CALLARG_STACK_GPR) &&
+	  ((first_kind == S390X_CALLARG_GPR &&
+	    (loc_kind[m] == S390X_CALLARG_GPR ||
+	     loc_kind[m] == S390X_CALLARG_STACK_GPR)) ||
+	   (first_kind == S390X_CALLARG_FPR &&
+	    (loc_kind[m] == S390X_CALLARG_FPR ||
+	     loc_kind[m] == S390X_CALLARG_STACK_FPR))) &&
 	  dup_first[m] == 255)
 	dup_first[m] = (uint8_t)n;
     }
@@ -2261,7 +2293,9 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 	  IRIns *ir = IR(ref);
 	  Reg src = IR(ref)->r;
 	  int direct_fpr_arg = !ra_used(ir) &&
-			       asm_gencall_arg_ref_count(args, nargs, ref) == 1;
+			       (asm_gencall_arg_ref_count(args, nargs, ref) == 1 ||
+				asm_gencall_arg_has_fpr_dup(loc_kind, dup_first,
+							    nargs, n));
 	  asm_s390x_call_arg_log(as, "fpr", (int)n, ref, src, fpr);
 	  if (!direct_fpr_arg) {
 	    if (ra_hasreg(src) &&
@@ -2272,6 +2306,8 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 	  }
 	}
 	lj_assertA(rset_test(as->freeset, fpr), "reg %d not free", fpr);
+	asm_gencall_dup_fanout(as, args, nargs, n, loc_kind, loc_reg,
+			       loc_ofs, dup_first);
 	ra_leftov(as, fpr, ref);
 	fpr += 2;
       } else {
