@@ -5231,28 +5231,24 @@ static void asm_mul(ASMState *as, IRIns *ir)
       if (as->loopref && as->curins > as->loopref) {
 	RegSet sallow = allow & ~RID2RSET(left);
 	Reg res = ra_scratch(as, sallow);
-	Reg tmp = ra_scratch(as, sallow & ~RID2RSET(res));
-	emit_movrr(as, ir, dest, res);
-	asm_guardcc(as, CC_NE);
-	emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
-	emit_shiftimm(as, S390XI_SLLG, res, res, kshift);
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, res));
+	asm_guardcc(as, CC_OF);
+	emit_u48_pad8(as, S390X_INS_RSYI(S390XI_SLAK, res, left, kshift));
 	return;
       } else {
-	Reg tmp = ra_scratch(as, allow);
-	asm_guardcc(as, CC_NE);
-	emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
-	emit_shiftimm(as, S390XI_SLLG, dest, dest, kshift);
 	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+	asm_guardcc(as, CC_OF);
+	if (dest == left)
+	  emit_u32(as, S390X_INS_RX(S390XI_SLA, dest, 0, 0, kshift));
+	else
+	  emit_u48_pad8(as, S390X_INS_RSYI(S390XI_SLAK, dest, left, kshift));
       }
     } else {
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
       emit_shiftimm(as, S390XI_SLLG, dest, dest, kshift);
+      if (dest != left)
+	emit_movrr(as, ir, dest, left);
     }
-    if (dest != left)
-      emit_movrr(as, ir, dest, left);
     return;
   }
 
