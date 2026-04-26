@@ -4588,9 +4588,7 @@ static void asm_bswap(ASMState *as, IRIns *ir)
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, dest));
     else
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
-    emit_u32(as, S390X_INS_RXE(S390XI_LRVR, dest, dest));
-    if (dest != left)
-      emit_movrr(as, ir, dest, left);
+    emit_u32(as, S390X_INS_RXE(S390XI_LRVR, dest, left));
   } else {
     emit_u32(as, S390X_INS_RXE(S390XI_LRVGR, dest, left));
   }
