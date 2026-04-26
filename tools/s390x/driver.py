@@ -1057,6 +1057,10 @@ def selected_perf_bench_files(args: argparse.Namespace) -> List[str]:
     return [PERF_BENCH_LUA_FILE_BY_FAMILY[family] for family in selected_perf_families(args)]
 
 
+def oracle_build_step(compiler: str) -> str:
+    return f"CC={compiler} sh tests/s390x/build_oracles.sh"
+
+
 def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Optional[str]:
     expect_ffi = "1" if variant.ffi == "on" else "0"
     expect_jit = "1" if variant.jit == "on" else "0"
@@ -1113,7 +1117,7 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
-            CC={variant.compiler} sh tests/s390x/build_oracles.sh
+            {oracle_build_step(variant.compiler)}
             printf "%s\\n" "tests/s390x/ffi_abi/run.lua" > "$S390X_STEP_DIR/current_test.txt"
             ./src/luajit tests/s390x/ffi_abi/run.lua
             """
@@ -1125,7 +1129,7 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
-            CC={variant.compiler} sh tests/s390x/build_oracles.sh
+            {oracle_build_step(variant.compiler)}
             for test in tests/s390x/callbacks/*.lua; do
               [ -e "$test" ] || continue
               printf "%s\\n" "$test" > "$S390X_STEP_DIR/current_test.txt"
@@ -1158,6 +1162,7 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             f"""
             set -euo pipefail
             export PATH="$PWD/src:$PATH"
+            {oracle_build_step(variant.compiler) if variant.ffi == "on" else ""}
             {lua_steps}
             for test in tests/s390x/jit_core/*.lua; do
               [ -e "$test" ] || continue
@@ -1265,7 +1270,7 @@ def suite_command(ctx: Context, stage: str, suite: str, variant: Variant) -> Opt
             *retained_exports,
         ]
         if variant.ffi == "on" and any(test in PERF_FFI_LUA_FILES for test in bench_files):
-            bench_steps.append(f"CC={variant.compiler} sh tests/s390x/build_oracles.sh")
+            bench_steps.append(oracle_build_step(variant.compiler))
         for test in bench_files:
             stem = pathlib.Path(test).stem
             stdout_path = f'$S390X_STEP_DIR/bench-logs/{stem}.stdout.log'
