@@ -5218,6 +5218,9 @@ static void asm_mul(ASMState *as, IRIns *ir)
 
   Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -207);
   Reg left, right;
+  int32_t k = 0;
+  uint32_t kshift = 0;
+  int ispow2k = 0;
 
   if (!irt_isinteger(ir->t)) {
     asm_s390x_nyi_ir(as, ir);
@@ -5225,6 +5228,44 @@ static void asm_mul(ASMState *as, IRIns *ir)
   }
 
   left = ra_hintalloc_nobase(as, ir->op1, dest, RSET_GPR_NOB, -208);
+  if (irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
+    k = IR(ir->op2)->i;
+    ispow2k = k > 1 && ((uint32_t)k & ((uint32_t)k - 1u)) == 0;
+    if (ispow2k)
+      kshift = lj_ffs((uint32_t)k);
+  }
+
+  if (ispow2k) {
+    if (irt_isguard(ir->t)) {
+      RegSet allow = RSET_GPR_NOB & ~RID2RSET(dest);
+      if (as->loopref && as->curins > as->loopref) {
+	RegSet sallow = allow & ~RID2RSET(left);
+	Reg res = ra_scratch(as, sallow);
+	Reg tmp = ra_scratch(as, sallow & ~RID2RSET(res));
+	emit_movrr(as, ir, dest, res);
+	asm_guardcc(as, CC_NE);
+	emit_u32(as, S390X_INS_RXE(S390XI_CGR, res, tmp));
+	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, res));
+	emit_shiftimm(as, S390XI_SLLG, res, res, kshift);
+	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, res, left));
+	return;
+      } else {
+	Reg tmp = ra_scratch(as, allow);
+	asm_guardcc(as, CC_NE);
+	emit_u32(as, S390X_INS_RXE(S390XI_CGR, dest, tmp));
+	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, dest));
+	emit_shiftimm(as, S390XI_SLLG, dest, dest, kshift);
+	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+      }
+    } else {
+      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+      emit_shiftimm(as, S390XI_SLLG, dest, dest, kshift);
+    }
+    if (dest != left)
+      emit_movrr(as, ir, dest, left);
+    return;
+  }
+
   if (irref_isk(ir->op2))
     right = ra_allock(as, IR(ir->op2)->i, rset_exclude(RSET_GPR_NOB, left));
   else
