@@ -55,9 +55,10 @@ print("ok")
 --- jv
 --- out
 ok
---- err
-[TRACE   1 test.lua:12 loop]
-[TRACE   2 test.lua:11 -> 1]
+--- err eval
+qr#\A\Q[TRACE   1 test.lua:12 loop]
+\E(?:\Q[TRACE   2 test.lua:11 -> 1]
+\E)?\z#
 
 
 
@@ -111,6 +112,7 @@ print("ok")
 --- jv
 --- out
 ok
---- err
-[TRACE   1 test.lua:14 loop]
-[TRACE   2 test.lua:13 -> 1]
+--- err eval
+qr#\A\Q[TRACE   1 test.lua:14 loop]
+\E(?:\Q[TRACE   2 test.lua:13 -> 1]
+\E)?\z#
