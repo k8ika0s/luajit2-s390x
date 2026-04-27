@@ -1726,8 +1726,9 @@ static int asm_gencall_sload(ASMState *as, Reg gpr, IRRef ref)
     emit_load64ofs(as, gpr, base, ofs);
   } else {
     if (irt_isint(t))
-      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, gpr, gpr));
-    emit_loadu32ofs(as, gpr, base, ofs + (LJ_BE ? 4 : 0));
+      emit_loadi32ofs(as, gpr, base, ofs + (LJ_BE ? 4 : 0));
+    else
+      emit_loadu32ofs(as, gpr, base, ofs + (LJ_BE ? 4 : 0));
   }
   if (base != RID_BASE)
     emit_getgl(as, base, jit_base);
@@ -6431,8 +6432,9 @@ static void asm_fload(ASMState *as, IRIns *ir)
     emit_loadi16ofs(as, dest, base, ofs);
   } else {
     if (irt_isint(t) && ir->op2 != IRFL_STR_LEN)
-      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
-    emit_loadu32ofs(as, dest, base, ofs);
+      emit_loadi32ofs(as, dest, base, ofs);
+    else
+      emit_loadu32ofs(as, dest, base, ofs);
   }
 }
 
@@ -6466,8 +6468,6 @@ static void asm_sload(ASMState *as, IRIns *ir)
     }
     if (irt_isaddr(t)) {
       emit_u48_pad8(as, S390X_INS_RIL(S390XI_NIHF, dest, 0x00007fff));
-    } else if (irt_isint(t) && !(ir->op2 & IRSLOAD_FRAME)) {
-      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
     }
     goto dotypecheck;
   }
@@ -6547,8 +6547,7 @@ dotypecheck:
       if (numdest) {
 	MCode *l_done = as->mcp;
 	emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, tmp));
-	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, tmp, tmp));
-	emit_loadu32ofs(as, tmp, base, vofs);
+	emit_loadi32ofs(as, tmp, base, vofs);
 	emit_condbranch(as, CC_NE, l_done);
       }
       asm_guardcc(as, numdest ? CC_HI : CC_HS);
@@ -6569,7 +6568,10 @@ dotypecheck:
     } else if (irt_isaddr(t)) {
       emit_load64ofs(as, dest, base, ofs);
     } else {
-      emit_loadu32ofs(as, dest, base, vofs);
+      if (irt_isint(t) && !(ir->op2 & IRSLOAD_FRAME))
+	emit_loadi32ofs(as, dest, base, vofs);
+      else
+	emit_loadu32ofs(as, dest, base, vofs);
     }
   }
   if (base == RID_BASE)
