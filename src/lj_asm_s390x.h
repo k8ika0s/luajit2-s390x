@@ -2550,6 +2550,42 @@ static int asm_tvstore64x_int_inplace(ASMState *as, Reg base, int32_t ofs,
   return 1;
 }
 
+/* A pre-loop integer store establishes the TValue tag; repeated loop stores to
+** the same slot only need to update the value word.
+*/
+static int asm_s390x_preloop_int_store_to_same_slot(ASMState *as, IRIns *ir)
+{
+  IRRef ref = (IRRef)(ir - as->ir);
+  int32_t prevref;
+
+  if (!as->loopref || ref <= as->loopref || !irt_isinteger(ir->t))
+    return 0;
+
+  for (prevref = (int32_t)as->loopref - 1; prevref >= REF_FIRST; prevref--) {
+    IRIns *prev = IR((IRRef)prevref);
+    if (prev->o == ir->o && prev->op1 == ir->op1)
+      return irt_isinteger(prev->t);
+  }
+  return 0;
+}
+
+static int asm_tvstore64x_int_lowword(ASMState *as, Reg base, int32_t ofs,
+				      IRRef ref, RegSet forbid)
+{
+  RegSet allow = rset_exclude(RSET_GPR, base) & ~forbid;
+  IRIns *ir = IR(ref);
+  Reg src = ir->r;
+
+  if (irref_isk(ref) || !irt_isinteger(ir->t))
+    return 0;
+  if (ra_hasreg(src) && !rset_test(allow, src))
+    return 0;
+
+  src = ra_alloc1(as, ref, allow);
+  emit_store32ofs(as, src, base, ofs + (LJ_BE ? 4 : 0));
+  return 1;
+}
+
 static void asm_tvstore64(ASMState *as, Reg base, int32_t ofs, IRRef ref)
 {
   asm_tvstore64x(as, base, ofs, ref, RSET_EMPTY);
@@ -6620,7 +6656,9 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
     forbid |= RID2RSET(fr.base);
   if (fr.idx != RID_NONE)
     forbid |= RID2RSET(fr.idx);
-  if (!asm_tvstore64x_int_inplace(as, fr.reg, fr.ofs, ir->op2, forbid,
+  if (!(asm_s390x_preloop_int_store_to_same_slot(as, ir) &&
+	asm_tvstore64x_int_lowword(as, fr.reg, fr.ofs, ir->op2, forbid)) &&
+      !asm_tvstore64x_int_inplace(as, fr.reg, fr.ofs, ir->op2, forbid,
 				  (IRRef)(ir - as->ir)))
     asm_tvstore64x(as, fr.reg, fr.ofs, ir->op2, forbid);
   asm_emitfuseahuref(as, ir, &fr);
