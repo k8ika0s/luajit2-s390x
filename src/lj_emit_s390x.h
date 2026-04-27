@@ -423,6 +423,29 @@ static void emit_store32ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
   emit_u48_pad8(as, S390X_INS_RXY(S390XI_STY, r, 0, base, ofs));
 }
 
+static int s390x_checku12(int32_t ofs)
+{
+  return ofs >= 0 && ofs <= 0xfff;
+}
+
+static void emit_loadf64ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
+{
+  lj_assertA(checki20(ofs), "s390x FPR load offset out of range");
+  if (s390x_checku12(ofs))
+    emit_u32(as, S390X_INS_RX(S390XI_LD, r, 0, base, ofs));
+  else
+    emit_u48_pad8(as, S390X_INS_RXY(S390XI_LDY, r, 0, base, ofs));
+}
+
+static void emit_storef64ofs(ASMState *as, Reg r, Reg base, int32_t ofs)
+{
+  lj_assertA(checki20(ofs), "s390x FPR store offset out of range");
+  if (s390x_checku12(ofs))
+    emit_u32(as, S390X_INS_RX(S390XI_STD, r, 0, base, ofs));
+  else
+    emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, r, 0, base, ofs));
+}
+
 static void emit_shiftimm(ASMState *as, uint64_t op, Reg r1, Reg r3, uint32_t imm)
 {
   lj_assertA(imm <= 63, "s390x shift immediate out of range");
@@ -461,8 +484,7 @@ static void emit_loadofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
       lj_assertA(checki20(ofs), "s390x FPR float load offset out of range");
       emit_u48_pad8(as, S390X_INS_RXY(S390XI_LEY, r, 0, base, ofs));
     } else {
-      lj_assertA(checki20(ofs), "s390x FPR spill load offset out of range");
-      emit_u48_pad8(as, S390X_INS_RXY(S390XI_LDY, r, 0, base, ofs));
+      emit_loadf64ofs(as, r, base, ofs);
     }
     return;
   }
@@ -488,8 +510,7 @@ static void emit_storeofs(ASMState *as, IRIns *ir, Reg r, Reg base, int32_t ofs)
       lj_assertA(checki20(ofs), "s390x FPR float store offset out of range");
       emit_u48_pad8(as, S390X_INS_RXY(S390XI_STEY, r, 0, base, ofs));
     } else {
-      lj_assertA(checki20(ofs), "s390x FPR spill store offset out of range");
-      emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, r, 0, base, ofs));
+      emit_storef64ofs(as, r, base, ofs);
     }
     return;
   }
