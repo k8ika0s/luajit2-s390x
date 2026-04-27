@@ -2750,7 +2750,11 @@ static void asm_setup_regsp(ASMState *as)
       ci.flags = asm_callx_flags(as, ir);
       ir->prev = asm_setup_call_slots(as, ir, &ci);
       if (inloop)
+#if LJ_TARGET_S390X
+	as->modset |= asm_s390x_callx_modset(as, ir, &ci);
+#else
 	as->modset |= RSET_SCRATCH;
+#endif
       continue;
       }
     case IR_CALLL:
