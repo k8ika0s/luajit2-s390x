@@ -197,7 +197,10 @@
 |
 #define PC2PROTO(field)  ((int)offsetof(GCproto, field)-(int)sizeof(GCproto))
 #ifndef CCALL_SPS_EXTRA
-#define CCALL_SPS_EXTRA 0
+/* Reserve the psABI caller save area for VM calls into C. Trace exits save
+** ExitState below this area, so C callees cannot overwrite saved registers.
+*/
+#define CCALL_SPS_EXTRA 20
 #endif
 #define EXITSTATE_FPR_BASE	0
 #define EXITSTATE_GPR_BASE	(16 * 8)
