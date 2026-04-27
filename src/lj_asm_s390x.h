@@ -4625,6 +4625,10 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     uint64_t immop;
     int32_t sh = IR(ir->op2)->i & 31;
     asm_s390x_bitop_log(as, "shiftk", ir, dest, left, RID_NONE, 1);
+    if (op == S390XI_SLLK && asm_s390x_can_defer_bnorm32(as, ir)) {
+      emit_u48_pad8(as, S390X_INS_RSYI(S390XI_SLLK, dest, left, sh));
+      return;
+    }
     if (op == S390XI_SRLK && asm_s390x_can_defer_bnorm32(as, ir)) {
       emit_u48_pad8(as, S390X_INS_RSYI(S390XI_SRLK, dest, left, sh));
       return;
