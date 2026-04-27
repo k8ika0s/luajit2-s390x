@@ -104,4 +104,4 @@ print("total = " .. total)
 total = 5050
 --- err
 [TRACE   1 test.lua:3 loop]
-[TRACE   2 test.lua:8 return]
+[TRACE   2 test.lua:24 loop]
