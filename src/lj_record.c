@@ -2872,6 +2872,8 @@ static IRType rec_next_types_idx(GCtab *t, uint32_t idx, int *isarray,
 
 static TRef lj_record_s390x_pairs_tab_ref(jit_State *J, int32_t slot, GCtab *t)
 {
+  if (!LJ_TARGET_S390X)
+    return getslot(J, slot);
   if ((rec_next_types(t, 0, NULL) & 0xff) != IRT_INT)
     return J->base[slot] ? J->base[slot] :
 	   sloadt(J, slot, IRT_TAB, IRSLOAD_READONLY);
@@ -4809,13 +4811,13 @@ int lj_record_next(jit_State *J, RecordIndex *ix)
     if (!ix->mobj) emitir(IRTGI(IR_NE), idx, lj_ir_kint(J, -1));
     ix->mobj = idx;
   }
-  if (!nextisarray && tkey != IRT_NIL) {
+  if (LJ_TARGET_S390X && !nextisarray && tkey != IRT_NIL) {
     /* Hash traversal already leaves the visible key TValue in the frame.
     ** Keep the key slot unloaded and let the loop body SLOAD it on demand.
     ** This avoids the eager helper-tuple key VLOAD on the hot hash path.
     */
     ix->key = 0;
-  } else if (nextisarray && tkey == IRT_INT && ix->mobj) {
+  } else if (LJ_TARGET_S390X && nextisarray && tkey == IRT_INT && ix->mobj) {
     /* Array iteration already returns the next traversal index in HIOP form.
     ** Derive the visible numeric key directly from that index instead of
     ** reloading the boxed key lane from the helper tuple.
