@@ -5944,20 +5944,6 @@ static int32_t asm_s390x_vload_intofs(ASMState *as, IRIns *ir, int32_t ofs)
   return ofs + (LJ_BE ? 4 : 0);
 }
 
-static int asm_s390x_hload_dynamic_str_href_int_typecheck(ASMState *as,
-							  IRIns *ir)
-{
-  IRIns *href, *key;
-  UNUSED(as);
-  if (!(ir->o == IR_HLOAD && irt_isint(ir->t)) || irref_isk(ir->op1))
-    return 0;
-  href = IR(ir->op1);
-  if (href->o != IR_HREF || irref_isk(href->op2))
-    return 0;
-  key = IR(href->op2);
-  return irt_isstr(key->t);
-}
-
 static void asm_ahuvload(ASMState *as, IRIns *ir)
 {
   int32_t ofs = 0;
@@ -5965,6 +5951,7 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
   Reg dest = RID_NONE;
   S390XFusedRef fr;
   RegSet allow = RSET_GPR_NOB;
+  int dest_int_typecheck = 0;
 
   lj_assertA(!(ir->o == IR_VLOAD && 8 * ir->op2 < 0), "bad VLOAD offset");
 
@@ -5989,8 +5976,12 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
       emit_u48_pad8(as, S390X_INS_RIL(S390XI_NIHF, dest, 0x00007fff));
     } else if (irt_isint(t)) {
       emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+      emit_loadu32ofs(as, dest, fr.reg, asm_s390x_vload_intofs(as, ir, ofs));
+      dest_int_typecheck = 1;
     } else if (irt_isu32(t)) {
       emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, dest));
+      emit_loadu32ofs(as, dest, fr.reg, asm_s390x_vload_intofs(as, ir, ofs));
+      dest_int_typecheck = 1;
     }
     goto dotypecheck;
   }
@@ -6002,6 +5993,10 @@ static void asm_ahuvload(ASMState *as, IRIns *ir)
 
 dotypecheck:
   rset_clear(allow, fr.reg);
+  if (fr.base != RID_NONE)
+    rset_clear(allow, fr.base);
+  if (fr.idx != RID_NONE)
+    rset_clear(allow, fr.idx);
   if (!irt_isnum(t) && !irt_isint(t) && !irt_isu32(t) &&
       !irt_isaddr(t) && !irt_ispri(t)) {
     asm_s390x_nyi_ir(as, ir);
@@ -6041,20 +6036,20 @@ dotypecheck:
     emit_loadu64(as, expected, irt_isnil(t) ? ~(uint64_t)0 :
       (uint64_t)(~((int64_t)~irt_toitype(t) << 47)));
     emit_load64ofs(as, tmp, fr.reg, ofs);
-  } else if (asm_s390x_hload_dynamic_str_href_int_typecheck(as, ir)) {
-    Reg tmp = ra_scratch(as, allow);
-    uint32_t tag_hi = (uint32_t)(((uint64_t)(uint32_t)LJ_TISNUM << 47) >> 32);
-    asm_s390x_guard_log(as, "hload_str_href_int", ir, CC_NE, ofs, 0);
+  } else if (irt_isint(t) || irt_isu32(t)) {
+    Reg tmp = dest_int_typecheck ? dest : ra_scratch(as, allow);
+    asm_s390x_guard_log(as, "vload_int", ir, CC_NE, ofs, 0);
     asm_guardcc(as, CC_NE);
-    emit_u48_pad8(as, S390X_INS_RIL(S390XI_CLFI, tmp, (int32_t)tag_hi));
-    emit_loadu32ofs(as, tmp, fr.reg, ofs);
+    emit_u32(as, S390X_INS_RI(S390XI_CGHI, tmp, (int32_t)LJ_TISNUM));
+    emit_shiftimm(as, S390XI_SRAG, tmp, tmp, 47);
+    emit_load64ofs(as, tmp, fr.reg, ofs);
   }
   if (ra_hasreg(dest)) {
     if (irt_isnum(t)) {
       emit_loadofs(as, ir, dest, fr.reg, ofs);
     } else if (irt_isaddr(t) || irt_ispri(t)) {
       emit_load64ofs(as, dest, fr.reg, ofs);
-    } else if (irt_isint(t) || irt_isu32(t)) {
+    } else if ((irt_isint(t) || irt_isu32(t)) && !dest_int_typecheck) {
       if (asm_s390x_varg_dump_enabled() && asm_s390x_is_varg_vload(as, ir)) {
 	CCallInfo ci;
 	ci.func = (ASMFunction)lj_trace_s390x_varg_probe;

@@ -2078,17 +2078,6 @@ static void trace_start(jit_State *J)
     return;
   }
 
-#if LJ_TARGET_S390X
-  if (J->parent == 0 && bc_op(*J->pc) == BC_ITERL &&
-      J->pc > proto_bc(J->pt) && bc_op(J->pc[-1]) == BC_ITERC) {
-    /* s390x does not yet restore the first value slot correctly for a root
-    ** ITERC/ITERL trace. Values equal to keys hid this; keep it interpreted.
-    */
-    J->state = LJ_TRACE_IDLE;
-    return;
-  }
-#endif
-
   /* Ensuring forward progress for BC_ITERN can trigger hotcount again. */
   if (!J->parent && bc_op(*J->pc) == BC_JLOOP) {  /* Already compiled. */
     J->state = LJ_TRACE_IDLE;  /* Silently ignored. */
