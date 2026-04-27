@@ -559,6 +559,99 @@ static TRef crec_ct_ct(jit_State *J, CType *d, CType *s, TRef dp, TRef sp,
 
 /* -- Convert C type to TValue (load) ------------------------------------- */
 
+static int crec_int_range(jit_State *J, IRRef ref, int64_t *lop, int64_t *hip,
+			  int depth)
+{
+  IRIns *ir;
+  if (++depth > 8)
+    return 0;
+  ir = IR(ref);
+  if (ir->o == IR_KINT) {
+    *lop = *hip = (int64_t)ir->i;
+    return 1;
+  }
+  switch (ir->o) {
+  case IR_CONV: {
+    IRType st = (IRType)(ir->op2 & IRCONV_SRCMASK);
+    if (st == IRT_U8) {
+      *lop = 0;
+      *hip = UINT8_MAX;
+      return 1;
+    } else if (st == IRT_U16) {
+      *lop = 0;
+      *hip = UINT16_MAX;
+      return 1;
+    }
+    break;
+  }
+  case IR_BAND:
+    if (irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT &&
+	IR(ir->op2)->i >= 0) {
+      *lop = 0;
+      *hip = (int64_t)IR(ir->op2)->i;
+      return 1;
+    }
+    break;
+  case IR_MOD:
+    if (irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT &&
+	IR(ir->op2)->i > 0) {
+      *lop = 0;
+      *hip = (int64_t)IR(ir->op2)->i - 1;
+      return 1;
+    }
+    break;
+  case IR_ADD:
+  case IR_ADDOV:
+  case IR_SUB:
+  case IR_SUBOV:
+  case IR_MUL:
+  case IR_MULOV: {
+    int64_t lo1, hi1, lo2, hi2, lo, hi;
+    if (!crec_int_range(J, ir->op1, &lo1, &hi1, depth) ||
+	!crec_int_range(J, ir->op2, &lo2, &hi2, depth))
+      return 0;
+    if (ir->o == IR_ADD || ir->o == IR_ADDOV) {
+      lo = lo1 + lo2;
+      hi = hi1 + hi2;
+    } else if (ir->o == IR_SUB || ir->o == IR_SUBOV) {
+      lo = lo1 - hi2;
+      hi = hi1 - lo2;
+    } else if (lo1 >= 0 && lo2 >= 0 &&
+	       hi1 <= INT32_MAX && hi2 != 0 && hi1 <= INT32_MAX / hi2) {
+      lo = lo1 * lo2;
+      hi = hi1 * hi2;
+    } else {
+      return 0;
+    }
+    if (lo < INT32_MIN || hi > INT32_MAX)
+      return 0;
+    *lop = lo;
+    *hip = hi;
+    return 1;
+  }
+  default:
+    break;
+  }
+  return 0;
+}
+
+static TRef crec_u32_forwarded_int(jit_State *J, TRef tr)
+{
+  IRIns *ir = IR(tref_ref(tr));
+  /* uint32_t reads normally become numbers. If a read is forwarded from an
+  ** int store whose value is provably already in uint32_t's signed range,
+  ** the zero-extension is identity and keeping the int avoids a num PHI.
+  */
+  if (ir->o == IR_CONV &&
+      (ir->op2 & IRCONV_MODEMASK) == ((IRT_U32 << IRCONV_DSH)|IRT_INT)) {
+    int64_t lo, hi;
+    if (crec_int_range(J, ir->op1, &lo, &hi, 0) &&
+	lo >= 0 && hi <= INT32_MAX)
+      return TREF(ir->op1, IRT_INT);
+  }
+  return 0;
+}
+
 static TRef crec_tv_ct(jit_State *J, CType *s, CTypeID sid, TRef sp)
 {
   CTState *cts = ctype_ctsG(J2G(J));
@@ -569,7 +662,12 @@ static TRef crec_tv_ct(jit_State *J, CType *s, CTypeID sid, TRef sp)
     if (t == IRT_CDATA)
       goto err_nyi;  /* NYI: copyval of >64 bit integers. */
     tr = emitir(IRT(IR_XLOAD, t), sp, 0);
-    if (t == IRT_FLOAT || t == IRT_U32) {  /* Keep uint32_t/float as numbers. */
+    if (t == IRT_U32) {
+      TRef itr = crec_u32_forwarded_int(J, tr);
+      if (itr)
+	return itr;
+      return emitconv(tr, IRT_NUM, t, 0);  /* Keep other uint32_t as numbers. */
+    } else if (t == IRT_FLOAT) {  /* Keep float as number. */
       return emitconv(tr, IRT_NUM, t, 0);
     } else if (t == IRT_I64 || t == IRT_U64) {  /* Box 64 bit integer. */
       sp = tr;
