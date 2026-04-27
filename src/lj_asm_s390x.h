@@ -1595,7 +1595,7 @@ static void asm_gencall_stack_fpr(ASMState *as, IRRef ref, int32_t ofs)
     emit_u48_pad8(as, S390X_INS_RXY(S390XI_STEY, src, 0, RID_SP,
 				    ofs + (LJ_BE ? 4 : 0)));
   else
-    emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, src, 0, RID_SP, ofs));
+    emit_storef64ofs(as, src, RID_SP, ofs);
 }
 
 static void asm_s390x_call_log(ASMState *as, const char *phase, uint32_t nargs,
@@ -1655,8 +1655,7 @@ static void asm_gencall_dup_fanout(ASMState *as, IRRef *args, uint32_t nargs,
 	emit_u48_pad8(as, S390X_INS_RXY(S390XI_STEY, src, 0, RID_SP,
 					loc_ofs[m] + (LJ_BE ? 4 : 0)));
       else
-	emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, src, 0, RID_SP,
-					loc_ofs[m]));
+	emit_storef64ofs(as, src, RID_SP, loc_ofs[m]);
       break;
     default:
       break;
@@ -2161,7 +2160,7 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
 
     if (irt_isnum(ir->t)) {
       src = ra_alloc1(as, ref, RSET_FPR);
-      emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, src, 0, RID_BASE, ofs));
+      emit_storef64ofs(as, src, RID_BASE, ofs);
     } else {
       asm_tvstore64(as, RID_BASE, ofs, ref);
     }
@@ -6583,7 +6582,7 @@ static void asm_ahustore(ASMState *as, IRIns *ir)
     fr = asm_fuseahuref(as, ir->op1, RSET_GPR_NOB);
     src = ra_alloc1(as, ir->op2, RSET_FPR);
     lj_assertA(checki20(fr.ofs), "s390x numeric store offset out of range");
-    emit_u48_pad8(as, S390X_INS_RXY(S390XI_STDY, src, 0, fr.reg, fr.ofs));
+    emit_storef64ofs(as, src, fr.reg, fr.ofs);
     asm_emitfuseahuref(as, ir, &fr);
     return;
   }
