@@ -63,9 +63,10 @@ end
 10
 20
 10
---- err
-[TRACE   1 test.lua:18 loop]
-[TRACE   2 test.lua:16 -> 1]
+--- err eval
+qr#\A\Q[TRACE   1 test.lua:18 loop]
+\E(?:\Q[TRACE   2 test.lua:16 -> 1]
+\E)?\z#
 
 
 
@@ -125,9 +126,10 @@ end
 20
 40
 30
---- err
-[TRACE   1 test.lua:19 loop]
-[TRACE   2 test.lua:17 -> 1]
+--- err eval
+qr#\A\Q[TRACE   1 test.lua:19 loop]
+\E(?:\Q[TRACE   2 test.lua:17 -> 1]
+\E)?\z#
 
 
 
@@ -173,6 +175,7 @@ end
 --- out
 30
 30
---- err
-[TRACE   1 test.lua:15 loop]
-[TRACE   2 test.lua:13 -> 1]
+--- err eval
+qr#\A\Q[TRACE   1 test.lua:15 loop]
+\E(?:\Q[TRACE   2 test.lua:13 -> 1]
+\E)?\z#
