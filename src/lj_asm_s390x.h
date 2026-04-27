@@ -4085,6 +4085,8 @@ static void asm_s390x_guarded_int_rr32(ASMState *as, IRIns *ir, Reg dest,
   emit_u32(as, S390X_INS_RRF_M(op, res, right, left));
 }
 
+static int asm_s390x_mod_mask_value_step(ASMState *as, IRIns *ir, Reg dest);
+
 static void asm_add(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
@@ -4140,6 +4142,8 @@ static void asm_add(ASMState *as, IRIns *ir)
   if (asm_add_pack_u32_identity(as, ir, dest, bnorm))
     return;
   if (asm_add_bxor_mix_pos_loop_tail(as, ir, dest))
+    return;
+  if (asm_s390x_mod_mask_value_step(as, ir, dest))
     return;
   left = ra_hintalloc(as, ir->op1, dest, RSET_GPR_NOB);
   if (irref_isk(ir->op2)) {
@@ -5022,6 +5026,91 @@ static int asm_s390x_mod_value_step(ASMState *as, IRIns *ir)
 
   dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -285);
   left = ra_hintalloc_nobase(as, ref, dest, RSET_GPR_NOB, -286);
+  one = ra_scratch(as, rset_exclude(rset_exclude(RSET_GPR_NOB, dest), left));
+
+  emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_EQ, one));
+  emit_u32(as, S390X_INS_RI(S390XI_CGHI, dest, k + 1));
+  emit_u32(as, S390X_INS_RI(S390XI_AGHI, dest, 1));
+  emit_u32(as, S390X_INS_RI(S390XI_LGHI, one, 1));
+  if (dest != left)
+    emit_movrr(as, ir, dest, left);
+  return 1;
+}
+
+static IRRef asm_s390x_mod_mask_value_step_ref(ASMState *as, IRIns *ir,
+					       int32_t *kp)
+{
+  IRIns *band, *value, *mask, *maskadd, *mod;
+  IRRef valueref, maskref;
+  int32_t delta, k;
+
+  if (ir->o != IR_ADD || !irt_isint(ir->t) ||
+      !irref_isk(ir->op2) || IR(ir->op2)->o != IR_KINT ||
+      IR(ir->op2)->i != 1 || irref_isk(ir->op1))
+    return REF_NIL;
+
+  band = IR(ir->op1);
+  if (band->o != IR_BAND || !irt_isint(band->t) ||
+      irref_isk(band->op1) || irref_isk(band->op2))
+    return REF_NIL;
+
+  valueref = band->op1;
+  maskref = band->op2;
+  mask = IR(maskref);
+  if (mask->o != IR_BSAR) {
+    valueref = band->op2;
+    maskref = band->op1;
+    mask = IR(maskref);
+  }
+
+  if (mask->o != IR_BSAR || !irref_isk(mask->op2) ||
+      IR(mask->op2)->o != IR_KINT || IR(mask->op2)->i != 31 ||
+      irref_isk(mask->op1))
+    return REF_NIL;
+
+  maskadd = IR(mask->op1);
+  if (maskadd->o != IR_ADD || maskadd->op1 != valueref ||
+      !irref_isk(maskadd->op2) || IR(maskadd->op2)->o != IR_KINT)
+    return REF_NIL;
+  delta = IR(maskadd->op2)->i;
+  if (delta >= -1 || delta == INT32_MIN)
+    return REF_NIL;
+  k = -delta;
+  if (k > 0x7ffe)
+    return REF_NIL;
+
+  value = IR(valueref);
+  if (value->o != IR_ADD || !irt_isint(value->t) ||
+      !irref_isk(value->op2) || IR(value->op2)->o != IR_KINT ||
+      IR(value->op2)->i != 1 || irref_isk(value->op1))
+    return REF_NIL;
+
+  mod = IR(value->op1);
+  if (mod->o != IR_MOD || !irt_isint(mod->t) ||
+      !irref_isk(mod->op2) || IR(mod->op2)->o != IR_KINT ||
+      IR(mod->op2)->i != k)
+    return REF_NIL;
+
+  /*
+  ** Match ((x & ((x-k)>>31)) + 1), where x is (a % k) + 1.
+  ** For positive k, x <= k even when the dividend is negative, so this
+  ** is equivalent to y = x + 1; if (y == k + 1) y = 1.
+  */
+  *kp = k;
+  UNUSED(as);
+  return valueref;
+}
+
+static int asm_s390x_mod_mask_value_step(ASMState *as, IRIns *ir, Reg dest)
+{
+  int32_t k;
+  IRRef ref = asm_s390x_mod_mask_value_step_ref(as, ir, &k);
+  Reg left, one;
+
+  if (ref == REF_NIL)
+    return 0;
+
+  left = ra_hintalloc_nobase(as, ref, dest, RSET_GPR_NOB, -287);
   one = ra_scratch(as, rset_exclude(rset_exclude(RSET_GPR_NOB, dest), left));
 
   emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, dest, CC_EQ, one));
