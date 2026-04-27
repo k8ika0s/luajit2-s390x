@@ -2431,6 +2431,17 @@ static void asm_setupresult_callx(ASMState *as, IRIns *ir, const CCallInfo *ci,
   asm_setupresult_drop(as, ir, ci, drop);
 }
 
+static RegSet asm_s390x_callx_modset(ASMState *as, IRIns *ir,
+				     const CCallInfo *ci)
+{
+  IRRef args[CCI_NARGS_MAX*2];
+  RegSet modset = RSET_SCRATCH;
+  asm_collectargs(as, ir, ci, args);
+  if (!asm_gencall_uses_r6(as, ci, args))
+    modset &= ~RID2RSET(RID_R6);
+  return modset;
+}
+
 static void asm_gc_check(ASMState *as)
 {
   const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_gc_step_jit];
