@@ -591,8 +591,6 @@ static int asm_s390x_can_defer_bnorm32(ASMState *as, IRIns *ir)
   int uses = 0;
   if (!asm_s390x_is_bitop_op(ir->o))
     return 0;
-  if (ir->o == IR_BSWAP)
-    return 0;
   if (ir->o == IR_BAND && irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT &&
       IR(ir->op2)->i >= 0)
     return 1;
@@ -4584,12 +4582,15 @@ static void asm_bswap(ASMState *as, IRIns *ir)
 {
   Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -235);
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -236);
+  int low32logic = asm_s390x_can_defer_bnorm32(as, ir);
   asm_s390x_bitop_log(as, "bswap", ir, dest, left, RID_NONE, 0);
   if (!irt_is64(ir->t)) {
-    if (irt_isu32(ir->t))
-      emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, dest));
-    else
-      emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+    if (!low32logic) {
+      if (irt_isu32(ir->t))
+	emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, dest, dest));
+      else
+	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, dest, dest));
+    }
     emit_u32(as, S390X_INS_RXE(S390XI_LRVR, dest, left));
   } else {
     emit_u32(as, S390X_INS_RXE(S390XI_LRVGR, dest, left));
