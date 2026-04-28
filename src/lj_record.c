@@ -509,7 +509,7 @@ static int lj_record_s390x_fori_arg_log_enabled(void);
 static TRef rec_upvalue(jit_State *J, uint32_t uv, TRef val);
 
 #ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 1
+#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 0
 #endif
 
 #if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS

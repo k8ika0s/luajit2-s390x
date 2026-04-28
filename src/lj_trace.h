@@ -33,7 +33,7 @@ LJ_FUNC void lj_trace_initstate(global_State *g);
 LJ_FUNC void lj_trace_freestate(global_State *g);
 #if LJ_TARGET_S390X
 #ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 1
+#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 0
 #endif
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
