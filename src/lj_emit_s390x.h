@@ -195,6 +195,7 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_AHIK	0xec00000000d8ull
 #define S390XI_AGHIK	0xec00000000d9ull
 #define S390XI_LG	0xe30000000004ull
+#define S390XI_CG	0xe30000000020ull
 #define S390XI_LGF	0xe30000000014ull
 #define S390XI_LLGF	0xe30000000016ull
 #define S390XI_LGH	0xe30000000015ull
@@ -520,6 +521,21 @@ static void emit_call(ASMState *as, Reg rlink, void *target)
 static void emit_callr(ASMState *as, Reg rlink, Reg target)
 {
   emit_u32(as, (S390X_INS_BASR(rlink, target) << 16) | 0x0707u);
+}
+
+static void emit_calli(ASMState *as, Reg rlink, void *target)
+{
+  MCode *p = as->mcp - 6;
+  ptrdiff_t delta = (char *)target - (char *)p;
+  if ((delta & 1) == 0 && checki32((int64_t)(delta >> 1))) {
+    emit_u48_pad8(as, S390X_INS_BRASL(rlink, (int32_t)(delta >> 1)));
+  } else {
+    /* BASR with r0 doesn't branch. Use r1, which is caller-clobbered and not
+    ** part of the s390x fixed helper-call argument register range.
+    */
+    emit_callr(as, rlink, RID_R1);
+    emit_loadu64(as, RID_R1, (uint64_t)(uintptr_t)target);
+  }
 }
 
 static void emit_jmp(ASMState *as, MCode *target)
