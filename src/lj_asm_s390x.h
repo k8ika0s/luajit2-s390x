@@ -1768,7 +1768,7 @@ static void asm_exitstub_setup(ASMState *as, ExitNo nexits)
     emit_u32(as, (uint32_t)as->T->traceno);
     emit_u32(as, (uint32_t)exitno);
     emit_u16_pad4(as, 0x0707u);  /* Keep exitno/traceno at r14+2/r14+6. */
-    emit_call(as, RID_R14, target);
+    emit_call(as, RID_R14, target);  /* Fixed-width exit stub. */
   }
   as->mcexit = as->mcp;
   as->mctop = as->mcp;
@@ -2201,7 +2201,7 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
   }
   asm_s390x_call_log(as, "enter", nargs, args);
   if (ci->func)
-    emit_call(as, RID_R14, (void *)ci->func);
+    emit_calli(as, RID_R14, (void *)ci->func);
   for (gpr = REGARG_FIRSTGPR; gpr <= REGARG_LASTGPR; gpr++) {
     IRRef ref = regcost_ref(as->cost[gpr]);
     if (gpr == RID_R6 && !uses_r6)
@@ -2602,7 +2602,7 @@ static int asm_s390x_bufput_kchar(ASMState *as, IRIns *ir, int kchar)
   e = ra_scratch(as, allow);
 
   l_done = as->mcp;
-  emit_call(as, RID_R14, (void *)ci->func);
+  emit_calli(as, RID_R14, (void *)ci->func);
   emit_loadi(as, RID_R3, (int8_t)kchar);
   l_slow = as->mcp;
 
@@ -2643,7 +2643,7 @@ static int asm_s390x_bufput_str(ASMState *as, IRIns *ir)
   neww = ra_scratch(as, allow);
 
   l_done = emit_label(as);
-  emit_call(as, RID_R14, (void *)ci->func);
+  emit_calli(as, RID_R14, (void *)ci->func);
   l_slow = as->mcp;
 
   emit_u48_pad8(as, S390X_INS_SS(S390XI_MVC, 0, w, 0, e, 0));
@@ -5477,7 +5477,7 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
 {
   IRIns *irkey = IR(ir->op2);
   RegSet allow = RSET_GPR_NOB;
-  Reg dest, tab, key, sid, tmp, tkey;
+  Reg dest, tab, key, tmp, tkey;
   MCode *l_end, *l_loop, *l_start;
   ptrdiff_t delta;
   uint32_t tag_hi;
@@ -5491,8 +5491,6 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
   allow = rset_exclude(allow, tab);
   key = ra_alloc1_nobase(as, ir->op2, allow, -218);
   allow = rset_exclude(allow, key);
-  sid = ra_scratch(as, allow);
-  allow = rset_exclude(allow, sid);
   tmp = ra_scratch(as, allow);
   allow = rset_exclude(allow, tmp);
   tkey = ra_scratch(as, allow);
@@ -5507,8 +5505,8 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
   emit_load64ofs(as, dest, dest, (int32_t)offsetof(Node, next));
 
   emit_condbranch(as, CC_EQ, l_end);
-  emit_u32(as, S390X_INS_RXE(S390XI_CGR, sid, tkey));
-  emit_load64ofs(as, sid, dest, (int32_t)offsetof(Node, key));
+  emit_u48_pad8(as, S390X_INS_RXY(S390XI_CG, tkey, 0, dest,
+				  (int32_t)offsetof(Node, key)));
 
   l_start = as->mcp;
   delta = (char *)l_start - (char *)l_loop;
@@ -5522,8 +5520,8 @@ static int asm_href_dynamic_str(ASMState *as, IRIns *ir, IROp merge)
   emit_shiftimm(as, S390XI_SLLG, dest, tmp, 3);
   emit_u32(as, S390X_INS_RRF_M(S390XI_AGRK, tmp, dest, tmp));
   emit_shiftimm(as, S390XI_SLLG, tmp, dest, 1);
-  emit_u32(as, S390X_INS_RXE(S390XI_NGR, dest, sid));
-  emit_loadu32ofs(as, sid, key, (int32_t)offsetof(GCstr, sid));
+  emit_u32(as, S390X_INS_RXE(S390XI_NGR, dest, tmp));
+  emit_loadu32ofs(as, tmp, key, (int32_t)offsetof(GCstr, sid));
   emit_loadu32ofs(as, dest, tab, (int32_t)offsetof(GCtab, hmask));
   tag_hi = (uint32_t)(((uint64_t)irt_toitype(irkey->t) << 47) >> 32);
   emit_u48_pad8(as, S390X_INS_RIL(S390XI_OIHF, tkey, tag_hi));
@@ -5662,7 +5660,7 @@ dotypecheck:
 	ci.func = (ASMFunction)lj_trace_s390x_varg_probe;
 	ci.flags = CCI_NOFPRCLOBBER;
 	asm_setupresult(as, ir, &ci);
-	emit_call(as, RID_R14, (void *)ci.func);
+	emit_calli(as, RID_R14, (void *)ci.func);
 	emit_loadi(as, REGARG_FIRSTGPR+1, ofs);
 	if (REGARG_FIRSTGPR != fr.reg)
 	  emit_movrr(as, ir, REGARG_FIRSTGPR, fr.reg);
