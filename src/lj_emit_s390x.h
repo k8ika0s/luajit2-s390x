@@ -51,26 +51,6 @@ static void emit_u48_pad8(ASMState *as, uint64_t ins)
   as->mcp = p;
 }
 
-static void emit_u48_u32_u16(ASMState *as, uint64_t first, uint32_t second,
-			     uint16_t third)
-{
-  MCode *p = as->mcp - 12;
-  emit_u48_at(p, first);
-  emit_u32_at(p + 6, second);
-  emit_u16_at(p + 10, third);
-  as->mcp = p;
-}
-
-static void emit_u48_u16_u32(ASMState *as, uint64_t first, uint16_t second,
-			     uint32_t third)
-{
-  MCode *p = as->mcp - 12;
-  emit_u48_at(p, first);
-  emit_u16_at(p + 6, second);
-  emit_u32_at(p + 8, third);
-  as->mcp = p;
-}
-
 #define S390X_INS_RXE(op, r1, r2) \
   ((uint32_t)(op) | (((uint32_t)(r1) & 15u) << 4) | ((uint32_t)(r2) & 15u))
 #define S390X_INS_RRF_M(op, r1, m3, r2) \
@@ -303,36 +283,6 @@ static void emit_loadu64(ASMState *as, Reg r, uint64_t u64)
   if (hi != 0)
     emit_u48_pad8(as, S390X_INS_RIL(S390XI_IIHF, r, hi));
   emit_u48_pad8(as, S390X_INS_RIL(S390XI_LLILF, r, lo));
-}
-
-static int emit_larl(ASMState *as, Reg r, const void *target)
-{
-  MCode *p;
-  ptrdiff_t delta;
-  lj_assertA(r < RID_MIN_FPR, "s390x LARL target must be a GPR");
-  p = as->mcp - 6;
-  delta = (char *)target - (char *)p;
-  if ((delta & 1) != 0 || !checki32((int64_t)(delta >> 1)))
-    return 0;
-  emit_u48_pad8(as, S390X_INS_RIL(S390XI_LARL, r, (int32_t)(delta >> 1)));
-  return 1;
-}
-
-static int emit_larl_u48_u32(ASMState *as, Reg r, const void *target,
-			     uint64_t second, uint32_t third)
-{
-  MCode *p;
-  ptrdiff_t delta;
-  lj_assertA(r < RID_MIN_FPR, "s390x LARL target must be a GPR");
-  p = as->mcp - 16;
-  delta = (char *)target - (char *)p;
-  if ((delta & 1) != 0 || !checki32((int64_t)(delta >> 1)))
-    return 0;
-  emit_u48_at(p, S390X_INS_RIL(S390XI_LARL, r, (int32_t)(delta >> 1)));
-  emit_u48_at(p + 6, second);
-  emit_u32_at(p + 12, third);
-  as->mcp = p;
-  return 1;
 }
 
 static void emit_loadk64(ASMState *as, Reg r, IRIns *ir)

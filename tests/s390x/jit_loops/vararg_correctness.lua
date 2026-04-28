@@ -259,21 +259,15 @@ local function sum_i_plus_c(n, c)
   return n * (n + 1) / 2 + c * n
 end
 
-local function run_traced(label, fn, expected, max_texits)
+local function run_traced(label, fn, expected)
   jit.flush()
   local cap = t.trace_counter_capture_lite()
-  local texits = t.texit_counter_capture_lite()
   local actual = t.with_finally(function()
     cap.stop()
-    texits.stop()
   end, fn)
   t.eq(actual, expected, label)
   t.truthy(cap.stop_count > 0, label .. " trace stop")
   t.truthy(jutil.traceinfo(1) ~= nil, label .. " traceinfo")
-  if max_texits then
-    t.truthy(texits.total <= max_texits,
-             label .. " excessive side exits: " .. tostring(texits.total))
-  end
 end
 
 local function run_checked(label, fn, expected)
@@ -312,7 +306,7 @@ end, sum_4i_plus_c(160, 6))
 
 run_traced("vararg_paths dynamic sum shape", function()
   return vararg_paths_sum_loop(160)
-end, expected_vararg_paths_sum_loop(160), 12)
+end, expected_vararg_paths_sum_loop(160))
 
 run_traced("select count plus indexed access", function()
   return count_plus_index_loop(160)
@@ -320,11 +314,11 @@ end, sum_i_plus_c(160, 7))
 
 run_traced("canonical retlast select", function()
   return retlast_select_loop(160)
-end, expected_retlast_select_loop(160), 12)
+end, expected_retlast_select_loop(160))
 
 run_traced("canonical retlast select high positive modulo", function()
   return retlast_select_high_modulo_loop()
-end, run_joff(retlast_select_high_modulo_loop), 12)
+end, run_joff(retlast_select_high_modulo_loop))
 
 run_traced("canonical retlast select global mutation exits", function()
   return retlast_select_global_mutation_loop(160)

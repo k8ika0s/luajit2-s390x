@@ -188,16 +188,6 @@ static int lj_trace_s390x_jloop_exit_log_enabled(void)
   return enabled;
 }
 
-static int lj_trace_s390x_bridge_child_reenter_log_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_bridge_child_query_log_enabled(void)
-{
-  return 0;
-}
-
 static int lj_trace_s390x_jloop_exit_focus_parent(void)
 {
   return -1;
@@ -221,11 +211,6 @@ static int lj_trace_s390x_root_jloop_child_enabled(void)
   return 0;
 }
 
-static int lj_trace_s390x_jloop_loopdesc_child_enabled(void)
-{
-  return 0;
-}
-
 static int lj_trace_s390x_jloop_exec_child_enabled(void)
 {
   return 0;
@@ -242,26 +227,6 @@ static int lj_trace_s390x_root_promote_child_loop_enabled(void)
 }
 
 static int lj_trace_s390x_root_promote_loopdesc_owner_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_vm_child_entry_log_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_vm_bridge_dispatch_log_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_vm_iterl_log_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_vm_root_entry_log_enabled(void)
 {
   return 0;
 }
@@ -306,356 +271,16 @@ static int lj_trace_s390x_jloop_exec_skip_mcloop_enabled(void)
   return 0;
 }
 
-static int lj_trace_s390x_vm_child_skip_mcloop_enabled(void)
-{
-  return 0;
-}
-
-void lj_trace_s390x_vm_child_entry_log(GCtrace *T, const TValue *base)
-{
-  static int dump_count = 0;
-  if (!lj_trace_s390x_vm_child_entry_log_enabled() || !T || dump_count >= 128)
-    return;
-  if (base) {
-    const BCIns *startpc = mref(T->startpc, const BCIns);
-    BCReg fa = 0;
-    uint64_t raw_for_idx = 0, raw_for_stop = 0, raw_for_step = 0, raw_for_ext = 0;
-    if (startpc && (bc_op(T->startins) == BC_FORL || bc_op(T->startins) == BC_JFORL)) {
-      fa = bc_a(*startpc);
-      raw_for_idx = base[fa+FORL_IDX].u64;
-      raw_for_stop = base[fa+FORL_STOP].u64;
-      raw_for_step = base[fa+FORL_STEP].u64;
-      raw_for_ext = base[fa+FORL_EXT].u64;
-    }
-    fprintf(stderr,
-	    "S390X_VM_CHILD_ENTRY n=%d trace=%u root=%u link=%u linktype=%u startpc=%p startop=%u resumepc=%p resumeop=%u resumevalid=%u resumechild=%u mcode=%p mcloop=%u ownerop=%u base=%p for_a=%u raw_for_idx=0x%016llx raw_for_stop=0x%016llx raw_for_step=0x%016llx raw_for_ext=0x%016llx\n",
-	    dump_count,
-	    (unsigned int)T->traceno,
-	    (unsigned int)T->root,
-	    (unsigned int)T->link,
-	    (unsigned int)T->linktype,
-	    (const void *)mref(T->startpc, BCIns),
-	    (unsigned int)bc_op(T->startins),
-	    (const void *)mref(T->resumepc, BCIns),
-	    (unsigned int)bc_op(T->resumeins),
-	    (unsigned int)T->resumevalid,
-	    (unsigned int)T->resumechild,
-	    (const void *)T->mcode,
-	    (unsigned int)T->mcloop,
-	    (unsigned int)T->unused1,
-	    (const void *)base,
-	    (unsigned int)fa,
-	    (unsigned long long)raw_for_idx,
-	    (unsigned long long)raw_for_stop,
-	    (unsigned long long)raw_for_step,
-	    (unsigned long long)raw_for_ext);
-  } else {
-  fprintf(stderr,
-	  "S390X_VM_CHILD_ENTRY n=%d trace=%u root=%u link=%u linktype=%u startpc=%p startop=%u resumepc=%p resumeop=%u resumevalid=%u resumechild=%u mcode=%p mcloop=%u ownerop=%u\n",
-	  dump_count,
-	  (unsigned int)T->traceno,
-	  (unsigned int)T->root,
-	  (unsigned int)T->link,
-	  (unsigned int)T->linktype,
-	  (const void *)mref(T->startpc, BCIns),
-	  (unsigned int)bc_op(T->startins),
-	  (const void *)mref(T->resumepc, BCIns),
-	  (unsigned int)bc_op(T->resumeins),
-	  (unsigned int)T->resumevalid,
-	  (unsigned int)T->resumechild,
-	  (const void *)T->mcode,
-	  (unsigned int)T->mcloop,
-	  (unsigned int)T->unused1);
-  }
-  dump_count++;
-}
-
-void lj_trace_s390x_vm_root_entry_log(GCtrace *T, const TValue *base)
-{
-  static int dump_count = 0;
-  const BCIns *startpc;
-  uint64_t raw_slot1, raw_slot2, raw_slot3, raw_slot4, raw_slot5;
-  BCReg fa = 0;
-  uint64_t raw_for_idx = 0, raw_for_stop = 0, raw_for_step = 0, raw_for_ext = 0;
-
-  if (!lj_trace_s390x_vm_root_entry_log_enabled() || !T || !base || dump_count >= 512)
-    return;
-
-  startpc = mref(T->startpc, const BCIns);
-  raw_slot1 = base[1].u64;
-  raw_slot2 = base[2].u64;
-  raw_slot3 = base[3].u64;
-  raw_slot4 = base[4].u64;
-  raw_slot5 = base[5].u64;
-  if (startpc && (bc_op(T->startins) == BC_FORL || bc_op(T->startins) == BC_JFORL)) {
-    fa = bc_a(*startpc);
-    raw_for_idx = base[fa+FORL_IDX].u64;
-    raw_for_stop = base[fa+FORL_STOP].u64;
-    raw_for_step = base[fa+FORL_STEP].u64;
-    raw_for_ext = base[fa+FORL_EXT].u64;
-  }
-
-  fprintf(stderr,
-	  "S390X_VM_ROOT_ENTRY n=%d trace=%u root=%u link=%u linktype=%u startpc=%p startop=%u resumepc=%p resumeop=%u mcode=%p mcloop=%u base=%p slot1=0x%016llx slot2=0x%016llx slot3=0x%016llx slot4=0x%016llx slot5=0x%016llx for_a=%u raw_for_idx=0x%016llx raw_for_stop=0x%016llx raw_for_step=0x%016llx raw_for_ext=0x%016llx\n",
-	  dump_count,
-	  (unsigned int)T->traceno,
-	  (unsigned int)T->root,
-	  (unsigned int)T->link,
-	  (unsigned int)T->linktype,
-	  (const void *)startpc,
-	  (unsigned int)bc_op(T->startins),
-	  (const void *)mref(T->resumepc, BCIns),
-	  (unsigned int)bc_op(T->resumeins),
-	  (const void *)T->mcode,
-	  (unsigned int)T->mcloop,
-	  (const void *)base,
-	  (unsigned long long)raw_slot1,
-	  (unsigned long long)raw_slot2,
-	  (unsigned long long)raw_slot3,
-	  (unsigned long long)raw_slot4,
-	  (unsigned long long)raw_slot5,
-	  (unsigned int)fa,
-	  (unsigned long long)raw_for_idx,
-	  (unsigned long long)raw_for_stop,
-	  (unsigned long long)raw_for_step,
-	  (unsigned long long)raw_for_ext);
-  dump_count++;
-}
-
-void lj_trace_s390x_vm_bridge_dispatch_log(GCtrace *T, const BCIns *pc, BCIns ins,
-					   const TValue *base)
-{
-  static int dump_count = 0;
-  BCIns prev2 = 0, prev1 = 0, next1 = 0;
-  const TValue *slot_tab = NULL, *slot_ctl = NULL, *slot_key = NULL, *slot_val = NULL;
-  const TValue *slot_for_idx = NULL, *slot_for_stop = NULL;
-  const TValue *slot_for_step = NULL, *slot_for_ext = NULL;
-  const TValue *slot_add_a = NULL, *slot_add_b = NULL, *slot_add_c = NULL;
-  uint64_t raw_tab = 0, raw_ctl = 0, raw_key = 0, raw_val = 0;
-  uint64_t raw_for_idx = 0, raw_for_stop = 0, raw_for_step = 0, raw_for_ext = 0;
-  uint64_t raw_add_a = 0, raw_add_b = 0, raw_add_c = 0;
-  BCReg a = bc_a(ins);
-  BCReg fa = 0;
-  BCReg add_a = 0, add_b = 0, add_c = 0;
-  if (!lj_trace_s390x_vm_bridge_dispatch_log_enabled() || !T || dump_count >= 256)
-    return;
-  if (pc) {
-    prev2 = pc[-2];
-    prev1 = pc[-1];
-    next1 = pc[1];
-  }
-  if (base && a >= 2) {
-    slot_tab = &base[a-2];
-    slot_ctl = &base[a-1];
-    slot_key = &base[a];
-    slot_val = &base[a+1];
-    raw_tab = slot_tab->u64;
-    raw_ctl = slot_ctl->u64;
-    raw_key = slot_key->u64;
-    raw_val = slot_val->u64;
-  }
-  if (base && (bc_op(next1) == BC_FORL || bc_op(next1) == BC_IFORL ||
-	       bc_op(next1) == BC_JFORL)) {
-    fa = bc_a(next1);
-    slot_for_idx = &base[fa];
-    slot_for_stop = &base[fa+1];
-    slot_for_step = &base[fa+2];
-    slot_for_ext = &base[fa+3];
-    raw_for_idx = slot_for_idx->u64;
-    raw_for_stop = slot_for_stop->u64;
-    raw_for_step = slot_for_step->u64;
-    raw_for_ext = slot_for_ext->u64;
-  }
-  if (base && bc_op(prev2) == BC_ADDVV) {
-    add_a = bc_a(prev2);
-    add_b = bc_b(prev2);
-    add_c = bc_c(prev2);
-    slot_add_a = &base[add_a];
-    slot_add_b = &base[add_b];
-    slot_add_c = &base[add_c];
-    raw_add_a = slot_add_a->u64;
-    raw_add_b = slot_add_b->u64;
-    raw_add_c = slot_add_c->u64;
-  }
-  fprintf(stderr,
-	  "S390X_VM_BRIDGE_DISPATCH n=%d trace=%u root=%u link=%u linktype=%u startpc=%p startop=%u resumepc=%p resumeop=%u resumevalid=%u resumechild=%u pc=%p op=%u ra=%u rd=%u ins=0x%08x prev2=0x%08x prev2op=%u prev2a=%u prev2b=%u prev2c=%u prev1=0x%08x prev1op=%u next1=0x%08x next1op=%u next1a=%u base=%p raw_tab=0x%016llx raw_ctl=0x%016llx raw_key=0x%016llx raw_val=0x%016llx raw_add_a=0x%016llx raw_add_b=0x%016llx raw_add_c=0x%016llx raw_for_idx=0x%016llx raw_for_stop=0x%016llx raw_for_step=0x%016llx raw_for_ext=0x%016llx\n",
-	  dump_count,
-	  (unsigned int)T->traceno,
-	  (unsigned int)T->root,
-	  (unsigned int)T->link,
-	  (unsigned int)T->linktype,
-	  (const void *)mref(T->startpc, BCIns),
-	  (unsigned int)bc_op(T->startins),
-	  (const void *)mref(T->resumepc, BCIns),
-	  (unsigned int)bc_op(T->resumeins),
-	  (unsigned int)T->resumevalid,
-	  (unsigned int)T->resumechild,
-	  (const void *)pc,
-	  (unsigned int)bc_op(ins),
-	  (unsigned int)bc_a(ins),
-	  (unsigned int)bc_d(ins),
-	  (unsigned int)ins,
-	  (unsigned int)prev2,
-	  (unsigned int)bc_op(prev2),
-	  (unsigned int)add_a,
-	  (unsigned int)add_b,
-	  (unsigned int)add_c,
-	  (unsigned int)prev1,
-	  (unsigned int)bc_op(prev1),
-	  (unsigned int)next1,
-	  (unsigned int)bc_op(next1),
-	  (unsigned int)fa,
-	  (const void *)base,
-	  (unsigned long long)raw_tab,
-	  (unsigned long long)raw_ctl,
-	  (unsigned long long)raw_key,
-	  (unsigned long long)raw_val,
-	  (unsigned long long)raw_add_a,
-	  (unsigned long long)raw_add_b,
-	  (unsigned long long)raw_add_c,
-	  (unsigned long long)raw_for_idx,
-	  (unsigned long long)raw_for_stop,
-	  (unsigned long long)raw_for_step,
-	  (unsigned long long)raw_for_ext);
-  dump_count++;
-}
-
-void lj_trace_s390x_vm_iterl_log(const BCIns *pc, const TValue *ra)
-{
-  static int dump_count = 0;
-  if (!lj_trace_s390x_vm_iterl_log_enabled() || !pc || !ra || dump_count >= 256)
-    return;
-  fprintf(stderr,
-	  "S390X_VM_ITERL n=%d pc=%p op=%u a=%u d=%u m1=0x%016llx v0=0x%016llx v1=0x%016llx v2=0x%016llx\n",
-	  dump_count,
-	  (const void *)pc,
-	  (unsigned int)bc_op(*pc),
-	  (unsigned int)bc_a(*pc),
-	  (unsigned int)bc_d(*pc),
-	  (unsigned long long)(ra-1)->u64,
-	  (unsigned long long)ra[0].u64,
-	  (unsigned long long)ra[1].u64,
-	  (unsigned long long)ra[2].u64);
-  dump_count++;
-}
-
-int lj_trace_s390x_vm_child_skip_mcloop(GCtrace *T)
-{
-  if (!lj_trace_s390x_vm_child_skip_mcloop_enabled() || T == NULL)
-    return 0;
-  if (T->traceno == 3 &&
-      T->root == 1 &&
-      bc_op(T->startins) == BC_JMP &&
-      T->linktype == LJ_TRLINK_LOOP &&
-      T->link == T->traceno &&
-      T->resumevalid &&
-      bc_op(T->resumeins) == BC_JLOOP &&
-      T->mcloop != 0) {
-    if (lj_trace_s390x_vm_child_entry_log_enabled()) {
-      fprintf(stderr,
-	      "S390X_VM_CHILD_NOMCLOOP trace=%u link=%u linktype=%u resumeop=%u mcloop=%u ownerop=%u\n",
-	      (unsigned int)T->traceno,
-	      (unsigned int)T->link,
-	      (unsigned int)T->linktype,
-	      (unsigned int)bc_op(T->resumeins),
-	      (unsigned int)T->mcloop,
-	      (unsigned int)T->unused1);
-    }
-    return 1;
-  }
-  return 0;
-}
-
-static int lj_trace_s390x_is_loopdesc_bridge_stub(GCtrace *T)
-{
-  return T != NULL &&
-	 T->root == 1 &&
-	 bc_op(T->startins) == BC_JMP &&
-	 T->linktype == LJ_TRLINK_ROOT &&
-	 T->link != 0 &&
-	 T->resumevalid &&
-	 bc_op(T->resumeins) == BC_ITERL &&
-	 T->resumechild == 0 &&
-	 T->nins == 32770 &&
-	 T->mcloop == 0;
-}
-
 static TraceNo lj_trace_s390x_runtime_owner_trace(GCtrace *T)
 {
   if (T == NULL)
     return 0;
-  if (lj_trace_s390x_is_loopdesc_bridge_stub(T))
-    return T->link;
   if (T->root != 0 && bc_op(T->startins) == BC_JMP &&
       T->resumevalid && T->linktype == LJ_TRLINK_LOOP && T->link != 0)
     return T->link;
   if (T->resumechild != 0)
     return T->resumechild;
   return T->traceno;
-}
-
-static int lj_trace_s390x_bridge_meta_log_enabled(void)
-{
-  return 0;
-}
-
-static void lj_trace_s390x_bridge_meta_log(const char *phase, GCtrace *T,
-					   jit_State *J)
-{
-  static int dump_count = 0;
-  const BCIns *resumepc = NULL;
-  BCIns prev2 = 0, prev1 = 0, next1 = 0;
-  GCtrace *linkT = NULL;
-  if (!lj_trace_s390x_bridge_meta_log_enabled() || !T || dump_count >= 128)
-    return;
-  if (!(T->root == 1 &&
-	bc_op(T->startins) == BC_JMP &&
-	T->nins == 32770))
-    return;
-  resumepc = mref(T->resumepc, const BCIns);
-  if (resumepc) {
-    prev2 = resumepc[-2];
-    prev1 = resumepc[-1];
-    next1 = resumepc[1];
-  }
-  if (J && T->link != 0 && (MSize)T->link < J->sizetrace)
-    linkT = traceref(J, T->link);
-  fprintf(stderr,
-	  "S390X_BRIDGE_META n=%d phase=%s trace=%u parent=%u exit=%u root=%u link=%u linktype=%u startpc=%p startop=%u resumepc=%p resumeins=0x%08x resumeop=%u resumevalid=%u resumechild=%u mcloop=%u ownerop=%u nins=%u nsnap=%u prev2=0x%08x prev2op=%u prev1=0x%08x prev1op=%u next1=0x%08x next1op=%u link_startpc=%p link_startop=%u link_resumepc=%p link_resumeins=0x%08x link_resumeop=%u link_resumevalid=%u link_resumechild=%u link_mcloop=%u link_ownerop=%u\n",
-	  dump_count, phase ? phase : "?",
-	  (unsigned int)T->traceno,
-	  (unsigned int)(J ? J->parent : 0),
-	  (unsigned int)(J ? J->exitno : 0),
-	  (unsigned int)T->root,
-	  (unsigned int)T->link,
-	  (unsigned int)T->linktype,
-	  (const void *)mref(T->startpc, BCIns),
-	  (unsigned int)bc_op(T->startins),
-	  (const void *)resumepc,
-	  (unsigned int)T->resumeins,
-	  (unsigned int)bc_op(T->resumeins),
-	  (unsigned int)T->resumevalid,
-	  (unsigned int)T->resumechild,
-	  (unsigned int)T->mcloop,
-	  (unsigned int)T->unused1,
-	  (unsigned int)T->nins,
-	  (unsigned int)T->nsnap,
-	  (unsigned int)prev2,
-	  (unsigned int)bc_op(prev2),
-	  (unsigned int)prev1,
-	  (unsigned int)bc_op(prev1),
-	  (unsigned int)next1,
-	  (unsigned int)bc_op(next1),
-	  (const void *)(linkT ? mref(linkT->startpc, BCIns) : NULL),
-	  (unsigned int)(linkT ? bc_op(linkT->startins) : 0),
-	  (const void *)(linkT ? mref(linkT->resumepc, BCIns) : NULL),
-	  (unsigned int)(linkT ? linkT->resumeins : 0),
-	  (unsigned int)(linkT ? bc_op(linkT->resumeins) : 0),
-	  (unsigned int)(linkT ? linkT->resumevalid : 0),
-	  (unsigned int)(linkT ? linkT->resumechild : 0),
-	  (unsigned int)(linkT ? linkT->mcloop : 0),
-	  (unsigned int)(linkT ? linkT->unused1 : 0));
-  dump_count++;
 }
 
 static int lj_trace_s390x_sideexit_mcloop_enabled(void)
@@ -816,49 +441,6 @@ static uint32_t lj_trace_s390x_guard_mark(uintptr_t dispatch)
 #else
   UNUSED(dispatch);
   return 0;
-#endif
-}
-
-static void lj_trace_s390x_dump_snapmap(FILE *out, const char *label,
-					const GCtrace *T, ExitNo exitno)
-{
-#if LJ_TARGET_S390X
-  const SnapShot *snap;
-  const SnapEntry *map;
-  const BCIns *pc;
-  MSize i;
-  if (T == NULL || exitno >= T->nsnap) {
-    fprintf(out, "%s trace=nil exit=%u\n", label, (unsigned int)exitno);
-    return;
-  }
-  snap = &T->snap[exitno];
-  map = &T->snapmap[snap->mapofs];
-  pc = snap_pc((SnapEntry *)&map[snap->nent]);
-  fprintf(out,
-	  "%s trace=%u exit=%u mapofs=%u ref=%u nent=%u count=%u pc=%p op=%u",
-	  label,
-	  (unsigned int)T->traceno,
-	  (unsigned int)exitno,
-	  (unsigned int)snap->mapofs,
-	  (unsigned int)snap->ref,
-	  (unsigned int)snap->nent,
-	  (unsigned int)snap->count,
-	  (const void *)pc,
-	  (unsigned int)(pc ? bc_op(*pc) : 0));
-  for (i = 0; i < snap->nent; i++) {
-    SnapEntry sn = map[i];
-    fprintf(out,
-	    " #%u=%#x(ref=%u frame=%u cont=%u norestore=%u key=%u softfp=%u)",
-	    (unsigned int)i, (unsigned int)sn, (unsigned int)snap_ref(sn),
-	    (unsigned int)((sn & SNAP_FRAME) != 0),
-	    (unsigned int)((sn & SNAP_CONT) != 0),
-	    (unsigned int)((sn & SNAP_NORESTORE) != 0),
-	    (unsigned int)((sn & SNAP_KEYINDEX) != 0),
-	    (unsigned int)((sn & SNAP_SOFTFPNUM) != 0));
-  }
-  fprintf(out, "\n");
-#else
-  UNUSED(out); UNUSED(label); UNUSED(T); UNUSED(exitno);
 #endif
 }
 
@@ -1504,7 +1086,6 @@ static void trace_save(jit_State *J, GCtrace *T)
     }
   }
   lj_trace_s390x_root_freeze_log(J, "trace_save_pre_memcpy");
-  lj_trace_s390x_bridge_meta_log("save_pre_memcpy", &J->cur, J);
   memcpy(T, &J->cur, sizeof(GCtrace));
   setgcrefr(T->nextgc, J2G(J)->gc.root);
   setgcrefp(J2G(J)->gc.root, T);
@@ -2570,7 +2151,6 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
 	  J->parent >= 3 && J->exitno == 0 &&
 	  T->root != 0 &&
 	  execno == T->traceno &&
-	  !lj_trace_s390x_is_loopdesc_bridge_stub(targetT) &&
 	  bc_op(T->startins) == BC_JMP &&
 	  T->resumevalid &&
 	  bc_op(T->resumeins) == BC_JLOOP &&
@@ -2636,7 +2216,6 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
 	execT != NULL &&
 	J->parent >= 3 &&
 	J->exitno == 0 &&
-	!lj_trace_s390x_is_loopdesc_bridge_stub(targetT) &&
 	targetT->root != 0 &&
 	bc_op(targetT->startins) == BC_JMP &&
 	execT->root != 0 &&
@@ -2744,75 +2323,6 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
 		  (unsigned int)T->traceno, (unsigned int)childno,
 		  (unsigned int)J->state);
 	}
-	J->patchins = *pc;
-	J->patchpc = (BCIns *)pc;
-	*J->patchpc = BCINS_AD(BC_JLOOP, bc_a(*pc), childno);
-	J->bcskip = 1;
-	return -17;
-      }
-    }
-    if (lj_trace_s390x_jloop_loopdesc_child_enabled() &&
-	targetT->root != 0 &&
-	bc_op(targetT->startins) == BC_JMP &&
-	execno != targetT->traceno &&
-	J->state == LJ_TRACE_IDLE) {
-      TraceNo childno = trace_find_child(J, targetT->root, J->parent,
-					 J->exitno);
-      if ((lj_trace_s390x_jloop_exit_log_enabled() &&
-	   lj_trace_s390x_jloop_exit_focus_match(J)) ||
-	  (lj_trace_s390x_bridge_child_query_log_enabled() &&
-	   lj_trace_s390x_is_loopdesc_bridge_stub(targetT))) {
-	fprintf(stderr,
-		"S390X_JLOOP_EXIT phase=loopdesc-child-query parent=%u exit=%u trace=%u target=%u exec=%u child=%u state=%u pc=%p ins=0x%08x op=%u target_startpc=%p target_startop=%u target_resumepc=%p target_resumeins=0x%08x\n",
-		(unsigned int)J->parent, (unsigned int)J->exitno,
-		(unsigned int)T->traceno, (unsigned int)targetT->traceno,
-		(unsigned int)execno, (unsigned int)childno,
-		(unsigned int)J->state,
-		(const void *)pc,
-		(unsigned int)*pc,
-		(unsigned int)bc_op(*pc),
-		(const void *)mref(targetT->startpc, BCIns),
-		(unsigned int)bc_op(targetT->startins),
-		(const void *)resume_bcpc,
-		(unsigned int)targetT->resumeins);
-      }
-      if (childno == targetT->traceno &&
-	  lj_trace_s390x_is_loopdesc_bridge_stub(targetT) &&
-	  execno == targetT->link &&
-	  bc_op(*pc) == BC_JLOOP) {
-	if ((lj_trace_s390x_jloop_exit_log_enabled() &&
-	     lj_trace_s390x_jloop_exit_focus_match(J)) ||
-	    lj_trace_s390x_bridge_child_reenter_log_enabled()) {
-	  fprintf(stderr,
-		  "S390X_JLOOP_EXIT phase=loopdesc-bridge-child-reenter parent=%u exit=%u trace=%u target=%u exec=%u child=%u state=%u pc=%p ins=0x%08x op=%u prev1=0x%08x prev1op=%u next1=0x%08x next1op=%u patchpc=%p patchins=0x%08x resume_bcpc=%p target_resumeins=0x%08x\n",
-		  (unsigned int)J->parent, (unsigned int)J->exitno,
-		  (unsigned int)T->traceno, (unsigned int)targetT->traceno,
-		  (unsigned int)execno, (unsigned int)childno,
-		  (unsigned int)J->state,
-		  (const void *)pc,
-		  (unsigned int)*pc,
-		  (unsigned int)bc_op(*pc),
-		  (unsigned int)pc[-1],
-		  (unsigned int)bc_op(pc[-1]),
-		  (unsigned int)pc[1],
-		  (unsigned int)bc_op(pc[1]),
-		  (const void *)J->patchpc,
-		  (unsigned int)J->patchins,
-		  (const void *)resume_bcpc,
-		  (unsigned int)targetT->resumeins);
-	}
-	return -17;
-      } else if (childno == targetT->traceno) {
-	if (lj_trace_s390x_jloop_exit_log_enabled() &&
-	    lj_trace_s390x_jloop_exit_focus_match(J)) {
-	  fprintf(stderr,
-		  "S390X_JLOOP_EXIT phase=loopdesc-child-skip-self parent=%u exit=%u trace=%u target=%u exec=%u child=%u state=%u\n",
-		  (unsigned int)J->parent, (unsigned int)J->exitno,
-		  (unsigned int)T->traceno, (unsigned int)targetT->traceno,
-		  (unsigned int)execno, (unsigned int)childno,
-		  (unsigned int)J->state);
-	}
-      } else if (childno != 0) {
 	J->patchins = *pc;
 	J->patchpc = (BCIns *)pc;
 	*J->patchpc = BCINS_AD(BC_JLOOP, bc_a(*pc), childno);
