@@ -72,11 +72,6 @@ static int lj_trace_s390x_iter_log_enabled(void)
   return 0;
 }
 
-static int lj_trace_s390x_varg_dump_enabled(void)
-{
-  return 0;
-}
-
 static int lj_trace_s390x_vload_probe_enabled(void)
 {
   return 0;
@@ -440,43 +435,6 @@ static uint32_t lj_trace_s390x_guard_mark(uintptr_t dispatch)
   return *(const uint32_t *)p;
 #else
   UNUSED(dispatch);
-  return 0;
-#endif
-}
-
-LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
-{
-#if LJ_TARGET_S390X
-  static int dump_count = 0;
-  const uint8_t *eff = (const uint8_t *)effp;
-  int bias = lj_trace_s390x_varg_bias_override();
-  int retbias = bias != -999 ? bias : 1;
-  uint32_t retv = lj_trace_s390x_load_be32(eff + retbias);
-
-  if (lj_trace_s390x_varg_dump_enabled() && dump_count < 64) {
-    int i;
-    fprintf(stderr, "S390X_VARG_PROBE n=%d eff=%p ignored=%d retbias=%d ret=%u\n",
-	    dump_count, (const void *)eff, (int)ignored,
-	    retbias, (unsigned int)retv);
-    fprintf(stderr, "S390X_VARG_BYTES");
-    for (i = -8; i < 24; i++) {
-      const uint8_t *p = eff + i;
-      fprintf(stderr, " %c%02x", i == 0 ? '|' : ' ', (unsigned int)*p);
-    }
-    fprintf(stderr, "\n");
-    fprintf(stderr, "S390X_VARG_U32");
-    for (i = 0; i < 8; i++) {
-      uint32_t v = lj_trace_s390x_load_be32(eff + i);
-      fprintf(stderr, " %d:%u/0x%08x", i, (unsigned int)v, (unsigned int)v);
-    }
-    fprintf(stderr, "\n");
-    dump_count++;
-  }
-
-  return (int32_t)retv;
-#else
-  UNUSED(effp);
-  UNUSED(ignored);
   return 0;
 #endif
 }
@@ -2639,13 +2597,6 @@ LJ_FUNC int32_t lj_trace_s390x_sload_probe(const void *effp, int32_t ofs)
 #endif
 
 #else
-
-LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored)
-{
-  UNUSED(effp);
-  UNUSED(ignored);
-  return 0;
-}
 
 LJ_FUNC int32_t lj_trace_s390x_vload_probe(const void *effp, int32_t ofs)
 {
