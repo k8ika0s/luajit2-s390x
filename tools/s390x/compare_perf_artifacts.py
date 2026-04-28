@@ -31,6 +31,9 @@ PROFILE_TITLES = {
     "h1e10": "Accelerated h1e10",
     "h1e1": "Accelerated h1e1",
 }
+FAMILY_ALIASES = {
+    "route_around_reducers_truth_pack": "route_around_reducers",
+}
 
 
 def load_manifest(artifact: pathlib.Path) -> dict:
@@ -188,6 +191,11 @@ def record_variant_id(record: dict) -> str:
     return f"{compiler}-legacy-jit-{jit}" if compiler and jit else jit
 
 
+def record_family(record: dict) -> str:
+    family = str(record.get("family", ""))
+    return FAMILY_ALIASES.get(family, family)
+
+
 def record_runtime(record: dict) -> float | None:
     runtime = record.get("median_runtime_sec")
     if runtime is None:
@@ -220,7 +228,7 @@ def runtime_index_by_variant(records: Iterable[dict]) -> dict[tuple[str, str, st
             continue
         key = (
             str(record.get("compiler", "")),
-            str(record.get("family", "")),
+            record_family(record),
             str(record.get("workload", "")),
             str(record.get("scale", "")),
             record_variant_id(record),
@@ -251,7 +259,7 @@ def runtime_index_cross_target(records: Iterable[dict]) -> dict[tuple[str, str, 
             continue
         key = (
             str(record.get("compiler", "")),
-            str(record.get("family", "")),
+            record_family(record),
             str(record.get("workload", "")),
             str(record.get("scale", "")),
             jit_key,

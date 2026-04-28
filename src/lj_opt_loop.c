@@ -302,6 +302,22 @@ static int loop_s390x_scev_ref_offset(jit_State *J, IRRef ref, int64_t *ofsp)
   }
 }
 
+static int loop_s390x_kint_ref(jit_State *J, IRRef ref, int32_t *kp)
+{
+  IRIns *ir;
+  /* irref_isk() is true for every low ref, including transient zero/sentinel
+  ** values. Only refs in the current trace constant range may be dereferenced
+  ** as IR_KINT entries. */
+  if (ref < J->cur.nk || ref >= REF_TRUE)
+    return 0;
+  ir = IR(ref);
+  if (ir->o != IR_KINT)
+    return 0;
+  *kp = ir->i;
+  return 1;
+}
+
+#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
 static int loop_s390x_pow2plus1_shift(int32_t k)
 {
   uint32_t p;
@@ -317,21 +333,6 @@ static int loop_s390x_pow2plus1_shift(int32_t k)
     shift++;
   }
   return shift;
-}
-
-static int loop_s390x_kint_ref(jit_State *J, IRRef ref, int32_t *kp)
-{
-  IRIns *ir;
-  /* irref_isk() is true for every low ref, including transient zero/sentinel
-  ** values. Only refs in the current trace constant range may be dereferenced
-  ** as IR_KINT entries. */
-  if (ref < J->cur.nk || ref >= REF_TRUE)
-    return 0;
-  ir = IR(ref);
-  if (ir->o != IR_KINT)
-    return 0;
-  *kp = ir->i;
-  return 1;
 }
 
 static int loop_s390x_mod_scev_inc(jit_State *J, IRIns *ir, int32_t *kp,
@@ -441,6 +442,7 @@ static IRRef loop_s390x_emit_mod_value_step(jit_State *J, IRRef valueref,
   IRRef wrapk = tref_ref(emitir_raw(IRTI(IR_MUL), wrap, lj_ir_kint(J, k)));
   return tref_ref(emitir_raw(IRTI(IR_SUB), value_plus_1, wrapk));
 }
+#endif
 
 static int loop_s390x_scev_stop_value(jit_State *J, int32_t *stopp)
 {
@@ -958,7 +960,7 @@ static void loop_unroll(LoopState *lps)
     if (ins == s390x_clip_bottom)
       op2 = s390x_clip_limit;
 #endif
-#if LJ_TARGET_S390X
+#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
     {
       int32_t modk, modshift;
       if (loop_s390x_mod_value_scev_inc(J, ir, &modk, &modshift)) {

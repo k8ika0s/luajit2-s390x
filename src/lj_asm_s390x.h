@@ -4500,7 +4500,6 @@ static void asm_retf(ASMState *as, IRIns *ir)
   as->topslot -= (BCReg)delta;
   if ((int32_t)as->topslot < 0) as->topslot = 0;
   irt_setmark(IR(REF_BASE)->t);  /* Children must not coalesce with BASE reg. */
-  emit_store64ofs(as, base, RID_SP, ra_spill(as, IR(REF_BASE)));
   emit_setgl(as, base, jit_base);
   emit_addptr(as, base, -8*delta);
   asm_guardcc(as, CC_NE);
@@ -5506,6 +5505,7 @@ static int asm_s390x_scev_ref_offset(ASMState *as, IRRef ref, int64_t *ofsp)
 static int asm_s390x_mod_operand_nonnegative(ASMState *as, IRRef ref)
 {
   jit_State *J = as->J;
+  IRIns *start;
   int64_t ofs;
 
   if (J->scev.idx == REF_NIL || !J->scev.dir ||
@@ -5514,8 +5514,11 @@ static int asm_s390x_mod_operand_nonnegative(ASMState *as, IRRef ref)
   if (!asm_s390x_scev_ref_offset(as, ref, &ofs))
     return 0;
   if (J->scev.start < J->cur.nk || J->scev.start >= REF_TRUE)
-    return ofs >= 0;
-  return (int64_t)IR(J->scev.start)->i + ofs >= 0;
+    return 0;
+  start = IR(J->scev.start);
+  if (start->o != IR_KINT)
+    return 0;
+  return (int64_t)start->i + ofs >= 0;
 }
 
 static int asm_modk_int(ASMState *as, IRIns *ir)
