@@ -155,22 +155,6 @@ typedef struct CCallInfo {
 #define XA2_64		0
 #endif
 
-#ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 0
-#endif
-
-#if LJ_TARGET_S390X && LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#define IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_) \
-  _(S390X,	lj_trace_s390x_num_prefix_accum4, 4, N, NUM, 0) \
-  _(S390X,	lj_trace_s390x_i32_prefix_repeat_span_sum, 5, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_count_multiples, 3, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_mod_select_loop_sum, 5, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_mod_rem_select_loop_sum, 6, N, INT, 0) \
-  _(S390X,	lj_trace_s390x_mod_loop_sum, 3, N, INT, 0)
-#else
-#define IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_)
-#endif
-
 /* Function definitions for CALL* instructions. */
 #define IRCALLDEF(_) \
   _(ANY,	lj_str_cmp,		2,  FN, INT, CCI_NOFPRCLOBBER) \
@@ -178,7 +162,6 @@ typedef struct CCallInfo {
   /* s390x recorder/backend reducers. Keep target-confined, not generic ABI. */ \
   _(S390X,	lj_str_equal,		3,   N, INT, 0) \
   _(S390X,	lj_str_equal_256,	3,   N, INT, 0) \
-  IRCALLDEF_S390X_NUMERIC_MOD_REDUCERS(_) \
   _(ANY,	lj_str_new,		3,   S, STR, CCI_L|CCI_T) \
   _(ANY,	lj_strscan_num,		2,  FN, INT, 0) \
   _(ANY,	lj_strscan_num_cache,	2,  FN, INT, 0) \

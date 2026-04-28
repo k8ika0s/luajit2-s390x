@@ -21,9 +21,9 @@ upstream review debt.
 
 ### 1. s390x-only semantic reducers and helper ABIs
 
-The highest-value cleanup remains the removal or narrowing of benchmark-shaped
+The source tree should keep semantic reducer debt closed. Benchmark-shaped
 recorder substitutions and dedicated helper ABIs that exist only to preserve a
-local performance floor.
+local performance floor are not acceptable upstream surface.
 
 What counts as a blocker:
 

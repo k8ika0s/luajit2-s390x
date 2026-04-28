@@ -307,7 +307,7 @@ META: dict[str, GateMeta] = {
         classification="retired source guard",
         owner="trace/promotion_core",
         protected_rows=("promotion_core_static_stop", "route_around_reducers"),
-        evidence="Removed from lj_trace.c after recorder/backend semantic replacements made the current generic-only debt flat.",
+        evidence="Removed from lj_trace.c after upstream-clean recorder/backend replacements kept the protected rows flat.",
         next_step="Do not restore benchmark-shaped promotion-core proto parking; re-attribute any future regression to a generic mechanism.",
     ),
 }

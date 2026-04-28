@@ -32,37 +32,8 @@ LJ_FUNC int lj_trace_flushall(lua_State *L);
 LJ_FUNC void lj_trace_initstate(global_State *g);
 LJ_FUNC void lj_trace_freestate(global_State *g);
 #if LJ_TARGET_S390X
-#ifndef LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-#define LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS 0
-#endif
 LJ_FUNC int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot);
-#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-LJ_FUNC double lj_trace_s390x_num_prefix_accum4(double acc, int32_t idx,
-						int32_t stop, int32_t kind);
-LJ_FUNC int32_t lj_trace_s390x_count_multiples(int32_t idx, int32_t stop,
-					       int32_t d);
-LJ_FUNC int32_t lj_trace_s390x_mod_select_loop_sum(int32_t idx, int32_t stop,
-						   int32_t mod,
-						   int32_t then_mul,
-						   int32_t else_mul);
-LJ_FUNC int32_t lj_trace_s390x_mod_rem_select_loop_sum(int32_t idx,
-						       int32_t stop,
-						       int32_t cond_mod,
-						       int32_t rem_mod,
-						       int32_t then_mul,
-						       int32_t else_mul);
-LJ_FUNC int32_t lj_trace_s390x_mod_loop_sum(int32_t idx, int32_t stop,
-					    int32_t mod);
-#endif
-#if LUAJIT_ENABLE_S390X_NUMERIC_MOD_REDUCERS
-LJ_DATA const int32_t lj_trace_s390x_fpmod_quarter_prefix105[106];
-LJ_FUNC int32_t lj_trace_s390x_i32_prefix_repeat_span_sum(int32_t idx,
-							  int32_t stop,
-							  const int32_t *prefix,
-							  int32_t len,
-							  int32_t full);
-#endif
 #endif
 
 /* Event handling. */
