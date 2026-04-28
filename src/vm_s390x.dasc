@@ -2330,75 +2330,6 @@ static void build_subroutines(BuildCtx *ctx)
 |  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
 |  sllg RD, RD, 3
   |  lg TRACE:RD, 0(RD, TMPR1)
-  |  llgf TMPR0, TRACE:RD->startins
-  |  sllg TMPR0, TMPR0, 56
-  |  srlg TMPR0, TMPR0, 56
-  |  cghi TMPR0, BC_JMP
-  |  jne >4
-  |  llgh TMPR0, TRACE:RD->root
-  |  cghi TMPR0, 1
-  |  jne >4
-  |  llgc TMPR0, TRACE:RD->linktype
-  |  cghi TMPR0, LJ_TRLINK_ROOT
-  |  jne >4
-  |  llgh RC, TRACE:RD->link
-  |  cghi RC, 0
-  |  je >4
-  |  llgc TMPR0, TRACE:RD->resumevalid
-  |  clgfi TMPR0, 0
-  |  je >4
-  |  llgf TMPR0, TRACE:RD->resumeins
-  |  sllg TMPR0, TMPR0, 56
-  |  srlg TMPR0, TMPR0, 56
-  |  cghi TMPR0, BC_ITERL
-  |  jne >4
-  |  llgh TMPR0, TRACE:RD->resumechild
-  |  cghi TMPR0, 0
-  |  jne >4
-  |  llgf TMPR0, TRACE:RD->nins
-  |  clgfi TMPR0, 32770
-  |  jne >4
-  |  llgf TMPR0, TRACE:RD->mcloop
-  |  clgfi TMPR0, 0
-  |  jne >4
-  |  lg RA, TRACE:RD->resumepc
-  |  llgf TMPR0, TRACE:RD->resumeins
-  |  sllg RC, RC, 3
-  |  lg TRACE:RD, 0(RC, TMPR1)
-  |  lgr RB, RA
-  |  lgr ITYPE, TMPR0
-  |  lgr CARG1, RD
-  |  lgr CARG2, RA
-  |  lgr CARG3, TMPR0
-  |  lgr CARG4, BASE
-  |  brasl r14, extern lj_trace_s390x_vm_bridge_dispatch_log
-  |  lgr PC, RB
-  |  lgr TMPR1, ITYPE
-  |  la PC, 4(PC)
-  |  lgr OP, TMPR1
-  |  sllg OP, OP, 56
-  |  srlg OP, OP, 56
-  |  lgr RA, TMPR1
-  |  sllg RA, RA, 48
-  |  srlg RA, RA, 56
-  |  llgfr RD, TMPR1
-  |  srl RD, 16
-  |  cghi OP, BC_ITERL
-  |  jne >7
-  |  aghi PC, -4
-  |  j ->vm_IITERN_root2_hashbridge
-  |7:
-  |  cghi OP, BC_JMP
-  |  jne >8
-  |  branchPC RD
-  |  llgc OP, 3(PC)
-  |  llgh RD, 0(PC)
-  |  llgc RA, 2(PC)
-  |  la PC, 4(PC)
-  |8:
-  |  sllg TMPR1, OP, 3
-  |  lg TMPR1, GG_DISP2STATIC(TMPR1, DISPATCH)
-  |  br TMPR1
 |4:
   |  xgr RC, RC
   |  llgh TMPR0, TRACE:RD->resumechild
@@ -2432,14 +2363,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  stg L:RB, DISPATCH_GL(tmpbuf.L)(DISPATCH)
   |  xgr TMPR0, TMPR0
   |  sty TMPR0, DISPATCH_GL(vmstate)(DISPATCH)
-  |  lgr CARG1, RD
-  |  lgr CARG2, BASE
-  |  brasl r14, extern lj_trace_s390x_vm_child_entry_log
-  |  lgr CARG1, RD
-  |  brasl r14, extern lj_trace_s390x_vm_child_skip_mcloop
   |  lg RA, TRACE:RD->mcode
-  |  ltgr r2, r2
-  |  jne >9
   |  llgc TMPR1, TRACE:RD->unused1
   |  ltgr TMPR1, TMPR1
   |  je >9
@@ -2449,7 +2373,8 @@ static void build_subroutines(BuildCtx *ctx)
   |  algr RA, TMPR0
   |9:
   |  br RA
-  |8:
+|->vm_jloop_static:
+|8:
   |  lg PC, TRACE:RD->startpc
   |  llgf TMPR1, TRACE:RD->startins
   |  llgc TMPR0, TRACE:RD->resumevalid
@@ -2477,36 +2402,6 @@ static void build_subroutines(BuildCtx *ctx)
   |  lgr RA, TMPR1
   |  sllg RA, RA, 48
   |  srlg RA, RA, 56
-  |  cghi OP, BC_ITERN
-  |  jne >5
-  |  llgh TMPR0, TRACE:RD->root
-  |  cghi TMPR0, 0
-  |  jne >5
-  |  llgc TMPR0, TRACE:RD->linktype
-  |  cghi TMPR0, LJ_TRLINK_LOOP
-  |  jne >5
-  |  llgh TMPR0, TRACE:RD->link
-  |  cghi TMPR0, 0
-  |  je >5
-  |  llgc TMPR0, TRACE:RD->resumevalid
-  |  clgfi TMPR0, 0
-  |  jne >5
-  |  llgh TMPR0, TRACE:RD->resumechild
-  |  cghi TMPR0, 0
-  |  jne >5
-  |  llgf TMPR0, TRACE:RD->nsnap
-  |  clgfi TMPR0, 6
-  |  jne >5
-  |  llgf TMPR0, TRACE:RD->nins
-  |  clgfi TMPR0, 32785
-  |  jne >5
-  |  llgf TMPR0, TRACE:RD->mcloop
-  |  clgfi TMPR0, 216
-  |  jne >5
-  |  aghi PC, -4
-  |  hotloop TMPR0
-  |  j ->vm_IITERN_bridge
-|5:
   |  llgfr RD, TMPR1
   |  srl RD, 16
   |  cghi OP, BC_JMP
@@ -4130,102 +4025,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  llgf RC, -4(RA, BASE)		// Get index from control var.
     |  llgf TMPR1, TAB:RB->asize
     |  la PC, 4(PC)
-    |  lg ITYPE, -16(BASE)
-    |  cleartp ITYPE
-    |  lg ITYPE, LFUNC:ITYPE->pc
-    |  llgc OP, (PC2PROTO(flags))(ITYPE)
-    |  tmll OP, PROTO_NOJIT
-    |  je ->vm_IITERN_fast_normal
-    |  llgc OP, PC_OP
-    |  cghi OP, BC_ITERL
-    |  jne ->vm_IITERN_fast_normal
-    |  llgh RD, PC_RD
-    |  sllg CARG2, RD, 2
-    |  lay CARG2, (-BCBIAS_J*4)(CARG2, PC)
-    |  llgc OP, 3(CARG2)
-    |  cghi OP, BC_ADDVV
-    |  jne ->vm_IITERN_fast_normal
-    |  lgr RD, RA
-    |  srlg RD, RD, 3
-    |  llgc OP, 6(CARG2)
-    |  clgr OP, RD
-    |  jne ->vm_IITERN_fast_normal
-    |  llgc OP, 7(CARG2)
-    |  cghi OP, BC_ITERN
-    |  jne ->vm_IITERN_fast_normal
-    |  llgc OP, PC_RA
-    |  clgr OP, RD
-    |  jne ->vm_IITERN_fast_normal
-    |  llgc OP, 2(CARG2)
-    |  llgh TMPR0, 0(CARG2)
-    |  lgr r12, TMPR0
-    |  srlg r12, r12, 8
-    |  clgr r12, OP
-    |  jne ->vm_IITERN_fast_normal
-    |  llgcr TMPR0, TMPR0
-    |  aghi RD, 1
-    |  clgr TMPR0, RD
-    |  jne ->vm_IITERN_fast_normal
-    |  sllg OP, OP, 3
-    |  la CARG2, 0(OP, BASE)
-    |  lg RD, 0(CARG2)
-    |  checkint RD, ->vm_IITERN_fast_normal
-    |  lg ITYPE, TAB:RB->array
-    |  lgr r12, ITYPE
-    |->vm_IITERN_fast_array:
-    |  // Fast path for integer ADDVV over simple pairs() iterator bodies.
-    |  clr RC, TMPR1; jhe ->vm_IITERN_fast_hash_start
-    |  sllg OP, RC, 3
-    |  lg TMPR0, 0(OP, r12)
-    |  cghi TMPR0, LJ_TNIL; je ->vm_IITERN_fast_array_skip
-    |  checkint TMPR0, ->vm_IITERN_fast_array_fallback_current
-    |  lgr ITYPE, RD
-    |  ar RD, TMPR0; jo ->vm_IITERN_fast_array_fallback_previous
-    |  ahi RC, 1
-    |  j ->vm_IITERN_fast_array
-    |->vm_IITERN_fast_array_skip:
-    |  ahi RC, 1
-    |  j ->vm_IITERN_fast_array
-|->vm_IITERN_fast_hash_start:
-    |  stg RD, 0(CARG2)
-    |  sty RC, -4(RA, BASE)
-    |  sr RC, TMPR1
-|->vm_IITERN_fast_hash:
-    |  cl RC, TAB:RB->hmask; jh >3
-    |  llgfr r12, RC
-    |  mghi r12, #NODE
-    |  ag r12, TAB:RB->node
-    |  lg TMPR0, NODE:r12->val
-    |  cghi TMPR0, LJ_TNIL; je ->vm_IITERN_fast_hash_skip
-    |  checkint TMPR0, ->vm_IITERN_fast_hash_fallback
-    |  ar RD, TMPR0; jo ->vm_IITERN_fast_hash_fallback
-    |  stg RD, 0(CARG2)
-    |  ahi RC, 1
-    |  j ->vm_IITERN_fast_hash
-    |->vm_IITERN_fast_hash_skip:
-    |  ahi RC, 1
-    |  j ->vm_IITERN_fast_hash
-    |->vm_IITERN_fast_array_fallback_current:
-    |  stg RD, 0(CARG2)
-    |  j ->vm_IITERN_fast_array_fallback
-    |->vm_IITERN_fast_array_fallback_previous:
-    |  stg ITYPE, 0(CARG2)
-    |->vm_IITERN_fast_array_fallback:
-    |  stg TMPR0, 8(RA, BASE)
-    |  setint ITYPE, RC
-    |  stg ITYPE, 0(RA, BASE)
-    |  ahi RC, 1
-    |  sty RC, -4(RA, BASE)
-    |  j >2
-    |->vm_IITERN_fast_hash_fallback:
-    |  ar TMPR1, RC
-    |  ahi TMPR1, 1
-    |  lg RB, NODE:r12->key
-    |  stg RB, 0(RA, BASE)
-    |  stg TMPR0, 8(RA, BASE)
-    |  sty TMPR1, -4(RA, BASE)
-    |  j >2
-    |->vm_IITERN_fast_normal:
     |  lg ITYPE, TAB:RB->array
     |1:  // Traverse array part.
     |  clr RC, TMPR1; jhe >5		// Index points after array part?
@@ -4271,35 +4070,6 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |7:  // Skip holes in hash part.
     |  ahi RC, 1
     |  j <6
-    |
-|->vm_IITERN_root2_hashbridge:
-|  sllg RA, RA, 3
-|  lg TAB:RB, -16(RA, BASE)
-|  cleartp TAB:RB
-|  llgf RC, -4(RA, BASE)		// Get index from control var.
-|  la PC, 4(PC)
-|  lghi TMPR0, LJ_TNIL
-|  llgh RD, PC_RD			// Exact ITERL target for this bridge entry.
-|8:
-|  cl RC, TAB:RB->hmask; jh ->vm_IITERN_root2_hashdone
-|  llgfr ITYPE, RC
-|  sllg ITYPE, ITYPE, 5
-|  ag NODE:ITYPE, TAB:RB->node
-|  cg TMPR0, NODE:ITYPE->val; je >9
-|  lgr TMPR1, RC
-|  ahi TMPR1, 1
-|  // Copy key and value from hash slot.
-|  lg RB, NODE:ITYPE->key
-|  lg RC, NODE:ITYPE->val
-|  stg RB, 0(RA, BASE)
-|  stg RC, 8(RA, BASE)
-|  sty TMPR1, -4(RA, BASE)
-|  branchPC RD
-|9:  // Skip holes in hash part.
-|  ahi RC, 1
-|  j <8
-|->vm_IITERN_root2_hashdone:
-|  ins_next
     break;
 
   case BC_ISNEXT:
@@ -4694,6 +4464,9 @@ static void build_ins(BuildCtx *ctx, BCOp op, int defop)
     |  lg TMPR1, DISPATCH_J(trace)(DISPATCH)
     |  sllg RD, RD, 3
     |  lg TRACE:RD, 0(RD, TMPR1)
+    |  llgf TMPR0, DISPATCH_J(state)(DISPATCH)
+    |  clfi TMPR0, LJ_TRACE_IDLE
+    |  jne ->vm_jloop_static
     |  xgr TMPR1, TMPR1
     |  stg BASE, DISPATCH_GL(jit_base)(DISPATCH)
     |  lg L:RB, SAVE_L
