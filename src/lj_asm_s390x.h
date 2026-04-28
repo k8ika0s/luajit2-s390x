@@ -1157,11 +1157,6 @@ static int asm_s390x_varg_slot_bias_loop_override(void)
   return -999;
 }
 
-static int asm_s390x_varg_dump_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_is_varg_vload(ASMState *as, IRIns *ir)
 {
   if (LJ_BE && ir->o == IR_VLOAD) {
@@ -1189,8 +1184,6 @@ static int asm_s390x_is_loop_varg_vload(ASMState *as, IRIns *ir)
   }
   return 0;
 }
-
-int32_t lj_trace_s390x_varg_probe(const void *effp, int32_t ignored);
 
 static void asm_s390x_ir_log_intcomp(ASMState *as, IRIns *ir, IROp op,
 				     IRRef lref, IRRef rref, int cc,
@@ -5652,19 +5645,9 @@ dotypecheck:
       emit_loadofs(as, ir, dest, fr.reg, ofs);
     } else if (irt_isaddr(t) || irt_ispri(t)) {
       emit_load64ofs(as, dest, fr.reg, ofs);
-    } else if ((irt_isint(t) || irt_isu32(t)) && !dest_int_typecheck) {
-      if (asm_s390x_varg_dump_enabled() && asm_s390x_is_varg_vload(as, ir)) {
-	CCallInfo ci;
-	ci.func = (ASMFunction)lj_trace_s390x_varg_probe;
-	ci.flags = CCI_NOFPRCLOBBER;
-	asm_setupresult(as, ir, &ci);
-	emit_calli(as, RID_R14, (void *)ci.func);
-	emit_loadi(as, REGARG_FIRSTGPR+1, ofs);
-	if (REGARG_FIRSTGPR != fr.reg)
-	  emit_movrr(as, ir, REGARG_FIRSTGPR, fr.reg);
-      } else {
-	emit_loadu32ofs(as, dest, fr.reg, asm_s390x_vload_intofs(as, ir, ofs));
-      }
+    } else if ((irt_isint(t) || irt_isu32(t)) &&
+	       !dest_int_typecheck) {
+      emit_loadu32ofs(as, dest, fr.reg, asm_s390x_vload_intofs(as, ir, ofs));
     }
   }
   asm_emitfuseahuref(as, ir, &fr);
