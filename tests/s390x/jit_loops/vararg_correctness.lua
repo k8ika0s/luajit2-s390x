@@ -259,15 +259,22 @@ local function sum_i_plus_c(n, c)
   return n * (n + 1) / 2 + c * n
 end
 
-local function run_traced(label, fn, expected)
+local function run_traced(label, fn, expected, max_texits)
   jit.flush()
   local cap = t.trace_counter_capture_lite()
+  local texit_cap = max_texits and t.texit_counter_capture_lite() or nil
   local actual = t.with_finally(function()
     cap.stop()
+    if texit_cap then
+      texit_cap.stop()
+    end
   end, fn)
   t.eq(actual, expected, label)
   t.truthy(cap.stop_count > 0, label .. " trace stop")
   t.truthy(jutil.traceinfo(1) ~= nil, label .. " traceinfo")
+  if texit_cap then
+    t.truthy(texit_cap.total <= max_texits, label .. " bounded side exits")
+  end
 end
 
 local function run_checked(label, fn, expected)
@@ -306,7 +313,7 @@ end, sum_4i_plus_c(160, 6))
 
 run_traced("vararg_paths dynamic sum shape", function()
   return vararg_paths_sum_loop(160)
-end, expected_vararg_paths_sum_loop(160))
+end, expected_vararg_paths_sum_loop(160), 16)
 
 run_traced("select count plus indexed access", function()
   return count_plus_index_loop(160)
