@@ -38,6 +38,32 @@ local function max_loop(n)
   return total
 end
 
+local function max_loop_guard_exit(n, cutoff)
+  local total = 0
+  for i = 1, n do
+    total = total + math.max(i, n + 1 - i)
+    if i == cutoff then
+      return total
+    end
+  end
+  return total
+end
+
+local function max_loop_guard_exit_before_add(n, cutoff)
+  local total = 0
+  for i = 1, n do
+    if i == cutoff then
+      return total
+    end
+    total = total + math.max(i, n + 1 - i)
+  end
+  return total
+end
+
+local function max_loop_prefix_expected(n, cutoff)
+  return cutoff * (n + 1) - (cutoff * (cutoff + 1) / 2)
+end
+
 local scan_bytes = string.rep(string.char(100), 16)
 
 local function byte_scan_seed_loop(seed, n)
@@ -58,6 +84,16 @@ end
 
 local function run_max_boundaries()
   return max_loop(60000), max_loop(64000), max_loop(70000), max_loop(80000)
+end
+
+local function run_max_guard_exit()
+  max_loop_guard_exit(64000, 0)
+  return max_loop_guard_exit(64000, 1000)
+end
+
+local function run_max_guard_exit_before_add()
+  max_loop_guard_exit_before_add(64000, 0)
+  return max_loop_guard_exit_before_add(64000, 1000)
 end
 
 local function run_byte_scan_seed_boundaries()
@@ -82,6 +118,15 @@ t.eq(m60000, 2700030000, "max_loop(60000)")
 t.eq(m64000, 3072032000, "max_loop(64000)")
 t.eq(m70000, 3675035000, "max_loop(70000)")
 t.eq(m80000, 4800040000, "max_loop(80000)")
+
+local mexit = expect_trace("ADDOV max side-exit restore", run_max_guard_exit)
+t.eq(mexit, max_loop_prefix_expected(64000, 1000), "max_loop side-exit value")
+
+local mexit_before =
+  expect_trace("ADDOV max pre-update side-exit restore",
+	       run_max_guard_exit_before_add)
+t.eq(mexit_before, max_loop_prefix_expected(64000, 999),
+     "max_loop pre-update side-exit value")
 
 local bnormal, boverflow =
   expect_trace("ADDOV byte-scan seed boundary", run_byte_scan_seed_boundaries)
