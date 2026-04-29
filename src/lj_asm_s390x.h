@@ -1727,6 +1727,13 @@ static int asm_gencall_sload(ASMState *as, Reg gpr, IRRef ref)
   return 1;
 }
 
+static int asm_gencall_sload_direct_ok(ASMState *as, IRRef ref)
+{
+  IRIns *ir = IR(ref);
+  IRType1 t = ir->t;
+  return ir->o == IR_SLOAD && (irt_isint(t) || irt_isu32(t) || irt_isaddr(t));
+}
+
 static int asm_gencall_const_gpr(ASMState *as, Reg gpr, IRRef ref)
 {
   IRIns *ir = IR(ref);
@@ -2328,8 +2335,15 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
     if (gpr <= REGARG_LASTGPR) {
       if (kskip[n])
 	goto nextgpr;
-      if (asm_gencall_sload(as, gpr, ref))
+      if (asm_gencall_sload_direct_ok(as, ref)) {
+	/* Backward emission: emit duplicate fanout before the direct load so
+	** followers execute after the root argument has been materialized.
+	*/
+	asm_gencall_dup_fanout(as, args, nargs, n, loc_kind, loc_reg,
+			       loc_ofs, dup_first);
+	asm_gencall_sload(as, gpr, ref);
 	goto nextgpr;
+      }
       if (!irref_isk(ref)) {
 	Reg src = IR(ref)->r;
 	asm_s390x_call_arg_log(as, "gpr", (int)n, ref, src, gpr);
