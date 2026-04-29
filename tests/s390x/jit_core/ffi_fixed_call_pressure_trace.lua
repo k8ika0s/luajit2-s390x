@@ -8,6 +8,8 @@ ffi.cdef[[
 __attribute__((const, luajit_sumargs))
 uint64_t sum7_u64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
                   uint64_t e, uint64_t f, uint64_t g);
+int64_t sum7_i32(int32_t a, int32_t b, int32_t c, int32_t d,
+                 int32_t e, int32_t f, int32_t g);
 __attribute__((const, luajit_sumargs))
 double sum6_double(double a, double b, double c, double d, double e, double f);
 ]]
@@ -38,6 +40,16 @@ local function run_gpr(n)
   return total
 end
 
+local function run_gpr_sload_dup(a, b, c, d, n)
+  local total = 0
+  local i = 1
+  while i <= n do
+    total = total + tonumber(lib.sum7_i32(a, b, c, d, a, b, c))
+    i = i + 1
+  end
+  return total
+end
+
 local function run_fpr(n)
   local total = 0
   local i = 1
@@ -59,10 +71,13 @@ local function run_fpr(n)
 end
 
 jit.off(run_gpr, true)
+jit.off(run_gpr_sload_dup, true)
 jit.off(run_fpr, true)
 local expected_gpr = run_gpr(200)
+local expected_gpr_sload_dup = run_gpr_sload_dup(11, 13, 17, 19, 200)
 local expected_fpr = run_fpr(200)
 jit.on(run_gpr, true)
+jit.on(run_gpr_sload_dup, true)
 jit.on(run_fpr, true)
 
 t.truthy(select(1, jit.status()), "jit enabled")
@@ -70,9 +85,12 @@ jit.opt.start("hotloop=2", "hotexit=2")
 
 local capture = t.trace_capture()
 local actual_gpr = run_gpr(200)
+local actual_gpr_sload_dup = run_gpr_sload_dup(11, 13, 17, 19, 200)
 local actual_fpr = run_fpr(200)
 capture.stop()
 
 t.eq(tonumber(actual_gpr), tonumber(expected_gpr), "fixed call pressure gpr total")
+t.eq(actual_gpr_sload_dup, expected_gpr_sload_dup,
+     "fixed call pressure duplicated sload gpr total")
 t.approx(actual_fpr, expected_fpr, 1e-12, "fixed call pressure fpr total")
 t.truthy(t.find_trace_event(capture.events, "stop"), "fixed call pressure traced")
