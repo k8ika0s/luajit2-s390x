@@ -6,8 +6,6 @@
 ** Copyright (C) 1994-2011 Lua.org, PUC-Rio. See Copyright Notice in lua.h
 */
 
-#include <stdio.h>
-
 #define lib_base_c
 #define LUA_LIB
 
@@ -39,69 +37,6 @@
 #include "lj_cdata.h"
 
 /* -- Base library: checks ------------------------------------------------ */
-
-static int lj_lib_s390x_select_log_enabled(void)
-{
-  return 0;
-}
-
-static void lj_lib_s390x_dump_tv(FILE *out, cTValue *o)
-{
-  if (tvisint(o))
-    fprintf(out, "int:%d", (int)intV(o));
-  else if (tvisnum(o))
-    fprintf(out, "num:%.17g", numV(o));
-  else if (tvisnil(o))
-    fprintf(out, "nil");
-  else if (tvisstr(o))
-    fprintf(out, "str:%s", strVdata(o));
-  else if (tvisfunc(o))
-    fprintf(out, "func:%p", (void *)funcV(o));
-  else
-    fprintf(out, "itype:%d u64:%#llx", (int)itype(o), (unsigned long long)o->u64);
-}
-
-static uint32_t lj_lib_s390x_load_be32(const uint8_t *p)
-{
-  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
-	 ((uint32_t)p[2] << 8) | (uint32_t)p[3];
-}
-
-static void lj_lib_s390x_dump_stride_bias(FILE *out, const char *label,
-					  uintptr_t p, int bias)
-{
-  static const int slots[] = { -24, -16, -8, 0, 8, 16, 24 };
-  int i;
-  fprintf(out, " %s=%p", label, (void *)p);
-  for (i = 0; i < (int)(sizeof(slots) / sizeof(slots[0])); i++) {
-    const uint8_t *q = (const uint8_t *)(p + slots[i] + bias);
-    uint32_t v = lj_lib_s390x_load_be32(q);
-    fprintf(out, " %d:%u/0x%08x", slots[i], (unsigned int)v, (unsigned int)v);
-  }
-  fprintf(out, "\n");
-}
-
-static void lj_lib_s390x_log_select(lua_State *L)
-{
-  TValue *base = L->base;
-  TValue *top = L->top;
-  TValue *frame = base - 1;
-  int i;
-  if (!lj_lib_s390x_select_log_enabled())
-    return;
-  fprintf(stderr, "S390X_SELECT base=%p top=%p n=%d frame=%p isvarg=%d delta=%lld\n",
-	  (void *)base, (void *)top, (int)(top - base), (void *)frame,
-	  frame_isvarg(frame) ? 1 : 0,
-	  frame_isvarg(frame) ? (long long)frame_delta(frame) : -1LL);
-  for (i = -4; i < (int)(top - base) + 4; i++) {
-    TValue *slot = base + i;
-    fprintf(stderr, "  slot[%d]@%p ", i, (void *)slot);
-    lj_lib_s390x_dump_tv(stderr, slot);
-    fprintf(stderr, "\n");
-  }
-  if (top - base >= 2)
-    lj_lib_s390x_dump_stride_bias(stderr, "  arg1bias1", (uintptr_t)(base + 1), 4);
-}
 
 #define LJLIB_MODULE_base
 
@@ -315,21 +250,15 @@ LJLIB_CF(unpack)
 
 LJLIB_CF(select)		LJLIB_REC(.)
 {
-  lj_lib_s390x_log_select(L);
   int32_t n = (int32_t)(L->top - L->base);
   if (n >= 1 && tvisstr(L->base) && *strVdata(L->base) == '#') {
     setintV(L->top-1, n-1);
-    if (lj_lib_s390x_select_log_enabled())
-      fprintf(stderr, "S390X_SELECT_RET mode=# n=%d ret=%d\n", (int)n, (int)1);
     return 1;
   } else {
     int32_t i = lj_lib_checkint(L, 1);
     if (i < 0) i = n + i; else if (i > n) i = n;
     if (i < 1)
       lj_err_arg(L, 1, LJ_ERR_IDXRNG);
-    if (lj_lib_s390x_select_log_enabled())
-      fprintf(stderr, "S390X_SELECT_RET mode=i n=%d i=%d ret=%d\n",
-	      (int)n, (int)i, (int)(n - i));
     return n - i;
   }
 }
