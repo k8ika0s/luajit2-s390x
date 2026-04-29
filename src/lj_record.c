@@ -1418,6 +1418,21 @@ static void rec_loop_interp(jit_State *J, const BCIns *pc, LoopEvent ev)
   }  /* Side trace continues across a loop that's left or not entered. */
 }
 
+static int rec_loop_zero_snap_exit_has_guarded_ov(GCtrace *T)
+{
+  IRRef ref, end;
+  if (T->nsnap < 2 || T->snap[0].nent != 0)
+    return 0;
+  end = T->snap[1].ref < T->nins ? T->snap[1].ref : T->nins;
+  for (ref = T->snap[0].ref; ref < end; ref++) {
+    IRIns *ir = &T->ir[ref];
+    if ((ir->o == IR_ADDOV || ir->o == IR_SUBOV || ir->o == IR_MULOV) &&
+	irt_isguard(ir->t))
+      return 1;
+  }
+  return 0;
+}
+
 /* Handle the case when an already compiled loop op is hit. */
 static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
 			 LoopEvent ev)
@@ -1447,9 +1462,9 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
 	      (unsigned int)ev, (unsigned int)lnk,
 	      (unsigned int)J->framedepth, (unsigned int)J->retdepth);
     }
-    /* Avoid compiling a duplicate zero-snapshot descendant back to the same
-    ** FOR loop root. The parent exit is already consumed by the existing loop
-    ** owner; retrying it as another side trace can replay stale loop state.
+    /* Avoid compiling duplicate zero-snapshot descendants back to the same
+    ** FOR loop root. The exception is an overflow exit before the first real
+    ** loop snapshot: that side trace is the valid numeric continuation.
     */
     if (J->parent != 0 &&
 	J->exitno == 0 &&
@@ -1464,7 +1479,8 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
       GCtrace *parentT = traceref(J, J->parent);
       if (J->exitno < parentT->nsnap &&
 	  (J->parent == J->cur.root || parentT->root == J->cur.root) &&
-	  parentT->snap[J->exitno].nent == 0) {
+	  parentT->snap[J->exitno].nent == 0 &&
+	  !rec_loop_zero_snap_exit_has_guarded_ov(parentT)) {
 	parentT->snap[J->exitno].count = SNAPCOUNT_DONE;
 	lj_trace_err(J, LJ_TRERR_LLEAVE);
       }
