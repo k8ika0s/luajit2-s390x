@@ -9,6 +9,7 @@ import datetime as dt
 import json
 import os
 import pathlib
+import platform
 import shlex
 import shutil
 import signal
@@ -159,6 +160,10 @@ class Variant:
     env: dict[str, str] = dataclasses.field(default_factory=dict)
 
 
+S390X_NATIVE_TARGET_CFLAGS = "-march=native -mtune=native"
+S390X_NATIVE_HOST_CFLAGS = "-march=native -mtune=native"
+
+
 def now_utc() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
@@ -265,23 +270,30 @@ def build_snapshot_tar_from_rev(rev: str, output_path: pathlib.Path, overlay_pat
             tf.add(path, arcname=str(path.relative_to(ROOT)))
 
 
+def linux_sysinfo() -> dict[str, str]:
+    out: dict[str, str] = {}
+    sysinfo = pathlib.Path("/proc/sysinfo")
+    if not sysinfo.exists():
+        return out
+    for raw in sysinfo.read_text(encoding="utf-8", errors="replace").splitlines():
+        if ":" not in raw:
+            continue
+        key, value = raw.split(":", 1)
+        norm = key.strip().lower().replace(" ", "_")
+        if norm in {"manufacturer", "type", "model", "sequence_code", "plant"}:
+            out[f"platform_machine_{norm}"] = value.strip()
+    return out
+
+
 def detect_target_info_local() -> dict[str, str]:
-    proc = run(
-        [
-            "python3",
-            "-c",
-            (
-                "import json, platform, sys; "
-                "print(json.dumps({"
-                "'arch': platform.machine(), "
-                "'system': platform.system(), "
-                "'endianness': sys.byteorder"
-                "}))"
-            ),
-        ],
-        check=True,
-    )
-    return json.loads(proc.stdout)
+    target = {
+        "arch": platform.machine(),
+        "system": platform.system(),
+        "endianness": sys.byteorder,
+        "platform_uname": " ".join(platform.uname()),
+    }
+    target.update(linux_sysinfo())
+    return target
 
 
 def detect_target_info_ssh(host: str) -> dict[str, str]:
@@ -318,7 +330,17 @@ def applicability_matches(applicability: dict[str, Any], target: dict[str, str],
     return True, "applicable"
 
 
-def make_var_string(variant: Variant) -> str:
+def native_build_config(target: dict[str, str]) -> dict[str, str]:
+    if target["arch"].lower() == "s390x":
+        return {
+            "target_tuning": "native",
+            "target_cflags": S390X_NATIVE_TARGET_CFLAGS,
+            "host_cflags": S390X_NATIVE_HOST_CFLAGS,
+        }
+    return {"target_tuning": "default"}
+
+
+def make_var_string(variant: Variant, target: dict[str, str]) -> str:
     vars_map: dict[str, str] = {
         "CC": variant.compiler,
         "HOST_CC": variant.compiler,
@@ -331,6 +353,11 @@ def make_var_string(variant: Variant) -> str:
         vars_map["CCDEBUG"] = "-g3"
         vars_map["CCOPT"] = "-O0"
         xcflags.append("-DLUA_USE_ASSERT")
+    build_config = native_build_config(target)
+    if build_config.get("target_cflags"):
+        vars_map["TARGET_CFLAGS"] = build_config["target_cflags"]
+    if build_config.get("host_cflags"):
+        vars_map["HOST_CFLAGS"] = build_config["host_cflags"]
     if xcflags:
         vars_map["XCFLAGS"] = " ".join(xcflags)
     return " ".join(f"{key}={shlex.quote(value)}" for key, value in vars_map.items())
@@ -372,8 +399,8 @@ def variant_step_env(base_env: dict[str, str], variant: Variant) -> dict[str, st
     return merged
 
 
-def build_selection_command(variant: Variant, expected_ljarch: str | None) -> str:
-    make_vars = make_var_string(variant)
+def build_selection_command(variant: Variant, expected_ljarch: str | None, target: dict[str, str]) -> str:
+    make_vars = make_var_string(variant, target)
     lines = [
         "echo 'MATRIX_BUILD_ENV_BEGIN'",
         "env | LC_ALL=C sort | grep -E '^(ARCHFLAGS|CC=|CFLAGS=|CPPFLAGS=|CROSS=|HOST_CC=|HOST_CFLAGS=|HOST_LDFLAGS=|HOST_LIBS=|LDFLAGS=|LIBS=|MACOSX_DEPLOYMENT_TARGET=|TARGET_)' || true",
@@ -404,8 +431,8 @@ def build_selection_command(variant: Variant, expected_ljarch: str | None) -> st
     return "\n".join(lines) + "\n"
 
 
-def build_command(variant: Variant, expected_ljarch: str | None) -> str:
-    make_vars = make_var_string(variant)
+def build_command(variant: Variant, expected_ljarch: str | None, target: dict[str, str]) -> str:
+    make_vars = make_var_string(variant, target)
     return (
         "set -euo pipefail\n"
         + "for key in ARCHFLAGS CC CFLAGS CPPFLAGS CROSS HOST_CC HOST_CFLAGS HOST_LDFLAGS HOST_LIBS LDFLAGS LIBS MACOSX_DEPLOYMENT_TARGET; do\n"
@@ -420,7 +447,7 @@ def build_command(variant: Variant, expected_ljarch: str | None) -> str:
         + '  export MACOSX_DEPLOYMENT_TARGET="$(sw_vers -productVersion | awk -F. \'{print $1 "." $2}\')"\n'
         + "fi\n"
         + 'export PATH="$PWD/src:$PATH"\n'
-        + build_selection_command(variant, expected_ljarch)
+        + build_selection_command(variant, expected_ljarch, target)
         + f"make -C src clean {make_vars}\n"
         + f"make -C src {make_vars}\n"
     )
@@ -616,9 +643,18 @@ def perf_command(family_source_path: str, variant: Variant, output_jsonl: str) -
 
 def enrich_benchmark_record(record: dict[str, Any], target: dict[str, str], variant: Variant, family_id: str) -> dict[str, Any]:
     out = dict(record)
+    build_config = native_build_config(target)
     out["target_arch"] = target["arch"]
     out["target_endianness"] = "big" if target["endianness"] == "big" else "little"
     out["target_system"] = target["system"]
+    out["target_tuning"] = build_config["target_tuning"]
+    if build_config.get("target_cflags"):
+        out["target_cflags"] = build_config["target_cflags"]
+    if build_config.get("host_cflags"):
+        out["host_cflags"] = build_config["host_cflags"]
+    for key, value in target.items():
+        if key.startswith("platform_"):
+            out[key] = value
     out["variant"] = variant.id
     out["compiler"] = variant.compiler
     out["mode"] = variant.mode
@@ -707,7 +743,7 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
         stderr_path = variant_dir / "stderr.log"
         variant_dir.mkdir(parents=True, exist_ok=True)
         exit_code, duration, timed_out = execute_step(
-            build_command(variant, expected_ljarch),
+            build_command(variant, expected_ljarch, target),
             cwd=ROOT,
             stdout_path=stdout_path,
             stderr_path=stderr_path,
@@ -876,6 +912,7 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
     summary = {
         "target_label": target_label,
         "target": target,
+        "build_config": native_build_config(target),
         "matrix": matrix["name"],
         "started_at": now_utc(),
         "failures": failures,
@@ -893,6 +930,7 @@ def execute_target(matrix_path: pathlib.Path, output_dir: pathlib.Path, target_l
         f"- Architecture: `{target['arch']}`",
         f"- Endianness: `{'big' if target['endianness'] == 'big' else 'little'}`",
         f"- System: `{target['system']}`",
+        f"- Target tuning: `{native_build_config(target)['target_tuning']}`",
         f"- Validation rows: `{len(validation_results)}`",
         f"- Performance rows: `{len(perf_rows)}`",
         f"- Benchmark records: `{len(benchmark_records)}`",
