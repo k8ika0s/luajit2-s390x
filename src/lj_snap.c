@@ -494,13 +494,26 @@ static RegSP snap_renameref(GCtrace *T, SnapNo lim, IRRef ref, RegSP rs)
   return rs;
 }
 
+static LJ_AINLINE RegSP snap_canon_regsp(IRIns *ir, RegSP rs)
+{
+  Reg r = regsp_reg(rs);
+  /* A snapshot immediately after a side-effecting call can hold only the
+  ** return-register hint. Treat it as the live exit-state register so
+  ** interpreter restores and patched side traces inherit the same value.
+  */
+  if (ra_noreg(r) && ra_hashint(r) && ir_sideeff(ir))
+    return REGSP(ra_gethint(r), regsp_spill(rs));
+  return rs;
+}
+
 static LJ_AINLINE RegSP snap_ref_regsp(GCtrace *T, SnapNo lim,
 				       BloomFilter rfilt, IRRef ref)
 {
-  RegSP rs = T->ir[ref].prev;
+  IRIns *ir = &T->ir[ref];
+  RegSP rs = ir->prev;
   if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
     rs = snap_renameref(T, lim, ref, rs);
-  return rs;
+  return snap_canon_regsp(ir, rs);
 }
 
 static int snap_s390x_restore_log_enabled(void)
@@ -619,9 +632,7 @@ IRIns *lj_snap_regspmap(jit_State *J, GCtrace *T, SnapNo snapno, IRIns *ir)
     } else {
       break;
     }
-    rs = T->ir[ref].prev;
-    if (bloomtest(rfilt, ref))
-      rs = snap_renameref(T, snapno, ref, rs);
+    rs = snap_ref_regsp(T, snapno, rfilt, ref);
     ir->prev = (uint16_t)rs;
     lj_assertJ(regsp_used(rs), "unused IR %04d in snapshot", ref - REF_BIAS);
   }
@@ -973,6 +984,7 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
   }
   if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
     rs = renamed_rs = snap_renameref(T, snapno, ref, rs);
+  rs = snap_canon_regsp(ir, rs);
 #if LJ_TARGET_S390X
   if (irt_isinteger(t) && ra_hasspill(regsp_spill(rs)) &&
       !ra_noreg(regsp_reg(rs)) && regsp_reg(rs) != RID_SP &&
@@ -1010,7 +1022,8 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
       snap_restoreval(J, T, ex, snapno, rfilt, ir->op1, o);
       if (LJ_DUALNUM) setnumV(o, (lua_Number)intV(o));
       return;
-    } else if (irt_isinteger(t)) {
+    }
+    if (irt_isinteger(t)) {
       setintV(o, (int32_t)ex->gpr[r-RID_MIN_GPR]);
 #if !LJ_SOFTFP
     } else if (irt_isnum(t)) {
