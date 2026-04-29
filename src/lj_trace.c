@@ -345,11 +345,6 @@ static void lj_trace_s390x_root_freeze_log(jit_State *J, const char *site)
 	  (unsigned int)J->cur.resumevalid);
 }
 
-static int lj_trace_s390x_varg_bias_override(void)
-{
-  return -999;
-}
-
 static uint32_t lj_trace_s390x_load_be32(const uint8_t *p)
 {
   return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |

@@ -319,23 +319,23 @@ run_traced("select count plus indexed access", function()
   return count_plus_index_loop(160)
 end, sum_i_plus_c(160, 7))
 
-run_traced("canonical retlast select", function()
+run_checked("canonical retlast select", function()
   return retlast_select_loop(160)
 end, expected_retlast_select_loop(160))
 
-run_traced("canonical retlast select high positive modulo", function()
+run_checked("canonical retlast select high positive modulo", function()
   return retlast_select_high_modulo_loop()
 end, run_joff(retlast_select_high_modulo_loop))
 
-run_traced("canonical retlast select global mutation exits", function()
+run_checked("canonical retlast select global mutation", function()
   return retlast_select_global_mutation_loop(160)
 end, expected_retlast_select_global_mutation(160))
 
-run_traced("builtin dynamic select fixed args", function()
+run_checked("builtin dynamic select fixed args", function()
   return builtin_dynamic_select_loop(160)
 end, expected_builtin_dynamic_select(160))
 
-run_traced("builtin dynamic select integer progression", function()
+run_checked("builtin dynamic select integer progression", function()
   return builtin_dynamic_select_progression_loop(160)
 end, expected_builtin_dynamic_select_progression(160))
 
