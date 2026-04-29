@@ -20,6 +20,7 @@ snapshot_host() {
   uname -a >"$BOOTSTRAP_DIR/uname.txt"
   cat /etc/os-release >"$BOOTSTRAP_DIR/os-release.txt"
   lscpu >"$BOOTSTRAP_DIR/lscpu.txt"
+  cat /proc/sysinfo >"$BOOTSTRAP_DIR/sysinfo.txt" 2>/dev/null || true
   {
     echo "gcc: $(gcc --version | head -n 1 2>/dev/null || true)"
     echo "clang: $(clang --version | head -n 1 2>/dev/null || true)"
