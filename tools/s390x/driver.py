@@ -34,6 +34,10 @@ REMOTE_REPO_NAME = "repo"
 REMOTE_ARTIFACTS_NAME = "artifacts"
 HOSTS = ("kdz", "kdz1", "zkd0")
 LATEST_LINK = ARTIFACTS_ROOT / "latest"
+S390X_NATIVE_TARGET_CFLAGS = "-march=native -mtune=native"
+S390X_NATIVE_HOST_CFLAGS = "-march=native -mtune=native"
+S390X_Z13_TARGET_CFLAGS = "-march=z13 -mtune=z13 -mvx -mzvector -mmvcle -mfused-madd"
+S390X_Z13_HOST_CFLAGS = "-march=z13 -mtune=z13"
 
 PURE_LUA_T_FILES = [
     "cli-errors.t",
@@ -1013,9 +1017,12 @@ def make_var_string(variant: Variant) -> str:
         vars_map["CCDEBUG"] = "-g3"
         vars_map["CCOPT"] = "-O0"
         xcflags.append("-DLUA_USE_ASSERT")
+    if variant.tuning == "baseline":
+        vars_map["TARGET_CFLAGS"] = S390X_NATIVE_TARGET_CFLAGS
+        vars_map["HOST_CFLAGS"] = S390X_NATIVE_HOST_CFLAGS
     if variant.tuning == "z13":
-        vars_map["TARGET_CFLAGS"] = "-march=z13 -mtune=z13 -mvx -mzvector -mmvcle -mfused-madd"
-        vars_map["HOST_CFLAGS"] = "-march=z13 -mtune=z13"
+        vars_map["TARGET_CFLAGS"] = S390X_Z13_TARGET_CFLAGS
+        vars_map["HOST_CFLAGS"] = S390X_Z13_HOST_CFLAGS
     if xcflags:
         vars_map["XCFLAGS"] = " ".join(xcflags)
     return " ".join(f"{key}={shlex.quote(value)}" for key, value in vars_map.items())
@@ -1385,6 +1392,54 @@ def parse_perf_stat_csv(path: pathlib.Path) -> Dict[str, float]:
     return metrics
 
 
+def variant_target_profile(variant: Variant) -> Dict[str, str]:
+    if variant.tuning == "baseline":
+        return {
+            "target_tuning": "native",
+            "target_cflags": S390X_NATIVE_TARGET_CFLAGS,
+            "host_cflags": S390X_NATIVE_HOST_CFLAGS,
+        }
+    if variant.tuning == "z13":
+        return {
+            "target_tuning": "z13",
+            "target_cflags": S390X_Z13_TARGET_CFLAGS,
+            "host_cflags": S390X_Z13_HOST_CFLAGS,
+        }
+    return {
+        "target_tuning": variant.tuning,
+        "target_cflags": "",
+        "host_cflags": "",
+    }
+
+
+def parse_key_value_file(path: pathlib.Path, separator: str = ":") -> Dict[str, str]:
+    values: Dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if separator not in raw_line:
+            continue
+        key, value = raw_line.split(separator, 1)
+        values[key.strip()] = value.strip()
+    return values
+
+
+def remote_platform_info(ctx: Context) -> Dict[str, str]:
+    bootstrap_dir = ctx.local_remote_dir / "bootstrap"
+    lscpu = parse_key_value_file(bootstrap_dir / "lscpu.txt")
+    sysinfo = parse_key_value_file(bootstrap_dir / "sysinfo.txt")
+    uname_path = bootstrap_dir / "uname.txt"
+    uname = uname_path.read_text(encoding="utf-8", errors="replace").strip() if uname_path.exists() else ""
+    return {
+        "platform_arch": lscpu.get("Architecture", ""),
+        "platform_cpu": lscpu.get("Model name", ""),
+        "platform_vendor": lscpu.get("Vendor ID", ""),
+        "platform_machine_type": sysinfo.get("Type", ""),
+        "platform_machine_model": sysinfo.get("Model", ""),
+        "platform_uname": uname,
+    }
+
+
 def enrich_perf_record(
     ctx: Context,
     *,
@@ -1404,6 +1459,8 @@ def enrich_perf_record(
     enriched["ffi"] = variant.ffi
     enriched["build_style"] = variant.build_style
     enriched["tuning"] = variant.tuning
+    enriched.update(variant_target_profile(variant))
+    enriched.update(remote_platform_info(ctx))
     enriched["bench_file"] = bench_file
     if control_arch:
         enriched["control_arch"] = control_arch
