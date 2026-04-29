@@ -5328,6 +5328,27 @@ static void asm_tobit(ASMState *as, IRIns *ir)
     emit_movrr(as, ir, tmp, right);
 }
 
+static void asm_nummin_max(ASMState *as, IRIns *ir, int ismax)
+{
+  Reg dest = ra_dest(as, ir, RSET_FPR);
+  Reg lr = ra_alloc2(as, ir, RSET_FPR);
+  Reg left = lr & 255;
+  Reg right = lr >> 8;
+  Reg bits = ra_scratch(as, RSET_GPR_NOB);
+  Reg lbits = ra_scratch(as, rset_exclude(RSET_GPR_NOB, bits));
+
+  /*
+  ** IR_MIN/IR_MAX are right-biased for equal/unordered operands, matching the
+  ** generic IR folding and the other hard-float backends.
+  */
+  emit_u32(as, S390X_INS_RXE(S390XI_LDGR, dest, bits));
+  emit_u32(as, S390X_INS_RRF_M(S390XI_LOCGR, bits,
+			       ismax ? CC_HI : CC_LT, lbits));
+  emit_u32(as, S390X_INS_RXE(S390XI_CDBR, left, right));
+  emit_u32(as, S390X_INS_RXE(S390XI_LGDR, bits, right));
+  emit_u32(as, S390X_INS_RXE(S390XI_LGDR, lbits, left));
+}
+
 static void asm_intmin_max(ASMState *as, IRIns *ir, int ismax)
 {
   IRRef lref = ir->op1;
@@ -5361,7 +5382,11 @@ static void asm_intmin_max(ASMState *as, IRIns *ir, int ismax)
 
 static void asm_min(ASMState *as, IRIns *ir)
 {
-  if (irt_isnum(ir->t) || !asm_s390x_int_minmax_enabled()) {
+  if (irt_isnum(ir->t)) {
+    asm_nummin_max(as, ir, 0);
+    return;
+  }
+  if (!asm_s390x_int_minmax_enabled()) {
     asm_s390x_nyi_ir(as, ir);
     return;
   }
@@ -5370,7 +5395,11 @@ static void asm_min(ASMState *as, IRIns *ir)
 
 static void asm_max(ASMState *as, IRIns *ir)
 {
-  if (irt_isnum(ir->t) || !asm_s390x_int_minmax_enabled()) {
+  if (irt_isnum(ir->t)) {
+    asm_nummin_max(as, ir, 1);
+    return;
+  }
+  if (!asm_s390x_int_minmax_enabled()) {
     asm_s390x_nyi_ir(as, ir);
     return;
   }
