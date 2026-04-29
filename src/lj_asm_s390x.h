@@ -2774,6 +2774,7 @@ static IROp asm_comp_swapop(IROp op)
   case IR_UGE: return IR_ULE;
   case IR_ULE: return IR_UGE;
   case IR_UGT: return IR_ULT;
+  case IR_ABC: return IR_ULT;  /* ABC(asize, idx) swaps to idx < asize. */
   default: return op;
   }
 }
