@@ -3222,6 +3222,39 @@ static void asm_s390x_fpleft(ASMState *as, IRIns *ir, Reg dest, Reg left)
     emit_movrr(as, ir, dest, left);
 }
 
+static int asm_s390x_fusemadd(ASMState *as, IRIns *ir, int sub)
+{
+  IRRef lref = ir->op1, rref = ir->op2, addref;
+  IRIns *irm;
+  Reg dest, add, left, right;
+  RegSet allow;
+
+  if (!(as->flags & JIT_F_OPT_FMA) || lref == rref)
+    return 0;
+
+  if (mayfuse(as, lref) && (irm = IR(lref), irm->o == IR_MUL) &&
+      ra_noreg(irm->r)) {
+    addref = rref;
+  } else if (!sub && mayfuse(as, rref) &&
+	     (irm = IR(rref), irm->o == IR_MUL) && ra_noreg(irm->r)) {
+    addref = lref;
+  } else {
+    return 0;
+  }
+
+  dest = ra_dest(as, ir, RSET_FPR);
+  add = ra_hintalloc(as, addref, dest, RSET_FPR);
+  allow = rset_exclude(rset_exclude(RSET_FPR, dest), add);
+  left = ra_alloc2(as, irm, allow);
+  right = left >> 8;
+  left &= 255;
+  emit_u32(as, S390X_INS_RRF_R(sub ? S390XI_MSDBR : S390XI_MADBR,
+			       dest, left, right));
+  if (dest != add)
+    emit_movrr(as, ir, dest, add);
+  return 1;
+}
+
 static int asm_s390x_addk_loop_result_normalized(ASMState *as, IRIns *ir, int32_t k)
 {
   IRRef ref = (IRRef)(ir - as->ir);
@@ -3305,6 +3338,8 @@ static void asm_add(ASMState *as, IRIns *ir)
     RegSet allow = RSET_FPR;
     Reg dest;
     Reg left, right;
+    if (asm_s390x_fusemadd(as, ir, 0))
+      return;
     if (!irref_isk(ir->op2) && ra_hasreg(IR(ir->op2)->r) &&
 	IR(ir->op2)->r >= RID_MIN_FPR)
       allow = RID2RSET(IR(ir->op2)->r);
@@ -4267,9 +4302,12 @@ static int asm_s390x_minmax_index_subov_guard_elided(ASMState *as, IRIns *ir)
 static void asm_sub(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
-    Reg dest = ra_dest(as, ir, RSET_FPR);
+    Reg dest;
     Reg left;
     Reg right;
+    if (asm_s390x_fusemadd(as, ir, 1))
+      return;
+    dest = ra_dest(as, ir, RSET_FPR);
     left = ra_hintalloc(as, ir->op1, dest, RSET_FPR);
     right = ra_alloc1(as, ir->op2, rset_exclude(RSET_FPR, dest));
     emit_u32(as, S390X_INS_RXE(S390XI_SDBR, dest, right));

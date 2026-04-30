@@ -53,6 +53,9 @@ static void emit_u48_pad8(ASMState *as, uint64_t ins)
 
 #define S390X_INS_RXE(op, r1, r2) \
   ((uint32_t)(op) | (((uint32_t)(r1) & 15u) << 4) | ((uint32_t)(r2) & 15u))
+#define S390X_INS_RRF_R(op, r1, r3, r2) \
+  ((uint32_t)(op) | (((uint32_t)(r1) & 15u) << 12) | \
+   (((uint32_t)(r3) & 15u) << 4) | ((uint32_t)(r2) & 15u))
 #define S390X_INS_RRF_M(op, r1, m3, r2) \
   ((uint32_t)(op) | (((uint32_t)(m3) & 15u) << 12) | \
    (((uint32_t)(r1) & 15u) << 4) | ((uint32_t)(r2) & 15u))
@@ -135,6 +138,8 @@ static LJ_AINLINE uint64_t s390x_disp20(int32_t disp)
 #define S390XI_SDBR	0xb31b0000u
 #define S390XI_MDBR	0xb31c0000u
 #define S390XI_DDBR	0xb31d0000u
+#define S390XI_MADBR	0xb31e0000u
+#define S390XI_MSDBR	0xb31f0000u
 #define S390XI_LPDBR	0xb3100000u
 #define S390XI_LCDBR	0xb3130000u
 #define S390XI_SQDBR	0xb3150000u
