@@ -6589,9 +6589,8 @@ static void asm_conv(ASMState *as, IRIns *ir)
       left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -271);
       if (st == IRT_U32 || st == IRT_U16 || st == IRT_U8) {
 	emit_u32(as, S390X_INS_RXE(S390XI_LLGFR, left, left));
-      } else {
-	if (!asm_s390x_int_result_normalized(IR(lref)))
-	  emit_u32(as, S390X_INS_RXE(S390XI_LGFR, left, left));
+      } else if (st != IRT_INT && !asm_s390x_int_result_normalized(IR(lref))) {
+	emit_u32(as, S390X_INS_RXE(S390XI_LGFR, left, left));
       }
       emit_u32(as, S390X_INS_RXE(S390XI_CDFBR, dest, left));
       return;
