@@ -29,7 +29,7 @@ from typing import Dict, Iterable, List, Optional
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ARTIFACTS_ROOT = ROOT / "artifacts" / "s390x"
-REMOTE_BASE = "/root/luajit2-s390x"
+REMOTE_BASE = os.environ.get("S390X_REMOTE_BASE", "/root/luajit2-s390x")
 REMOTE_REPO_NAME = "repo"
 REMOTE_ARTIFACTS_NAME = "artifacts"
 HOSTS = ("kdz", "kdz1", "zkd0")
