@@ -1127,11 +1127,6 @@ static int asm_s390x_stack_restore_log_enabled(void)
   return 0;
 }
 
-static int asm_s390x_int_minmax_enabled(void)
-{
-  return 1;
-}
-
 static int asm_s390x_narrow_xstore_enabled(void)
 {
   return 1;
@@ -5062,10 +5057,6 @@ static void asm_min(ASMState *as, IRIns *ir)
     asm_nummin_max(as, ir, 0);
     return;
   }
-  if (!asm_s390x_int_minmax_enabled()) {
-    asm_s390x_nyi_ir(as, ir);
-    return;
-  }
   asm_intmin_max(as, ir, 0);
 }
 
@@ -5073,10 +5064,6 @@ static void asm_max(ASMState *as, IRIns *ir)
 {
   if (irt_isnum(ir->t)) {
     asm_nummin_max(as, ir, 1);
-    return;
-  }
-  if (!asm_s390x_int_minmax_enabled()) {
-    asm_s390x_nyi_ir(as, ir);
     return;
   }
   asm_intmin_max(as, ir, 1);
