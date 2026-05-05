@@ -1,11 +1,5 @@
 local t = require("tests.s390x.helpers.testlib")
-local ffi = require("ffi")
 local jit = require("jit")
-
-ffi.cdef[[
-int setenv(const char *name, const char *value, int overwrite);
-]]
-assert(ffi.C.setenv("LUAJIT_S390X_INT_MINMAX", "1", 1) == 0)
 
 jit.opt.start("hotloop=1", "hotexit=2")
 
