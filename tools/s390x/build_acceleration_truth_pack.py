@@ -590,11 +590,6 @@ end)
 """,
     "numeric_minmax_micro": LUA_COMMON
     + """\
-local ffi = require("ffi")
-ffi.cdef[[
-int setenv(const char *name, const char *value, int overwrite);
-]]
-assert(ffi.C.setenv("LUAJIT_S390X_INT_MINMAX", "1", 1) == 0, "setenv minmax")
 local function run(n)
   local total = 0
   for i = 1, n do
