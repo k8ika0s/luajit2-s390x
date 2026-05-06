@@ -1462,9 +1462,11 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
 	      (unsigned int)ev, (unsigned int)lnk,
 	      (unsigned int)J->framedepth, (unsigned int)J->retdepth);
     }
-    /* Avoid compiling duplicate zero-snapshot descendants back to the same
-    ** FOR loop root. The exception is an overflow exit before the first real
-    ** loop snapshot: that side trace is the valid numeric continuation.
+    /* A zero-snapshot loop-root exit has no restorable interpreter frame for
+    ** a duplicate descendant back to the same FOR root. Let the parent exit
+    ** stay terminal instead of compiling a side trace with unusable state. An
+    ** overflow guard before the first real loop snapshot is the valid numeric
+    ** continuation and must remain traceable.
     */
     if (J->parent != 0 &&
 	J->exitno == 0 &&

@@ -211,11 +211,6 @@ static int lj_trace_s390x_jloop_exec_child_enabled(void)
   return 0;
 }
 
-static int lj_trace_s390x_sidetrace_typeins_done_disabled(void)
-{
-  return 0;
-}
-
 static int lj_trace_s390x_root_promote_child_loop_enabled(void)
 {
   return 0;
@@ -1702,12 +1697,6 @@ static int trace_abort(jit_State *J)
     } else {
       traceref(J, J->exitno)->link = J->exitno;  /* Self-link is blacklisted. */
     }
-  } else if (!lj_trace_s390x_sidetrace_typeins_done_disabled() &&
-	     J->parent != 0 &&
-	     e == LJ_TRERR_TYPEINS &&
-	     J->exitno == 1 &&
-	     bc_op(J->cur.startins) == BC_ITERN) {
-    traceref(J, J->parent)->snap[J->exitno].count = SNAPCOUNT_DONE;
   }
 
   /* Is there anything to abort? */
