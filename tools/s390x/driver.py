@@ -3,7 +3,8 @@
 
 This driver keeps all repo edits local, syncs the workspace to a native
 remote s390x host, runs stage-specific build/test flows there, and copies the
-artifacts back to the local repo under artifacts/s390x/<run-id>/.
+artifacts back to the local repo under the stage-specific artifacts/s390x/
+directory.
 """
 
 from __future__ import annotations
@@ -357,6 +358,7 @@ STAGE_DEFAULT_SUITES = {
 STAGE_ORDER = list(STAGE_DEFAULT_SUITES)
 PRE_JIT_STAGES = {"contract", "interp", "ffi-call", "callback-unwind"}
 LOCAL_SUITES = {"coverage_audit", "downstream"}
+CORRECTNESS_STAGES = set(STAGE_DEFAULT_SUITES) - {"perf"}
 
 RSYNC_EXCLUDES = [
     ".git",
@@ -544,12 +546,20 @@ class Context:
         return f"{now.strftime('%Y%m%dT%H%M%S.%fZ')}-p{os.getpid()}"
 
     def _init_run_dir(self) -> tuple[str, pathlib.Path]:
-        ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
+        stage_root = ARTIFACTS_ROOT
+        if self.args.stage == "perf":
+            stage_root = ARTIFACTS_ROOT / "perf"
+        elif self.args.stage in CORRECTNESS_STAGES:
+            stage_root = ARTIFACTS_ROOT / "correctness"
+        stage_root.mkdir(parents=True, exist_ok=True)
         if self.args.run_id == "auto":
-            return self._create_unique_auto_run_dir()
+            return self._create_unique_auto_run_dir(stage_root)
 
-        run_dir = ARTIFACTS_ROOT / self.args.run_id
+        run_dir = stage_root / self.args.run_id
         if self.args.resume:
+            legacy_run_dir = ARTIFACTS_ROOT / self.args.run_id
+            if not run_dir.exists() and legacy_run_dir.exists():
+                run_dir = legacy_run_dir
             if not run_dir.exists():
                 raise DriverError(f"cannot resume missing run directory: {run_dir}")
             if not (run_dir / "manifest.json").exists():
@@ -564,10 +574,10 @@ class Context:
             ) from exc
         return self.args.run_id, run_dir
 
-    def _create_unique_auto_run_dir(self) -> tuple[str, pathlib.Path]:
+    def _create_unique_auto_run_dir(self, stage_root: pathlib.Path) -> tuple[str, pathlib.Path]:
         for _ in range(32):
             run_id = self._auto_run_id()
-            run_dir = ARTIFACTS_ROOT / run_id
+            run_dir = stage_root / run_id
             try:
                 run_dir.mkdir(parents=True, exist_ok=False)
                 return run_id, run_dir
