@@ -3021,9 +3021,11 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
     return;
   }
   if (cmp32s) {
-    cmp32s_left_norm = asm_s390x_int_result_normalized(lir);
+    cmp32s_left_norm = asm_s390x_int_result_normalized(lir) &&
+		       !asm_s390x_can_defer_counter_add_bnorm32(as, lir);
     cmp32s_right_norm = !irref_isk(rref) && rir &&
-			 asm_s390x_int_result_normalized(rir);
+			 asm_s390x_int_result_normalized(rir) &&
+			 !asm_s390x_can_defer_counter_add_bnorm32(as, rir);
   }
   asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, cmp32u, 0);
   cmp_left = left;
@@ -3034,8 +3036,7 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
     emit_u32(as, S390X_INS_RXE(S390XI_CGFR, left, right));
     return;
   }
-  if (cmp32u || (cmp32s && (!cmp32s_left_norm ||
-			    (!irref_isk(rref) && !cmp32s_right_norm)))) {
+  if (cmp32u || cmp32s) {
     RegSet allow = rset_exclude(RSET_GPR_NOB, left);
     if (!irref_isk(rref))
       allow = rset_exclude(allow, right);
@@ -3794,8 +3795,6 @@ static void asm_bnorm32(ASMState *as, IRIns *ir, Reg dest)
 
 static void asm_bitop_logic(ASMState *as, IRIns *ir, uint32_t op)
 {
-  int mask_normalizes = op == S390XI_NGR && irref_isk(ir->op2) &&
-			IR(ir->op2)->o == IR_KINT && IR(ir->op2)->i >= 0;
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -231);
   Reg right = irref_isk(ir->op2) ?
     ra_allock(as, asm_kintptr(as, ir->op2), rset_exclude(RSET_GPR_NOB, left)) :
@@ -3813,8 +3812,7 @@ static void asm_bitop_logic(ASMState *as, IRIns *ir, uint32_t op)
       emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, right, left));
     return;
   }
-  if (!mask_normalizes)
-    asm_bnorm32(as, ir, dest);
+  asm_bnorm32(as, ir, dest);
   if (dest == left) {
     emit_u32(as, S390X_INS_RXE(op, dest, right));
   } else if (op == S390XI_NGR) {
@@ -3920,8 +3918,8 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
       return;
     }
     immop = (op == S390XI_SLLK) ? S390XI_SLLG : S390XI_SRAG;
-    emit_shiftimm(as, immop, dest, left, sh);
     asm_bnorm32(as, ir, dest);
+    emit_shiftimm(as, immop, dest, left, sh);
     return;
   } else {
     Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -239);
@@ -4466,7 +4464,7 @@ static void asm_sub(ASMState *as, IRIns *ir)
 	if (bnorm)
 	  asm_bnorm32(as, ir, dest);
 	if (dest == left)
-		emit_u32(as, S390X_INS_RXE(S390XI_SGR, dest, right));
+	  emit_u32(as, S390X_INS_RXE(S390XI_SGR, dest, right));
 	else
 	  emit_u32(as, S390X_INS_RRF_M(S390XI_SGRK, dest, right, left));
       } else {
