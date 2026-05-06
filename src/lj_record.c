@@ -1346,13 +1346,12 @@ static int innerloopleft(jit_State *J, const BCIns *pc)
   return 0;
 }
 
-static int lj_record_s390x_iterator_forl_inner_unroll(jit_State *J,
-						      const BCIns *loopins,
-						      LoopEvent ev,
-						      TraceNo lnk)
+static int rec_loop_short_iterator_inner_unroll(jit_State *J,
+						const BCIns *loopins,
+						LoopEvent ev,
+						TraceNo lnk)
 {
-  if (!LJ_TARGET_S390X ||
-      J->parent != 0 || J->exitno != 0 || ev == LOOPEV_LEAVE ||
+  if (J->parent != 0 || J->exitno != 0 || ev == LOOPEV_LEAVE ||
       bc_op(J->cur.startins) != BC_FORL)
     return 0;
   if (loopins) {
@@ -1402,7 +1401,7 @@ static void rec_loop_interp(jit_State *J, const BCIns *pc, LoopEvent ev)
       ** more conservative here and only do it for very short loops.
       */
       if (bc_j(*pc) != -1 && !innerloopleft(J, pc) &&
-	  !lj_record_s390x_iterator_forl_inner_unroll(J, pc, ev, 0)) {
+	  !rec_loop_short_iterator_inner_unroll(J, pc, ev, 0)) {
 	lj_record_s390x_linner_log(J, "rec_loop_interp_root", ev, 0);
 	lj_trace_err(J, LJ_TRERR_LINNER);  /* Root trace hit an inner loop. */
       }
@@ -1440,7 +1439,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
   if (J->parent == 0 && J->exitno == 0) {  /* Root trace hit an inner loop. */
     /* Better let the inner loop spawn a side trace back here. */
     if (ev != LOOPEV_LEAVE &&
-	!lj_record_s390x_iterator_forl_inner_unroll(J, loopins, ev, lnk)) {
+	!rec_loop_short_iterator_inner_unroll(J, loopins, ev, lnk)) {
       lj_record_s390x_linner_log(J, "rec_loop_jit_root", ev, lnk);
       lj_trace_err(J, LJ_TRERR_LINNER);
     }
@@ -2746,12 +2745,12 @@ int lj_record_next(jit_State *J, RecordIndex *ix)
   t = rec_next_types_idx(tabV(&ix->tabv), ix->keyv.u32.lo, &nextisarray,
 			 &nextidx);
   tkey = (t & 0xff); tval = (t >> 8);
-  /* s390x can avoid the helper call for proven table states by recording the
-  ** next array/hash probe directly. Guards cover the control index, table
-  ** shape and skipped nil slots; visible key, hidden control index and value
-  ** are all materialized explicitly.
+  /* Proven table states can avoid the helper call by recording the next
+  ** array/hash probe directly. Guards cover the control index, table shape and
+  ** skipped nil slots; visible key, hidden control index and value are all
+  ** materialized explicitly.
   */
-  if (LJ_TARGET_S390X && nextisarray && tkey == IRT_INT && ix->mobj) {
+  if (nextisarray && tkey == IRT_INT && ix->mobj) {
     TRef idx = ix->key & ~TREF_KEYINDEX;
     TRef asize = emitir(IRTI(IR_FLOAD), ix->tab, IRFL_TAB_ASIZE);
     TRef arrayref = emitir(IRT(IR_FLOAD, IRT_PGC), ix->tab, IRFL_TAB_ARRAY);
@@ -2768,8 +2767,7 @@ int lj_record_next(jit_State *J, RecordIndex *ix)
     ix->mobj = lj_ir_kint(J, (int32_t)(nextidx + 1));
     ix->key = lj_ir_kint(J, (int32_t)nextidx);
     return tkey == IRT_NIL || ix->idxchain ? 1 : 2;
-  } else if (LJ_TARGET_S390X &&
-	     !nextisarray && tkey != IRT_NIL && ix->mobj) {
+  } else if (!nextisarray && tkey != IRT_NIL && ix->mobj) {
     GCtab *tab = tabV(&ix->tabv);
     uint32_t idxv = ix->keyv.u32.lo;
     uint32_t nodeidx = nextidx - tab->asize;
@@ -2803,7 +2801,7 @@ int lj_record_next(jit_State *J, RecordIndex *ix)
       ix->mobj = lj_ir_kint(J, (int32_t)(nextidx + 1));
       return ix->idxchain ? 1 : 2;
     }
-  } else if (LJ_TARGET_S390X && tkey == IRT_NIL && ix->mobj) {
+  } else if (tkey == IRT_NIL && ix->mobj) {
     GCtab *tab = tabV(&ix->tabv);
     uint32_t idxv = ix->keyv.u32.lo;
     uint32_t hstart = idxv > tab->asize ? idxv - tab->asize : 0;
