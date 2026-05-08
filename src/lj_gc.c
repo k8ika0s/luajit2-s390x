@@ -28,7 +28,6 @@
 #include "lj_dispatch.h"
 #include "lj_vm.h"
 #include "lj_vmevent.h"
-#include <stdio.h>
 
 #define GCSTEPSIZE	1024u
 #define GCSWEEPMAX	40
@@ -270,9 +269,6 @@ static GCtrace *gc_s390x_traceref(global_State *g, TraceNo traceno)
     return NULL;
   T = (GCtrace *)gcref(J->trace[traceno]);
   if (!gc_s390x_gcobj_valid(obj2gco(T), 1) || T->traceno != traceno) {
-    fprintf(stderr,
-	    "[s390x] dropping malformed trace reference %u during GC\n",
-	    (unsigned int)traceno);
     setgcrefnull(J->trace[traceno]);
     return NULL;
   }
@@ -310,12 +306,8 @@ static void gc_traverse_trace(global_State *g, GCtrace *T)
     if (ir->o == IR_KGC) {
 #if LJ_TARGET_S390X && LJ_GC64
       GCobj *o = ir_kgc(ir);
-      if (!gc_s390x_gcobj_valid(o, 0)) {
-	fprintf(stderr,
-		"[s390x] skipping invalid IR_KGC while traversing trace %u ref %u\n",
-		(unsigned int)T->traceno, (unsigned int)ref);
+      if (!gc_s390x_gcobj_valid(o, 0))
 	continue;
-      }
       gc_markobj(g, o);
 #else
       gc_markobj(g, ir_kgc(ir));
