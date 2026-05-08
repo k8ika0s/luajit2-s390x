@@ -32,16 +32,6 @@
 /* Emit raw IR without passing through optimizations. */
 #define emitir_raw(ot, a, b)	(lj_ir_set(J, (ot), (a), (b)), lj_ir_emit(J))
 
-static int snap_s390x_ipairs_exit1_skip_body_enabled(void)
-{
-  return 0;
-}
-
-static int lj_snap_s390x_root1_iterl_replay_triplet_enabled(void)
-{
-  return 0;
-}
-
 /* -- Snapshot buffer allocation ------------------------------------------ */
 
 /* Grow snapshot buffer. */
@@ -436,11 +426,6 @@ static LJ_AINLINE RegSP snap_ref_regsp(GCtrace *T, SnapNo lim,
   return snap_canon_regsp(ir, rs);
 }
 
-static int snap_s390x_restore_pref_reg_enabled(void)
-{
-  return 0;
-}
-
 /* Copy RegSP from parent snapshot to the parent links of the IR. */
 IRIns *lj_snap_regspmap(jit_State *J, GCtrace *T, SnapNo snapno, IRIns *ir)
 {
@@ -579,12 +564,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
   MSize n, nent = snap->nent;
   BloomFilter seen = 0;
   int pass23 = 0;
-  int root1_iterl_child = 0;
   J->framedepth = 0;
-  if (J->parent == 1 && J->exitno == 1 && bc_op(J->cur.startins) == BC_JMP) {
-    GCtrace *parentT = traceref(J, J->parent);
-    root1_iterl_child = parentT && bc_op(parentT->startins) == BC_ITERL;
-  }
   /* Emit IR for slots inherited from parent snapshot. */
   for (n = 0; n < nent; n++) {
     SnapEntry sn = map[n];
@@ -592,13 +572,8 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
     IRRef ref = snap_ref(sn);
     IRIns *ir = &T->ir[ref];
     TRef tr;
-    int replay_triplet_root1 = 0;
-    if (root1_iterl_child && s >= 11 && s <= 13 &&
-	lj_snap_s390x_root1_iterl_replay_triplet_enabled())
-      replay_triplet_root1 = 1;
     /* The bloom filter avoids O(nent^2) overhead for de-duping slots. */
-    if (!replay_triplet_root1 &&
-	bloomtest(seen, ref) && (tr = snap_dedup(J, map, n, ref)) != 0)
+    if (bloomtest(seen, ref) && (tr = snap_dedup(J, map, n, ref)) != 0)
       goto setslot;
     bloomset(seen, ref);
     if (irref_isk(ref)) {
@@ -617,14 +592,7 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
       if (LJ_SOFTFP32 && (sn & SNAP_SOFTFPNUM)) t = IRT_NUM;
       if (ir->o == IR_SLOAD) mode |= (ir->op2 & IRSLOAD_READONLY);
       if ((sn & SNAP_KEYINDEX)) mode |= IRSLOAD_KEYINDEX;
-      if (replay_triplet_root1 && s == 11)
-	tr = TREF_NIL;
-      else if (replay_triplet_root1 && s == 12)
-	tr = emitir_raw(IRTG(IR_SLOAD, IRT_TAB), 4, IRSLOAD_TYPECHECK);
-      else if (replay_triplet_root1 && s == 13)
-	tr = TREF_NIL;
-      else
-	tr = emitir_raw(IRT(IR_SLOAD, t), s, mode);
+      tr = emitir_raw(IRT(IR_SLOAD, t), s, mode);
     }
   setslot:
     /* Same as TREF_* flags. */
@@ -814,12 +782,6 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
   if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
     rs = snap_renameref(T, snapno, ref, rs);
   rs = snap_canon_regsp(ir, rs);
-#if LJ_TARGET_S390X
-  if (irt_isinteger(t) && ra_hasspill(regsp_spill(rs)) &&
-      !ra_noreg(regsp_reg(rs)) && regsp_reg(rs) != RID_SP &&
-      snap_s390x_restore_pref_reg_enabled())
-    rs = REGSP(regsp_reg(rs), SPS_NONE);
-#endif
   if (ra_hasspill(regsp_spill(rs))) {  /* Restore from spill slot. */
     int32_t *sps = &ex->spill[regsp_spill(rs)];
     if (irt_isinteger(t)) {
@@ -1070,14 +1032,6 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
   const BCIns *pc = snap_pc(&map[nent]);
   const BCIns *resume_pc = pc;
   lua_State *L = J->L;
-
-  if (snap_s390x_ipairs_exit1_skip_body_enabled() &&
-      J->parent == 1 && J->exitno == 1 &&
-      pc != NULL &&
-      (bc_op(pc[1]) == BC_ITERC || bc_op(pc[1]) == BC_ITERN) &&
-      (bc_op(pc[2]) == BC_ITERL || bc_op(pc[2]) == BC_JITERL)) {
-    resume_pc = pc + 3;
-  }
 
   /* Set interpreter PC to the next PC to get correct error messages.
   ** But not for returns or tail calls, since pc+1 may be out-of-range.
