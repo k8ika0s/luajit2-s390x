@@ -21,8 +21,6 @@
 #include "lj_trace.h"
 #include "lj_snap.h"
 #include "lj_target.h"
-#include <stdio.h>
-#include <stdlib.h>
 #if LJ_HASFFI
 #include "lj_ctype.h"
 #include "lj_cdata.h"
@@ -34,47 +32,6 @@
 /* Emit raw IR without passing through optimizations. */
 #define emitir_raw(ot, a, b)	(lj_ir_set(J, (ot), (a), (b)), lj_ir_emit(J))
 
-static int lj_snap_s390x_log_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_SNAP_LOG") != NULL);
-  return enabled;
-}
-
-static void lj_snap_s390x_log_bad_parent(jit_State *J, GCtrace *T,
-					 const SnapShot *snap,
-					 const SnapEntry *snmap,
-					 SnapEntry sn, IRRef refp,
-					 IRIns *ir, const char *phase)
-{
-  if (!lj_snap_s390x_log_enabled())
-    return;
-  fprintf(stderr,
-	  "S390X_SNAP phase=%s trace=%u snap_ref=%u mapofs=%u slot=%u ref=%u op=%u r=%u s=%u prev=%u snap=%#x nent=%u\n",
-	  phase,
-	  (unsigned int)T->traceno,
-	  (unsigned int)(snap->ref - REF_BIAS),
-	  (unsigned int)snap->mapofs,
-	  (unsigned int)snap_slot(sn),
-	  (unsigned int)(refp - REF_BIAS),
-	  (unsigned int)ir->o,
-	  (unsigned int)ir->r,
-	  (unsigned int)ir->s,
-	  (unsigned int)ir->prev,
-	  (unsigned int)sn,
-	  (unsigned int)snap->nent);
-  if (snmap)
-    fprintf(stderr, "S390X_SNAP_MAP slot0=%#x slot1=%#x\n",
-	    (unsigned int)snmap[0],
-	    (unsigned int)(snap->nent > 1 ? snmap[1] : 0));
-}
-
-static int lj_snap_s390x_retf_window_log_enabled(void)
-{
-  return 0;
-}
-
 static int snap_s390x_ipairs_exit1_skip_body_enabled(void)
 {
   return 0;
@@ -83,42 +40,6 @@ static int snap_s390x_ipairs_exit1_skip_body_enabled(void)
 static int lj_snap_s390x_root1_iterl_replay_triplet_enabled(void)
 {
   return 0;
-}
-
-static void lj_snap_s390x_log_retf_window(jit_State *J, const char *site,
-					  BCReg nslots)
-{
-  BCOp op;
-  BCReg s;
-  if (!lj_snap_s390x_retf_window_log_enabled() || !J->chain[IR_RETF] || !J->pc)
-    return;
-  op = bc_op(*J->pc);
-  if (!bc_isret(op))
-    return;
-  fprintf(stderr,
-	  "S390X_RETFWIN site=%s op=%u baseslot=%u maxslot=%u nslots=%u retf=%u\n",
-	  site, (unsigned int)op, (unsigned int)J->baseslot,
-	  (unsigned int)J->maxslot, (unsigned int)nslots,
-	  (unsigned int)(J->chain[IR_RETF] - REF_BIAS));
-  for (s = 0; s < nslots; s++) {
-    TRef tr = J->slot[s];
-    IRRef ref = tref_ref(tr);
-    if (!tr)
-      continue;
-    if (ref >= REF_FIRST && ref < J->cur.nins) {
-      IRIns *ir = &J->cur.ir[ref];
-      fprintf(stderr,
-	      "S390X_RETFWIN_SLOT slot=%u tref=%d ref=%u op=%u op1=%u op2=%u prev=%u\n",
-	      (unsigned int)s, (int)tr, (unsigned int)(ref - REF_BIAS),
-	      (unsigned int)ir->o, (unsigned int)ir->op1,
-	      (unsigned int)ir->op2, (unsigned int)ir->prev);
-    } else {
-      fprintf(stderr,
-	      "S390X_RETFWIN_SLOT slot=%u tref=%d ref=%u\n",
-	      (unsigned int)s, (int)tr,
-	      (unsigned int)(ref >= REF_BIAS ? ref - REF_BIAS : ref));
-    }
-  }
 }
 
 /* -- Snapshot buffer allocation ------------------------------------------ */
@@ -154,7 +75,6 @@ static MSize snapshot_slots(jit_State *J, SnapEntry *map, BCReg nslots)
   IRRef retf = J->chain[IR_RETF];  /* Limits SLOAD restore elimination. */
   BCReg s;
   MSize n = 0;
-  lj_snap_s390x_log_retf_window(J, "snapshot_slots_pre", nslots);
   for (s = 0; s < nslots; s++) {
     TRef tr = J->slot[s];
     IRRef ref = tref_ref(tr);
@@ -516,93 +436,9 @@ static LJ_AINLINE RegSP snap_ref_regsp(GCtrace *T, SnapNo lim,
   return snap_canon_regsp(ir, rs);
 }
 
-static int snap_s390x_restore_log_enabled(void)
-{
-  static int enabled = -1;
-  if (enabled == -1)
-    enabled = (getenv("LUAJIT_S390X_RESTORE_LOG") != NULL);
-  return enabled;
-}
-
-static int snap_s390x_restore_focus_parent(void)
-{
-  return 1;
-}
-
-static int snap_s390x_restore_focus_exit(void)
-{
-  return -1;
-}
-
-static int snap_s390x_restore_focus_match(jit_State *J)
-{
-  int parent = snap_s390x_restore_focus_parent();
-  int exitno = snap_s390x_restore_focus_exit();
-  return (parent < 0 || J->parent == (TraceNo)parent) &&
-	 (exitno < 0 || J->exitno == (ExitNo)exitno);
-}
-
 static int snap_s390x_restore_pref_reg_enabled(void)
 {
   return 0;
-}
-
-static int snap_s390x_unsink_log_enabled(void)
-{
-  return 0;
-}
-
-static int snap_s390x_bridge_restore_slot13_log_enabled(void)
-{
-  return 0;
-}
-
-static int snap_s390x_bridge_restore_slot13_focus(jit_State *J)
-{
-  int parent = -1;
-  int exitno = -1;
-  return (parent < 0 || J->parent == (TraceNo)parent) &&
-	 (exitno < 0 || J->exitno == (ExitNo)exitno);
-}
-
-static void snap_s390x_restore_log(jit_State *J, SnapNo snapno, IRIns *ir,
-				   IRRef ref, RegSP orig_rs, RegSP renamed_rs,
-				   RegSP used_rs, int pref_applied, TValue *o)
-{
-#if LJ_TARGET_S390X
-  if (!snap_s390x_restore_log_enabled())
-    return;
-  if (!snap_s390x_restore_focus_match(J))
-    return;
-  fprintf(stderr,
-	  "S390X_RESTORE trace=%u exit=%u snap=%u ref=%u op=%u type=%d pref=%d orig_rs=%u renamed_rs=%u used_rs=%u reg=%d spill=%d itype=%d u64=0x%016llx n=%g\n",
-	  (unsigned int)J->parent, (unsigned int)J->exitno, (unsigned int)snapno,
-	  (unsigned int)(ref - REF_BIAS), (unsigned int)ir->o,
-	  (int)irt_type(ir->t), pref_applied, (unsigned int)orig_rs,
-	  (unsigned int)renamed_rs, (unsigned int)used_rs,
-	  (int)regsp_reg(used_rs), (int)regsp_spill(used_rs), (int)itype(o),
-	  (unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
-#else
-  UNUSED(J); UNUSED(snapno); UNUSED(ir); UNUSED(ref);
-  UNUSED(orig_rs); UNUSED(renamed_rs); UNUSED(used_rs);
-  UNUSED(pref_applied); UNUSED(o);
-#endif
-}
-
-static void snap_s390x_unsink_log(jit_State *J, SnapNo snapno, IRIns *ir,
-				  IRRef ref, const char *phase, TValue *o)
-{
-#if LJ_TARGET_S390X
-  if (!snap_s390x_unsink_log_enabled())
-    return;
-  fprintf(stderr,
-	  "S390X_UNSINK trace=%u exit=%u snap=%u ref=%u op=%u phase=%s itype=%d u64=0x%016llx n=%g\n",
-	  (unsigned int)J->parent, (unsigned int)J->exitno, (unsigned int)snapno,
-	  (unsigned int)(ref - REF_BIAS), (unsigned int)ir->o, phase,
-	  (int)itype(o), (unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
-#else
-  UNUSED(J); UNUSED(snapno); UNUSED(ir); UNUSED(ref); UNUSED(phase); UNUSED(o);
-#endif
 }
 
 /* Copy RegSP from parent snapshot to the parent links of the IR. */
@@ -809,9 +645,6 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	uint8_t m;
 	if (J->slot[snap_slot(sn)] != snap_slot(sn)) continue;
 	pass23 = 1;
-	if (!(ir->o == IR_TNEW || ir->o == IR_TDUP ||
-	      ir->o == IR_CNEW || ir->o == IR_CNEWI))
-	  lj_snap_s390x_log_bad_parent(J, T, snap, map, sn, refp, ir, "pref");
 	lj_assertJ(ir->o == IR_TNEW || ir->o == IR_TDUP ||
 		   ir->o == IR_CNEW || ir->o == IR_CNEWI,
 		   "sunk parent IR %04d has bad op %d", refp - REF_BIAS, ir->o);
@@ -840,8 +673,6 @@ void lj_snap_replay(jit_State *J, GCtrace *T)
 	}
       } else if (!irref_isk(refp) &&
 		 !regsp_used(snap_ref_regsp(T, J->exitno, rfilt, refp))) {
-	if (!(ir->o == IR_CONV && ir->op2 == IRCONV_NUM_INT))
-	  lj_snap_s390x_log_bad_parent(J, T, snap, map, sn, refp, ir, "conv");
 	lj_assertJ(ir->o == IR_CONV && ir->op2 == IRCONV_NUM_INT,
 		   "sunk parent IR %04d has bad op %d", refp - REF_BIAS, ir->o);
 	J->slot[snap_slot(sn)] = snap_pref(J, T, map, nent, seen, rfilt,
@@ -969,8 +800,6 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
   IRIns *ir = &T->ir[ref];
   IRType1 t = ir->t;
   RegSP rs = ir->prev;
-  RegSP orig_rs = rs, renamed_rs = rs;
-  int pref_applied = 0;
   if (irref_isk(ref)) {  /* Restore constant slot. */
     if (ir->o == IR_KPTR) {
       o->u64 = (uint64_t)(uintptr_t)ir_kptr(ir);
@@ -983,15 +812,13 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
     return;
   }
   if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
-    rs = renamed_rs = snap_renameref(T, snapno, ref, rs);
+    rs = snap_renameref(T, snapno, ref, rs);
   rs = snap_canon_regsp(ir, rs);
 #if LJ_TARGET_S390X
   if (irt_isinteger(t) && ra_hasspill(regsp_spill(rs)) &&
       !ra_noreg(regsp_reg(rs)) && regsp_reg(rs) != RID_SP &&
-      snap_s390x_restore_pref_reg_enabled()) {
+      snap_s390x_restore_pref_reg_enabled())
     rs = REGSP(regsp_reg(rs), SPS_NONE);
-    pref_applied = 1;
-  }
 #endif
   if (ra_hasspill(regsp_spill(rs))) {  /* Restore from spill slot. */
     int32_t *sps = &ex->spill[regsp_spill(rs)];
@@ -1043,8 +870,6 @@ static void snap_restoreval(jit_State *J, GCtrace *T, ExitState *ex,
       setgcV(J->L, o, (GCobj *)ex->gpr[r-RID_MIN_GPR], irt_toitype(t));
     }
   }
-  snap_s390x_restore_log(J, snapno, ir, ref, orig_rs, renamed_rs, rs,
-			 pref_applied, o);
 }
 
 #if LJ_HASFFI
@@ -1183,7 +1008,6 @@ static void snap_unsink(jit_State *J, GCtrace *T, ExitState *ex,
     GCtab *t = ir->o == IR_TNEW ? lj_tab_new(J->L, ir->op1, ir->op2) :
 				  lj_tab_dup(J->L, ir_ktab(&T->ir[ir->op1]));
     settabV(J->L, o, t);
-    snap_s390x_unsink_log(J, snapno, ir, (IRRef)(ir - T->ir), "alloc", o);
     irlast = &T->ir[T->snap[snapno].ref];
     for (irs = ir+1; irs < irlast; irs++)
       if (snap_store_for_alloc(T, ir, irs)) {
@@ -1217,7 +1041,6 @@ static void snap_unsink(jit_State *J, GCtrace *T, ExitState *ex,
 	  val = lj_tab_set(J->L, t, &tmp);
 	  /* NOBARRIER: The table is new (marked white). */
 	  snap_restoreval(J, T, ex, snapno, rfilt, irs->op2, val);
-	  snap_s390x_unsink_log(J, snapno, irs, (IRRef)(irs - T->ir), "store", val);
 	  if (LJ_SOFTFP32 && irs+1 < T->ir + T->nins && (irs+1)->o == IR_HIOP) {
 	    snap_restoreval(J, T, ex, snapno, rfilt, (irs+1)->op2, &tmp);
 	    val->u32.hi = tmp.u32.lo;
@@ -1276,41 +1099,10 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 #endif
   for (n = 0; n < nent; n++) {
     SnapEntry sn = map[n];
-#if LJ_TARGET_S390X
-    if (snap_s390x_bridge_restore_slot13_log_enabled() &&
-	snap_s390x_bridge_restore_slot13_focus(J) &&
-	snap_slot(sn) >= 9 && snap_slot(sn) <= 13) {
-      IRRef ref = snap_ref(sn);
-      IRIns *ir = &T->ir[ref];
-      TValue *o = &frame[snap_slot(sn)];
-      fprintf(stderr,
-	      "S390X_BRIDGE_RESTORE phase=scan trace=%u exit=%u pc=%p op=%u slot=%u ref=%u norestore=%u key=%u cont=%u frame=%u ir_o=%u ir_t=%u ir_prev=%u pre_itype=%d pre_u64=0x%016llx\n",
-	      (unsigned int)J->parent, (unsigned int)J->exitno,
-	      (const void *)pc, (unsigned int)(pc ? bc_op(*pc) : 0),
-	      (unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
-	      (unsigned int)((sn & SNAP_NORESTORE) != 0),
-	      (unsigned int)((sn & SNAP_KEYINDEX) != 0),
-	      (unsigned int)((sn & SNAP_CONT) != 0),
-	      (unsigned int)((sn & SNAP_FRAME) != 0),
-	      (unsigned int)ir->o, (unsigned int)irt_type(ir->t),
-	      (unsigned int)ir->prev, (int)itype(o),
-	      (unsigned long long)o->u64);
-    }
-#endif
     if (!(sn & SNAP_NORESTORE)) {
       TValue *o = &frame[snap_slot(sn)];
       IRRef ref = snap_ref(sn);
       IRIns *ir = &T->ir[ref];
-#if LJ_TARGET_S390X
-      if (snap_s390x_unsink_log_enabled()) {
-	fprintf(stderr,
-		"S390X_UNSINK_SCAN trace=%u exit=%u slot=%u ref=%u ir_r=%u ir_prev=%u norestore=%u\n",
-		(unsigned int)J->parent, (unsigned int)J->exitno,
-		(unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
-		(unsigned int)ir->r, (unsigned int)ir->prev,
-		(unsigned int)((sn & SNAP_NORESTORE) != 0));
-      }
-#endif
       if (snap_restore_sunkalloc(T, snapno, ir)) {
 	MSize j;
 	for (j = 0; j < n; j++)
@@ -1319,32 +1111,10 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	    goto dupslot;
 	  }
 	snap_unsink(J, T, ex, snapno, rfilt, ir, o);
-	if (snap_s390x_unsink_log_enabled()) {
-	  fprintf(stderr,
-		  "S390X_UNSINK trace=%u exit=%u slot=%u ref=%u final_itype=%d u64=0x%016llx n=%g\n",
-		  (unsigned int)J->parent, (unsigned int)J->exitno,
-		  (unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
-		  (int)itype(o), (unsigned long long)o->u64,
-		  tvisnum(o) ? numV(o) : 0.0);
-	}
       dupslot:
 	continue;
       }
       snap_restoreval(J, T, ex, snapno, rfilt, ref, o);
-#if LJ_TARGET_S390X
-      if (snap_s390x_restore_log_enabled() && snap_s390x_restore_focus_match(J)) {
-	RegSP rs = ir->prev;
-	if (LJ_UNLIKELY(bloomtest(rfilt, ref)))
-	  rs = snap_renameref(T, snapno, ref, rs);
-	fprintf(stderr,
-		"S390X_RESTORE trace=%u exit=%u slot=%u ref=%u ir_r=%d ir_prev=%u final_rs=%u final_reg=%d final_spill=%d itype=%d u64=0x%016llx n=%g\n",
-		(unsigned int)J->parent, (unsigned int)J->exitno,
-		(unsigned int)snap_slot(sn), (unsigned int)(ref - REF_BIAS),
-		(int)ir->r, (unsigned int)ir->prev, (unsigned int)rs,
-		(int)regsp_reg(rs), (int)regsp_spill(rs), (int)itype(o),
-		(unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
-      }
-#endif
       if (LJ_SOFTFP32 && (sn & SNAP_SOFTFPNUM) && tvisint(o)) {
 	TValue tmp;
 	snap_restoreval(J, T, ex, snapno, rfilt, ref+1, &tmp);
@@ -1360,17 +1130,6 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
 	o->u32.lo = (uint32_t)(LJ_DUALNUM ? intV(o) : lj_num2int(numV(o)));
 	o->u32.hi = LJ_KEYINDEX;
       }
-#if LJ_TARGET_S390X
-      if (snap_s390x_bridge_restore_slot13_log_enabled() &&
-	  snap_s390x_bridge_restore_slot13_focus(J) &&
-	  snap_slot(sn) >= 9 && snap_slot(sn) <= 13) {
-	fprintf(stderr,
-		"S390X_BRIDGE_RESTORE phase=post trace=%u exit=%u slot=%u itype=%d u64=0x%016llx n=%g\n",
-		(unsigned int)J->parent, (unsigned int)J->exitno,
-		(unsigned int)snap_slot(sn), (int)itype(o),
-		(unsigned long long)o->u64, tvisnum(o) ? numV(o) : 0.0);
-      }
-#endif
     }
   }
 #if LJ_FR2
@@ -1390,20 +1149,6 @@ const BCIns *lj_snap_restore(jit_State *J, void *exptr)
     L->top = frame + snap->nslots;
     break;
   }
-#if LJ_TARGET_S390X
-  if (snap_s390x_bridge_restore_slot13_log_enabled() &&
-      snap_s390x_bridge_restore_slot13_focus(J)) {
-    int s;
-    for (s = 9; s <= 13; s++) {
-      TValue *o = &L->base[s];
-      fprintf(stderr,
-	      "S390X_BRIDGE_RESTORE phase=final trace=%u exit=%u slot=%d itype=%d u64=0x%016llx n=%g\n",
-	      (unsigned int)J->parent, (unsigned int)J->exitno,
-	      s, (int)itype(o), (unsigned long long)o->u64,
-	      tvisnum(o) ? numV(o) : 0.0);
-    }
-  }
-#endif
   return resume_pc;
 }
 

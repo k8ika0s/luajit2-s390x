@@ -67,11 +67,6 @@ static int lj_trace_s390x_slot_log_enabled(void)
   return 0;
 }
 
-static int lj_trace_s390x_iter_log_enabled(void)
-{
-  return 0;
-}
-
 static int lj_trace_s390x_vload_probe_enabled(void)
 {
   return 0;
@@ -765,25 +760,6 @@ static void lj_trace_s390x_log_trace_meta(jit_State *J, GCtrace *T,
 #else
   UNUSED(J); UNUSED(T); UNUSED(phase);
 #endif
-}
-
-LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot)
-{
-  int i;
-  if (!lj_trace_s390x_iter_log_enabled() || !base || !iterslot)
-    return;
-  fprintf(stderr, "S390X_ITER base=%p iterslot=%p delta=%td\n",
-	  (const void *)base, (const void *)iterslot, iterslot - base);
-  for (i = -2; i < 10; i++) {
-    const TValue *o = base + i;
-    fprintf(stderr, "S390X_ITER base_slot=%d ptr=%p itype=%d u64=0x%016llx\n",
-	    i, (const void *)o, (int)itype(o), (unsigned long long)o->u64);
-  }
-  for (i = -2; i < 10; i++) {
-    const TValue *o = iterslot + i;
-    fprintf(stderr, "S390X_ITER iter_slot=%d ptr=%p itype=%d u64=0x%016llx\n",
-	    i, (const void *)o, (int)itype(o), (unsigned long long)o->u64);
-  }
 }
 
 static void lj_trace_s390x_start_log(jit_State *J, const BCIns *pc)
@@ -2606,12 +2582,6 @@ LJ_FUNC int32_t lj_trace_s390x_sload_probe(const void *effp, int32_t ofs)
   UNUSED(effp);
   UNUSED(ofs);
   return 0;
-}
-
-LJ_FUNC void lj_trace_s390x_iter_log(const TValue *base, const TValue *iterslot)
-{
-  UNUSED(base);
-  UNUSED(iterslot);
 }
 
 #endif
