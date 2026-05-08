@@ -258,7 +258,7 @@ static void *callback_mcode_init(global_State *g, uint32_t *page)
   MSize slot;
 #if LJ_ARCH_PPC_ELFV2
   // Needs to be in sync with lj_vm_ffi_callback.
-  lj_assertX(CALLBACK_MCODE_SIZE == 4096, "bad callback mcode size");
+  lua_assert(CALLBACK_MCODE_SIZE == 4096);
   for (slot = 0; slot < CALLBACK_MAX_SLOT; slot++) {
     *p = PPCI_B | (((page+CALLBACK_MAX_SLOT-p) & 0x00ffffffu) << 2);
     p++;

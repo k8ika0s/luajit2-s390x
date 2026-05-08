@@ -10,7 +10,6 @@
 #include "lj_gc.h"
 #include "lj_err.h"
 #include "lj_str.h"
-#include "lj_tab.h"
 #include "lj_char.h"
 #include "lj_prng.h"
 
@@ -55,6 +54,7 @@ const char *lj_str_find(const char *s, const char *p, MSize slen, MSize plen)
   if (plen <= slen) {
     if (plen == 0) {
       return s;
+#if LJ_TARGET_S390X
     } else if (plen == 1) {
       return (const char *)memchr(s, *(const uint8_t *)p, slen);
     } else if (plen == 2 && slen <= 64) {
@@ -79,7 +79,6 @@ const char *lj_str_find(const char *s, const char *p, MSize slen, MSize plen)
 	s++; slen--;
       }
 #undef LJ_STR_FIND_2
-#if LJ_TARGET_S390X
     } else if (slen <= 64) {
       int c = *(const uint8_t *)p++;
       plen--; slen -= plen;

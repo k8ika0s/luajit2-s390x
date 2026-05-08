@@ -790,7 +790,6 @@ static void cp_push_attributes(CPDecl *decl)
 {
   CType *ct = &decl->stack[decl->pos];
   if (ctype_isfunc(ct->info)) {  /* Ok to modify in-place. */
-    ct->info |= (decl->fattr & (CTF_PUREFUNC|CTF_CONSTFUNC|CTF_SUMARGS));
 #if LJ_TARGET_X86
     if ((decl->fattr & CTFP_CCONV))
       ct->info = (ct->info & (CTMASK_NUM|CTF_VARARG|CTMASK_CID)) +
@@ -1099,8 +1098,6 @@ static void cp_decl_gccattribute(CPState *cp, CPDecl *decl)
 		"\006packed" "\012__packed__"
 		"\004mode" "\010__mode__"
 		"\013vector_size" "\017__vector_size__"
-		"\004pure" "\010__pure__"
-		"\016luajit_sumargs" "\022__luajit_sumargs__"
 #if LJ_TARGET_X86
 		"\007regparm" "\013__regparm__"
 		"\005cdecl"  "\011__cdecl__"
@@ -1125,34 +1122,28 @@ static void cp_decl_gccattribute(CPState *cp, CPDecl *decl)
 	  if (vsize) CTF_INSERT(decl->attr, VSIZEP, lj_fls(vsize));
 	}
 	break;
-      case 8: case 9: /* pure */
-	decl->fattr |= CTF_PUREFUNC;
-	break;
-      case 10: case 11: /* luajit_sumargs */
-	decl->fattr |= CTF_SUMARGS;
-	break;
 #if LJ_TARGET_X86
-      case 12: case 13: /* regparm */
+      case 8: case 9: /* regparm */
 	CTF_INSERT(decl->fattr, REGPARM, cp_decl_sizeattr(cp));
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 14: case 15: /* cdecl */
+      case 10: case 11: /* cdecl */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_CDECL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 16: case 17: /* thiscall */
+      case 12: case 13: /* thiscall */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_THISCALL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 18: case 19: /* fastcall */
+      case 14: case 15: /* fastcall */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_FASTCALL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 20: case 21: /* stdcall */
+      case 16: case 17: /* stdcall */
 	CTF_INSERT(decl->fattr, CCONV, CTCC_STDCALL);
 	decl->fattr |= CTFP_CCONV;
 	break;
-      case 22: case 23: /* sseregparm */
+      case 18: case 19: /* sseregparm */
 	decl->fattr |= CTF_SSEREGPARM;
 	decl->fattr |= CTFP_CCONV;
 	break;
@@ -1161,8 +1152,6 @@ static void cp_decl_gccattribute(CPState *cp, CPDecl *decl)
 	goto skip_attr;
       }
     } else if (cp->tok >= CTOK_FIRSTDECL) {  /* For __attribute((const)) etc. */
-      if (cp->tok == CTOK_CONST)
-	decl->fattr |= CTF_CONSTFUNC;
       cp_next(cp);
     skip_attr:
       if (cp_opt(cp, '(')) {

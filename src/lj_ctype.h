@@ -48,7 +48,7 @@ LJ_STATIC_ASSERT(((int)CT_STRUCT & (int)CT_ARRAY) == CT_STRUCT);
 ** |ARRAY     VCcv...V  A   cid | size   |       | type  |       |
 ** |VOID      ..cv....  A       | size   |       | type  |       |
 ** |ENUM                A   cid | size   | const | name? | name? |
-** |FUNC      ....VSPC cc   cid | nargs  | field | name? | name? |
+** |FUNC      ....VS.. cc   cid | nargs  | field | name? | name? |
 ** |TYPEDEF                 cid |        |       | name  | name  |
 ** |ATTRIB        attrnum   cid | attr   | sib?  | type? |       |
 ** |FIELD                   cid | offset | field |       | name? |
@@ -74,9 +74,6 @@ LJ_STATIC_ASSERT(((int)CT_STRUCT & (int)CT_ARRAY) == CT_STRUCT);
 #define CTF_UNION	0x00800000u	/* Union: STRUCT. */
 #define CTF_VARARG	0x00800000u	/* Vararg: FUNC. */
 #define CTF_SSEREGPARM	0x00400000u	/* SSE register parameters: FUNC. */
-#define CTF_PUREFUNC	0x00200000u	/* No side effects, may read memory: FUNC. */
-#define CTF_CONSTFUNC	0x00100000u	/* No side effects, no memory reads: FUNC. */
-#define CTF_SUMARGS	0x01000000u	/* Returns sum of scalar arguments: FUNC. */
 
 #define CTF_QUAL	(CTF_CONST|CTF_VOLATILE)
 #define CTF_ALIGN	(CTMASK_ALIGN<<CTSHIFT_ALIGN)
@@ -207,9 +204,6 @@ typedef struct CTState {
 #define ctype_isarray(info)	(ctype_type((info)) == CT_ARRAY)
 #define ctype_isstruct(info)	(ctype_type((info)) == CT_STRUCT)
 #define ctype_isfunc(info)	(ctype_type((info)) == CT_FUNC)
-#define ctype_func_ispure(info)	(((info) & (CTF_PUREFUNC|CTF_CONSTFUNC)) != 0)
-#define ctype_func_isconst(info) (((info) & CTF_CONSTFUNC) != 0)
-#define ctype_func_issumargs(info) (((info) & CTF_SUMARGS) != 0)
 #define ctype_isenum(info)	(ctype_type((info)) == CT_ENUM)
 #define ctype_istypedef(info)	(ctype_type((info)) == CT_TYPEDEF)
 #define ctype_isattrib(info)	(ctype_type((info)) == CT_ATTRIB)
