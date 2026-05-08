@@ -1809,10 +1809,8 @@ static void asm_guardcc(ASMState *as, int cc)
   MCode *target = asm_exitstub_addr(as, as->snapno);
   MCode *p = as->mcp;
   int32_t mark = (int32_t)(as->curins - REF_BIAS);
-  lj_asm_s390x_guard_log(as, cc, target, p, 0);
   if (LJ_UNLIKELY(p == as->invmcp)) {
     as->loopinv = 1;
-    lj_asm_s390x_guard_log(as, cc, target, p, 1);
     emit_u32_at(p, S390X_INS_BRC(CC_AL,
 				  (int32_t)(((char *)target - (char *)p) >> 1)));
     /* Code is emitted backwards: place the branch first so the mark write
