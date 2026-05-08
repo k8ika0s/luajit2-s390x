@@ -104,11 +104,6 @@ static int asm_s390x_gc64_signed_int_sload_enabled(void)
   return LJ_GC64;
 }
 
-static int asm_s390x_call_log_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_direct_call_arg_enabled(void)
 {
   return 1;
@@ -1459,35 +1454,7 @@ static int asm_gencall_uses_r6(ASMState *as, const CCallInfo *ci, IRRef *args)
   return 0;
 }
 
-static void asm_s390x_call_preserve_log(ASMState *as, const char *kind,
-					int slot, IRRef ref, Reg src,
-					Reg target, Reg save)
-{
-  if (!asm_s390x_call_log_enabled())
-    return;
-  fprintf(stderr,
-	  "S390X_CALL_PRESERVE kind=%s curins=%d slot=%d ref=%d"
-	  " src=%d target=%d save=%d src_eq_target=%d\n",
-	  kind, (int)(as->curins - REF_BIAS), slot, (int)(ref - REF_BIAS),
-	  (int)src, target == RID_NONE ? -1 : (int)target, (int)save,
-	  target != RID_NONE && src == target);
-}
-
-static void asm_s390x_call_arg_log(ASMState *as, const char *kind, int slot,
-				   IRRef ref, Reg src, Reg target)
-{
-  if (!asm_s390x_call_log_enabled())
-    return;
-  fprintf(stderr,
-	  "S390X_CALL_ARG kind=%s curins=%d slot=%d ref=%d src=%d target=%d"
-	  " hasreg=%d src_eq_target=%d\n",
-	  kind, (int)(as->curins - REF_BIAS), slot, (int)(ref - REF_BIAS),
-	  (int)src, target == RID_NONE ? -1 : (int)target, ra_hasreg(src),
-	  target != RID_NONE && src == target);
-}
-
-static void asm_gencall_preserve(ASMState *as, IRRef ref, Reg gpr,
-				 Reg target, int slot, const char *kind)
+static void asm_gencall_preserve(ASMState *as, IRRef ref, Reg gpr)
 {
   Reg save;
   RegSet allow = RSET_GPR_CALL_NOB & ~RID2RSET(gpr);
@@ -1505,7 +1472,6 @@ static void asm_gencall_preserve(ASMState *as, IRRef ref, Reg gpr,
   lj_assertA(allow != RSET_EMPTY, "no preserved reg for call arg %04d",
 	     ref - REF_BIAS);
   save = ra_pick(as, allow);
-  asm_s390x_call_preserve_log(as, kind, slot, ref, gpr, target, save);
   ra_rename(as, gpr, save);
 }
 
@@ -1517,8 +1483,7 @@ static RegSet asm_gencall_nonarg_gpr(Reg gpr)
   return allow;
 }
 
-static void asm_gencall_preserve_fpr(ASMState *as, IRRef ref, Reg fpr,
-				     Reg target, int slot, const char *kind)
+static void asm_gencall_preserve_fpr(ASMState *as, IRRef ref, Reg fpr)
 {
   Reg save;
   RegSet allow = RSET_FPR_CALL & ~RID2RSET(fpr);
@@ -1533,7 +1498,6 @@ static void asm_gencall_preserve_fpr(ASMState *as, IRRef ref, Reg fpr,
   lj_assertA(allow != RSET_EMPTY, "no preserved fpr for call arg %04d",
 	     ref - REF_BIAS);
   save = ra_pick(as, allow);
-  asm_s390x_call_preserve_log(as, kind, slot, ref, fpr, target, save);
   ra_rename(as, fpr, save);
 }
 
@@ -1550,7 +1514,7 @@ static Reg asm_gencall_stack_alloc_gpr(ASMState *as, IRRef ref, RegSet allow)
   if (!irref_isk(ref)) {
     Reg src = IR(ref)->r;
     if (ra_hasreg(src) && src >= REGARG_FIRSTGPR && src <= REGARG_LASTGPR)
-      asm_gencall_preserve(as, ref, src, RID_NONE, -1, "stack_gpr");
+      asm_gencall_preserve(as, ref, src);
     return ra_alloc1(as, ref, allow);
   }
   return ra_allock(as, asm_kintptr(as, ref), allow);
@@ -1585,32 +1549,6 @@ static void asm_gencall_stack_fpr(ASMState *as, IRRef ref, int32_t ofs)
 				    ofs + (LJ_BE ? 4 : 0)));
   else
     emit_storef64ofs(as, src, RID_SP, ofs);
-}
-
-static void asm_s390x_call_log(ASMState *as, const char *phase, uint32_t nargs,
-			       IRRef *args)
-{
-  Reg gpr, fpr;
-  if (!asm_s390x_call_log_enabled())
-    return;
-  fprintf(stderr, "S390X_CALL phase=%s curins=%d nargs=%u", phase,
-	  (int)(as->curins - REF_BIAS), (unsigned int)nargs);
-  for (gpr = REGARG_FIRSTGPR; gpr <= REGARG_LASTGPR; gpr++) {
-    IRRef ref = regcost_ref(as->cost[gpr]);
-    fprintf(stderr, " r%d=ref%d/free%d", (int)gpr, (int)(ref - REF_BIAS),
-	    rset_test(as->freeset, gpr) ? 1 : 0);
-  }
-  for (fpr = REGARG_FIRSTFPR; fpr <= REGARG_LASTFPR; fpr += 2) {
-    IRRef ref = regcost_ref(as->cost[fpr]);
-    fprintf(stderr, " f%d=ref%d/free%d", (int)(fpr - RID_F0), (int)(ref - REF_BIAS),
-	    rset_test(as->freeset, fpr) ? 1 : 0);
-  }
-  if (args) {
-    uint32_t n;
-    for (n = 0; n < nargs; n++)
-      fprintf(stderr, " arg%u=%d", (unsigned int)n, (int)(args[n] - REF_BIAS));
-  }
-  fprintf(stderr, "\n");
 }
 
 static void asm_gencall_dup_fanout(ASMState *as, IRRef *args, uint32_t nargs,
@@ -2210,7 +2148,6 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
     dup_first[n] = 255;
     loc_ofs[n] = 0;
   }
-  asm_s390x_call_log(as, "enter", nargs, args);
   if (ci->func)
     emit_calli(as, RID_R14, (void *)ci->func);
   for (gpr = REGARG_FIRSTGPR; gpr <= REGARG_LASTGPR; gpr++) {
@@ -2305,12 +2242,11 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 			       (asm_gencall_arg_ref_count(args, nargs, ref) == 1 ||
 				asm_gencall_arg_has_fpr_dup(loc_kind, dup_first,
 							    nargs, n));
-	  asm_s390x_call_arg_log(as, "fpr", (int)n, ref, src, fpr);
 	  if (!direct_fpr_arg) {
 	    if (ra_hasreg(src) &&
 		src >= REGARG_FIRSTFPR && src <= REGARG_LASTFPR &&
 		(src & 1) == 0)
-	      asm_gencall_preserve_fpr(as, ref, src, fpr, (int)n, "fpr");
+	      asm_gencall_preserve_fpr(as, ref, src);
 	    ra_alloc1(as, ref, asm_gencall_nonarg_fpr(fpr));
 	  }
 	}
@@ -2339,11 +2275,10 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
       }
       if (!irref_isk(ref)) {
 	Reg src = IR(ref)->r;
-	asm_s390x_call_arg_log(as, "gpr", (int)n, ref, src, gpr);
 	if (!direct_call_arg || ra_hasreg(src)) {
 	  if (ra_hasreg(src) &&
 	      src >= REGARG_FIRSTGPR && src <= REGARG_LASTGPR)
-	    asm_gencall_preserve(as, ref, src, gpr, (int)n, "gpr");
+	    asm_gencall_preserve(as, ref, src);
 	  ra_alloc1(as, ref, asm_gencall_nonarg_gpr(gpr));
 	}
       }
@@ -2362,7 +2297,6 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
       spofs += 8;
     }
   }
-  asm_s390x_call_log(as, "assigned", nargs, args);
 }
 
 static void asm_setupresult_drop(ASMState *as, IRIns *ir, const CCallInfo *ci,
