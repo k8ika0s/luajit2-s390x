@@ -1001,7 +1001,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  la RA, 16(RA, BASE)		// RA previously set to RA*8.
   |->vmeta_call:			// Resolve and call __call metamethod.
   |  // BASE = old base, RA = new base, RC = nargs+1, PC = return
-  |  stg NARGS:RD, SAVE_TMP		// Save RA, RC for us (not sure about this).
+  |  stg NARGS:RD, SAVE_TMP		// Preserve nargs while building the top pointer.
   |  lgr RB, RA
   |  lg L:CARG1, SAVE_L
   |  stg BASE, L:CARG1->base
@@ -2635,7 +2635,7 @@ static void build_subroutines(BuildCtx *ctx)
   |  jh >2
   |1:
   |  lmg CARG1, CARG5, CCSTATE->gpr[0]
-  |  // TODO: conditionally load FPRs?
+  |  // Reload all FPR argument slots; unused lanes are ignored by the callee.
   |  ld FARG1, CCSTATE->fpr[0]
   |  ld FARG2, CCSTATE->fpr[1]
   |  ld FARG3, CCSTATE->fpr[2]

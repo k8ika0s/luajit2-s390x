@@ -148,7 +148,7 @@ typedef union FPRArg {
 #define CCALL_NARG_FPR		4	/* FPR 0,2,4,6 */
 #define CCALL_NRET_GPR		1	/* GPR 2 */
 #define CCALL_NRET_FPR		1	/* FPR 0 */
-#define CCALL_SPS_EXTRA		20	/* 160-byte callee save area (not sure if this is the right place) */
+#define CCALL_SPS_EXTRA		20	/* 160-byte z/Architecture caller save area. */
 #define CCALL_SPS_FREE		0
 
 typedef intptr_t GPRArg;
