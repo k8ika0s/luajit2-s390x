@@ -510,16 +510,6 @@ static int asm_s390x_addk1_bitop_loop_carry(ASMState *as, IRIns *ir)
   return le_uses == 1 && phi_uses == 1;
 }
 
-static int asm_s390x_sload_log_enabled(void)
-{
-  return 0;
-}
-
-static int asm_s390x_sloadmap_log_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_forl_current_compare_fix_enabled(void)
 {
   return 1;
@@ -5058,13 +5048,6 @@ static void asm_sload(ASMState *as, IRIns *ir)
   base = ra_allocbase(as, allow);
 
 dotypecheck:
-  if (asm_s390x_sload_log_enabled()) {
-    fprintf(stderr,
-	    "S390X_SLOAD curins=%d ref=%d op1=%d ofs=%d vofs=%d type=%d op2=0x%x used=%d dest=%d base=%d\n",
-	    (int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
-	    (int)ir->op1, (int)ofs, (int)vofs, (int)irt_type(t),
-	    (unsigned int)ir->op2, (int)ra_used(ir), (int)dest, (int)base);
-  }
   rset_clear(allow, base);
   if (ir->op2 & IRSLOAD_TYPECHECK) {
     RegSet tallow = allow;
@@ -5074,13 +5057,6 @@ dotypecheck:
     Reg expected = RID_NONE;
     if (ir->op2 & IRSLOAD_KEYINDEX) {
       expected = ra_scratch(as, rset_exclude(tallow, tmp));
-      if (asm_s390x_sloadmap_log_enabled()) {
-	fprintf(stderr,
-		"S390X_SLOADMAP curins=%d ref=%d kind=keyindex op1=%d op2=0x%x ofs=%d vofs=%d base=%d dest=%d tmp=%d expected=%d\n",
-		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
-		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
-		(int)base, (int)dest, (int)tmp, (int)expected);
-      }
       asm_s390x_guard_log(as, "sload_keyindex", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
@@ -5088,13 +5064,6 @@ dotypecheck:
       emit_shiftimm(as, S390XI_SRLG, tmp, tmp, 47);
     } else if (irt_isinteger(t)) {
       expected = ra_scratch(as, rset_exclude(tallow, tmp));
-      if (asm_s390x_sloadmap_log_enabled()) {
-	fprintf(stderr,
-		"S390X_SLOADMAP curins=%d ref=%d kind=int op1=%d op2=0x%x ofs=%d vofs=%d base=%d dest=%d tmp=%d expected=%d\n",
-		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
-		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
-		(int)base, (int)dest, (int)tmp, (int)expected);
-      }
       asm_s390x_guard_log(as, "sload_int", ir, CC_NE, ofs, vofs);
       asm_guardcc(as, CC_NE);
       emit_u32(as, S390X_INS_RXE(S390XI_CGR, tmp, expected));
@@ -5119,13 +5088,6 @@ dotypecheck:
     } else if (irt_isnum(t)) {
       Reg limit = ra_scratch(as, rset_exclude(tallow, tmp));
       int numdest = ra_hasreg(dest);
-      if (asm_s390x_sloadmap_log_enabled()) {
-	fprintf(stderr,
-		"S390X_SLOADMAP curins=%d ref=%d kind=num op1=%d op2=0x%x ofs=%d vofs=%d base=%d dest=%d tmp=%d expected=%d\n",
-		(int)(as->curins - REF_BIAS), (int)((ir - as->ir) - REF_BIAS),
-		(int)ir->op1, (unsigned int)ir->op2, (int)ofs, (int)vofs,
-		(int)base, (int)dest, (int)tmp, (int)limit);
-      }
       asm_s390x_guard_log(as, "sload_num", ir,
 			  numdest ? CC_HI : CC_HS, ofs, vofs);
       if (numdest) {
