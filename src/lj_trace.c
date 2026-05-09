@@ -165,16 +165,6 @@ static int lj_trace_s390x_jloop_exit_focus_match(jit_State *J)
 	 (exitno < 0 || J->exitno == (ExitNo)exitno);
 }
 
-static int lj_trace_s390x_root_jloop_child_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_jloop_exec_child_enabled(void)
-{
-  return 0;
-}
-
 static int lj_trace_s390x_root_promote_child_loop_enabled(void)
 {
   return 0;
@@ -249,24 +239,6 @@ static int lj_trace_s390x_skip_patch_bcjmp_loopdesc_enabled(void)
 
 static int lj_trace_s390x_stop_retarget_loopdesc_enabled(void)
 {
-  return 0;
-}
-
-/* Find a side trace below the given root that links from (parent, exitno). */
-static TraceNo trace_find_child(jit_State *J, TraceNo rootno,
-				TraceNo parentno, ExitNo exitno)
-{
-  TraceNo traceno;
-  GCtrace *root = traceref(J, rootno);
-  if (root == NULL)
-    return 0;
-  for (traceno = root->nextside; traceno; traceno = traceref(J, traceno)->nextside) {
-    GCtrace *T = traceref(J, traceno);
-    if (T == NULL)
-      continue;
-    if (T->ir[REF_BASE].op1 == parentno && T->ir[REF_BASE].op2 == exitno)
-      return traceno;
-  }
   return 0;
 }
 
@@ -2038,40 +2010,6 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
 	retpc = &targetT->resumeins;
 	retop = bc_op(targetT->resumeins);
 	use_resume_contract = 1;
-	if (lj_trace_s390x_root_promote_child_loop_enabled() &&
-	    targetT->resumechild != 0) {
-	  GCtrace *childT = traceref(J, targetT->resumechild);
-	  if (J->state == LJ_TRACE_IDLE &&
-	      lj_trace_s390x_root_jloop_child_enabled()) {
-	    if (lj_trace_s390x_jloop_exit_log_enabled() &&
-		lj_trace_s390x_jloop_exit_focus_match(J)) {
-	      fprintf(stderr,
-		      "S390X_JLOOP_EXIT phase=resume-child-jloop parent=%u exit=%u trace=%u child=%u state=%u\n",
-		      (unsigned int)J->parent, (unsigned int)J->exitno,
-		      (unsigned int)T->traceno,
-		      (unsigned int)targetT->resumechild,
-		      (unsigned int)J->state);
-	    }
-	    J->patchins = *pc;
-	    J->patchpc = (BCIns *)pc;
-	    *J->patchpc = BCINS_AD(BC_JLOOP, bc_a(*pc), targetT->resumechild);
-	    J->bcskip = 1;
-	    return -17;
-	  }
-	  if (lj_trace_s390x_jloop_exit_log_enabled() &&
-	      lj_trace_s390x_jloop_exit_focus_match(J)) {
-	    fprintf(stderr,
-		    "S390X_JLOOP_EXIT phase=resume-child parent=%u exit=%u trace=%u child=%u child_startpc=%p child_startop=%u child_link=%u child_linktype=%u state=%u\n",
-		    (unsigned int)J->parent, (unsigned int)J->exitno,
-		    (unsigned int)T->traceno,
-		    (unsigned int)targetT->resumechild,
-		    (const void *)mref(childT->startpc, BCIns),
-		    (unsigned int)bc_op(childT->startins),
-		    (unsigned int)childT->link,
-		    (unsigned int)childT->linktype,
-		    (unsigned int)J->state);
-	  }
-	}
       } else if (!use_resume_contract &&
 		 retop == BC_ITERN && targetT->root == 0 && targetT->unused1 != 0) {
 	retop = (BCOp)targetT->unused1;
@@ -2141,67 +2079,6 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
 		  (unsigned int)execT->mcloop,
 		  (unsigned int)execT->unused1);
 	}
-      }
-    }
-    if (use_resume_contract &&
-	lj_trace_s390x_jloop_exec_child_enabled() &&
-	execno != 0 && execno != targetT->traceno &&
-	J->parent == execno) {
-      TraceNo rootno = targetT->root ? targetT->root : targetT->traceno;
-      TraceNo childno = trace_find_child(J, rootno, execno, J->exitno);
-      if (lj_trace_s390x_jloop_exit_log_enabled() &&
-	  lj_trace_s390x_jloop_exit_focus_match(J)) {
-	fprintf(stderr,
-		"S390X_JLOOP_EXIT phase=exec-child-query parent=%u exit=%u trace=%u target=%u exec=%u child=%u state=%u\n",
-		(unsigned int)J->parent, (unsigned int)J->exitno,
-		(unsigned int)T->traceno, (unsigned int)targetT->traceno,
-		(unsigned int)execno, (unsigned int)childno,
-		(unsigned int)J->state);
-      }
-      if (childno != 0) {
-	if (lj_trace_s390x_jloop_exit_log_enabled() &&
-	    lj_trace_s390x_jloop_exit_focus_match(J)) {
-	  fprintf(stderr,
-		  "S390X_JLOOP_EXIT phase=retarget-exec-child parent=%u exit=%u trace=%u target=%u exec=%u child=%u state=%u\n",
-		  (unsigned int)J->parent, (unsigned int)J->exitno,
-		  (unsigned int)T->traceno, (unsigned int)targetT->traceno,
-		  (unsigned int)execno, (unsigned int)childno,
-		  (unsigned int)J->state);
-	}
-	J->patchins = *pc;
-	J->patchpc = (BCIns *)pc;
-	*J->patchpc = BCINS_AD(BC_JLOOP, bc_a(*pc), childno);
-	J->bcskip = 1;
-	return -17;
-      }
-    }
-    if (use_resume_contract &&
-	lj_trace_s390x_root_jloop_child_enabled() &&
-	J->parent == targetT->traceno) {
-      TraceNo childno = trace_find_child(J, targetT->traceno, J->parent,
-					 J->exitno);
-      if (lj_trace_s390x_jloop_exit_log_enabled() &&
-	  lj_trace_s390x_jloop_exit_focus_match(J)) {
-	fprintf(stderr,
-		"S390X_JLOOP_EXIT phase=child-query parent=%u exit=%u trace=%u child=%u state=%u\n",
-		(unsigned int)J->parent, (unsigned int)J->exitno,
-		(unsigned int)T->traceno, (unsigned int)childno,
-		(unsigned int)J->state);
-      }
-      if (childno != 0) {
-	if (lj_trace_s390x_jloop_exit_log_enabled() &&
-	    lj_trace_s390x_jloop_exit_focus_match(J)) {
-	  fprintf(stderr,
-		  "S390X_JLOOP_EXIT phase=retarget-child parent=%u exit=%u trace=%u child=%u state=%u\n",
-		  (unsigned int)J->parent, (unsigned int)J->exitno,
-		  (unsigned int)T->traceno, (unsigned int)childno,
-		  (unsigned int)J->state);
-	}
-	J->patchins = *pc;
-	J->patchpc = (BCIns *)pc;
-	*J->patchpc = BCINS_AD(BC_JLOOP, bc_a(*pc), childno);
-	J->bcskip = 1;
-	return -17;
       }
     }
     if (lj_trace_s390x_jloop_exec_self_pred_log_enabled() &&
