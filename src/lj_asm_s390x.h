@@ -109,11 +109,6 @@ static int asm_s390x_direct_call_arg_enabled(void)
   return 1;
 }
 
-static int asm_s390x_low32home_log_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_low32cmp_log_enabled(void)
 {
   return 0;
@@ -189,19 +184,6 @@ static int asm_s390x_is_low32home_store_value(IRIns *use, IRRef ref)
   default:
     return 0;
   }
-}
-
-static const char *asm_s390x_low32home_hard_kind(IRIns *use)
-{
-  if (irt_isguard(use->t))
-    return "guard";
-  if (use->o == IR_ASTORE || use->o == IR_HSTORE || use->o == IR_USTORE ||
-      use->o == IR_FSTORE || use->o == IR_XSTORE)
-    return "store";
-  if (use->o == IR_CALLN || use->o == IR_CALLL || use->o == IR_CALLS ||
-      use->o == IR_CALLXS)
-    return "call";
-  return "other";
 }
 
 static const char *asm_s390x_irop_name(IROp op)
@@ -749,74 +731,6 @@ static int asm_s390x_addk1_bitop_loop_carry(ASMState *as, IRIns *ir)
     return 0;
   }
   return le_uses == 1 && phi_uses == 1;
-}
-
-static void asm_s390x_low32home_log(ASMState *as, const char *phase, IRIns *ir)
-{
-  IRRef ref = (IRRef)(ir - as->ir);
-  IRIns *use;
-  int family_uses = 0;
-  int add_uses = 0, phi_uses = 0, store_uses = 0, guard_uses = 0;
-  int call_uses = 0, other_uses = 0;
-  int first_use_op = -1, first_hard_use_op = -1;
-  const char *first_hard_kind = "none";
-
-  if (!asm_s390x_low32home_log_enabled())
-    return;
-  if (!(asm_s390x_is_bitop_op(ir->o) ||
-	(ir->o == IR_ADD && !irt_isguard(ir->t))))
-    return;
-  if (!(irt_isint(ir->t) || irt_isu32(ir->t)))
-    return;
-
-  for (use = IR(as->orignins-1); use > ir; use--) {
-    if (use->op1 != ref && use->op2 != ref)
-      continue;
-    if (first_use_op == -1)
-      first_use_op = (int)use->o;
-    if (asm_s390x_is_low32home_family_use(use)) {
-      family_uses++;
-      if (use->o == IR_ADD && !irt_isguard(use->t))
-	add_uses++;
-      else if (use->o == IR_PHI)
-	phi_uses++;
-      continue;
-    }
-    if (first_hard_use_op == -1) {
-      first_hard_use_op = (int)use->o;
-      first_hard_kind = asm_s390x_low32home_hard_kind(use);
-    }
-    if (irt_isguard(use->t))
-      guard_uses++;
-    else if (use->o == IR_ASTORE || use->o == IR_HSTORE ||
-	     use->o == IR_USTORE || use->o == IR_FSTORE ||
-	     use->o == IR_XSTORE)
-      store_uses++;
-    else if (use->o == IR_CALLN || use->o == IR_CALLL ||
-	     use->o == IR_CALLS || use->o == IR_CALLXS)
-      call_uses++;
-    else
-      other_uses++;
-  }
-
-  fprintf(stderr,
-	  "S390X_LOW32HOME phase=%s curins=%d ir=%d op=%d type=%d family_uses=%d add_uses=%d phi_uses=%d store_uses=%d guard_uses=%d call_uses=%d other_uses=%d first_use_op=%d first_hard_use_op=%d first_hard_kind=%s can_carry=%d\n",
-	  phase,
-	  (int)(as->curins - REF_BIAS),
-	  (int)((ir - as->ir) - REF_BIAS),
-	  (int)ir->o,
-	  (int)irt_type(ir->t),
-	  family_uses,
-	  add_uses,
-	  phi_uses,
-	  store_uses,
-	  guard_uses,
-	  call_uses,
-	  other_uses,
-	  first_use_op,
-	  first_hard_use_op,
-	  first_hard_kind,
-	  (store_uses | guard_uses | call_uses | other_uses) == 0);
 }
 
 static void asm_s390x_low32cmp_log(ASMState *as, const char *phase, IROp op,
@@ -3049,7 +2963,6 @@ static void asm_add(ASMState *as, IRIns *ir)
     asm_s390x_nyi_ir(as, ir);
     return;
   }
-  asm_s390x_low32home_log(as, "add", ir);
   if (asm_add_pack_u32_identity(as, ir, dest, bnorm))
     return;
   if (asm_s390x_mod_mask_value_step(as, ir, dest))
@@ -3453,8 +3366,6 @@ static void asm_equal(ASMState *as, IRIns *ir)
 }
 static void asm_bnorm32(ASMState *as, IRIns *ir, Reg dest)
 {
-  if (asm_s390x_is_bitop_op(ir->o))
-    asm_s390x_low32home_log(as, "bnorm", ir);
   if (asm_s390x_can_defer_bnorm32(as, ir))
     return;
   if (irt_isu32(ir->t))
