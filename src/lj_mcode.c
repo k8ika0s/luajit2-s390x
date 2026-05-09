@@ -52,8 +52,10 @@ void lj_mcode_sync(void *start, void *end)
   sys_icache_invalidate(start, (char *)end-(char *)start);
 #elif LJ_TARGET_PPC
   lj_vm_cachesync(start, end);
-#elif defined(__GNUC__) || defined(__clang__)
+#elif LJ_TARGET_S390X && (defined(__GNUC__) || defined(__clang__))
   __builtin___clear_cache((char *)start, (char *)end);
+#elif defined(__GNUC__) || defined(__clang__)
+  __clear_cache(start, end);
 #else
 #error "Missing builtin to flush instruction cache"
 #endif

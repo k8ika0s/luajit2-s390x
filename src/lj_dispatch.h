@@ -150,11 +150,19 @@ LJ_FUNCA void LJ_FASTCALL lj_dispatch_profile(lua_State *L, const BCIns *pc);
 #if LJ_TARGET_WINDOWS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#if LJ_TARGET_S390X
 #define ERRNO_SAVE	volatile int olderr = errno; \
 			volatile DWORD oldwerr = GetLastError();
+#else
+#define ERRNO_SAVE	int olderr = errno; DWORD oldwerr = GetLastError();
+#endif
 #define ERRNO_RESTORE	errno = olderr; SetLastError(oldwerr);
 #else
+#if LJ_TARGET_S390X
 #define ERRNO_SAVE	volatile int olderr = errno;
+#else
+#define ERRNO_SAVE	int olderr = errno;
+#endif
 #define ERRNO_RESTORE	errno = olderr;
 #endif
 #else
