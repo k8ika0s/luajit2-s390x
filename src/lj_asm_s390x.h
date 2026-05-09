@@ -124,11 +124,6 @@ static int asm_s390x_low32cmp_log_enabled(void)
   return 0;
 }
 
-static int asm_s390x_bitop_log_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_bnorm_log_enabled(void)
 {
   return 0;
@@ -808,35 +803,6 @@ static int asm_s390x_can_use_low32_logic_op(ASMState *as, IRIns *ir)
     return 0;
   }
   return uses > 0;
-}
-
-static void asm_s390x_bitop_log(ASMState *as, const char *kind, IRIns *ir,
-				Reg dest, Reg left, Reg right, int rightisk)
-{
-  IRIns *lir = IR(ir->op1);
-  IRIns *rir = irref_isk(ir->op2) ? NULL : IR(ir->op2);
-  if (!asm_s390x_bitop_log_enabled())
-    return;
-  fprintf(stderr,
-	  "S390X_BITOP kind=%s curins=%d ir=%d op=%d type=%d dest=%d left=%d right=%d rightisk=%d leftref=%d leftop=%d left_r=%d rightref=%d rightop=%d right_r=%d is64=%d isu32=%d isint=%d\n",
-	  kind,
-	  (int)(as->curins - REF_BIAS),
-	  (int)((ir - as->ir) - REF_BIAS),
-	  (int)ir->o,
-	  (int)irt_type(ir->t),
-	  (int)dest,
-	  (int)left,
-	  (int)right,
-	  rightisk,
-	  (int)(ir->op1 - REF_BIAS),
-	  (int)lir->o,
-	  (int)lir->r,
-	  irref_isk(ir->op2) ? -1 : (int)(ir->op2 - REF_BIAS),
-	  rir ? (int)rir->o : -1,
-	  rir ? (int)rir->r : -1,
-	  (int)irt_is64(ir->t),
-	  (int)irt_isu32(ir->t),
-	  (int)irt_isinteger(ir->t));
 }
 
 static void asm_s390x_addhome_use_counts(ASMState *as, IRIns *ir,
@@ -3108,7 +3074,6 @@ static int asm_add_pack_u32_identity(ASMState *as, IRIns *ir, Reg dest, int bnor
 
   acc = ra_hintalloc_nobase(as, accref, dest, RSET_GPR_NOB, -233);
   src = ra_alloc1_nobase(as, srcref, rset_exclude(RSET_GPR_NOB, acc), -234);
-  asm_s390x_bitop_log(as, "pack_u32_identity_add", ir, dest, acc, src, 0);
   if (bnorm)
     asm_bnorm32(as, ir, dest);
   if (dest == acc)
@@ -3702,7 +3667,6 @@ static void asm_bitop_logic(ASMState *as, IRIns *ir, uint32_t op)
     ra_alloc1_nobase(as, ir->op2, rset_exclude(RSET_GPR_NOB, left), -232);
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -230);
   int low32logic = asm_s390x_can_use_low32_logic_op(as, ir);
-  asm_s390x_bitop_log(as, "logic", ir, dest, left, right, irref_isk(ir->op2));
   if (low32logic) {
     asm_bnorm32(as, ir, dest);
     if (op == S390XI_NGR)
@@ -3731,7 +3695,6 @@ static void asm_bnot(ASMState *as, IRIns *ir)
   Reg right = ra_allock(as, -1, rset_exclude(RSET_GPR_NOB, left));
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -233);
   int low32logic = asm_s390x_can_defer_bnorm32(as, ir);
-  asm_s390x_bitop_log(as, "bnot", ir, dest, left, right, 0);
   asm_bnorm32(as, ir, dest);
   if (low32logic)
     emit_u32(as, S390X_INS_RRF_M(S390XI_XRK, dest, right, left));
@@ -3746,7 +3709,6 @@ static void asm_bswap(ASMState *as, IRIns *ir)
   Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -235);
   Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -236);
   int low32logic = asm_s390x_can_defer_bnorm32(as, ir);
-  asm_s390x_bitop_log(as, "bswap", ir, dest, left, RID_NONE, 0);
   if (!irt_is64(ir->t)) {
     if (!low32logic) {
       if (irt_isu32(ir->t))
@@ -3771,7 +3733,6 @@ static void asm_band(ASMState *as, IRIns *ir)
     Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -231);
     Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -230);
     uint32_t op = IR(ir->op2)->i == 0xff ? S390XI_LLGCR : S390XI_LLGHR;
-    asm_s390x_bitop_log(as, "band_extract", ir, dest, left, RID_NONE, 1);
     asm_bnorm32(as, ir, dest);
     emit_u32(as, S390X_INS_RXE(op, dest, left));
     return;
@@ -3796,7 +3757,6 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -239);
     uint64_t immop;
     int32_t sh = IR(ir->op2)->i & 31;
-    asm_s390x_bitop_log(as, "shiftk", ir, dest, left, RID_NONE, 1);
     if (op == S390XI_SLLK && asm_s390x_can_defer_bnorm32(as, ir)) {
       emit_u48_pad8(as, S390X_INS_RSYI(S390XI_SLLK, dest, left, sh));
       return;
@@ -3826,7 +3786,6 @@ static void asm_bitshift(ASMState *as, IRIns *ir, uint64_t op)
     Reg left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -239);
     Reg right = ra_alloc1_nobase(as, ir->op2, rset_exclude(RSET_GPR_NOB, left), -238);
     Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -237);
-    asm_s390x_bitop_log(as, "shift", ir, dest, left, right, 0);
     asm_bnorm32(as, ir, dest);
     emit_u48_pad8(as, S390X_INS_RSYB(op, dest, left, right, 0));
     if (op == S390XI_SRLK) {
@@ -3859,8 +3818,6 @@ static void asm_brot(ASMState *as, IRIns *ir, int rightrot)
     Reg dest = ra_dest_nobase(as, ir, RSET_GPR_NOB, -240);
     if (rightrot)
       rot = (32 - rot) & 31;
-    asm_s390x_bitop_log(as, rightrot ? "brork" : "brolk", ir, dest, left,
-			RID_NONE, 1);
     asm_bnorm32(as, ir, dest);
     emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, dest, left, 0, rot));
     return;
@@ -3872,7 +3829,6 @@ static void asm_brot(ASMState *as, IRIns *ir, int rightrot)
     }
   }
   Reg dest = ra_dest_nobase(as, ir, rset_exclude(RSET_GPR_NOB, right), -240);
-  asm_s390x_bitop_log(as, rightrot ? "bror" : "brol", ir, dest, left, right, 0);
   asm_bnorm32(as, ir, dest);
   emit_u48_pad8(as, S390X_INS_RSYB(S390XI_RLL, dest, left, right, 0));
   if (rightrot) {
