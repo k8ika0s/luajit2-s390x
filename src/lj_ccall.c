@@ -201,9 +201,7 @@
   if (cc->retref) cc->gpr[ngpr++] = (GPRArg)dp;
 
 #define CCALL_HANDLE_COMPLEXRET \
-  /* z/Architecture returns C99 complex values indirectly, unlike small */ \
-  /* integer-only structs that may stay in a GPR. */ \
-  cc->retref = 1; \
+  cc->retref = 1;  /* Return all complex values by reference. */ \
   cc->gpr[ngpr++] = (GPRArg)dp;
 
 #define CCALL_HANDLE_COMPLEXRET2 \

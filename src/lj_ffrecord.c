@@ -540,6 +540,11 @@ static void LJ_FASTCALL recff_next(jit_State *J, RecordFFData *rd)
 #if LJ_TARGET_S390X
   recff_nyiu(J, rd);
   return;
+#elif LJ_BE
+  /* YAGNI: Disabled on big-endian due to issues with lj_vm_next,
+  ** IR_HIOP, RID_RETLO/RID_RETHI and ra_destpair.
+  */
+  recff_nyi(J, rd);
 #else
   TRef tab = J->base[0];
   if (tref_istab(tab)) {
