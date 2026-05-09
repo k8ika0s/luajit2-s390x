@@ -525,11 +525,6 @@ static int asm_s390x_forl_current_compare_fix_enabled(void)
   return 1;
 }
 
-static int asm_s390x_stack_restore_log_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_narrow_xstore_enabled(void)
 {
   return 1;
@@ -1458,17 +1453,6 @@ static void asm_stack_restore(ASMState *as, SnapShot *snap)
 
     if ((sn & SNAP_NORESTORE))
       continue;
-
-    if (asm_s390x_stack_restore_log_enabled()) {
-      fprintf(stderr,
-	      "S390X_STACK_RESTORE trace=%u snapno=%u slot=%u ref=%u op=%u type=%u key=%u norestore=%u ofs=%d\n",
-	      (unsigned int)as->T->traceno, (unsigned int)as->snapno,
-	      (unsigned int)s, (unsigned int)(ref - REF_BIAS),
-	      (unsigned int)ir->o, (unsigned int)irt_type(ir->t),
-	      (unsigned int)((sn & SNAP_KEYINDEX) != 0),
-	      (unsigned int)((sn & SNAP_NORESTORE) != 0),
-	      (int)ofs);
-    }
 
     allow = rset_exclude(RSET_GPR, RID_BASE);
     if ((sn & SNAP_KEYINDEX)) {
