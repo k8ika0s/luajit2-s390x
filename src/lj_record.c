@@ -1417,6 +1417,7 @@ static void rec_loop_interp(jit_State *J, const BCIns *pc, LoopEvent ev)
   }  /* Side trace continues across a loop that's left or not entered. */
 }
 
+#if LJ_TARGET_S390X
 static int rec_loop_zero_snap_exit_has_guarded_ov(GCtrace *T)
 {
   IRRef ref, end;
@@ -1431,6 +1432,7 @@ static int rec_loop_zero_snap_exit_has_guarded_ov(GCtrace *T)
   }
   return 0;
 }
+#endif
 
 /* Handle the case when an already compiled loop op is hit. */
 static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
@@ -1461,6 +1463,7 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
 	      (unsigned int)ev, (unsigned int)lnk,
 	      (unsigned int)J->framedepth, (unsigned int)J->retdepth);
     }
+#if LJ_TARGET_S390X
     /* A zero-snapshot loop-root exit has no restorable interpreter frame for
     ** a duplicate descendant back to the same FOR root. Let the parent exit
     ** stay terminal instead of compiling a side trace with unusable state. An
@@ -1486,7 +1489,6 @@ static void rec_loop_jit(jit_State *J, TraceNo lnk, const BCIns *loopins,
 	lj_trace_err(J, LJ_TRERR_LLEAVE);
       }
     }
-#if LJ_TARGET_S390X
     if (lj_record_s390x_side_focus_enabled() &&
 	J->parent != 0 && J->exitno == 0 &&
 	J->cur.root == 1 &&
