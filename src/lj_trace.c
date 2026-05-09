@@ -170,31 +170,6 @@ static int lj_trace_s390x_root_promote_child_loop_enabled(void)
   return 0;
 }
 
-static int lj_trace_s390x_root_promote_loopdesc_owner_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_child_inherit_root_resume_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_child_resume_stub_only_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_bcjmp_mcloop_entry_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_bcjmp_self_jloop_resume_enabled(void)
-{
-  return 0;
-}
-
 static int lj_trace_s390x_jloop_exec_resume_enabled(void)
 {
   return 0;
@@ -206,11 +181,6 @@ static int lj_trace_s390x_jloop_exec_self_reenter_enabled(void)
 }
 
 static int lj_trace_s390x_jloop_exec_self_pred_log_enabled(void)
-{
-  return 0;
-}
-
-static int lj_trace_s390x_jloop_exec_skip_mcloop_enabled(void)
 {
   return 0;
 }
@@ -851,92 +821,11 @@ static void trace_save(jit_State *J, GCtrace *T)
 	     bc_op(J->cur.startins) == BC_JMP &&
 	     !J->cur.resumevalid) {
     const BCIns *startpc = mref(J->cur.startpc, const BCIns);
-    const BCIns *resumepc = NULL;
-    BCIns resumeins = 0;
-    int stub_only = (lj_trace_s390x_child_resume_stub_only_enabled() &&
-		     J->exitno != 4);
-    if (stub_only) {
-      if (lj_trace_s390x_root_freeze_log_enabled()) {
-	fprintf(stderr,
-		"S390X_CHILD_RESUME_SKIP trace=%u parent=%u exit=%u startpc=%p startins=%u linktype=%u\n",
-		(unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		(unsigned int)J->exitno, (const void *)startpc,
-		(unsigned int)bc_op(J->cur.startins),
-		(unsigned int)J->cur.linktype);
-      }
-    } else if (lj_trace_s390x_child_inherit_root_resume_enabled() &&
-	J->cur.root != 0) {
-      GCtrace *root = traceref(J, J->cur.root);
-      const BCIns *root_resumepc = mref(root->resumepc, const BCIns);
-      if (root->resumevalid && root_resumepc != NULL) {
-	resumepc = root_resumepc;
-	resumeins = root->resumeins;
-      }
-    }
-    if (!stub_only && resumepc == NULL && startpc != NULL) {
-      resumepc = startpc + 1;
-      resumeins = startpc[1];
-    }
-    if (!stub_only && resumepc != NULL) {
-      if (lj_trace_s390x_bcjmp_self_jloop_resume_enabled() &&
-	  J->cur.root != 0 &&
-	  bc_op(J->cur.startins) == BC_JMP &&
-	  J->cur.linktype == LJ_TRLINK_LOOP &&
-	  J->cur.link == J->cur.traceno &&
-	  J->cur.mcloop != 0) {
-	resumepc = startpc;
-	resumeins = BCINS_AD(BC_JLOOP, 0, J->cur.traceno);
-	J->cur.unused1 = (uint8_t)BC_LOOP;
-	if (lj_trace_s390x_root_freeze_log_enabled()) {
-	  fprintf(stderr,
-		  "S390X_CHILD_SELF_JLOOP trace=%u parent=%u exit=%u startpc=%p resumeins=%u mcloop=%u ownerop=%u\n",
-		  (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		  (unsigned int)J->exitno, (const void *)resumepc,
-		  (unsigned int)bc_op(resumeins),
-		  (unsigned int)J->cur.mcloop,
-		  (unsigned int)J->cur.unused1);
-	}
-      }
+    if (startpc != NULL) {
+      const BCIns *resumepc = startpc + 1;
       setmref(J->cur.resumepc, resumepc);
-      J->cur.resumeins = resumeins;
+      J->cur.resumeins = startpc[1];
       J->cur.resumevalid = 1;
-      if (lj_trace_s390x_bcjmp_mcloop_entry_enabled() &&
-	  J->cur.root != 0 &&
-	  bc_op(J->cur.startins) == BC_JMP &&
-	  J->cur.linktype == LJ_TRLINK_LOOP &&
-	  J->cur.link == J->cur.traceno &&
-	  J->cur.mcloop != 0) {
-	J->cur.unused1 = (uint8_t)BC_LOOP;
-	if (lj_trace_s390x_root_freeze_log_enabled()) {
-	  fprintf(stderr,
-		  "S390X_CHILD_MCLOOP_OWNER trace=%u parent=%u exit=%u startop=%u link=%u linktype=%u mcloop=%u ownerop=%u\n",
-		  (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		  (unsigned int)J->exitno, (unsigned int)bc_op(J->cur.startins),
-		  (unsigned int)J->cur.link, (unsigned int)J->cur.linktype,
-		  (unsigned int)J->cur.mcloop, (unsigned int)J->cur.unused1);
-	}
-      }
-      if (lj_trace_s390x_jloop_exec_skip_mcloop_enabled() &&
-	  J->cur.root == 1 &&
-	  J->parent == 1 && J->exitno == 1 &&
-	  bc_op(J->cur.startins) == BC_JMP &&
-	  J->cur.linktype == LJ_TRLINK_LOOP &&
-	  J->cur.link == J->cur.traceno &&
-	  J->cur.resumevalid &&
-	  bc_op(J->cur.resumeins) == BC_JLOOP &&
-	  J->cur.mcloop != 0) {
-	J->cur.unused1 = 0;
-	if (lj_trace_s390x_root_freeze_log_enabled()) {
-	  fprintf(stderr,
-		  "S390X_CHILD_EXEC_NOMCLOOP trace=%u parent=%u exit=%u link=%u linktype=%u resumeop=%u mcloop=%u ownerop=%u\n",
-		  (unsigned int)J->cur.traceno, (unsigned int)J->parent,
-		  (unsigned int)J->exitno, (unsigned int)J->cur.link,
-		  (unsigned int)J->cur.linktype,
-		  (unsigned int)bc_op(J->cur.resumeins),
-		  (unsigned int)J->cur.mcloop,
-		  (unsigned int)J->cur.unused1);
-	}
-      }
       if (lj_trace_s390x_root_freeze_log_enabled()) {
 	fprintf(stderr,
 		"S390X_CHILD_RESUME_SETUP trace=%u parent=%u exit=%u startpc=%p startins=%u resumepc=%p resumeins=%u inherit_root=%u\n",
@@ -956,30 +845,6 @@ static void trace_save(jit_State *J, GCtrace *T)
   setgcrefp(J2G(J)->gc.root, T);
   newwhite(J2G(J), T);
   T->gct = ~LJ_TTRACE;
-  if (lj_trace_s390x_root_promote_loopdesc_owner_enabled() &&
-      J->cur.root == 1 && J->parent >= 3 && J->exitno == 0 &&
-      bc_op(T->startins) == BC_JMP &&
-      T->linktype == LJ_TRLINK_LOOP &&
-      T->link == T->traceno &&
-      T->resumevalid &&
-      bc_op(T->resumeins) == BC_JLOOP &&
-      T->mcloop != 0) {
-    GCtrace *root = traceref(J, 1);
-    TraceNo prev_resumechild = root->resumechild;
-    root->resumechild = (TraceNo1)T->traceno;
-    if (lj_trace_s390x_root_freeze_log_enabled()) {
-      fprintf(stderr,
-              "S390X_ROOT_PROMOTE_LOOPDESC_OWNER root=%u oldresumechild=%u newresumechild=%u trace=%u link=%u linktype=%u resumeop=%u mcloop=%u\n",
-              (unsigned int)root->traceno,
-              (unsigned int)prev_resumechild,
-              (unsigned int)root->resumechild,
-              (unsigned int)T->traceno,
-              (unsigned int)T->link,
-              (unsigned int)T->linktype,
-              (unsigned int)bc_op(T->resumeins),
-              (unsigned int)T->mcloop);
-    }
-  }
   T->ir = (IRIns *)p - J->cur.nk;  /* The IR has already been copied above. */
 #if LJ_ABI_PAUTH
   T->mcauth = lj_ptr_sign((ASMFunction)T->mcode, T);
