@@ -2034,20 +2034,7 @@ int LJ_FASTCALL lj_trace_exit(jit_State *J, void *exptr)
       retop = bc_op(*retpc);
       if (execno != 0 && execno != targetT->traceno)
 	execT = traceref(J, execno);
-      if (0 &&
-	  J->parent >= 3 && J->exitno == 0 &&
-	  T->root != 0 &&
-	  execno == T->traceno &&
-	  bc_op(T->startins) == BC_JMP &&
-	  T->resumevalid &&
-	  bc_op(T->resumeins) == BC_JLOOP &&
-	  mref(T->resumepc, const BCIns) != NULL) {
-	retpc = &T->resumeins;
-	retop = bc_op(T->resumeins);
-	use_resume_contract = 1;
-      }
-      if (!use_resume_contract &&
-	  retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid) {
+      if (retop == BC_ITERN && targetT->root == 0 && targetT->resumevalid) {
 	retpc = &targetT->resumeins;
 	retop = bc_op(targetT->resumeins);
 	use_resume_contract = 1;
