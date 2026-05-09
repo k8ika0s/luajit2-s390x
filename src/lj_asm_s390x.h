@@ -109,11 +109,6 @@ static int asm_s390x_direct_call_arg_enabled(void)
   return 1;
 }
 
-static int asm_s390x_addhome_log_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_low32home_log_enabled(void)
 {
   return 0;
@@ -754,53 +749,6 @@ static int asm_s390x_addk1_bitop_loop_carry(ASMState *as, IRIns *ir)
     return 0;
   }
   return le_uses == 1 && phi_uses == 1;
-}
-
-static void asm_s390x_addhome_log(ASMState *as, IRIns *ir)
-{
-  IRIns *lir, *rir;
-  int add_uses, phi_uses, other_uses, guard_uses;
-  int first_use_op, first_noncarry_use_op;
-  int left_low32home, right_low32home, carry_candidate;
-
-  if (!asm_s390x_addhome_log_enabled())
-    return;
-  if (irt_isguard(ir->t) || !(irt_isint(ir->t) || irt_isu32(ir->t)))
-    return;
-
-  lir = IR(ir->op1);
-  rir = irref_isk(ir->op2) ? NULL : IR(ir->op2);
-  asm_s390x_addhome_use_counts(as, ir, &add_uses, &phi_uses, &other_uses,
-			       &guard_uses, &first_use_op,
-			       &first_noncarry_use_op);
-  left_low32home = asm_s390x_is_low32home_source_op(lir->o);
-  right_low32home = rir ? asm_s390x_is_low32home_source_op(rir->o) : 0;
-  carry_candidate = (left_low32home || right_low32home) &&
-		    other_uses == 0 && guard_uses == 0;
-
-  fprintf(stderr,
-	  "S390X_ADDHOME curins=%d ir=%d type=%d leftref=%d leftop=%d leftint=%d leftu32=%d left_low32home=%d rightref=%d rightop=%d rightint=%d rightu32=%d rightisk=%d right_low32home=%d add_uses=%d phi_uses=%d other_uses=%d guard_uses=%d first_use_op=%d first_noncarry_use_op=%d carry_candidate=%d\n",
-	  (int)(as->curins - REF_BIAS),
-	  (int)((ir - as->ir) - REF_BIAS),
-	  (int)irt_type(ir->t),
-	  (int)(ir->op1 - REF_BIAS),
-	  (int)lir->o,
-	  (int)irt_isint(lir->t),
-	  (int)irt_isu32(lir->t),
-	  left_low32home,
-	  irref_isk(ir->op2) ? -1 : (int)(ir->op2 - REF_BIAS),
-	  rir ? (int)rir->o : -1,
-	  rir ? (int)irt_isint(rir->t) : 0,
-	  rir ? (int)irt_isu32(rir->t) : 0,
-	  irref_isk(ir->op2),
-	  right_low32home,
-	  add_uses,
-	  phi_uses,
-	  other_uses,
-	  guard_uses,
-	  first_use_op,
-	  first_noncarry_use_op,
-	  carry_candidate);
 }
 
 static void asm_s390x_low32home_log(ASMState *as, const char *phase, IRIns *ir)
@@ -3101,7 +3049,6 @@ static void asm_add(ASMState *as, IRIns *ir)
     asm_s390x_nyi_ir(as, ir);
     return;
   }
-  asm_s390x_addhome_log(as, ir);
   asm_s390x_low32home_log(as, "add", ir);
   if (asm_add_pack_u32_identity(as, ir, dest, bnorm))
     return;
