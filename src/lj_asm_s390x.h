@@ -109,11 +109,6 @@ static int asm_s390x_direct_call_arg_enabled(void)
   return 1;
 }
 
-static int asm_s390x_low32cmp_log_enabled(void)
-{
-  return 0;
-}
-
 static int asm_s390x_is_bitop_op(IROp op)
 {
   switch (op) {
@@ -183,224 +178,6 @@ static int asm_s390x_is_low32home_store_value(IRIns *use, IRRef ref)
     return irt_isinteger(use->t) || irt_isu32(use->t);
   default:
     return 0;
-  }
-}
-
-static const char *asm_s390x_irop_name(IROp op)
-{
-  switch (op) {
-  case IR_LT: return "LT";
-  case IR_GE: return "GE";
-  case IR_LE: return "LE";
-  case IR_GT: return "GT";
-  case IR_ULT: return "ULT";
-  case IR_UGE: return "UGE";
-  case IR_ULE: return "ULE";
-  case IR_UGT: return "UGT";
-  case IR_EQ: return "EQ";
-  case IR_NE: return "NE";
-  case IR_PHI: return "PHI";
-  case IR_BNOT: return "BNOT";
-  case IR_BSWAP: return "BSWAP";
-  case IR_BAND: return "BAND";
-  case IR_BOR: return "BOR";
-  case IR_BXOR: return "BXOR";
-  case IR_BSHL: return "BSHL";
-  case IR_BSHR: return "BSHR";
-  case IR_BSAR: return "BSAR";
-  case IR_BROL: return "BROL";
-  case IR_BROR: return "BROR";
-  case IR_ADD: return "ADD";
-  case IR_ADDOV: return "ADDOV";
-  case IR_SUB: return "SUB";
-  case IR_NEG: return "NEG";
-  case IR_AREF: return "AREF";
-  case IR_ASTORE: return "ASTORE";
-  case IR_FSTORE: return "FSTORE";
-  case IR_XSTORE: return "XSTORE";
-  case IR_CALLN: return "CALLN";
-  case IR_CALLL: return "CALLL";
-  case IR_CALLS: return "CALLS";
-  case IR_CALLXS: return "CALLXS";
-  case IR_KINT: return "KINT";
-  case IR_KNULL: return "KNULL";
-  case IR_SLOAD: return "SLOAD";
-  default: return "OTHER";
-  }
-}
-
-enum {
-  S390X_LOW32CMP_PHASE_INTCOMP,
-  S390X_LOW32CMP_PHASE_EQUAL,
-  S390X_LOW32CMP_PHASE__MAX
-};
-
-enum {
-  S390X_LOW32CMP_SRC_K,
-  S390X_LOW32CMP_SRC_BNOT,
-  S390X_LOW32CMP_SRC_BSWAP,
-  S390X_LOW32CMP_SRC_BAND,
-  S390X_LOW32CMP_SRC_BOR,
-  S390X_LOW32CMP_SRC_BXOR,
-  S390X_LOW32CMP_SRC_BSHL,
-  S390X_LOW32CMP_SRC_BSHR,
-  S390X_LOW32CMP_SRC_BSAR,
-  S390X_LOW32CMP_SRC_BROL,
-  S390X_LOW32CMP_SRC_BROR,
-  S390X_LOW32CMP_SRC_ADD,
-  S390X_LOW32CMP_SRC_PHI,
-  S390X_LOW32CMP_SRC_OTHER,
-  S390X_LOW32CMP_SRC__MAX
-};
-
-enum {
-  S390X_LOW32CMP_ADDK_NONE,
-  S390X_LOW32CMP_ADDK_CTRL_INC,
-  S390X_LOW32CMP_ADDK_BITOP_TAIL,
-  S390X_LOW32CMP_ADDK_OTHER,
-  S390X_LOW32CMP_ADDK__MAX
-};
-
-static int asm_s390x_low32cmp_phase_index(const char *phase)
-{
-  return strcmp(phase, "equal") == 0 ? S390X_LOW32CMP_PHASE_EQUAL :
-	 S390X_LOW32CMP_PHASE_INTCOMP;
-}
-
-static const char *asm_s390x_low32cmp_phase_name(int idx)
-{
-  return idx == S390X_LOW32CMP_PHASE_EQUAL ? "equal" : "intcomp";
-}
-
-static int asm_s390x_low32cmp_source_index(IRIns *ir)
-{
-  if (!ir)
-    return S390X_LOW32CMP_SRC_K;
-  switch (ir->o) {
-  case IR_BNOT: return S390X_LOW32CMP_SRC_BNOT;
-  case IR_BSWAP: return S390X_LOW32CMP_SRC_BSWAP;
-  case IR_BAND: return S390X_LOW32CMP_SRC_BAND;
-  case IR_BOR: return S390X_LOW32CMP_SRC_BOR;
-  case IR_BXOR: return S390X_LOW32CMP_SRC_BXOR;
-  case IR_BSHL: return S390X_LOW32CMP_SRC_BSHL;
-  case IR_BSHR: return S390X_LOW32CMP_SRC_BSHR;
-  case IR_BSAR: return S390X_LOW32CMP_SRC_BSAR;
-  case IR_BROL: return S390X_LOW32CMP_SRC_BROL;
-  case IR_BROR: return S390X_LOW32CMP_SRC_BROR;
-  case IR_ADD: return S390X_LOW32CMP_SRC_ADD;
-  case IR_PHI: return S390X_LOW32CMP_SRC_PHI;
-  default: return S390X_LOW32CMP_SRC_OTHER;
-  }
-}
-
-static const char *asm_s390x_low32cmp_source_name(int idx)
-{
-  switch (idx) {
-  case S390X_LOW32CMP_SRC_K: return "K";
-  case S390X_LOW32CMP_SRC_BNOT: return "BNOT";
-  case S390X_LOW32CMP_SRC_BSWAP: return "BSWAP";
-  case S390X_LOW32CMP_SRC_BAND: return "BAND";
-  case S390X_LOW32CMP_SRC_BOR: return "BOR";
-  case S390X_LOW32CMP_SRC_BXOR: return "BXOR";
-  case S390X_LOW32CMP_SRC_BSHL: return "BSHL";
-  case S390X_LOW32CMP_SRC_BSHR: return "BSHR";
-  case S390X_LOW32CMP_SRC_BSAR: return "BSAR";
-  case S390X_LOW32CMP_SRC_BROL: return "BROL";
-  case S390X_LOW32CMP_SRC_BROR: return "BROR";
-  case S390X_LOW32CMP_SRC_ADD: return "ADD";
-  case S390X_LOW32CMP_SRC_PHI: return "PHI";
-  default: return "OTHER";
-  }
-}
-
-static int asm_s390x_low32cmp_add_kind(ASMState *as, IRIns *ir)
-{
-  IRIns *lir, *rir = NULL;
-  if (!ir || ir->o != IR_ADD)
-    return S390X_LOW32CMP_ADDK_NONE;
-  lir = IR(ir->op1);
-  if (!irref_isk(ir->op2))
-    rir = IR(ir->op2);
-  if (irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT &&
-      IR(ir->op2)->i == 1 &&
-      (lir->o == IR_SLOAD || lir->o == IR_ADD || lir->o == IR_PHI))
-    return S390X_LOW32CMP_ADDK_CTRL_INC;
-  if (asm_s390x_is_bitop_op(lir->o) || (rir && asm_s390x_is_bitop_op(rir->o)))
-    return S390X_LOW32CMP_ADDK_BITOP_TAIL;
-  return S390X_LOW32CMP_ADDK_OTHER;
-}
-
-static const char *asm_s390x_low32cmp_add_kind_name(int idx)
-{
-  switch (idx) {
-  case S390X_LOW32CMP_ADDK_NONE: return "none";
-  case S390X_LOW32CMP_ADDK_CTRL_INC: return "ctrl_inc";
-  case S390X_LOW32CMP_ADDK_BITOP_TAIL: return "bitop_tail";
-  default: return "other";
-  }
-}
-
-static uint64_t asm_s390x_low32cmp_total;
-static uint64_t asm_s390x_low32cmp_phase_counts[S390X_LOW32CMP_PHASE__MAX];
-static uint64_t asm_s390x_low32cmp_op_counts[IR__MAX];
-static uint64_t asm_s390x_low32cmp_left_counts[S390X_LOW32CMP_SRC__MAX];
-static uint64_t asm_s390x_low32cmp_right_counts[S390X_LOW32CMP_SRC__MAX];
-static uint64_t asm_s390x_low32cmp_left_addkind_counts[S390X_LOW32CMP_ADDK__MAX];
-static uint64_t asm_s390x_low32cmp_right_addkind_counts[S390X_LOW32CMP_ADDK__MAX];
-static uint64_t asm_s390x_low32cmp_cmp32u_counts[2];
-static uint64_t asm_s390x_low32cmp_imm16_counts[2];
-static int asm_s390x_low32cmp_atexit_registered;
-
-static void asm_s390x_low32cmp_dump_summary(void)
-{
-  int i;
-  if (asm_s390x_low32cmp_total == 0)
-    return;
-  fprintf(stderr, "S390X_LOW32CMP_SUMMARY total=%llu\n",
-	  (unsigned long long)asm_s390x_low32cmp_total);
-  for (i = 0; i < S390X_LOW32CMP_PHASE__MAX; i++) {
-    if (asm_s390x_low32cmp_phase_counts[i] == 0)
-      continue;
-    fprintf(stderr, "S390X_LOW32CMP_PHASE phase=%s count=%llu\n",
-	    asm_s390x_low32cmp_phase_name(i),
-	    (unsigned long long)asm_s390x_low32cmp_phase_counts[i]);
-  }
-  for (i = 0; i < IR__MAX; i++) {
-    if (asm_s390x_low32cmp_op_counts[i] == 0)
-      continue;
-    fprintf(stderr, "S390X_LOW32CMP_OP op=%s count=%llu\n",
-	    asm_s390x_irop_name((IROp)i),
-	    (unsigned long long)asm_s390x_low32cmp_op_counts[i]);
-  }
-  for (i = 0; i < S390X_LOW32CMP_SRC__MAX; i++) {
-    if (asm_s390x_low32cmp_left_counts[i] != 0)
-      fprintf(stderr, "S390X_LOW32CMP_LEFT src=%s count=%llu\n",
-	      asm_s390x_low32cmp_source_name(i),
-	      (unsigned long long)asm_s390x_low32cmp_left_counts[i]);
-    if (asm_s390x_low32cmp_right_counts[i] != 0)
-      fprintf(stderr, "S390X_LOW32CMP_RIGHT src=%s count=%llu\n",
-	      asm_s390x_low32cmp_source_name(i),
-	      (unsigned long long)asm_s390x_low32cmp_right_counts[i]);
-  }
-  for (i = 0; i < S390X_LOW32CMP_ADDK__MAX; i++) {
-    if (asm_s390x_low32cmp_left_addkind_counts[i] != 0)
-      fprintf(stderr, "S390X_LOW32CMP_LEFT_ADDK kind=%s count=%llu\n",
-	      asm_s390x_low32cmp_add_kind_name(i),
-	      (unsigned long long)asm_s390x_low32cmp_left_addkind_counts[i]);
-    if (asm_s390x_low32cmp_right_addkind_counts[i] != 0)
-      fprintf(stderr, "S390X_LOW32CMP_RIGHT_ADDK kind=%s count=%llu\n",
-	      asm_s390x_low32cmp_add_kind_name(i),
-	      (unsigned long long)asm_s390x_low32cmp_right_addkind_counts[i]);
-  }
-  for (i = 0; i < 2; i++) {
-    if (asm_s390x_low32cmp_cmp32u_counts[i] != 0)
-      fprintf(stderr, "S390X_LOW32CMP_CMP32U flag=%d count=%llu\n",
-	      i,
-	      (unsigned long long)asm_s390x_low32cmp_cmp32u_counts[i]);
-    if (asm_s390x_low32cmp_imm16_counts[i] != 0)
-      fprintf(stderr, "S390X_LOW32CMP_IMM16 flag=%d count=%llu\n",
-	      i,
-	      (unsigned long long)asm_s390x_low32cmp_imm16_counts[i]);
   }
 }
 
@@ -731,35 +508,6 @@ static int asm_s390x_addk1_bitop_loop_carry(ASMState *as, IRIns *ir)
     return 0;
   }
   return le_uses == 1 && phi_uses == 1;
-}
-
-static void asm_s390x_low32cmp_log(ASMState *as, const char *phase, IROp op,
-				   IRRef lref, IRRef rref, IRIns *lir,
-				   IRIns *rir, int cmp32u,
-				   int imm16_signed)
-{
-  UNUSED(as);
-  UNUSED(lref);
-  UNUSED(rref);
-  if (!asm_s390x_low32cmp_log_enabled())
-    return;
-  if (!(lir && asm_s390x_is_low32home_source_op(lir->o)) &&
-      !(rir && asm_s390x_is_low32home_source_op(rir->o)))
-    return;
-  if (!asm_s390x_low32cmp_atexit_registered) {
-    atexit(asm_s390x_low32cmp_dump_summary);
-    asm_s390x_low32cmp_atexit_registered = 1;
-  }
-  asm_s390x_low32cmp_total++;
-  asm_s390x_low32cmp_phase_counts[asm_s390x_low32cmp_phase_index(phase)]++;
-  if (op < IR__MAX)
-    asm_s390x_low32cmp_op_counts[op]++;
-  asm_s390x_low32cmp_left_counts[asm_s390x_low32cmp_source_index(lir)]++;
-  asm_s390x_low32cmp_right_counts[asm_s390x_low32cmp_source_index(rir)]++;
-  asm_s390x_low32cmp_left_addkind_counts[asm_s390x_low32cmp_add_kind(as, lir)]++;
-  asm_s390x_low32cmp_right_addkind_counts[asm_s390x_low32cmp_add_kind(as, rir)]++;
-  asm_s390x_low32cmp_cmp32u_counts[cmp32u != 0]++;
-  asm_s390x_low32cmp_imm16_counts[imm16_signed != 0]++;
 }
 
 static int asm_s390x_sload_log_enabled(void)
@@ -2526,7 +2274,6 @@ static int asm_s390x_preloop_urefo_ugt(ASMState *as, IRIns *ir,
 
   left = ra_alloc1_nobase(as, lref, RSET_GPR_NOB, -201);
   right = ra_allock(as, maxk, rset_exclude(RSET_GPR_NOB, left));
-  asm_s390x_low32cmp_log(as, "urefo_ugt", op, lref, rref, IR(lref), NULL, 0, 0);
   asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, left, right, 0);
   asm_guardcc(as, cc & 15);
   emit_u32(as, S390X_INS_RXE(S390XI_CLGR, left, right));
@@ -2566,7 +2313,6 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   if (imm16_signed) {
     cmp_left = left;
     cmp32s = irt_isinteger(ir->t);
-    asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
     asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, RID_NONE, 1);
     if (asm_s390x_guard_cij_small(as, cc & 15, cmp_left, IR(rref)->i,
 				  !cmp32s))
@@ -2578,7 +2324,6 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
   if (irref_isk(rref) && !(cc & CC_UNSIGNED) && !irt_isaddr(ir->t)) {
     cmp_left = left;
     cmp32s = irt_isinteger(ir->t);
-    asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, 0, 1);
     asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left, RID_NONE, 1);
     emit_u48_pad8(as, S390X_INS_RIL(cmp32s ? S390XI_CFI : S390XI_CGFI,
 				    cmp_left, IR(rref)->i));
@@ -2590,8 +2335,6 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
     int cmp32u_imm = irt_isu32(ir->t) || irt_isp32(ir->t) ||
 		     irt_isu8(ir->t) || irt_isu16(ir->t);
     cmp_left = left;
-    asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir,
-			   cmp32u_imm, 0);
     asm_s390x_ir_log_intcomp(as, ir, op, lref, rref, cc, cmp_left,
 			     RID_NONE, 0);
     emit_u48_pad8(as, S390X_INS_RIL(cmp32u_imm ? S390XI_CLFI : S390XI_CLGFI,
@@ -2619,7 +2362,6 @@ static void asm_intcomp(ASMState *as, IRIns *ir)
 			 asm_s390x_int_result_normalized(rir) &&
 			 !asm_s390x_can_defer_counter_add_bnorm32(as, rir);
   }
-  asm_s390x_low32cmp_log(as, "intcomp", op, lref, rref, lir, rir, cmp32u, 0);
   cmp_left = left;
   cmp_right = right;
   if (cmp32s && cmp32s_left_norm && !irref_isk(rref) &&
@@ -3329,15 +3071,12 @@ static void asm_equal(ASMState *as, IRIns *ir)
       ((uint32_t)IR(lir->op2)->i & ((uint32_t)IR(lir->op2)->i - 1u)) == 0 &&
       (uint32_t)IR(lir->op2)->i <= 0xffffu && !ra_used(lir)) {
     left = ra_alloc1_nobase(as, lir->op1, RSET_GPR_NOB, -285);
-    asm_s390x_low32cmp_log(as, "equal_bandmask", ir->o, ir->op1, ir->op2,
-			   lir, rir, 0, 1);
     asm_guardcc(as, ir->o == IR_EQ ? CC_OF : CC_EQ);
     emit_u32(as, S390X_INS_RI(S390XI_TMLL, left, IR(lir->op2)->i));
     return;
   }
   left = ra_alloc1_nobase(as, ir->op1, RSET_GPR_NOB, -203);
   cmp32s = irt_isinteger(ir->t);
-  asm_s390x_low32cmp_log(as, "equal", ir->o, ir->op1, ir->op2, lir, rir, 0, 0);
   if (cmp32s && irref_isk(ir->op2) && IR(ir->op2)->o == IR_KINT) {
     int cc = ir->o == IR_EQ ? CC_NE : CC_EQ;
     asm_guardcc(as, cc);
